@@ -242,6 +242,13 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     `core/` est libre, les routes de progression ne touchent ni `addon/` ni `resource-pack/`, et trois sessions
     tiennent en parallèle. La phase 3 ne se ferme qu'avec ses cases d'add-on et de pack, puis le test de bout en
     bout après Kr ; la phase 4 ne se ferme jamais avant elle. Le marché reste « pas fait » (question ouverte à Kr).
+29. **Deux ajouts au contrat pour la première heure.** `CompanyState.island` (`{ x, z }`, facultatif) : l'origine de
+    l'archipel de l'entreprise, prise dans `archipelago_slots` par `companies.slot_index`, pour que l'add-on pose
+    l'île et les usines sans rien calculer. Et une route de missions, `GET /v1/players/{xuid}/missions`
+    (`getMissions`), sans route de réclamation : le service avance et termine lui-même la mission de bienvenue de
+    la mairie dans `collect`, crédite `lingotsHorsPrestige.missionBienvenue` au joueur et publie un événement. Le
+    catalogue des missions va dans `definitions/missions.json`. La migration V1 avait déjà `player_missions` et
+    `archipelago_slots` ; le contrat ne les servait pas. À relire par Kr.
 
 ## À valider par Kr
 
@@ -353,3 +360,10 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   aucun fichier en commun. Vérificateur vert. Phase 2 : tout est coché sauf les trois cases qui attendent Kr. Phase 3 :
   huit cases sur onze cochées. `docs/bedrock.md` corrigé sur le User-Agent. Les deux branches restent sur le dépôt
   (pas de suppression de branche distante). Vérifier : `git log --oneline -6 origin/main`, `gh run list --branch main --limit 3`.
+- **5 novembre 2026, 9 h 00 : direction, trois tranches lancées.** Liste de la phase 4 écrite, décisions 28 et 29.
+  `CompanyState.island` ajouté au contrat (`0ea5414`). Sous-agents : `claude/phase3-addon-monde` (usines posées sur
+  l'île, téléportation, cinématique d'arrivée, entité `silooo:oooscar` côté comportement, dossier statique
+  `addon/pack/`), `claude/phase3-resource-pack` (manifest, textures copiées de `design/`, JSON UI du HUD qui masque
+  les préfixes, Oooscar côté client, installation par `start.sh` et le Dockerfile), `claude/phase4-prestige-mission`
+  (`island` renseigné, `prestigePreview`, `prestige`, `getMissions`, `definitions/missions.json`). Fichiers disjoints,
+  sauf `addon/src/generated/definitions.ts` que deux tranches regénèrent : la direction le regénère à la fusion.
