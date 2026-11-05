@@ -19,6 +19,7 @@ import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.mission.InMemoryMissionStore
+import com.silooo.core.mission.MissionRow
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.FactoryRecord
@@ -376,6 +377,96 @@ class CompanyRoutesTest {
         app.recording.rowsTouched = 1
         assertEquals(HttpStatusCode.OK, collect(company.id, n = 9).status, "le conflit n'est pas gardé : le nouvel essai passe")
         assertEquals(1, app.companies.published.size)
+    }
+
+    // --- collect et la mission de bienvenue
+
+    @Test
+    @DisplayName("collect : un encaissement qui rapporte termine la mission de bienvenue : Lingots du catalogue versés, événement publié, une seule fois")
+    fun collectFinishesTheWelcomeMission() = withApp { app ->
+        val first = app.fixture.definitions.missions.missions.first()
+        val reward = app.fixture.definitions.missionRewards.getValue(first.id)
+        val company = app.company(awayHours = 2.0)
+        assertTrue(app.production(company.id, 2.0) > 0.0, "le test n'a de sens que si l'entreprise produit")
+
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 1).status)
+
+        assertEquals(MissionRow(first.target, completed = true), app.missions.rows.getValue(kr to first.id))
+        assertEquals(listOf(InMemoryMissionStore.Credit(kr, reward, "mission", first.id)), app.missions.credits)
+        assertEquals(reward, app.fixture.store.balances.getValue(kr).lingots)
+        val event = app.missions.published.single()
+        assertEquals(GameEventKind.ANNONCE, event.kind)
+        assertEquals(kr, event.xuid)
+        assertEquals("mission", event.payload.getValue("action").jsonPrimitive.content)
+        assertEquals(first.id, event.payload.getValue("missionId").jsonPrimitive.content)
+        assertEquals(reward.toString(), event.payload.getValue("rewardLingots").jsonPrimitive.content)
+        assertEquals(1, app.companies.published.size, "l'événement du collect lui-même reste seul de son espèce")
+
+        // Un second encaissement qui rapporte : la mission est faite, elle ne se rejoue pas.
+        app.fixture.clock.advance(EngineFixture.hours(2.0))
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 2).status)
+        assertEquals(1, app.missions.credits.size)
+        assertEquals(1, app.missions.published.size)
+        assertEquals(reward, app.fixture.store.balances.getValue(kr).lingots)
+    }
+
+    @Test
+    @DisplayName("collect rejoué avec le même requestId : la mission n'est comptée ni versée deux fois")
+    fun collectReplayDoesNotCountTwice() = withApp { app ->
+        val company = app.company(awayHours = 2.0)
+
+        collect(company.id, n = 5)
+        app.fixture.clock.advance(EngineFixture.hours(5.0))
+        collect(company.id, n = 5)
+
+        assertEquals(1, app.missions.credits.size)
+        assertEquals(1, app.missions.published.size)
+    }
+
+    @Test
+    @DisplayName("collect : rien n'est dû, ou rien n'est gagné (aucune usine ne produit) : la mission n'avance pas")
+    fun collectWithoutGainDoesNotAdvanceTheMission() = withApp { app ->
+        val nothingDue = app.company()
+        assertEquals(HttpStatusCode.OK, collect(nothingDue.id).status)
+        assertTrue(app.missions.rows.isEmpty(), "l'horloge n'a pas avancé : aucune ligne de mission")
+
+        val idle = app.company(awayHours = 3.0)
+        app.fixture.putFactory(idle.id, FactoryRecord(app.starterId, FactoryState.EN_RUINE, 0, 0, null))
+        assertEquals(HttpStatusCode.OK, collect(idle.id, n = 2).status)
+        assertEquals(1, app.companies.published.size, "l'encaissement à zéro est écrit et annoncé comme avant")
+        assertTrue(app.missions.rows.isEmpty(), "rien n'a été gagné : la mission n'avance pas")
+        assertTrue(app.missions.credits.isEmpty())
+        assertTrue(app.missions.published.isEmpty())
+    }
+
+    @Test
+    @DisplayName("collect : version dépassée : 409 CONFLIT_REESSAYER, la mission ne bouge pas, et le nouvel essai la termine")
+    fun collectConflictLeavesTheMissionAlone() = withApp { app ->
+        val company = app.company(awayHours = 2.0)
+
+        app.recording.rowsTouched = 0
+        assertRefused(collect(company.id, n = 9), RefusalCodes.CONFLICT_RETRY)
+        assertTrue(app.missions.rows.isEmpty())
+        assertTrue(app.missions.credits.isEmpty())
+        assertTrue(app.missions.published.isEmpty())
+
+        app.recording.rowsTouched = 1
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 9).status)
+        assertEquals(1, app.missions.credits.size)
+    }
+
+    @Test
+    @DisplayName("collect : un associé qui encaisse avance SA mission, pas celle du PDG")
+    fun missionsAreKeptPerPlayer() = withApp { app ->
+        val company = app.company(awayHours = 2.0)
+        app.fixture.addMember(company.id, other, lingots = 0)
+
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 1, actor = other.text).status)
+
+        val first = app.fixture.definitions.missions.missions.first().id
+        assertEquals(setOf(other to first), app.missions.rows.keys)
+        assertEquals(other, app.missions.credits.single().xuid)
+        assertEquals(0L, app.fixture.store.balances.getValue(kr).lingots, "le PDG n'a rien reçu")
     }
 
     // --- buyLevels
