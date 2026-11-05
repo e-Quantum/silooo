@@ -63,6 +63,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DISCORD_CLIENT_ID` | L'identifiant de l'application Discord de « Relier Discord » ; va avec le secret (une seule des deux arrête le service) | non, pas de bouton « Relier Discord » sans elle |
 | `SILOOO_DISCORD_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
 | `SILOOO_SITE_TRUSTED_PROXY` | `true` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose) ; `false` ou absente : l'adresse vue par silooo-core | non, `false` par défaut |
+| `SILOOO_PAYNOW_WEBHOOK_SECRET` | La clé de la signature des webhooks de PayNow (`POST /paynow/webhook`) ; ne s'affiche jamais | non, sans elle le webhook répond 503 |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
@@ -749,6 +750,34 @@ ne le publie jamais.
     colonne `pioneer` suffit au jeu pour créditer le titre et l'objet du pionnier ; le site ne touche ni `players` ni `player_cosmetics`.
   - **Les tests** : `site/PioneerRoutesTest` (parcours complet avec faux dépôt et faux fournisseur), `site/SiteAdmissionConfigTest`,
     `registration/SiteRegistrationSqlTest` (MariaDB, ignoré sans Docker).
+- **Les données vivantes, le webhook PayNow** (S5, **textes à valider par Kr**). Les accès à la base sont dans `com.silooo.core.sitedata`
+  (hors du paquet `site`, comme `registration`) : `SiteStatsStore` / `JdbcSiteStatsStore` (que des `SELECT`) et `ShopDeliveryStore` /
+  `JdbcShopDeliveryStore` (un `INSERT`). `Dependencies` les porte avec leurs défauts (`siteStatsStore`, `shopDeliveryStore`, `siteCaches`,
+  `payNowWebhookSecret`).
+  - **Joueurs en ligne** (accueil, `ouvert`) : `site/OnlinePlayers.kt` lit `ServerPresence.all()` : les joueurs des serveurs qui ont battu il y a
+    moins de `SITE_MAX_BEAT_AGE` (deux minutes, plus large que les 30 secondes de `join`), sans doublon. Aucun battement récent :
+    « Serveur fermé pour l'instant. » ; zéro joueur : « Personne en ligne pour l'instant. ». La base n'est pas lue.
+  - **Classements** (`/classements/`, `site/StatsRoutes.kt`, `pages/Classements.kt`, texte dans `contenu/classements.md`) : la semaine ISO en
+    cours en UTC (`SiteWeek`, lue sur `Dependencies.clock`, du lundi 00:00 inclus au lundi suivant 00:00 exclu). La requête en mots : pour chaque
+    joueur, la somme des `delta` positifs de `currency_ledger` en `LINGOTS` dont `created_at` tombe dans la semaine ; jointure `players` (gamertag),
+    puis `company_members` et `companies` (entreprise, absente pour un joueur sans entreprise) ; tri par somme décroissante, puis gamertag. Les
+    dépenses, les autres monnaies et les soldes ne comptent pas. Page de 25 (`RANKING_PAGE_SIZE`, `?page=N`, 40 pages au plus, 404 au-delà du
+    dernier joueur). Cache d'une minute (`SiteCache`, valeur, date, horloge du service, partagé entre les requêtes), par page et par semaine.
+  - **La fiche** (`/entreprise/{id}/`, `pages/Entreprise.kt`) : nom, époque, étoiles, prestiges (`COUNT` dans `prestige_history`), date de
+    création, membres (PDG d'abord, puis par date d'arrivée). Jamais de Donar, de Lingots ni de XUID : `CompanyCard` ne les porte pas.
+    Identifiant invalide ou inconnu : 404 en page Silooo. Cache d'une minute par identifiant, 300 entrées au plus (la plus ancienne sort).
+  - **Le webhook** (`POST /paynow/webhook`, `site/WebhookRoutes.kt`, rendu dans les deux modes) : **le format exact des webhooks de PayNow est
+    à confirmer par Kr**. Tout ce qui en dépend est dans `site/PayNowWebhook.kt` : l'en-tête `PayNow-Signature` (supposé) porte l'HMAC-SHA256 du
+    corps brut en hexadécimal minuscule, avec `SILOOO_PAYNOW_WEBHOOK_SECRET` ; le corps JSON porte `order_id`, `gamertag`, `gemmes` (les champs
+    en plus sont ignorés). Pour changer l'en-tête, le calcul ou les noms des champs : cette classe, ses constantes et `PayNowWebhookTest`.
+    Réponses : 503 sans secret (journal « webhook PayNow non configuré », une fois par démarrage), 413 au-delà de 4 Ko, 401 sans signature ou
+    avec une mauvaise (comparaison en temps constant), 400 qui nomme le champ manquant ou les Gemmes non strictement positives (sans écho du
+    corps), 200 `{"received": true}` sinon. La ligne `shop_deliveries` n'a que `order_id`, `gamertag`, `gemmes` ; `xuid` et `delivered_at` restent
+    nuls, le relevé du jeu (`shop/DeliveryRelief`) les remplit et crédite. Un `order_id` déjà présent rend 200 sans seconde ligne : l'`INSERT`
+    attrape l'erreur de doublon (code 1062), il ne lit pas avant ; la contrainte `gemmes > 0` remonte, elle.
+  - **Les tests** : `site/SiteStatsTest` (accueil, semaine, classements, fiches, caches, aucun XUID), `site/PayNowWebhookTest`,
+    `ConfigPayNowTest`, et sur MariaDB (ignorés sans Docker) `sitedata/SiteStatsSqlTest` et `sitedata/ShopDeliverySqlTest`.
+  - **Mettre en ligne** : la marche à suivre est dans `docs/site.md`, section « Mettre en ligne ».
 - **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
   copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
