@@ -26,11 +26,14 @@ cd core && ./gradlew test --console=plain    # les tests de silooo-core
 bash tools/verifier.sh                       # depuis la racine : tout le dépôt, comme la CI
 ```
 
-- Les tests de l'API (clé, heartbeat, 501) et de la configuration tournent **sans base ni Docker** :
-  le module Ktor reçoit un faux `FakeDatabase`.
-- Le test de migration (`MigrationTest`) lance un conteneur `mariadb:12.3.3` avec Testcontainers,
-  applique V1 et compte les tables. **Sans Docker il est ignoré** (« SKIPPED », avec le message
-  « Docker absent »), jamais réussi à vide. Il tourne dans la CI GitHub.
+- Les tests de logique (API, configuration, `join`, idempotence, contrat) tournent **sans base ni Docker** :
+  les faux en mémoire (`PassThroughDatabase`, `InMemorySessionStore`, `InMemoryApiRequestStore`…) remplacent la base.
+- Les tests SQL (`*SqlTest` et `MigrationTest`) lancent un conteneur `mariadb:12.3.3` avec Testcontainers
+  (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
+  (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
+  journal de l'étape « Vérifier le dépôt » et cherche `SKIPPED` avant de conclure que tout est vert.
+- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 29 opérations. Quand une
+  session écrit une route, elle l'ajoute à `WRITTEN` et branche ses faux dans `contractDependencies()`.
 - Rapport complet : `core/build/reports/tests/test/index.html`.
 
 ## Variables d'environnement
@@ -43,6 +46,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DB_PASSWORD` | Mot de passe de la base | oui |
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
 | `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
+| `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
@@ -51,6 +55,9 @@ Les définitions se chargent au démarrage, avant la base, et le chargement est 
 manquante, une clé inconnue, un mauvais type ou un fichier absent arrêtent le service avec le code 78
 et un message qui nomme le fichier et le chemin JSON. Les tests lisent le `definitions/` du dépôt
 (Gradle pose la propriété système `silooo.definitions.dir`), jamais une copie.
+
+Pourquoi 24 heures : l'add-on rejoue une requête après une coupure de quelques secondes ou minutes ; au-delà
+d'une journée, un rejeu n'a plus de sens. Une tâche purge les lignes plus vieilles, par lots, une fois par heure.
 
 ## Les deux modes
 
@@ -84,33 +91,66 @@ chaque poussée et, sur `main`, la pousse sur `ghcr.io/e-quantum/silooo-core` (t
 
 ## Où est quoi
 
-Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`. Les paquets `session` et
-`events` ne contiennent qu'un commentaire qui dit ce que la session suivante y met.
+Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 
 | Paquet ou fichier | Contenu |
 | --- | --- |
 | `Main.kt`, `Config.kt` | Les deux modes, la configuration par variables d'environnement |
-| `Application.kt` | Le module Ktor et `Dependencies` : la base et les services lui sont passés, aucun singleton |
-| `api/` | Le plugin `X-Silooo-Key` (401), le corps d'erreur du contrat, le filet 501 `PAS_FAIT` |
-| `db/` | `Database` (pool et transactions), `HikariDatabase`, `Migrations` |
+| `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
+| `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
+| `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
 | `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique) : classes typées et `DefinitionsLoader` |
-| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), sans route en phase 1 |
+| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), à brancher sur `join` par `EconomyFigures` et `CompanyBootstrap` |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock |
-| `session/`, `events/` | À remplir (voir ci-dessous) |
+| `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`) |
+| `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
 `/v1` sans clé valable 401 avec `{"reason": "CLE_INVALIDE"}`. Écrire une route la remplace sans rien
-retirer ailleurs. Ces deux codes ne sont pas encore dans l'OpenAPI.
+retirer ailleurs. Ces codes, avec `REQUETE_INVALIDE` (400) et `ERREUR_INTERNE` (500), sont dans l'OpenAPI
+(réponse `Erreur`).
+
+## Écrire une route : les outils
+
+Une route qui modifie quelque chose passe par ces quatre aides (recette
+[`silooo-route`](../.claude/skills/silooo-route/SKILL.md)) :
+
+| Aide | Rôle |
+| --- | --- |
+| `call.idempotent(dependencies, action, "operationId") { connection, actor -> ActionResult }` | Vérifie `requestId` et `actor` (400 sinon), garde la réponse dans `api_requests`, rejoue sans refaire l'action, répond 409 `CONFLIT_REESSAYER` si la même requête est encore en cours. Un refus du jeu (`throw Refusal(...)`) annule l'action mais il est gardé et rejoué. Variante `DELETE` : `requestId` et `actor` lus en paramètres. |
+| `updateCompany(connection, companyId, expectedVersion, CompanyColumn.DONAR to x, ...)` | Le verrou optimiste de l'entreprise : un seul `UPDATE ... WHERE version = ?`. Version dépassée : `VersionConflict` (409 `CONFLIT_REESSAYER`). |
+| `creditBalance(connection, xuid, Currency.LINGOTS, delta, "motif", refId)` | Le solde du joueur et sa ligne de `currency_ledger` dans la même transaction. Un solde qui passerait sous zéro est refusé avant d'écrire (`InsufficientBalance`, 409) ; le `CHECK` de la base reste le filet. |
+| `publishEvent(connection, GameEventKind.GEMMES_RECUES, xuid, payload)` | Écrit l'événement que l'add-on lira par `GET /v1/events`, dans la transaction de ce qui le cause. |
+
+`join`, `leave` et `heartbeat` n'ont pas de `requestId` : ils sont idempotents par nature (un `join` rejoué
+retrouve le joueur et rend le même état), et un test le vérifie.
+
+**MariaDB 12 et l'erreur 1020.** Depuis MariaDB 11.6, `innodb_snapshot_isolation` vaut ON : un `UPDATE` ou
+un `SELECT ... FOR UPDATE` sur une ligne modifiée par une autre transaction APRÈS notre première lecture
+échoue avec l'erreur 1020 (« Record has changed since last read ») au lieu de toucher zéro ligne. Le service la
+traite comme un conflit passager : `updateCompany` la rend en `VersionConflict`, `Idempotency` en 409
+`CONFLIT_REESSAYER`, `join` recommence (8 essais, avec une courte pause au hasard). Une nouvelle aide qui écrit
+après une lecture simple doit faire de même (`isTransientConflict()`, dans `db/TransientConflict.kt`).
+
+## Les chiffres que le moteur remplit
+
+`join` rend des chiffres qu'il ne calcule pas (revenu par heure, multiplicateur, seuil, prix du prochain niveau,
+palier, Donar hors ligne) : ils viennent de l'interface `EconomyFigures`. Par défaut c'est `NotYetComputed`, qui
+rend zéro partout. À la création d'une entreprise, `CompanyBootstrap` donne les usines de départ et où poser la
+case d'archipel suivante ; par défaut `EmptyBootstrap` (aucune usine, case N en (N, 0)). Le moteur d'économie
+branche les vraies : `Dependencies(economyFigures = ..., companyBootstrap = ...)`.
+
+Le nom d'entreprise donné au premier passage est provisoire : « Entreprise de <gamertag> », avec un numéro si le
+nom est pris. À valider par Kr (texte vu par les joueurs).
 
 ## Ce qui vient après, en phase 1
 
 Chaque route suit la recette [`silooo-route`](../.claude/skills/silooo-route/SKILL.md) : contrat,
 test de contrat, puis code.
 
-- `session/join` et `session/leave`, `GET /v1/events` avec curseur.
-- L'idempotence par `requestId` (table `api_requests`), le verrou optimiste sur `companies.version`,
-  le journal des monnaies dans la même transaction que le solde.
-- Les routes d'économie (`companies/{companyId}`) : le moteur et ses tests dorés sont là, il reste à
-  l'appeler depuis les routes.
-- Les tests de contrat sur les 29 opérations de l'OpenAPI.
+- Brancher le moteur sur `join` : une implémentation d'`EconomyFigures` (revenu, multiplicateur, seuil,
+  hors ligne, prix et palier par usine) et de `CompanyBootstrap` (la Carrière de départ, l'écart entre
+  les îles pour `slotOrigin`), passées à `Dependencies`.
+- Les routes d'économie (`companies/{companyId}` : `getCompany`, `collect`, `buyLevels`, `restoreStep` et les
+  suivantes), qui se servent du moteur et des quatre aides ci-dessus.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).
