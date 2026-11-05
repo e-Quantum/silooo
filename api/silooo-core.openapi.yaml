@@ -383,6 +383,18 @@ paths:
   /v1/companies/{companyId}/members:
     post:
       summary: Invite un joueur comme associé (le PDG seulement, 4 membres au plus)
+      description: |
+        Le PDG invite le joueur `targetXuid`, qui doit avoir joué au moins une fois (tout joueur a une entreprise depuis
+        son premier `join`). L'invitation ne change rien à l'entreprise : elle est gardée un temps (`definitions/monde.json`,
+        `entreprise.invitationHeures`), puis périmée, et le joueur invité la reçoit par un événement `INVITATION` (adressé
+        à lui) dont le `payload` porte `companyId`, `companyName`, `invitedBy` (XUID du PDG), `invitedByName` (son gamertag)
+        et `expiresAt` (date ISO 8601 UTC). L'invité l'accepte avec `acceptInvite`. Inviter de nouveau le même joueur
+        renouvelle l'invitation, sans en créer une seconde. La réponse est l'état de l'entreprise, inchangé.
+        Refus : 403 `PAS_LE_PDG` (l'acteur est un associé) ; 409 `ENTREPRISE_PLEINE` (l'entreprise a déjà le nombre
+        maximal de membres, `entreprise.membresMax`), `DEJA_POSSEDE` (le joueur est déjà membre de cette entreprise),
+        `ENTREPRISE_EN_COURS` (l'entreprise du joueur invité est déjà lancée : voir `acceptInvite`), `CONFLIT_REESSAYER`.
+        Un joueur inconnu du service, le PDG qui s'invite lui-même, une entreprise inconnue ou un acteur qui n'en est pas
+        membre donnent 400.
       operationId: invite
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody:
@@ -395,16 +407,27 @@ paths:
                 - type: object
                   required: [targetXuid]
                   properties:
-                    targetXuid: { $ref: '#/components/schemas/Xuid' }
+                    targetXuid:
+                      allOf: [ { $ref: '#/components/schemas/Xuid' } ]
+                      example: '2535428000000002'
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '403': { $ref: '#/components/responses/Refused' }
         '409': { $ref: '#/components/responses/Refused' }
     put:
       summary: Le PDG fixe la part de chaque associé (somme = 100)
+      description: |
+        Le PDG fixe la part de chaque membre, lui compris, dans le partage des Lingots au prestige. `shares` nomme
+        chaque membre de l'entreprise une fois et une seule, avec un pourcentage entier de 0 à 100 ; les pourcentages
+        font 100 à eux tous. Un associé qui vient d'entrer a une part nulle jusqu'à ce que le PDG la fixe. Une liste qui
+        oublie un membre, en nomme un qui n'en est pas, nomme deux fois le même ou ne fait pas 100 donne 400 : la
+        requête est fausse, ce n'est pas un refus du jeu. Refus : 403 `PAS_LE_PDG` (l'acteur est un associé),
+        409 `CONFLIT_REESSAYER`. Les parts nouvelles sont dans `CompanyState.members` de la réponse. L'écriture publie un
+        événement `ANNONCE` dont `payload.action` vaut `setShares` (`companyId`, et `shares` : la liste des `xuid` et `percent`).
       operationId: setShares
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody:
@@ -424,7 +447,39 @@ paths:
                         required: [xuid, percent]
                         properties:
                           xuid: { $ref: '#/components/schemas/Xuid' }
-                          percent: { type: integer, minimum: 0, maximum: 100 }
+                          percent: { type: integer, minimum: 0, maximum: 100, example: 100 }
+      responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '403': { $ref: '#/components/responses/Refused' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/members/accept:
+    post:
+      summary: L'invité accepte l'invitation et devient associé de l'entreprise (part nulle jusqu'à ce que le PDG la fixe)
+      description: |
+        L'acteur est le joueur invité ; `companyId` est l'entreprise qui l'a invité (`invite`). Il y entre comme
+        `ASSOCIE`, avec une part de 0 % : les parts du PDG et des autres membres ne bougent pas, elles font toujours 100.
+        La production que l'entreprise a gagnée jusqu'ici lui est versée avant son entrée, au régime d'avant (en ligne si
+        un membre est connecté, sinon hors ligne), pour qu'une arrivée ne change pas ce qui a été gagné sans lui. Ses autres
+        invitations sont périmées. La réponse est l'état de l'entreprise rejointe.
+
+        Un joueur n'est membre que d'une entreprise. Le sien, créée à son premier `join`, doit être « à son départ » :
+        lui seul comme membre, les usines de départ intactes, pas de personnel, pas de zone achetée, aucun prestige.
+        Sinon 409 `ENTREPRISE_EN_COURS`. Quand l'invité entre, son entreprise de départ n'est jamais supprimée : elle
+        reste telle quelle, sans membre, avec ses usines et son île. Le contrat n'a pas d'opération pour la retrouver
+        ni pour quitter une entreprise.
+
+        Refus : 409 `ENTREPRISE_EN_COURS` (voir plus haut), `ENTREPRISE_PLEINE` (l'entreprise s'est remplie depuis
+        l'invitation), `DEJA_POSSEDE` (l'acteur est déjà membre de cette entreprise), `CONFLIT_REESSAYER`. Une invitation
+        absente ou périmée, une entreprise inconnue donnent 400. L'entrée publie un événement `ANNONCE` dont
+        `payload.action` vaut `acceptInvite` (`companyId`, `fromCompanyId` : l'entreprise de départ qu'il quitte).
+      operationId: acceptInvite
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      requestBody: { $ref: '#/components/requestBodies/Action' }
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
         '401': { $ref: '#/components/responses/Erreur' }
@@ -818,7 +873,7 @@ components:
                 type: string
                 enum: [PAS_ASSEZ_DE_DONAR, PAS_ASSEZ_DE_LINGOTS, PAS_ASSEZ_DE_GEMMES, PAS_LE_PDG, SEUIL_NON_ATTEINT,
                        USINE_VERROUILLEE, ZONE_VERROUILLEE, EMPLACEMENT_OCCUPE, ENTREPRISE_PLEINE, DEJA_POSSEDE,
-                       GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER]
+                       GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER, ENTREPRISE_EN_COURS]
               missing: { type: number, description: 'ce qui manque, quand c''est une somme' }
     Erreur:
       description: >-
@@ -894,6 +949,10 @@ components:
           type: array
           description: "le personnel embauché de l'entreprise, affecté ou non : l'add-on y lit l'équipe de chaque usine, il ne la calcule pas"
           items: { $ref: '#/components/schemas/Staff' }
+        members:
+          type: array
+          description: "les membres de l'entreprise, le PDG d'abord puis les associés dans l'ordre d'arrivée, avec leur part du partage des Lingots au prestige : les parts font 100 ; l'add-on les affiche, il ne les calcule pas"
+          items: { $ref: '#/components/schemas/Member' }
         island:
           type: object
           description: "origine de l'archipel de l'entreprise, en blocs (archipelago_slots) : l'add-on y pose l'île et les usines, il ne la calcule pas"
@@ -916,6 +975,17 @@ components:
         balances: { $ref: '#/components/schemas/Balances' }
         state: { $ref: '#/components/schemas/CompanyState' }
         offlineCollected: { $ref: '#/components/schemas/Donar' }
+    Member:
+      type: object
+      description: |
+        Un membre de l'entreprise, PDG ou associé. `sharePercent` est sa part, en pourcent entier, du partage des Lingots
+        au prestige ; les parts de tous les membres font 100. `name` est le gamertag du joueur.
+      required: [xuid, name, role, sharePercent]
+      properties:
+        xuid: { $ref: '#/components/schemas/Xuid' }
+        name: { type: string }
+        role: { type: string, enum: [PDG, ASSOCIE] }
+        sharePercent: { type: integer, minimum: 0, maximum: 100 }
     Staff:
       type: object
       description: |

@@ -528,3 +528,33 @@ elle-même d'aucun courant : on la relève en premier.
 - **Avec un incident** : une usine arrêtée n'est jamais frappée, et la réparer rapporte 0 (la récompense suit le revenu).
 - **À valider par Kr** : l'époque de départ, et le fait que la règle soit « une Centrale suffit » plutôt qu'une capacité
   qui se partage entre les usines. Le plan ne la chiffre pas, la description du contrat la dit à son plus simple.
+
+## L'entreprise partagée
+
+Le game design parle d'une entreprise partagée jusqu'à 4 associés, avec un PDG qui décide, et de Lingots de prestige partagés
+« selon la part que le PDG attribue à chacun ». Il ne dit pas comment on devient associé, ni ce que devient l'entreprise que
+le nouvel associé avait déjà. Le service prend la règle la plus simple, la moins destructrice, et elle est **à valider par Kr**.
+Les deux chiffres sont dans `monde.json`, bloc `entreprise` : `membresMax` (4, PDG compris) et `invitationHeures` (48).
+
+| Date | Clé | Avant | Après | Pourquoi |
+|---|---|---|---|---|
+| 5 nov. 2026 | `entreprise.membresMax`, `entreprise.invitationHeures` | absentes | `4` et `48` | Le game design donne « jusqu'à 4 » ; la durée d'une invitation n'est écrite nulle part. 48 heures laissent deux soirées à un ami. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent ni la production ni le prestige. |
+
+- **Inviter** : seul le PDG invite. L'invité reçoit un événement et a `invitationHeures` heures pour accepter. Inviter ne
+  change rien à l'entreprise tant que l'invité n'a pas accepté.
+- **Une seule entreprise par joueur, et tout joueur en a une dès son premier `join`.** Pour rejoindre une autre entreprise, la
+  sienne doit être encore « à son départ » : lui seul dedans, aucun prestige, la première course, la première époque, la mairie et
+  le silo au niveau 1, aucun personnel, aucune zone de ville, les usines de départ au niveau de départ. Dès qu'il a joué un
+  peu plus, il ne peut plus rejoindre personne : on ne fait pas disparaître une partie commencée.
+- **Ce que devient l'entreprise laissée** : rien. Elle n'est jamais supprimée. Elle reste, sans membre, avec ses usines, son
+  île et sa case de l'archipel. Le jeu n'a pas encore de façon de la quitter, de la reprendre ou de la libérer.
+- **Entrer** : l'associé arrive avec 0 % des parts, donc le PDG garde 100 % jusqu'à ce qu'il décide autrement. Les parts font
+  toujours 100 en tout, PDG compris, et le PDG peut se donner 0 %.
+- **Le partage des Lingots au prestige est inchangé** : le total se partage selon `company_members.share_percent`, chaque part
+  arrondie vers le bas (voir la section Le prestige plus haut). Seule la façon de fixer les parts est nouvelle.
+- **L'arrivée d'un associé ne vole rien à l'entreprise** : la production gagnée jusqu'à son arrivée est versée d'abord, au
+  régime d'avant (en ligne si un membre était connecté, sinon hors ligne). Son arrivée ne transforme pas en revenu plein des
+  heures où personne ne jouait. Ses propres Lingots comptent dans le multiplicateur de l'entreprise à partir de son arrivée,
+  comme ceux de tout associé.
+- **Pas de hasard, pas de pari, aucune monnaie échangée entre joueurs** : on invite, on accepte, on règle des parts.
+

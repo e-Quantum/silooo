@@ -130,6 +130,8 @@ const REFUSAL_BUBBLES: Readonly<Record<RefusalReason, (amount: number | undefine
   ZONE_VERROUILLEE: () => say("oups", "Cette zone est verrouillée."),
   EMPLACEMENT_OCCUPE: () => say("oups", "Cet emplacement est occupé."),
   ENTREPRISE_PLEINE: () => say("oups", "Ton entreprise est pleine."),
+  // À valider par Kr : le refus d'une invitation ou de son acceptation quand l'entreprise de l'invité a déjà commencé.
+  ENTREPRISE_EN_COURS: () => say("oups", "Tu as déjà lancé ton entreprise."),
   DEJA_POSSEDE: () => say("fier", "Tu l'as déjà."),
   GRADE_PRECEDENT_REQUIS: () => say("oups", "Il faut d'abord le grade précédent."),
   CONFLIT_REESSAYER: () => say("oups", "Ça a bougé. Réessaie."),

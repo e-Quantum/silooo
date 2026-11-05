@@ -136,6 +136,7 @@ class ApiTest {
 
         // join, leave, pollEvents, les routes d'entreprise getCompany, collect, buyLevels, restoreStep, celles du personnel (getCandidates, hire, assignStaff, fireStaff) et resolveIncident sont écrits (SessionRoutesTest, EventsRoutesTest, CompanyRoutesTest, StaffRoutesTest, IncidentRoutesTest) : le filet couvre le reste du contrat.
         // todayOrder, deliverOrder et getFindings sont écrits (OrderRoutesTest, FindingRoutesTest).
+        // invite, acceptInvite et setShares sont écrits (MemberRoutesTest).
         check(
             client.post("/v1/market/listings") {
                 header(SERVER_KEY_HEADER, key)
@@ -143,13 +144,7 @@ class ApiTest {
                 setBody("""{"requestId":"6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e90","actor":"2535428000000001"}""")
             },
         )
-        check(
-            client.post("/v1/companies/1/members") {
-                header(SERVER_KEY_HEADER, key)
-                contentType(ContentType.Application.Json)
-                setBody("""{"requestId":"6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e91","actor":"2535428000000001","targetXuid":"2535428000000002"}""")
-            },
-        )
+        check(client.get("/v1/shop/catalog") { header(SERVER_KEY_HEADER, key) })
         check(client.get("/v1/n-importe-quoi/profond/comme/ca") { header(SERVER_KEY_HEADER, key) })
         check(client.get("/v1") { header(SERVER_KEY_HEADER, key) })
         assertEquals(0, app.database.attempts)

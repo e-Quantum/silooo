@@ -432,6 +432,7 @@ dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phr
 | Refus `ZONE_VERROUILLEE` | rien | Cette zone est verrouillée. |
 | Refus `EMPLACEMENT_OCCUPE` | rien | Cet emplacement est occupé. |
 | Refus `ENTREPRISE_PLEINE` | rien | Ton entreprise est pleine. |
+| Refus `ENTREPRISE_EN_COURS` (à valider par Kr) | rien | Tu as déjà lancé ton entreprise. |
 | Refus `DEJA_POSSEDE`, bulle fière | rien | Tu l'as déjà. |
 | Refus `GRADE_PRECEDENT_REQUIS` | rien | Il faut d'abord le grade précédent. |
 | Refus `CONFLIT_REESSAYER`, si le second essai échoue aussi | rien | Ça a bougé. Réessaie. |
