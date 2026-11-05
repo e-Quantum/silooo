@@ -43,7 +43,7 @@ class SiteModuleTest {
         for (img in Regex("<img[^>]*>").findAll(html)) {
             assertTrue(Regex("""\balt="[^"]+"""").containsMatchIn(img.value), "$where : image sans alt : ${img.value}")
         }
-        assertFalse(html.contains("<script", ignoreCase = true), "$where : aucun script dans cette étape")
+        assertOnlySiteScripts(html, where)
     }
 
     private suspend fun HttpResponse.html(): String {
@@ -57,9 +57,11 @@ class SiteModuleTest {
         val response = client.get("/")
         assertEquals(HttpStatusCode.OK, response.status)
         val html = response.html()
-        // L'annonce est la bulle d'Oooscar (six mots au plus) ; le texte ne la répète pas.
-        assertTrue(html.substringAfter("<main").contains("Le serveur ouvre bientôt !"))
-        assertFalse(html.substringAfter("<main").contains("Le serveur ouvre bientôt."))
+        // L'annonce est la bulle d'Oooscar (six mots au plus) ; le texte ne la répète pas, et l'ancienne phrase n'existe plus.
+        val bubble = Regex("""<p class="sa-bulle"[^>]*>([^<]+)</p>""").find(html)?.groupValues?.get(1)
+        assertEquals("On construit. Reviens vite !", bubble)
+        assertFalse(html.substringAfter("<main").contains("ouvre bientôt"))
+        assertFalse(html.contains("Le serveur ouvre bientôt !"))
         assertTrue(html.contains("Un tycoon d&#39;usines dans le ciel") || html.contains("Un tycoon d'usines dans le ciel"))
         assertFalse(html.contains("play.silooo.com"))
         assertFalse(Regex("""19132|:\d{4,5}\b""").containsMatchIn(html.substringAfter("<main")), "pas de port de serveur")
@@ -67,12 +69,15 @@ class SiteModuleTest {
     }
 
     @Test
-    @DisplayName("Le lien Discord n'apparaît que s'il est configuré")
+    @DisplayName("Le lien Discord n'apparaît que s'il est configuré : bouton de la page, navigation et pied")
     fun discordLink() {
         withSite(SiteMode.ATTENTE) { client -> assertFalse(client.get("/").bodyAsText().contains("Discord")) }
         withSite(SiteMode.ATTENTE, discordUrl = "https://discord.gg/exemple") { client ->
             val html = client.get("/").bodyAsText()
             assertTrue(Regex("""<a href="https://discord.gg/exemple"[^>]*>Rejoins le Discord</a>""").containsMatchIn(html))
+            // La navigation de l'attente porte le même lien, et le pied l'appelle « Discord Silooo ».
+            assertTrue(Regex("""<a href="https://discord.gg/exemple" class="navigation__lien">Discord</a>""").containsMatchIn(html))
+            assertTrue(html.substringAfter("<footer").contains("""<a href="https://discord.gg/exemple">Discord Silooo</a>"""))
         }
     }
 
@@ -99,6 +104,7 @@ class SiteModuleTest {
             val html = client.get(path).bodyAsText()
             assertTrue(html.substringAfter("<footer").contains(mojang), path)
             assertTrue(html.substringAfter("<footer").contains("""href="/mentions/""""), path)
+            assertTrue(html.substringAfter("<footer").contains(">Mentions légales</a>"), path)
         }
     }
 
@@ -120,6 +126,9 @@ class SiteModuleTest {
             assertTrue(html.contains("Page introuvable"), path)
             // Oooscar, l'air surpris, porte la phrase du kit dans sa bulle.
             assertTrue(html.contains("/public/atelier/oooscar/oooscar-oups.png"), "$path : le visage oups")
+            assertTrue(html.contains("""data-humeur="oups""""), "$path : l'humeur oups")
+            val bubble = Regex("""<p class="sa-bulle"[^>]*>([^<]+)</p>""").find(html)?.groupValues?.get(1)
+            assertEquals("Cette page s'est envolée.", bubble?.replace("&#39;", "'"), path)
             assertTrue(html.contains("Cette page s'est envolée.") || html.contains("Cette page s&#39;est envolée."), path)
             assertTrue(html.contains("Retour à l'accueil") || html.contains("Retour à l&#39;accueil"), path)
             assertWellFormedPage(html, "404 $path")

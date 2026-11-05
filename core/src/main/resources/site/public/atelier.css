@@ -2,7 +2,8 @@
  * Silooo Atelier pour le web. Les composants sa-* viennent de design/composants/bundle.css, que Gradle recopie en
  * atelier/composants.css avec les textures de atelier/textures/ (copies de design/textures/) : ce fichier ne les
  * réécrit pas. Il tient les polices, la base, les quelques réglages que le web demande aux composants (chacun dit
- * pourquoi), puis la mise en page du site. Même échelle que le jeu : 1 pixel de texture = 3 pixels d'écran.
+ * pourquoi), l'échelle ×2 de ces composants sur téléphone, puis la mise en page du site. Même échelle que le jeu : 1 pixel
+ * de texture = 3 pixels d'écran sur ordinateur, 2 sur téléphone (sous 700 px).
  * Rien ici n'est arrondi, dégradé ni flou : les seules ombres sont ombre-pixel et ombre-texte.
  */
 
@@ -36,12 +37,17 @@
   src: url("polices/silkscreen/silkscreen-latin-400-normal.woff2") format("woff2");
 }
 
-/* ---------- Base : le ciel derrière tout, le corps à 20 px et 27 px d'interligne (1,35) */
+/* ---------- Base : le ciel derrière tout, le corps à 20 px et 27 px d'interligne (1,35). Le corps n'a pas de marge
+   latérale : l'en-tête, le bandeau et le pied vont bord à bord, la largeur se règle par .boite et main. */
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  padding: 0 var(--pas-4);
+  /* La page remplit l'écran : sur une page courte, la scène et le pied descendent au bas de la fenêtre. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
   background: var(--ciel);
   color: var(--fonte-900);
   font-family: var(--font-corps);
@@ -49,6 +55,8 @@ body {
   line-height: 27px;
   overflow-wrap: anywhere;
 }
+/* Le bundle pose un display sur .sa-bouton : l'attribut hidden doit gagner. */
+[hidden] { display: none !important; }
 img { max-width: 100%; }
 a { color: var(--email-bleu); text-decoration-thickness: 3px; text-underline-offset: 3px; }
 a:hover { color: var(--email-rouge-sombre); }
@@ -57,7 +65,7 @@ main :focus-visible { outline-color: var(--or-lingot); }
 .lecture :focus-visible { outline-color: var(--email-rouge); }
 
 /* =================================================================== Ce que le web demande aux composants de la charte */
-/* Le panneau est la page entière : plus d'air qu'une fenêtre du jeu (pas-6 à partir de 600 px, plus bas). */
+/* Le panneau est la page entière : plus d'air qu'une fenêtre du jeu (pas-6 à partir de 700 px, plus bas). */
 .sa-panneau { padding: var(--pas-4); }
 
 /* La plaque est un h1 ou un titre : ni la marge ni la graisse du navigateur, et jamais plus large que l'écran. */
@@ -70,15 +78,16 @@ main :focus-visible { outline-color: var(--or-lingot); }
 .sa-bouton--laiton:hover { color: var(--fonte-900); }
 /* Le lien de la page courante est un bouton fonte enfoncé. */
 .sa-bouton--fonte[aria-current="page"] { border-image-source: url("atelier/textures/bouton-fonte-appuye.png"); }
-/* Le bouton de navigation : bouton fonte en corps de 20 px, pour que huit liens tiennent sur un téléphone. */
-.sa-bouton--nav {
+/* Le bouton Menu et les boutons de navigation : bouton fonte en corps de 20 px, pour que huit liens tiennent sur un
+   téléphone. Posés ici, avant l'échelle ×2, pour que celle-ci les règle en dernier. */
+.menu__bouton, .navigation__bouton {
   font-family: var(--font-corps);
   font-size: 20px;
   line-height: 24px;
   font-weight: 600;
   text-shadow: none;
 }
-.sa-bouton--nav[aria-current="page"] { padding-top: 6px; padding-bottom: 0; }
+.navigation__bouton[aria-current="page"] { padding-top: 6px; padding-bottom: 0; }
 
 /* Le Donar, que la charte ne colore pas encore : laiton clair, comme ses pièces. */
 .sa-monnaie--donar { color: var(--laiton-clair); }
@@ -86,8 +95,42 @@ main :focus-visible { outline-color: var(--or-lingot); }
 /* La bulle est un <p> : sans marge, et à l'interligne du corps (24 px sur 33). */
 .sa-bulle { margin: 0; line-height: 33px; }
 
+/* =================================================================== L'échelle ×2 sur téléphone */
+/* Sous 700 px, les textures de la charte passent d'un pixel de texture = 3 px d'écran à 2 px : les bordures, les corps et les
+   hauteurs suivent, pour que les composants tiennent sur 360 px. Ce sont les règles de la maquette de Kr (bloc x2). */
+@media (max-width: 699px) {
+  .sa-panneau { border-width: 10px; border-image-width: 10px; }
+  .sa-plaque { border-width: 10px; border-image-width: 10px; font-size: 32px; line-height: 32px; letter-spacing: 2px; overflow-wrap: normal; }
+  .sa-plaque--petite { border-width: 8px; border-image-width: 8px; font-size: 24px; line-height: 24px; }
+  .sa-bouton { border-width: 8px; border-image-width: 8px; font-size: 28px; line-height: 28px; min-height: 52px; padding: 0 6px 2px; text-shadow: 2px 2px 0 var(--email-rouge-sombre); }
+  .sa-bouton--fonte { text-shadow: 2px 2px 0 var(--fonte-700); }
+  .sa-bouton--laiton { text-shadow: none; }
+  .sa-ticket { border-width: 8px; border-image-width: 8px; font-size: 22px; line-height: 22px; padding: 0 4px 0 8px; }
+  .sa-bulle { border-width: 8px; border-image-width: 8px; font-size: 18px; line-height: 22px; max-width: 220px; }
+  .sa-puce { border-width: 4px; border-image-width: 4px; font-size: 22px; line-height: 22px; padding: 0 6px 0 2px; }
+  .sa-puce img { width: 24px; height: 24px; }
+  .sa-progression { border-width: 4px; border-image-width: 4px; height: 26px; }
+  .sa-progression__plein { background-size: 8px 100%; }
+  .sa-progression__texte {
+    font-size: 12px;
+    text-shadow: 2px 0 0 var(--fonte-900), -2px 0 0 var(--fonte-900), 0 2px 0 var(--fonte-900), 0 -2px 0 var(--fonte-900);
+  }
+  .sa-jauge__lampe { width: 12px; height: 16px; }
+  .sa-compteur__chiffre { width: 40px; height: 52px; font-size: 48px; line-height: 44px; }
+  .sa-tuile { border-width: 8px; border-image-width: 8px; min-height: 0; padding: 2px 4px 6px; }
+  .sa-tuile > img { width: 32px; height: 32px; }
+  .sa-tuile__nom { font-size: 26px; line-height: 24px; }
+  .sa-tuile__info { font-size: 14px; line-height: 18px; }
+  /* Le bouton Menu et les boutons de navigation : un cran sous les autres boutons, sans l'ombre de texte de .sa-bouton--fonte
+     (en dernier : à spécificité égale, le dernier gagne). */
+  .menu__bouton, .navigation__bouton { font-size: 22px; line-height: 22px; min-height: 48px; text-shadow: none; }
+}
+
 /* =================================================================== Mise en page du site */
-.entete, main, .pied { max-width: 720px; margin-left: auto; margin-right: auto; }
+/* La boîte : la colonne de 1200 px de l'en-tête, du bandeau, de la scène et du pied. Le contenu (main) a la sienne, plus étroite. */
+.boite { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 var(--pas-4); box-sizing: border-box; }
+main { flex: 1 0 auto; width: calc(100% - 2 * var(--pas-4)); max-width: 720px; margin: 0 auto var(--pas-6); }
+.entete, .direct, .scene, .pied { flex: 0 0 auto; }
 
 .passer:not(:focus) {
   position: absolute;
@@ -110,7 +153,9 @@ main :focus-visible { outline-color: var(--or-lingot); }
   border: 3px solid var(--fonte-900);
 }
 
-.entete { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--pas-4); padding: var(--pas-2) 0 var(--pas-4); }
+/* ---------- L'en-tête : la marque, le bouton Menu (téléphone) et la navigation */
+.entete { padding: var(--pas-2) 0; }
+.entete__boite { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pas-2) var(--pas-4); }
 .marque {
   display: inline-flex;
   align-items: center;
@@ -121,30 +166,77 @@ main :focus-visible { outline-color: var(--or-lingot); }
 }
 .marque__logo { width: 40px; height: 48px; flex: none; image-rendering: auto; }
 .marque__nom { font-family: var(--font-affiche); font-size: 40px; line-height: 40px; }
+
+/* Le bouton Menu naît caché (attribut hidden) : menu.js le montre. Son corps est réglé plus haut, avec les boutons de navigation. */
+.menu__bouton { margin-left: auto; display: inline-flex; align-items: center; gap: var(--pas-2); }
+.menu__icone { width: 24px; height: 24px; fill: currentColor; }
+
 .navigation { flex: 1 1 100%; }
-.navigation ul { display: flex; flex-wrap: wrap; gap: var(--pas-2); margin: 0; padding: 0; list-style: none; }
+.navigation ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--pas-1) var(--pas-2); }
 .navigation li { display: flex; }
+.navigation__lien {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--pas-2);
+  color: var(--fonte-900);
+  font-weight: 600;
+  text-decoration: none;
+}
+/* La page courante et le survol : souligné, et la couleur ne change pas (a:hover la passerait au rouge). */
+.navigation__lien:hover, .navigation__lien[aria-current="page"] {
+  color: var(--fonte-900);
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 6px;
+}
 
-main { margin-bottom: var(--pas-6); }
+/* Sur téléphone, avec le script, la navigation se replie sous le bouton Menu ; sans script, elle reste dépliée. */
+@media (max-width: 699px) {
+  html.js .navigation { display: none; }
+  html.js .navigation--ouverte { display: block; }
+  .navigation ul { flex-direction: column; align-items: stretch; }
+  .navigation__lien { min-height: 52px; }
+}
 
-.pied { padding: 0 0 var(--pas-8); color: var(--fonte-900); }
+/* ---------- Le bandeau direct : fonte-900, une ligne d'étiquettes (joueurs, état, version, Vote party) */
+.direct {
+  background: var(--fonte-900);
+  color: var(--papier);
+  font-family: var(--font-etiquette);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: var(--pas-2) 0;
+}
+.direct__boite { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pas-1) var(--pas-4); }
+.direct__item { display: inline-flex; align-items: center; gap: var(--pas-1); }
+.direct__point { width: 8px; height: 8px; background: var(--email-vert-clair); }
+.direct__nombre { color: var(--email-vert-clair); }
+.direct__objectif { color: var(--laiton-clair); }
+
+/* ---------- Le pied : fonte-900, la mention de Mojang, les liens, les sites frères */
+.pied { background: var(--fonte-900); color: var(--papier); padding: var(--pas-4) 0 var(--pas-6); font-size: 15px; line-height: 20px; }
 .pied p { margin: 0; }
+.pied__boite { display: flex; flex-direction: column; gap: var(--pas-2); }
 .pied__mojang {
   font-family: var(--font-etiquette);
   font-size: 16px;
   line-height: 24px;
   letter-spacing: 1px;
-  margin-bottom: var(--pas-2);
+  color: var(--acier-100);
 }
-.pied__liens { display: flex; flex-wrap: wrap; column-gap: var(--pas-8); }
-.pied__liens a {
+.pied__liens { display: flex; flex-wrap: wrap; gap: 0 var(--pas-6); }
+.pied__liens a, .pied__voir a {
+  color: var(--papier);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
-  min-height: 60px;
-  color: var(--fonte-900);
-  font-weight: 600;
+  min-height: 44px;
 }
-.pied__liens a:hover { color: var(--email-rouge-sombre); }
+.pied__liens a:hover, .pied__voir a:hover { color: var(--laiton-clair); }
+.pied__voir { color: var(--acier-100); }
 
 /* La page d'attente et l'accueil : le logo, la plaque du nom, la phrase, l'action (un seul bouton rouge). */
 .presentation { display: flex; flex-direction: column; align-items: center; gap: var(--pas-6); text-align: center; }
@@ -152,10 +244,86 @@ main { margin-bottom: var(--pas-6); }
 .presentation__texte { max-width: 540px; }
 .presentation__texte p { margin: 0 0 var(--pas-4); }
 .presentation__texte p:last-child { margin-bottom: 0; }
-.oooscar { display: flex; align-items: center; gap: var(--pas-4); margin-top: var(--pas-6); }
-.oooscar .sa-bulle { flex: 0 1 auto; min-width: 0; }
-/* Le bouton de retour d'une page d'erreur, sous Oooscar. */
+/* Le bouton de retour d'une page d'erreur, sous le panneau. */
 .retour { margin: var(--pas-6) 0 0; }
+
+/* ---------- La scène sous chaque page : le ciel, trois nuages, le sol, Oooscar debout dessus avec sa bulle */
+:root { --sol: 64px; }
+.scene { position: relative; height: 196px; overflow-x: clip; -webkit-user-select: none; user-select: none; }
+.scene__boite { position: relative; height: 100%; }
+.sol {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--sol);
+  background: url("atelier/decor/terre-herbe.png") 0 0 / 32px 32px repeat-x, url("atelier/decor/terre.png") 0 32px / 32px 32px repeat;
+  image-rendering: pixelated;
+  border-bottom: 3px solid var(--fonte-900);
+}
+
+/* Les nuages avancent par pas (steps) : un mouvement de pixel art, pas un glissement. Posés à des heures différentes (animation-delay négatif). */
+.nuage { position: absolute; left: -160px; height: 18px; background: var(--ciel-clair); animation: vent 70s steps(70) infinite; pointer-events: none; }
+.nuage--1 { top: 24px; width: 120px; animation-delay: -12s; }
+.nuage--2 { top: 56px; width: 84px; animation-duration: 90s; animation-delay: -41s; }
+.nuage--3 { top: 10px; width: 60px; animation-duration: 80s; animation-delay: -66s; }
+@keyframes vent { from { transform: translateX(0); } to { transform: translateX(calc(100vw + 160px)); } }
+
+/* Oooscar : posé sur le sol (4 px dans l'herbe), sa bulle au-dessus à droite. */
+.oooscar { position: absolute; left: var(--pas-4); bottom: calc(var(--sol) - 4px); margin: 0; }
+.oooscar .sa-bulle { position: absolute; left: 98px; bottom: 72px; margin: 0; width: max-content; max-width: 220px; }
+
+/* Oooscar vivant : classes posées par oooscar.js, qui remplace l'image par le SVG articulé. Sans script, rien de tout cela ne sert. */
+.oooscar__porte { position: relative; }
+.oooscar__corps {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+  transform-origin: 50% 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+.oooscar__corps:active { cursor: grabbing; }
+.oooscar__corps:focus-visible { outline: 3px solid var(--fonte-900); outline-offset: 2px; }
+.oooscar__corps svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* Un visage à la fois : le script pose « on » sur celui de l'humeur. */
+.oooscar__corps .p { display: none; }
+.oooscar__corps .p.on { display: inline; }
+/* Il respire d'un pixel à la seconde et demie, deux fois moins vite endormi. */
+.oooscar__corps #vivant { animation: souffle 1.4s steps(1) infinite; }
+.oooscar__corps.dort #vivant { animation-duration: 2.8s; }
+@keyframes souffle { 50% { transform: translateY(-3px); } }
+/* L'ombre au sol : une bande plate, jamais arrondie ni floue. */
+.oooscar__ombre {
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 120px;
+  height: 6px;
+  background: var(--fonte-900);
+  opacity: 0.2;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+/* La bulle qui apparaît, et les Z de l'endormi qui montent. */
+.sa-bulle.pop { animation: pop 0.18s steps(3); }
+@keyframes pop { from { transform: translateY(6px) scale(0.85); } }
+.z {
+  position: absolute;
+  font-family: var(--font-affiche);
+  color: var(--papier);
+  text-shadow: 3px 3px 0 var(--fonte-900);
+  pointer-events: none;
+  animation: z 2.2s steps(11) forwards;
+}
+@keyframes z { to { transform: translate(34px, -80px); opacity: 0; } }
 
 /* Une page de lecture : texte fonte-900 sur papier (seize contre six virgule six de contraste avec papier sur fonte). */
 .lecture {
@@ -222,10 +390,30 @@ main { margin-bottom: var(--pas-6); }
 .entree__date { margin: 0; font-family: var(--font-etiquette); font-size: 16px; line-height: 24px; letter-spacing: 1px; }
 .entree h2 { margin-top: var(--pas-1); }
 
-@media (min-width: 600px) {
-  body { padding: 0 var(--pas-6); }
+/* ---------- À partir de 700 px : l'ordinateur (textures ×3, celles de la charte). Ce bloc vient après toutes les règles
+   qu'il reprend, pour gagner à spécificité égale. */
+@media (min-width: 700px) {
+  :root { --sol: 96px; }
+  .boite { padding: 0 var(--pas-12); }
   .sa-panneau { padding: var(--pas-6); }
   .lecture { padding: var(--pas-6) var(--pas-8); }
+
+  /* L'en-tête : plus de bouton Menu, la navigation à droite de la marque. */
+  .menu__bouton { display: none; }
+  .navigation { flex: 1 1 auto; margin-left: auto; }
+  .navigation ul { justify-content: flex-end; gap: var(--pas-2); }
+  .marque__nom { font-size: 56px; line-height: 50px; }
+
+  .direct { font-size: 14px; line-height: 18px; padding: 10px 0; }
+  .direct__boite { gap: var(--pas-2) var(--pas-8); }
+
+  .sol { background-size: 48px 48px, 48px 48px; background-position: 0 0, 0 48px; }
+  .scene { height: 240px; }
+  .oooscar { left: var(--pas-12); }
+  .oooscar .sa-bulle { left: 124px; bottom: 96px; }
+
+  .pied { padding: 28px 0 32px; font-size: 17px; line-height: 22px; }
+  .pied__boite { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--pas-2) var(--pas-12); }
 }
 
 /* ---------- S3 : le wiki */
@@ -282,8 +470,8 @@ main { margin-bottom: var(--pas-6); }
 .etat { list-style: none; margin: 0 0 var(--pas-4); padding: 0; }
 .etat li { padding: var(--pas-1) 0; font-weight: 600; }
 
-/* ---------- Écrans étroits : la plaque du titre prend la taille « petite » de la charte, et un mot ne se coupe jamais dedans
-   (à 360 px, « CLASSEMENTS » en 50 px ne tient pas sur une ligne). */
-@media (max-width: 480px) {
-  .sa-plaque { font-size: 30px; line-height: 30px; border-width: 12px; border-image-width: 12px; letter-spacing: 2px; overflow-wrap: normal; }
+/* ---------- Mouvement réduit : les nuages et le souffle d'Oooscar s'arrêtent, la bulle et les Z n'animent plus */
+@media (prefers-reduced-motion: reduce) {
+  .nuage, .oooscar__corps #vivant { animation: none; }
+  .z, .sa-bulle.pop { animation-duration: 0.01s; }
 }

@@ -8,10 +8,13 @@ import com.silooo.core.db.PassThroughDatabase
 import com.silooo.core.registration.FakeDiscordIdentity
 import com.silooo.core.registration.InMemorySiteRegistrationStore
 import com.silooo.core.server.ServerPresence
+import com.silooo.core.session.InMemorySessionStore
 import com.silooo.core.sitedata.CompanyCard
 import com.silooo.core.sitedata.CompanyMember
 import com.silooo.core.sitedata.InMemorySiteStatsStore
 import com.silooo.core.sitedata.MemberRole
+import com.silooo.core.vote.InMemoryVoteStore
+import com.silooo.core.vote.VoteRow
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -35,7 +38,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  *
  * Les dossiers : `/` (attente), `discord/` (attente avec le Discord), `ouvert/` (tout le mode ouvert, Discord posé),
  * `ouvert-complet/` (boutique, sites de vote, mises à jour d'exemple), `ouvert-vivant/` (classement et fiche d'entreprise
- * avec des données), `pionniers/` et `ouvert/pionniers/` (le formulaire et ses réponses), `introuvable/` (le 404).
+ * avec des données), `pionniers/` et `ouvert/pionniers/` (le formulaire et ses réponses), `introuvable/` (le 404), et
+ * `site/direct.json` (la réponse du bandeau direct avec trois joueurs et deux votes : le vérificateur sert la racine du rendu,
+ * `direct.js` y relit `/site/direct.json`).
  */
 @EnabledIfEnvironmentVariable(named = "SILOOO_SITE_RENDER_DIR", matches = ".+")
 class SiteRenderToDisk {
@@ -81,14 +86,25 @@ class SiteRenderToDisk {
             )
         }
         val presence = ServerPresence(clock).apply { record("bds-1", listOf("1", "2", "3")) }
+        // Deux votes du jour : le bandeau direct montre la Vote party avec un compte.
+        val votes = InMemoryVoteStore(InMemorySessionStore()).apply {
+            rows += VoteRow(1, null, "Kr Test", "premier", clock.instant(), false)
+            rows += VoteRow(2, null, "Oooscar", "second", clock.instant(), false)
+        }
         testApplication {
             application {
-                siteModule(Dependencies(PassThroughDatabase(), "cle", serverPresence = presence, definitions = TestDefinitions.loaded, clock = clock, siteMode = SiteMode.OUVERT, siteStatsStore = stats))
+                siteModule(
+                    Dependencies(
+                        PassThroughDatabase(), "cle", serverPresence = presence, definitions = TestDefinitions.loaded, clock = clock,
+                        siteMode = SiteMode.OUVERT, siteStatsStore = stats, voteStore = votes,
+                    ),
+                )
             }
             val client = createClient { followRedirects = false }
             for ((route, file) in listOf("/" to "ouvert-vivant/index.html", "/classements/" to "ouvert-vivant/classements/index.html", "/entreprise/1/" to "ouvert-vivant/entreprise/1/index.html")) {
                 write(file, client.get(route).bodyAsText())
             }
+            write("site/direct.json", client.get("/site/direct.json").bodyAsText())
         }
     }
 
@@ -125,6 +141,8 @@ class SiteRenderToDisk {
         val settings = SiteSettings(
             shopUrl = "https://boutique.exemple.test/",
             voteSites = listOf(VoteSite("Premier site", "https://un.exemple.test/"), VoteSite("Second site", "https://deux.exemple.test/")),
+            sileneMcUrl = "https://silenemc.exemple.test/",
+            hubyyUrl = "https://hubyy.exemple.test/",
         )
         // Deux entrées d'exemple pour voir la page des mises à jour remplie ; elles ne sont écrites nulle part dans le dépôt.
         val sample = listOf(

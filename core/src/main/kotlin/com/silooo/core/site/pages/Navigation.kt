@@ -6,36 +6,54 @@ import com.silooo.core.site.ContentPage
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 
-/** Un lien de la navigation : l'adresse de la page et le mot qu'on lit sur le bouton. */
-internal class NavItem(val url: String, val label: String)
+/** La forme d'une entrée de navigation : un lien simple, ou un bouton de fonte (le compte, « Me prévenir »). */
+internal enum class NavKind { LIEN, BOUTON }
+
+/** Un lien de la navigation : l'adresse de la page et le mot qu'on lit. */
+internal class NavItem(val url: String, val label: String, val kind: NavKind = NavKind.LIEN)
 
 /**
- * L'ordre de la navigation, écrit en une liste d'adresses. Une adresse n'apparaît que si le mode rend vraiment la
- * page (la liste des pages vient de `SiteContent`) : aucun lien ne mène à un 404. En mode `attente`, `/` est la
- * page d'attente et le logo y mène déjà ; l'entrée « Accueil » n'existe qu'en mode `ouvert`.
+ * La navigation des maquettes de Kr (docs/references/site-kit/maquettes/, SiteVitrine et SiteAttente), écrite en une liste
+ * par mode. Une adresse n'apparaît que si le mode rend vraiment la page (la liste des pages vient de `SiteContent`) : aucun
+ * lien ne mène à un 404. Le logo mène à l'accueil, les mentions sont au pied : ni l'un ni l'autre n'est dans la navigation.
+ * Tant que le compte du joueur n'existe pas, « Mon compte » et « Me prévenir » mènent à l'inscription des pionniers.
  */
 internal object Navigation {
-    private val ORDER = listOf(
-        NavItem("/", "Accueil"),
+    /** L'entrée Discord de l'attente : son adresse vient de la configuration, pas d'une page. */
+    private const val DISCORD = "discord"
+
+    private val OUVERT = listOf(
         NavItem("/rejoindre/", "Rejoindre"),
-        NavItem("/pionniers/", "Pionniers"),
-        NavItem("/wiki/", "Wiki"),
-        NavItem("/classements/", "Classements"),
         NavItem("/boutique/", "Boutique"),
+        NavItem("/classements/", "Classements"),
         NavItem("/vote/", "Vote"),
-        NavItem("/mises-a-jour/", "Mises à jour"),
-        NavItem("/mentions/", "Mentions"),
+        NavItem("/wiki/", "Guide"),
+        NavItem("/mises-a-jour/", "Actus"),
+        NavItem("/pionniers/", "Mon compte", NavKind.BOUTON),
     )
 
-    fun items(mode: SiteMode, pages: List<ContentPage>): List<NavItem> {
+    private val ATTENTE = listOf(
+        NavItem("/mises-a-jour/", "Actus"),
+        NavItem(DISCORD, "Discord"),
+        NavItem("/pionniers/", "Me prévenir", NavKind.BOUTON),
+    )
+
+    fun items(mode: SiteMode, pages: List<ContentPage>, discordUrl: String? = null): List<NavItem> {
         val rendered = pages.map { it.url }.toSet()
-        return ORDER.filter { it.url in rendered && (it.url != "/" || mode == SiteMode.OUVERT) }
+        val order = if (mode == SiteMode.OUVERT) OUVERT else ATTENTE
+        return order.mapNotNull { item ->
+            if (item.url == DISCORD) discordUrl?.let { NavItem(it, item.label) } else item.takeIf { it.url in rendered }
+        }
     }
 }
 
+/** Le bandeau direct du gabarit : l'adresse que `direct.js` relit toutes les trente secondes, et les joueurs en ligne pour le premier rendu. */
+internal class DirectBand(val url: String, val online: () -> PlayersOnline)
+
 /**
  * Ce que chaque page reçoit du site : l'adresse publique (pour `og:image`), le Discord s'il existe, la navigation,
- * ce que la configuration dit du jeu ([settings]) et la boutique des définitions ([shop], d'où viennent tous les prix).
+ * ce que la configuration dit du jeu ([settings]), la boutique des définitions ([shop], d'où viennent tous les prix),
+ * le mode (la bulle d'Oooscar en dépend) et le bandeau direct ([direct], en mode ouvert seulement).
  */
 internal class SiteShell(
     siteUrl: String,
@@ -45,6 +63,8 @@ internal class SiteShell(
     val shop: ShopDefinitions,
     /** Toutes les définitions chargées : le wiki en tire ses tableaux (usines, raretés, incidents, entreprise). */
     val definitions: Definitions,
+    val mode: SiteMode,
+    val direct: DirectBand? = null,
 ) {
     /** L'adresse publique sans barre finale, prête à recevoir un chemin qui commence par `/`. */
     val siteUrl: String = siteUrl.trimEnd('/')

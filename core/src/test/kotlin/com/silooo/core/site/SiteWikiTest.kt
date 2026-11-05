@@ -63,7 +63,7 @@ class SiteWikiTest {
     }
 
     @Test
-    @DisplayName("Chaque page du wiki : 200 en ouvert, 404 en attente, un seul h1, lang, title, description, aucun script, un bouton rouge au plus")
+    @DisplayName("Chaque page du wiki : 200 en ouvert, 404 en attente, un seul h1, lang, title, description, seulement les scripts du site, un bouton rouge au plus")
     fun everyPage() {
         for (page in wikiPages) {
             withSite(SiteMode.OUVERT) { client ->
@@ -75,7 +75,7 @@ class SiteWikiTest {
                 assertTrue(Regex("""<html[^>]*\blang="fr"""").containsMatchIn(html), "${page.url} : lang")
                 assertTrue(Regex("<title>[^<]+</title>").containsMatchIn(html), "${page.url} : title")
                 assertTrue(Regex("""<meta name="description" content="[^"]+"""").containsMatchIn(html), "${page.url} : meta description")
-                assertFalse(html.contains("<script", ignoreCase = true), "${page.url} : aucun script")
+                assertOnlySiteScripts(html, page.url)
                 assertFalse(html.contains("{{"), "${page.url} : un marqueur est resté")
                 assertTrue(Regex("""class="sa-bouton"""").findAll(html).count() <= 1, "${page.url} : un seul bouton rouge")
                 if (page.name == WikiContent.INDEX) assertTrue(html.contains("""aria-current="page""""), "l'index est la page courante de la navigation")
@@ -87,12 +87,12 @@ class SiteWikiTest {
     }
 
     @Test
-    @DisplayName("/wiki sans barre finale redirige vers /wiki/ ; la navigation de l'ouvert porte Wiki")
+    @DisplayName("/wiki sans barre finale redirige vers /wiki/ ; la navigation de l'ouvert porte Guide")
     fun redirectAndNavigation() = withSite { client ->
         val response = client.get("/wiki")
         assertEquals(HttpStatusCode.MovedPermanently, response.status)
         assertEquals("/wiki/", response.headers["Location"])
-        assertTrue(Regex("""<a href="/wiki/"[^>]*>Wiki</a>""").containsMatchIn(client.get("/").bodyAsText()))
+        assertTrue(Regex("""<a href="/wiki/"[^>]*>Guide</a>""").containsMatchIn(client.get("/").bodyAsText()))
     }
 
     @Test

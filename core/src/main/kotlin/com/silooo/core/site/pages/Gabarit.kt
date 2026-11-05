@@ -1,5 +1,6 @@
 package com.silooo.core.site.pages
 
+import kotlinx.html.ButtonType
 import kotlinx.html.DIV
 import kotlinx.html.FlowContent
 import kotlinx.html.HEAD
@@ -7,6 +8,7 @@ import kotlinx.html.HTML
 import kotlinx.html.MAIN
 import kotlinx.html.a
 import kotlinx.html.body
+import kotlinx.html.button
 import kotlinx.html.div
 import kotlinx.html.footer
 import kotlinx.html.h1
@@ -21,6 +23,7 @@ import kotlinx.html.main
 import kotlinx.html.meta
 import kotlinx.html.nav
 import kotlinx.html.p
+import kotlinx.html.script
 import kotlinx.html.span
 import kotlinx.html.title
 import kotlinx.html.ul
@@ -47,27 +50,47 @@ internal const val LOGO_ALT = "Logo de Silooo : un silo à toit rouge sur un blo
 internal const val SHARE_IMAGE = "/public/partage.png"
 internal const val SHARE_IMAGE_ALT = "Le logo de Silooo et Oooscar, sa mascotte, sur le ciel"
 
+/**
+ * Les trois scripts du gabarit, des fichiers de `/public/` et jamais du code écrit dans la page (la politique de sécurité
+ * l'interdit). `menu.js` replie la navigation sur téléphone, `oooscar.js` anime la mascotte, `direct.js` relit le bandeau.
+ */
+internal const val MENU_SCRIPT = "/public/menu.js"
+internal const val OOOSCAR_SCRIPT = "/public/oooscar.js"
+internal const val DIRECT_SCRIPT = "/public/direct.js"
+
 /** La couleur du ciel de `design/tokens.css`, pour la barre du navigateur sur téléphone. */
 private const val THEME_COLOR = "#8fb8d6"
 
-/** Ce que le gabarit a besoin de savoir de la page : son titre, sa description et l'adresse qu'elle occupe (pour la navigation). */
+/** L'icône du bouton Menu : trois barres, dessinées dans la page sans aucun style en ligne. */
+private const val MENU_ICON =
+    """<svg class="menu__icone" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><rect x="2" y="4" width="20" height="3"/><rect x="2" y="10.5" width="20" height="3"/><rect x="2" y="17" width="20" height="3"/></svg>"""
+
+/**
+ * Ce que le gabarit a besoin de savoir de la page : son titre, sa description, l'adresse qu'elle occupe (pour la
+ * navigation et la bulle d'Oooscar), et ce qu'Oooscar montre en bas de page quand la page n'a pas la bulle de son adresse.
+ */
 internal class PageFrame(
     /** Le titre court de la page ; « Silooo » seul pour l'accueil et l'attente. */
     val title: String,
     val description: String,
     /** L'adresse de la page, `null` pour une page d'erreur : aucun lien de la navigation n'est alors marqué courant. */
     val url: String? = null,
+    /** Le visage d'Oooscar sous la page : content, sauf sur une page d'erreur. */
+    val humeur: Humeur = Humeur.JOIE,
+    /** Ce qu'Oooscar dit en arrivant ; `null` : la phrase de l'adresse (voir [Bulles.pour]). */
+    val bulle: String? = null,
 )
 
 /**
- * La page entière : tout le HTML passe par le DSL de kotlinx.html, qui échappe chaque valeur. Aucune page ne
- * charge de ressource d'un autre hôte (la politique de sécurité du module l'interdit) ; les scripts, quand les
- * animations du kit arriveront, sont des fichiers de `/public/`, jamais du code écrit dans la page.
- * Le `h1` est posé par la page, dans [content] : il n'y en a qu'un par page. `<main>` est le panneau de fonte
- * de Silooo Atelier ; une page de lecture y pose un bloc de papier (voir [lecture]).
+ * La page entière, d'après les maquettes de Kr : l'en-tête (la marque, le menu replié sur téléphone, la navigation), le
+ * bandeau direct en mode ouvert, le panneau de fonte du contenu, la scène d'Oooscar sur le sol, le pied sombre.
+ * Tout le HTML passe par le DSL de kotlinx.html, qui échappe chaque valeur. Aucune page ne charge de ressource d'un autre
+ * hôte (la politique de sécurité du module l'interdit). Le `h1` est posé par la page, dans [content] : il n'y en a qu'un
+ * par page. `<main>` est le panneau de fonte de Silooo Atelier ; une page de lecture y pose un bloc de papier (voir [lecture]).
  */
 internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -> Unit) {
     lang = "fr"
+    val bulle = frame.bulle ?: Bulles.pour(frame.url, shell.mode, shell.definitions)
     head {
         meta(charset = "utf-8")
         meta(name = "viewport", content = "width=device-width, initial-scale=1")
@@ -86,28 +109,55 @@ internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -
         meta(name = "twitter:card", content = "summary_large_image")
         link(rel = "stylesheet", href = STYLESHEET)
         link(rel = "icon", href = LOGO_64, type = "image/png")
+        // menu.js d'abord et sans defer : il pose la classe « js » avant le premier rendu, le menu replié n'apparaît pas déplié un instant.
+        script(src = MENU_SCRIPT) {}
+        script(src = OOOSCAR_SCRIPT) { attributes["defer"] = "defer" }
+        if (shell.direct != null) script(src = DIRECT_SCRIPT) { attributes["defer"] = "defer" }
     }
     body {
         a(href = "#contenu", classes = "passer") { +"Aller au contenu" }
         header(classes = "entete") {
-            a(href = "/", classes = "marque") {
-                img(src = LOGO_SVG, alt = LOGO_ALT, classes = "marque__logo") {
-                    width = "40"
-                    height = "48"
+            div(classes = "boite entete__boite") {
+                a(href = "/", classes = "marque") {
+                    img(src = LOGO_SVG, alt = LOGO_ALT, classes = "marque__logo") {
+                        width = "40"
+                        height = "48"
+                    }
+                    span(classes = "marque__nom") { +SITE_NAME }
                 }
-                span(classes = "marque__nom") { +SITE_NAME }
+                if (shell.nav.isNotEmpty()) {
+                    menuButton()
+                    navigation(shell, frame)
+                }
             }
-            navigation(shell, frame)
         }
+        shell.direct?.let { direct(it) }
         main(classes = "sa-panneau") {
             id = "contenu"
             content()
         }
+        scene(frame.humeur, bulle)
         footer(classes = "pied") {
-            p(classes = "pied__mojang") { +MOJANG_NOTICE }
-            p(classes = "pied__liens") {
-                a(href = "/mentions/") { +"Mentions" }
-                shell.discordUrl?.let { a(href = it) { +"Discord" } }
+            div(classes = "boite pied__boite") {
+                p(classes = "pied__mojang") { +MOJANG_NOTICE }
+                p(classes = "pied__liens") {
+                    shell.discordUrl?.let { a(href = it) { +"Discord Silooo" } }
+                    a(href = "/mentions/") { +"Mentions légales" }
+                }
+                // Les sites frères, quand leurs adresses sont configurées (SILOOO_SITE_URL_SILENEMC, SILOOO_SITE_URL_HUBYY).
+                val sisters = listOfNotNull(
+                    shell.settings.sileneMcUrl?.let { it to "SileneMC" },
+                    shell.settings.hubyyUrl?.let { it to "Hubyy" },
+                )
+                if (sisters.isNotEmpty()) {
+                    p(classes = "pied__voir") {
+                        +"Voir aussi : "
+                        sisters.forEachIndexed { index, (url, name) ->
+                            if (index > 0) +" · "
+                            a(href = url) { +name }
+                        }
+                    }
+                }
             }
         }
     }
@@ -121,20 +171,87 @@ private fun HEAD.property(name: String, value: String) {
     }
 }
 
+/**
+ * Le bouton qui déplie la navigation sous 700 px. Il naît caché : sans script, la navigation est dépliée et le bouton
+ * n'a pas lieu d'être ; `menu.js` le montre et le fait agir.
+ */
+private fun FlowContent.menuButton() {
+    button(type = ButtonType.button, classes = "sa-bouton sa-bouton--fonte menu__bouton") {
+        attributes["aria-expanded"] = "false"
+        attributes["aria-controls"] = "menu"
+        attributes["hidden"] = "hidden"
+        unsafe { +MENU_ICON }
+        span { +"Menu" }
+    }
+}
+
 private fun FlowContent.navigation(shell: SiteShell, frame: PageFrame) {
-    if (shell.nav.isEmpty()) return
     nav(classes = "navigation") {
+        id = "menu"
         attributes["aria-label"] = "Pages du site"
         ul {
             for (item in shell.nav) {
                 li {
-                    a(href = item.url, classes = "sa-bouton sa-bouton--fonte sa-bouton--nav") {
+                    val classes = if (item.kind == NavKind.BOUTON) "sa-bouton sa-bouton--fonte navigation__bouton" else "navigation__lien"
+                    a(href = item.url, classes = classes) {
                         if (item.url == frame.url) attributes["aria-current"] = "page"
                         +item.label
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Le bandeau direct (docs/site.md) : les joueurs en ligne et l'état au premier rendu, la version de Bedrock et la Vote
+ * party cachées tant que `direct.js` ne les a pas lues sur `/site/direct.json`. Chaque mot est ici, le script ne fait
+ * que montrer, cacher et remplacer des nombres ; si silooo-core ne répond plus, le script cache tout le bandeau.
+ */
+private fun FlowContent.direct(band: DirectBand) {
+    val online = band.online()
+    val count = (online as? PlayersOnline.Count)?.count
+    div(classes = "direct") {
+        attributes["role"] = "status"
+        attributes["data-direct"] = band.url
+        div(classes = "boite direct__boite") {
+            item("joueurs", shown = count != null) {
+                span(classes = "direct__point") { attributes["aria-hidden"] = "true" }
+                span(classes = "direct__nombre") {
+                    attributes["data-valeur"] = "joueurs"
+                    +(count?.toString() ?: "")
+                }
+                +" en ligne"
+            }
+            item("etat", shown = count != null) {
+                attributes["data-etat"] = "ouvert"
+                +"Ouvert"
+            }
+            item("etat", shown = count == null) {
+                attributes["data-etat"] = "ferme"
+                +"Fermé"
+            }
+            item("version", shown = false) {
+                +"Bedrock "
+                span(classes = "direct__nombre") { attributes["data-valeur"] = "version" }
+            }
+            item("voteParty", shown = false) {
+                +"Vote party "
+                span(classes = "direct__objectif") {
+                    span { attributes["data-valeur"] = "votes" }
+                    +"/"
+                    span { attributes["data-valeur"] = "objectif" }
+                }
+            }
+        }
+    }
+}
+
+private fun DIV.item(field: String, shown: Boolean, block: kotlinx.html.SPAN.() -> Unit) {
+    span(classes = "direct__item") {
+        attributes["data-champ"] = field
+        if (!shown) attributes["hidden"] = "hidden"
+        block()
     }
 }
 

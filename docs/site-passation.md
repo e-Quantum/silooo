@@ -11,12 +11,12 @@ lit « Pour la direction du jeu », la direction du Discord lit « Pour la direc
 - **Le jeu** : phase 5 en cours (`docs/passation.md`). Dernière migration du site sur `main` : `V7__site_registrations.sql` ;
   la suivante prend le numéro libre à la fusion.
 - **Le site** : les six étapes S0 à S5 de la première direction sont sur `main` (commit `69d98b1`), revues dans
-  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, huit corrigées (`claude/site-socle`),
-  dix-sept à corriger, treize à refaire, trois posées à Kr (T1 appliquée par sa recommandation, décision 15 ; T2 et T3
-  attendent). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
+  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, treize corrigées (`claude/site-socle`,
+  `claude/site-gabarit`), treize à corriger, douze à refaire, trois posées à Kr (T1 appliquée par sa recommandation,
+  décision 15 ; T2 et T3 attendent). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
   est dans `docs/references/site-kit/`.
-- **Étape en cours** : `claude/site-socle` est finie (fusionnée sur `main` après `tools/verifier.sh` vert) ; la suivante
-  est `claude/site-gabarit`.
+- **Étape en cours** : `claude/site-socle` et `claude/site-gabarit` sont finies (fusionnées sur `main` après
+  `tools/verifier.sh` vert) ; la suivante est `claude/site-attente`.
 - **Kr** : deux questions encore ouvertes dans la révision (T2, T3) ; T1 a été appliquée par sa recommandation
   (décision 15), Kr peut la retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
 
@@ -32,8 +32,9 @@ La page d'attente :
   `sitemap.xml`), R8 (`Empreinte.kt` et ses vecteurs), R13 (404 avec Oooscar), R30 (débordement de
   `/wiki/personnel/`), R37 (image de partage logo et Oooscar), R2 pour moitié (la politique de sécurité admet les
   scripts du site), R3 selon T1 (`composants.css` dérivé de `bundle.css`)
-- [ ] `claude/site-gabarit` : R26 (Oooscar vivant sur chaque page, `oooscar.js`), R31 (navigation du kit), R32 (pied
-  avec SileneMC et Hubyy), R33 (ciel, îles, sol), R36 (bandeau direct et `/site/direct.json`)
+- [x] `claude/site-gabarit` (5 novembre 2026) : R26 (Oooscar vivant sur chaque page, `oooscar.js`), R31 (navigation du
+  kit), R32 (pied avec SileneMC et Hubyy), R33 (ciel, sol, nuages et échelle ×2 ; le dessin d'île des maquettes va
+  dans `claude/site-attente`), R36 (bandeau direct et `/site/direct.json`)
 - [ ] `claude/site-attente` : R34 (page d'attente de la maquette), R25 (quatre pages légales), R49 pour moitié
   (`/actus` et `/actus/<slug>` au plan fixe, lues dans des fichiers avec la marque « étape »)
 - [ ] `claude/site-comptes` : R6 (mode `beta`), R15 (Xbox prototypé en premier, Discord), R16 (inscription), R17
@@ -138,6 +139,15 @@ garde une copie non suivie de `docs/references/site/`, identique octet pour octe
    avant le verifier), `tools/verifier.sh` (étape « Site : pages dans Chromium ») et `tools/tests/run.sh` (ses tests). Sur
    votre poste, `bash tools/verifier.sh` dit « IGNORÉ Site : pages dans Chromium » tant que `npx playwright install
    chromium` n'a pas tourné ; la CI, elle, joue l'étape.
+9. **Ce que `claude/site-gabarit` touche et attend** (5 novembre 2026). Deux variables de plus, facultatives, déjà
+   dans le modèle d'environnement de `deploy/` et dans `docs/deploiement.md` : `SILOOO_SITE_URL_SILENEMC` et
+   `SILOOO_SITE_URL_HUBYY` (les liens « Voir aussi » du pied de page ; sans elles, pas de lien). À poser sur le VPS
+   quand Kr voudra les liens. Fichiers partagés : `Config.kt` (les deux
+   constantes et `siteSettings()`), `core/build.gradle.kts` (Gradle copie aussi `design/decor/`, le sol de la scène),
+   `core/Dockerfile.dockerignore` (`decor/` entre dans l'image). Le bandeau direct lit la présence et les votes du jour ;
+   `version` (la version de Bedrock) et `dernierPrestige` restent à `null` : si le signal de vie du serveur portait la
+   version, et si le dépôt des prestiges offrait une lecture du dernier, le bandeau les montrerait sans autre changement
+   (`SiteDirect.kt`). Rien d'urgent : le bandeau cache ce qu'il n'a pas.
 
 ## Pour la direction du Discord
 
@@ -270,6 +280,18 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
     l'importe, la CI installe Chromium (`npx playwright install --with-deps chromium`), et sur un poste sans Chromium
     l'étape de `verifier.sh` est ignorée en nommant la commande. L'image de partage est un PNG commis
     (`site/public/partage.png`), refait à la main avec `tools/partage/capturer.mjs` : Chromium n'entre pas dans Gradle.
+17. **Le gabarit, tranché par la branche `claude/site-gabarit`** (5 novembre 2026). Les mots de la navigation sont ceux
+    du kit, posés sur les adresses qui existent : Guide mène à `/wiki/`, Actus à `/mises-a-jour/`, Mon compte et Me
+    prévenir à `/pionniers/` en bouton de fonte, jusqu'aux branches des comptes et de l'attente qui leur donneront leurs
+    pages. `GET /site/direct.json` est une route du site, hors du contrat OpenAPI (le contrat ne décrit que `/v1`, et
+    `ContractTest` envoie chaque opération au module de l'API) ; le bandeau n'existe qu'en mode ouvert, en attente aucun
+    serveur ne bat. L'échelle ×2 des maquettes s'applique sous 700 px, dans `atelier.css` et non dans le bundle (c'est
+    une règle des maquettes, pas de la charte). La bulle de l'attente est celle de la maquette, « On construit. Reviens
+    vite ! », à la place de « Le serveur ouvre bientôt ! ». Oooscar fait 120 px de haut sur téléphone et 150 sur
+    ordinateur, dans une scène de 196 et 240 px (le prototype faisait 190 et 250 dans une page vide) ; son ombre est
+    une bande plate (la charte refuse l'arrondi). Les textes des réactions vivent en Kotlin (`pages/Oooscar.kt`), posés
+    sur `data-textes`, pour que `tools/anti_ia.py` les relise ; les scripts n'en contiennent aucun. La nuit (22 h à 7 h,
+    heure du joueur) endort Oooscar sans changer le ciel : le ciel de nuit des maquettes attend un dessin.
 
 ## À valider par Kr
 
@@ -352,6 +374,18 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   `pages/Gabarit.kt`, l'`alt` de l'image de partage « Le logo de Silooo et Oooscar, sa mascotte, sur le ciel » ;
   l'image elle-même, `site/public/partage.png` (le logo, « SILOOO » sur une plaque, Oooscar joie et sa bulle « Salut !
   Moi, c'est Oooscar. », `tools/partage/partage.html`), à regarder dans un aperçu Discord.
+- `claude/site-gabarit` (5 novembre 2026) : `pages/Oooscar.kt`, les bulles d'arrivée « On construit. Reviens vite ! »
+  (attente, à la place de « Le serveur ouvre bientôt ! »), « Salut ! Moi, c'est Oooscar. », « Je t'attends sur ton
+  île ! », « Les Gemmes arrivent en jeu. », « Moi, je vise la salle 1. », « Réessaie dans un moment. » (erreur 500),
+  « Niveau N : production ×2 ! » (guide, N lu dans `economie.json`) ; les réactions « Hé, ça chatouille ! », « Encore
+  une fois ! », « Doucement, je suis en tôle. », « Ta Scierie t'attend ! », « Mon toit glisse, là. », « Tu me
+  cherches ? », « Mon toit ! », « Comme neuf. », « Je remets mon toit. », « Repose-moi ! », « Ouille. », « Salut ! »,
+  « Je dormais pas ! », « Les usines tournent. Moi, je dors. », « Production ×2 pour tout le monde ! » ; les `alt` des
+  cinq visages (« Oooscar, la mascotte de Silooo, content / fier / surpris / affolé / endormi »). `pages/Gabarit.kt` :
+  « Menu », « Discord Silooo », « Mentions légales », « Voir aussi : », et les mots du bandeau « en ligne », « Ouvert »,
+  « Fermé », « Bedrock », « Vote party ». `pages/Navigation.kt` : « Guide », « Actus », « Mon compte », « Me prévenir ».
+  `pages/Erreur.kt` : la description de la 500 « Le site a eu un problème. ». La scène elle-même (sol, nuages, Oooscar
+  qui saute, dort et se laisse attraper) est à regarder sur `http://localhost:8081/` ou dans les captures.
 
 ## Journal
 
@@ -462,3 +496,14 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   Docker), 44 pages à 360 et 1 280 px sans écart, captures relues (404, personnel, attente, boutique). Fusion sur `main`
   après `tools/verifier.sh` complet ; les deux commits de documentation de `claude/site-revision` partent avec elle.
   Suite : `claude/site-gabarit`.
+- 5 novembre 2026, 17 h 18 à 18 h 19 (direction du site, deuxième passage, en local ; trois agents Sonnet en parallèle
+  pour les scripts, la feuille de style et les tests, le Kotlin, les docs et la relecture par la direction).
+  `claude/site-gabarit` : le gabarit des maquettes (menu replié sous 700 px, navigation par mode, bandeau direct en
+  mode ouvert, scène d'Oooscar sur le sol de chaque page, pied sombre avec SileneMC et Hubyy), `oooscar.js` d'après le
+  prototype (le SVG articulé, les réactions, la nuit, `prefers-reduced-motion`), `menu.js`, `direct.js` et
+  `GET /site/direct.json`, l'échelle ×2 sous 700 px, deux variables facultatives (décision 17 ; point 9 pour la
+  direction du jeu). R26, R31, R32, R33 (sauf le dessin d'île), R36 corrigés. Tests Gradle verts en local (SQL ignorés
+  sans Docker), 44 pages à 360 et 1 280 px sans écart, captures relues (attente, accueil ouvert, 404), menu replié et
+  réveil d'Oooscar vérifiés dans un navigateur. `tools/verifier.sh` vert au second passage (au premier, les deux
+  variables manquaient au modèle d'environnement de `deploy/`). Rebase sur `origin/main` (le Discord D2 avait avancé),
+  fusion sur `main`. Suite : `claude/site-attente`.

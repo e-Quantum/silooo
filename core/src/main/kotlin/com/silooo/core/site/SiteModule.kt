@@ -1,6 +1,7 @@
 package com.silooo.core.site
 
 import com.silooo.core.Dependencies
+import com.silooo.core.site.pages.DirectBand
 import com.silooo.core.site.pages.Navigation
 import com.silooo.core.site.pages.SiteShell
 import com.silooo.core.site.pages.erreurInterne
@@ -65,14 +66,19 @@ fun Application.siteModule(
 
     // Valide les contenus du mode au démarrage (une adresse prise deux fois, un contenu sans page). La navigation
     // ne liste que les pages que ce mode rend : les pages d'erreur la portent aussi, d'où son calcul avant elles.
-    val pages = SiteContent(content.pages + WikiContent.check(wiki)).forMode(dependencies.siteMode)
+    val mode = dependencies.siteMode
+    val clock = dependencies.clock
+    val pages = SiteContent(content.pages + WikiContent.check(wiki)).forMode(mode)
     val shell = SiteShell(
         dependencies.siteUrl,
         dependencies.discordUrl,
-        Navigation.items(dependencies.siteMode, pages),
+        Navigation.items(mode, pages, dependencies.discordUrl),
         dependencies.siteSettings,
         dependencies.definitions.shop,
         dependencies.definitions,
+        mode,
+        // Le bandeau direct n'existe qu'en mode ouvert : en attente, aucun serveur ne bat.
+        direct = if (mode == SiteMode.OUVERT) DirectBand(DIRECT_URL) { playersOnline(dependencies.serverPresence, clock) } else null,
     )
 
     install(StatusPages) {
@@ -85,8 +91,7 @@ fun Application.siteModule(
     }
 
     routing {
-        val clock = dependencies.clock
-        siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") }) { playersOnline(dependencies.serverPresence, clock) }
+        siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") }, SiteDirectSource(dependencies)) { playersOnline(dependencies.serverPresence, clock) }
         // Les classements et les fiches d'entreprise : le mode ouvert seulement (la page n'existe pas en attente).
         pages.firstOrNull { it.name == RANKING_PAGE }?.let { statsRoutes(dependencies, shell, it) }
         // Le webhook de PayNow répond dans les deux modes : une commande payée avant l'ouverture doit être écrite.

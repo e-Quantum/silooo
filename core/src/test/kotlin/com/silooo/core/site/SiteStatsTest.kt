@@ -156,7 +156,7 @@ class SiteStatsTest {
         assertTrue(Regex("<title>[^<]+</title>").containsMatchIn(html), "title")
         assertTrue(Regex("<meta name=\"description\" content=\"[^\"]+\"").containsMatchIn(html), "description")
         for (img in Regex("<img[^>]*>").findAll(html)) assertTrue(Regex("\\balt=\"[^\"]+\"").containsMatchIn(img.value), "alt : ${img.value}")
-        assertFalse(html.contains("<script", ignoreCase = true))
+        assertOnlySiteScripts(html, "page des données vivantes")
     }
 
     @Test
