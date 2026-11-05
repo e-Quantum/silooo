@@ -199,9 +199,10 @@ jobs:
           dossier="$(mktemp -d)"
           # Le conteneur tourne en uid 10001 : le dossier lui est ouvert, comme le chown 10001:10001 de Kr.
           chmod 777 "$dossier"
+          # Le shell de GitHub est lancé avec -e : le code de sortie attendu (66) est lu sans arrêter le script.
+          code=0
           sortie="$(docker run --rm -e SILOOO_API_KEY=cle-factice-de-la-ci -e BDS_PUBLIC_IP=203.0.113.10 \
-            -e BDS_URL=http://127.0.0.1:9/bedrock-server.zip -v "$dossier:/data/bds" silooo-bds:ci 2>&1)"
-          code=$?
+            -e BDS_URL=http://127.0.0.1:9/bedrock-server.zip -v "$dossier:/data/bds" silooo-bds:ci 2>&1)" || code=$?
           printf '%s\n' "$sortie" | tail -n 30
           if [ "$code" -ne 66 ]; then echo "::error::Sans zip, start.sh devait sortir en 66 (code $code)"; exit 1; fi
           if ! printf '%s\n' "$sortie" | grep -q "SILOOO_BDS_DIR"; then echo "::error::Le message pour Kr manque"; exit 1; fi
