@@ -90,7 +90,8 @@ l'événement `GEMMES_RECUES`. Un pseudo inconnu laisse la ligne en attente.
   arrière du déploiement reste possible ([deploiement.md](deploiement.md)). Pas de suppression de
   colonne dans la même version que celle qui cesse de l'utiliser.
 - V1 a été vérifiée sur MariaDB 10.11 ; la production tourne en MariaDB 12.3. La CI rejoue les
-  migrations sur 12.3 (service Docker, puis Testcontainers en phase 1). Résultat sur 12.3 : à relever.
+  migrations sur 12.3 (service Docker `mariadb:12.3.3`, puis Testcontainers en phase 1). V1 passe
+  sans erreur sur 12.3.3 : 32 tables créées, relevé dans la CI le 5 novembre 2026.
 - Les tests de migration font partie de `tools/verifier.sh` et bloquent la fusion.
 
 ## Ce qui n'est pas en base

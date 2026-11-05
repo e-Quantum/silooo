@@ -37,6 +37,14 @@ Un chiffre du jeu vit dans `definitions/` et nulle part ailleurs. Cette recette 
 7. **Écris l'historique** pour un changement gardé. Ajoute une ligne dans la section « Historique des réglages » de `docs/economie.md` : date, clé, ancienne valeur, nouvelle valeur, pourquoi. Une ligne par clé. C'est le seul endroit de la doc où un chiffre du jeu s'écrit, parce qu'il date le changement. Fichier touché : `docs/economie.md`.
 8. **Marque le changement « à valider par Kr »** dans le compte rendu (voir « En fin de session »). Il peut être commité, jamais présenté comme définitif. Fichier touché : aucun.
 
+## Ajouter une usine
+
+Même recette, avec trois précisions.
+
+- **L'objet.** Un objet de plus dans le tableau `usines` de `definitions/usines.json`, avec les neuf clés que le schéma exige (`id`, `nom`, `epoque`, `produit`, `entrees`, `decouverte`, `prixNiveau1`, `productionParNiveau`, `electricite`). L'`id` est en kebab-case sans accent et ne change plus jamais : la base ne garde que lui (`company_factories.factory_id`). Chaque entrée doit être le produit d'une autre usine, `tools/verifier_definitions.mjs` le vérifie. Le fichier range les usines par époque : insère la nouvelle à la fin de la sienne.
+- **La place dans le jeu.** L'époque, les produits, les entrées et la condition de découverte suivent le tableau « Catalogue des usines » de `docs/game-design.md`. Si l'usine n'y figure pas, c'est un ajout de game design, pas un réglage : dis-le dans le compte rendu et laisse Kr décider. La ligne d'historique de `docs/economie.md` note la clé `usines[<id>]`, valeur avant « absente ».
+- **Ce qui vient plus tard.** Le texte de découverte, l'icône, l'île et l'enseigne relèvent de la recette `silooo-ecran` (phase 3). Les chiffres de l'usine restent « à valider par Kr » tant que les tests dorés ne les mesurent pas.
+
 ## Ce qu'on ne fait pas
 
 - Aucun chiffre du jeu dans `core/`, `addon/`, `resource-pack/`, un test ou un texte : le code lit `definitions/`.

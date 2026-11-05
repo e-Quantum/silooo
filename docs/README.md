@@ -15,7 +15,8 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | Toucher au service (`core/`) | [architecture.md](architecture.md), [socle.md](socle.md), [base-de-donnees.md](base-de-donnees.md), `api/silooo-core.openapi.yaml` | `silooo-route` |
 | Ajouter ou changer une route | `api/silooo-core.openapi.yaml` d'abord, puis [architecture.md](architecture.md) | `silooo-route` |
 | Écrire une migration | [base-de-donnees.md](base-de-donnees.md), `core/src/main/resources/db/migration/` | |
-| Changer un prix, un gain, une usine | [economie.md](economie.md), `definitions/`, `docs/references/silooo-equilibrage-v2.xlsx` | `silooo-equilibrage` |
+| Changer un prix, un gain, un seuil | [economie.md](economie.md), `definitions/`, `docs/references/silooo-equilibrage-v2.xlsx` | `silooo-equilibrage` |
+| Ajouter ou régler une usine | [game-design.md](game-design.md) « Catalogue des usines », [economie.md](economie.md), `definitions/usines.json` et `definitions/schemas/` | `silooo-equilibrage`, section « Ajouter une usine » |
 | Toucher à `addon/` ou `resource-pack/` | [bedrock.md](bedrock.md), [architecture.md](architecture.md), [design.md](design.md) | `silooo-ecran` |
 | Dessiner un écran ou écrire pour les joueurs | [design.md](design.md), `design/README.md`, `design/composants/`, [anti-ia.md](anti-ia.md) | `silooo-ecran` |
 | Déployer (jamais sans Kr pour la base, le port, le DNS) | [deploiement.md](deploiement.md), [direction.md](direction.md) | |
