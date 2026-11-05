@@ -32,7 +32,7 @@ Une usine en ruine se remet en état en quatre étapes, toujours dans cet ordre 
 3. Livrer les matériaux de réparation.
 4. Recruter l'équipe de départ.
 
-Chaque étape se fait une fois. Aucune ne coûte de Donar. À la dernière, l'usine démarre.
+Chaque étape se fait une fois. Pour l'instant, aucune ne coûte de Donar. À la dernière, l'usine démarre.
 
 ## Les usines du jeu
 

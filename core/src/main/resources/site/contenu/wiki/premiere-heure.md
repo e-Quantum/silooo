@@ -9,7 +9,7 @@ ordre: 1
 
 Tu hérites d'une carrière abandonnée. C'est ta première usine, la Carrière, et elle tourne déjà.
 
-Tu donnes un nom à ton entreprise. Il s'affiche sur tes enseignes. Rien n'est à construire avant de jouer.
+Ton entreprise porte d'abord ton nom. Lui en choisir un autre arrive plus tard. Rien n'est à construire avant de jouer.
 
 ## Oooscar
 
