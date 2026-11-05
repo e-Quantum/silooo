@@ -5,6 +5,7 @@ import type { ApiResult, Header, HttpMethod, Transport, TransportResponse } from
 import type { Logger, Scheduler } from "../src/runtime";
 import type {
   Balances,
+  Candidate,
   CompanyState,
   EventsPage,
   Factory,
@@ -13,6 +14,7 @@ import type {
   Mission,
   MissionState,
   PrestigePreview,
+  StaffMember,
 } from "../src/protocol";
 
 export interface RecordingLogger extends Logger {
@@ -162,6 +164,38 @@ export function missionState(overrides: Partial<MissionState> = {}): MissionStat
 /** Un aperçu de prestige du service : permis, 1 200 Lingots (1 700 si le joueur doublait), une seule part, l'époque 2 ensuite. */
 export function prestigePreview(overrides: Partial<PrestigePreview> = {}): PrestigePreview {
   return { allowed: true, lingotsTotal: 1_200, lingotsIfDoubled: 1_700, shares: [{ xuid: "1", lingots: 1_200 }], next: "EPOQUE_2", ...overrides };
+}
+
+/** Un membre du personnel du service : Adèle, salariée commune de la Carrière, 10 % de bonus. */
+export function staffMember(overrides: Partial<StaffMember> = {}): StaffMember {
+  return {
+    staffId: 11,
+    name: "Adèle",
+    skinId: "ouvriere-gilet",
+    role: "SALARIE",
+    rarity: "COMMUN",
+    bonusPercent: 10,
+    salaryPercent: 2.5,
+    salaryPerHour: 180,
+    factoryId: "carriere",
+    ...overrides,
+  };
+}
+
+/** Un candidat du jour du service : Basile, salarié commun à la place 1, 4 800 Donar, pas encore embauché. */
+export function candidate(overrides: Partial<Candidate> = {}): Candidate {
+  return {
+    slot: 1,
+    name: "Basile",
+    skinId: "ouvrier-casque",
+    role: "SALARIE",
+    rarity: "COMMUN",
+    bonusPercent: 10,
+    salaryPercent: 2.5,
+    hireCost: 4_800,
+    factoryId: null,
+    ...overrides,
+  };
 }
 
 /** L'événement `ANNONCE` d'une mission terminée, tel que le service le publie (api/silooo-core.openapi.yaml, getMissions). */

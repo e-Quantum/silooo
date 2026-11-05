@@ -5,6 +5,8 @@
 //         ├─ CARTE ────────── une île par usine ; choisir une île de l'entreprise y téléporte (le menu se ferme)
 //         ├─ OBJECTIFS ────── la mission en cours et les missions terminées (relues à l'ouverture)
 //         ├─ PRESTIGE ─────── l'aperçu du service (relu à l'ouverture) ─ Prestige ! ─ l'écran d'après
+//         ├─ PERSONNEL ────── les équipes, un membre à la fois ; AGENCE : les candidats du jour (relus à l'ouverture)
+//         │                   (ces écrans sont dans personnel.ts)
 //         └─ Amis : verrouillé, un mot « Bientôt »
 //
 // Les écrans sont des fonctions pures : une vue de l'entreprise (ce que le service a dit) entre, un écran sort
@@ -20,7 +22,6 @@ import { config } from "../config";
 import {
   BUY_AMOUNTS,
   RESTORE_STEP_MAX,
-  type BuyAmount,
   type CompanyState,
   type Factory,
   type MissionState,
@@ -29,13 +30,28 @@ import {
 } from "../protocol";
 import type { TravelOutcome } from "../monde/voyage";
 import { describeError, type Clock, type Logger } from "../runtime";
-import type { Actions, ActionOutcome, PreviewOutcome } from "./actions";
+import type { Actions, ActionOutcome, CandidatesOutcome, PreviewOutcome } from "./actions";
 import { COLOR, colored, ICON } from "./apparence";
 import { counterValue } from "./compteur";
+import {
+  MAIN,
+  STATUS_MARK,
+  bodyOf,
+  button,
+  go,
+  screenOf,
+  tileDetail,
+  type Entry,
+  type Notice,
+  type Route,
+  type Screen,
+  type Target,
+} from "./ecran";
 import type { CompanyView, ViewStore } from "./etat";
 import type { ActionFormSpec, FormAnswer, FormPresenter } from "./formulaires";
 import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
+import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
 import {
   BULLES,
   CARTE_TEXTES,
@@ -53,84 +69,12 @@ import {
   missionTitle,
   refusalBubble,
   renderBubble,
-  type Bubble,
+  staffRefusalBubble,
 } from "./textes";
 import { canBuyLevels, factoryStatus, nextRestoreStep, type FactoryStatus } from "./usines";
 
-// ---------------------------------------------------------------- vocabulaire des écrans
-
-/** Où le joueur se trouve. Chaque écran sait quel est son parent : pas de pile à tenir. */
-export type Route =
-  | { readonly screen: "main" }
-  | { readonly screen: "silo" }
-  | { readonly screen: "objectifs" }
-  | { readonly screen: "prestige" }
-  /** L'écran d'après le prestige : on n'y arrive que par la réponse du service au prestige. */
-  | { readonly screen: "apres" }
-  | { readonly screen: "carte"; readonly page: number }
-  | { readonly screen: "usines"; readonly page: number }
-  | { readonly screen: "fiche"; readonly factoryId: string; readonly page: number };
-
-/** Ce que fait un bouton. */
-export type Target =
-  | { readonly kind: "go"; readonly route: Route }
-  /** Une tuile verrouillée : l'écran reste, Oooscar dit que ce n'est pas encore là (ou la bulle donnée). */
-  | { readonly kind: "soon"; readonly bubble?: Bubble }
-  | { readonly kind: "collect" }
-  /** Le bouton « Prestige ! » : demande le prestige au service. */
-  | { readonly kind: "prestige" }
-  /** Une île de l'entreprise sur la carte : y téléporte le joueur. */
-  | { readonly kind: "travel"; readonly factoryId: string }
-  | { readonly kind: "buy"; readonly factoryId: string; readonly amount: BuyAmount }
-  | { readonly kind: "restore"; readonly factoryId: string; readonly step: number }
-  /** Ferme le menu. */
-  | { readonly kind: "end" };
-
-/** Un écran montré : la fenêtre, et la cible de chaque bouton (même ordre que `spec.buttons`). */
-export interface Screen {
-  readonly spec: ActionFormSpec;
-  readonly targets: readonly Target[];
-}
-
-/** Ce qu'Oooscar dit en haut d'un écran après une action, avec les lignes de chiffres qui vont avec. */
-export interface Notice {
-  readonly bubble: Bubble;
-  readonly lines?: readonly string[];
-}
-
-const MAIN: Route = { screen: "main" };
-
-function go(route: Route): Target {
-  return { kind: "go", route };
-}
-
-/** Un bouton à deux lignes : le nom, puis ce qu'il faut savoir avant d'appuyer. */
-function button(label: string, detail?: string): string {
-  return detail === undefined ? label : `${label}\n${colored(COLOR.muted, detail)}`;
-}
-
-/**
- * Le corps d'un écran : la bulle d'Oooscar et ses chiffres, une ligne vide, puis les lignes de l'écran (une
- * chaîne vide y fait une ligne vide). Aucune ligne vide ne reste au bout.
- */
-function bodyOf(notice: Notice | undefined, lines: readonly string[]): string {
-  const top = notice === undefined ? [] : [renderBubble(notice.bubble), ...(notice.lines ?? [])];
-  const all = top.length > 0 && lines.length > 0 ? [...top, "", ...lines] : [...top, ...lines];
-  while (all.length > 0 && all[all.length - 1] === "") all.pop();
-  return all.join("\n");
-}
-
-interface Entry {
-  readonly text: string;
-  readonly target: Target;
-}
-
-function screenOf(title: string, body: string, entries: readonly Entry[]): Screen {
-  return {
-    spec: { title, body, buttons: entries.map((entry) => entry.text) },
-    targets: entries.map((entry) => entry.target),
-  };
-}
+// Le vocabulaire des écrans (routes, cibles, boutons) vit dans ecran.ts ; le menu le redonne à qui l'importait d'ici.
+export type { Notice, Route, Screen, Target } from "./ecran";
 
 // ---------------------------------------------------------------- menu principal
 
@@ -175,21 +119,16 @@ export function mainScreen(view: CompanyView, missions: MissionState | undefined
       text: button(`${ICON.prestige} ${MENU_TEXTES.prestige}`, PRESTIGE_TEXTES.tuile(formatCount(view.state.courseNumber))),
       target: go({ screen: "prestige" }),
     },
+    {
+      text: button(`${ICON.personnel} ${MENU_TEXTES.personnel}`, MENU_TEXTES.nombreMembres((view.state.staff ?? []).length)),
+      target: go({ screen: "personnel", page: 0 }),
+    },
     lockedTile(MENU_TEXTES.amis),
   ];
   return screenOf(MENU_TEXTES.titre, bodyOf(notice, [`${COLOR.bold}${view.state.name}${COLOR.reset}`]), tiles);
 }
 
 // ---------------------------------------------------------------- les usines
-
-/** Le repère d'une usine selon sa situation : une icône et une couleur, jamais la couleur seule. */
-const STATUS_MARK: Record<FactoryStatus, string> = {
-  ACTIVE: colored(COLOR.success, ICON.usine),
-  EN_RUINE: colored(COLOR.blocked, ICON.cadenas),
-  REMISE_EN_ETAT: colored(COLOR.paper, ICON.engrenage),
-  INCIDENT: colored(COLOR.incident, ICON.flamme),
-  SANS_COURANT: colored(COLOR.blocked, ICON.eclair),
-};
 
 /** La couleur du mot de situation sur la fiche. */
 const STATUS_COLOR: Record<FactoryStatus, string> = {
@@ -199,23 +138,6 @@ const STATUS_COLOR: Record<FactoryStatus, string> = {
   INCIDENT: COLOR.incident,
   SANS_COURANT: COLOR.blocked,
 };
-
-/** La ligne d'info d'une tuile d'usine : tout vient de la fiche du service. */
-function tileDetail(factory: Factory, status: FactoryStatus): string {
-  const tuile = USINES_TEXTES.tuile;
-  switch (status) {
-    case "ACTIVE":
-      return tuile.active(formatCount(factory.level), formatRate(factory.ratePerHour));
-    case "EN_RUINE":
-      return tuile.enRuine;
-    case "REMISE_EN_ETAT":
-      return tuile.remise(factory.restoreStep ?? 0, RESTORE_STEP_MAX);
-    case "INCIDENT":
-      return tuile.incident;
-    case "SANS_COURANT":
-      return tuile.sansCourant;
-  }
-}
 
 export function usinesScreen(view: CompanyView, page: number, tilesPerScreen: number, notice?: Notice): Screen {
   const factories = view.state.factories;
@@ -281,6 +203,9 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
     "",
     ...infos,
   ];
+  // La ligne d'équipe vient de la liste du personnel du service ; sans personne dans l'usine, elle n'existe pas.
+  const team = teamLine(view, factoryId);
+  if (team !== undefined) lines.push(team);
   return screenOf(FICHE_TEXTES.titre, bodyOf(notice, lines), entries);
 }
 
@@ -476,8 +401,11 @@ export function unavailableScreen(): Screen {
 
 // ---------------------------------------------------------------- ce que dit Oooscar après une action
 
-/** La bulle (et les chiffres) qui suivent le résultat d'une action. Rien quand l'action a été ignorée. */
-export function noticeOf(outcome: ActionOutcome): Notice | undefined {
+/**
+ * La bulle (et les chiffres) qui suivent le résultat d'une action. Rien quand l'action a été ignorée. `staff` dit que
+ * l'action touche le personnel : deux refus y ont des mots à eux (plus de poste libre, déjà embauché).
+ */
+export function noticeOf(outcome: ActionOutcome, staff = false): Notice | undefined {
   switch (outcome.kind) {
     case "collected": {
       const lines = [SILO_TEXTES.encaisse(formatAmount(outcome.collected))];
@@ -490,8 +418,14 @@ export function noticeOf(outcome: ActionOutcome): Notice | undefined {
       return { bubble: BULLES.etape };
     case "prestiged":
       return { bubble: BULLES.prestige };
+    case "hired":
+      return { bubble: BULLES.recrue };
+    case "assigned":
+      return { bubble: BULLES.affectation };
+    case "fired":
+      return { bubble: BULLES.renvoi };
     case "refused":
-      return { bubble: refusalBubble(outcome.reason, outcome.missing) };
+      return { bubble: staff ? staffRefusalBubble(outcome.reason, outcome.missing) : refusalBubble(outcome.reason, outcome.missing) };
     case "failed":
       return { bubble: failureBubble(outcome.failure, outcome.reason) };
     case "busy":
@@ -551,6 +485,18 @@ function parentOf(route: Route): Route {
   switch (route.screen) {
     case "fiche":
       return { screen: "usines", page: route.page };
+    case "equipe":
+    case "membre":
+    case "agence":
+      return { screen: "personnel", page: 0 };
+    case "affecter":
+    case "renvoi":
+      return { screen: "membre", staffId: route.staffId };
+    case "candidat":
+      return { screen: "agence" };
+    case "embauche":
+      return { screen: "candidat", slot: route.slot };
+    case "personnel":
     case "usines":
     case "silo":
     case "objectifs":
@@ -560,6 +506,12 @@ function parentOf(route: Route): Route {
     case "main":
       return MAIN;
   }
+}
+
+/** Ce que le menu a lu du service pour ses écrans, par joueur et par ouverture : relu à chaque entrée dans l'écran. */
+interface Reads {
+  preview: PreviewOutcome | undefined;
+  candidates: CandidatesOutcome | undefined;
 }
 
 export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
@@ -587,7 +539,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     xuid: Xuid,
     view: CompanyView,
     notice: Notice | undefined,
-    preview: PreviewOutcome | undefined,
+    reads: Reads,
   ): Screen | undefined {
     switch (route.screen) {
       case "main":
@@ -597,7 +549,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "objectifs":
         return objectifsScreen(missions.get(xuid), notice);
       case "prestige":
-        return prestigeScreen(view, preview, xuid, notice);
+        return prestigeScreen(view, reads.preview, xuid, notice);
       case "apres":
         return apresScreen(view, notice);
       case "carte":
@@ -606,6 +558,22 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         return usinesScreen(view, route.page, tilesPerScreen, notice);
       case "fiche":
         return ficheScreen(view, route.factoryId, route.page, notice);
+      case "personnel":
+        return personnelScreen(view, route.page, tilesPerScreen, notice);
+      case "equipe":
+        return equipeScreen(view, route.factoryId, route.page, tilesPerScreen, notice);
+      case "membre":
+        return membreScreen(view, route.staffId, notice);
+      case "affecter":
+        return affecterScreen(view, route.staffId, route.page, tilesPerScreen, notice);
+      case "renvoi":
+        return renvoiScreen(view, route.staffId, notice);
+      case "agence":
+        return agenceScreen(reads.candidates, notice);
+      case "candidat":
+        return candidatScreen(reads.candidates, route.slot, notice);
+      case "embauche":
+        return embaucheScreen(view, reads.candidates, route.slot, route.page, tilesPerScreen, notice);
     }
   }
 
@@ -619,6 +587,9 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         return noticeOf(await actions.restoreStep(xuid, target.factoryId, target.step));
       case "soon":
         return { bubble: target.bubble ?? BULLES.bientot };
+      case "hire":
+      case "assign":
+      case "fire":
       case "prestige":
       case "travel":
       case "go":
@@ -631,18 +602,28 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     const xuid = playerXuid(player);
     let route: Route = MAIN;
     let notice: Notice | undefined;
-    /** Le dernier aperçu du prestige lu : relu à chaque ouverture de l'écran, et après un prestige refusé. */
-    let preview: PreviewOutcome | undefined;
+    /** Ce que le menu a lu du service pour ses écrans : l'aperçu du prestige, les candidats de l'agence. */
+    const reads: Reads = { preview: undefined, candidates: undefined };
+    /** Relit ce que l'écran d'arrivée montre et que le service peut avoir changé depuis la dernière fois. */
+    async function enter(next: Route): Promise<void> {
+      // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
+      if (next.screen === "objectifs") await missions.refresh(xuid);
+      // Le prestige aussi : l'aperçu dépend de la production du moment.
+      if (next.screen === "prestige") reads.preview = await actions.preview(xuid);
+      // Les candidats du jour aussi : un candidat embauché ailleurs, ou une nouvelle liste.
+      if (next.screen === "agence") reads.candidates = await actions.candidates(xuid);
+    }
     for (;;) {
       const view = views.get(xuid);
       if (view === undefined) {
         await present(player, unavailableScreen().spec);
         return;
       }
-      const screen = screenFor(route, xuid, view, notice, preview);
+      const screen = screenFor(route, xuid, view, notice, reads);
       if (screen === undefined) {
-        // L'usine n'existe plus côté service : retour au parent, la bulle reste.
+        // L'usine, le membre ou le candidat n'existe plus côté service : retour au parent, la bulle reste.
         route = parentOf(route);
+        await enter(route);
         continue;
       }
       const answer = await present(player, screen.spec);
@@ -652,15 +633,28 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       notice = undefined;
       if (target.kind === "go") {
         route = target.route;
-        // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
-        if (route.screen === "objectifs") await missions.refresh(xuid);
-        // Le prestige aussi : l'aperçu dépend de la production du moment.
-        if (route.screen === "prestige") preview = await actions.preview(xuid);
+        await enter(route);
       } else if (target.kind === "prestige") {
         const outcome = await actions.prestige(xuid);
         notice = noticeOf(outcome);
         if (outcome.kind === "prestiged") route = { screen: "apres" };
-        else if (outcome.kind !== "busy") preview = await actions.preview(xuid);
+        else if (outcome.kind !== "busy") reads.preview = await actions.preview(xuid);
+      } else if (target.kind === "hire") {
+        const outcome = await actions.hire(xuid, target.slot, target.factoryId);
+        notice = noticeOf(outcome, true);
+        // Embauché, le candidat porte son `staffId` : l'agence est relue pour le montrer. Refusé, le joueur reste sur le choix de l'usine.
+        if (outcome.kind === "hired") {
+          route = { screen: "agence" };
+          await enter(route);
+        }
+      } else if (target.kind === "assign") {
+        const outcome = await actions.assignStaff(xuid, target.staffId, target.factoryId);
+        notice = noticeOf(outcome, true);
+        if (outcome.kind === "assigned") route = { screen: "membre", staffId: target.staffId };
+      } else if (target.kind === "fire") {
+        const outcome = await actions.fireStaff(xuid, target.staffId);
+        notice = noticeOf(outcome, true);
+        if (outcome.kind === "fired") route = { screen: "personnel", page: 0 };
       } else if (target.kind === "travel") {
         if (deps.travel === undefined) {
           notice = { bubble: BULLES.bientot };

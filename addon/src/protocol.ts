@@ -1,6 +1,9 @@
 // Le contrat avec silooo-core : heartbeat, join, leave et pollEvents (phase 2), puis getCompany, collect,
-// buyLevels et restoreStep, puis getMissions (phase 3), puis le prestige (phase 4). Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui
-// fabriquent les corps et lisent les réponses. Quand le contrat change, il change d'abord dans l'OpenAPI.
+// buyLevels et restoreStep, puis getMissions (phase 3), puis le prestige et le personnel (phase 4). Types écrits
+// d'après api/silooo-core.openapi.yaml, fonctions pures qui fabriquent les corps et lisent les réponses. Quand le
+// contrat change, il change d'abord dans l'OpenAPI.
+
+import type { PersonnelDefinitions } from "./generated/definitions";
 
 // ---------------------------------------------------------------- types du contrat
 
@@ -33,6 +36,50 @@ export interface IslandOrigin {
   z: number;
 }
 
+/** Les rôles de `Staff.role`. Le contrat connaît DIRECTEUR, le service n'en rend pas encore : l'add-on le lit quand même. */
+export const STAFF_ROLES = ["SALARIE", "CHEF", "DIRECTEUR"] as const;
+
+export type StaffRole = (typeof STAFF_ROLES)[number];
+
+/** Les raretés de `Staff.rarity`, celles de `definitions/personnel.json` (le type est tiré du fichier généré). */
+export type StaffRarity = keyof PersonnelDefinitions["raretes"];
+
+// Les codes sont des clés et non des chaînes : la charte des textes bannit un des mots (design/README.md), et
+// tools/anti_ia.py lit toutes les chaînes de src/. TypeScript refuse une rareté oubliée ou en trop.
+const RARITY_CODES: Readonly<Record<StaffRarity, true>> = { COMMUN: true, RARE: true, EPIQUE: true };
+
+export const STAFF_RARITIES: readonly StaffRarity[] = Object.keys(RARITY_CODES) as StaffRarity[];
+
+/**
+ * Un candidat du jour ou un membre du personnel (`Staff` du contrat). `staffId` n'existe qu'une fois embauché, `slot`
+ * que pour un candidat du jour. Tous les montants sont ceux du service, jamais recalculés ici.
+ */
+export interface Staff {
+  staffId?: number;
+  slot?: number;
+  name: string;
+  /** L'apparence, telle que le service la donne. */
+  skinId: string;
+  role: StaffRole;
+  rarity: StaffRarity;
+  /** Le gain de production de la rareté, en pourcent de la production de l'usine où le membre travaille. */
+  bonusPercent: number;
+  /** Le salaire, en pourcent du revenu de l'usine. */
+  salaryPercent?: number;
+  /** Ce que ce salaire coûte à l'entreprise en Donar par heure, maintenant : zéro tant que le membre n'a pas d'usine active. */
+  salaryPerHour?: number;
+  /** Le prix d'embauche d'un candidat libre, en Donar. */
+  hireCost?: number;
+  /** L'usine du membre ; nul (ou absent) tant qu'il n'en a pas. */
+  factoryId?: string | null;
+}
+
+/** Un membre embauché de `CompanyState.staff` : il a toujours un `staffId`. */
+export type StaffMember = Staff & { staffId: number };
+
+/** Un candidat de `getCandidates` : il a toujours une place, de 1 à 5. Embauché, il porte aussi `staffId`. */
+export type Candidate = Staff & { slot: number };
+
 export interface CompanyState {
   companyId: number;
   name: string;
@@ -48,6 +95,8 @@ export interface CompanyState {
   zonesOwned?: number[];
   /** Origine de l'archipel de l'entreprise, en blocs. Le service la donne dès qu'il l'a attribuée ; l'add-on la lit, il ne la calcule pas. */
   island?: IslandOrigin;
+  /** Le personnel embauché, affecté ou non. Le contrat ne le marque pas obligatoire : absent, les écrans le lisent comme vide. */
+  staff?: StaffMember[];
   version: number;
 }
 
@@ -277,6 +326,9 @@ function readCompanyState(value: unknown, path: string): CompanyState {
     });
   }
   if (rec["island"] !== undefined) state.island = readIslandOrigin(rec["island"], `${path}.island`);
+  if (rec["staff"] !== undefined) {
+    state.staff = list(rec["staff"], `${path}.staff`).map((item, i) => readMember(item, `${path}.staff[${i}]`));
+  }
   return state;
 }
 
@@ -586,4 +638,106 @@ export function parsePrestigePreview(body: unknown): Parsed<PrestigePreview> {
     if (rec["lingotsIfDoubled"] !== undefined) preview.lingotsIfDoubled = whole(rec, "lingotsIfDoubled", "prestige", 0);
     return preview;
   });
+}
+
+// ---------------------------------------------------------------- phase 4 : le personnel
+
+/** Bornes de `slot` dans `hire` : les cinq places de la liste du jour. */
+export const SLOT_MIN = 1;
+export const SLOT_MAX = 5;
+
+/** Gabarits des chemins du personnel. `{companyId}`, `{slot}` et `{staffId}` sont remplacés par les fonctions ci-dessous. */
+export const STAFF_PATHS = {
+  agency: "/v1/companies/{companyId}/agency",
+  hire: "/v1/companies/{companyId}/agency/{slot}/hire",
+  staff: "/v1/companies/{companyId}/staff/{staffId}",
+} as const;
+
+export function agencyPath(companyId: number): string {
+  return STAFF_PATHS.agency.replace("{companyId}", companySegment(companyId));
+}
+
+export function hirePath(companyId: number, slot: number): string {
+  if (!Number.isInteger(slot) || slot < SLOT_MIN || slot > SLOT_MAX) throw new RangeError(`slot invalide : ${slot}`);
+  return STAFF_PATHS.hire.replace("{companyId}", companySegment(companyId)).replace("{slot}", String(slot));
+}
+
+function staffSegment(staffId: number): string {
+  if (!Number.isSafeInteger(staffId) || staffId < 0) throw new RangeError(`staffId invalide : ${staffId}`);
+  return String(staffId);
+}
+
+/** Le chemin d'un membre du personnel : celui d'`assignStaff` (PATCH) et, sans corps, celui de `fireStaff` (DELETE). */
+export function staffPath(companyId: number, staffId: number): string {
+  return STAFF_PATHS.staff.replace("{companyId}", companySegment(companyId)).replace("{staffId}", staffSegment(staffId));
+}
+
+/**
+ * Le chemin de `fireStaff` : un DELETE n'a pas de corps, `actor` et `requestId` voyagent dans la requête
+ * (paramètres `ActorXuid` et `RequestId` du contrat).
+ */
+export function fireStaffPath(companyId: number, staffId: number, action: ActionBase): string {
+  if (!XUID_PATTERN.test(action.actor)) throw new RangeError(`actor invalide : ${action.actor}`);
+  return `${staffPath(companyId, staffId)}?requestId=${encodeURIComponent(action.requestId)}&actor=${action.actor}`;
+}
+
+/** Corps de `hire`. Sans `factoryId`, le candidat reste sans usine. */
+export interface HireBody extends ActionBase {
+  factoryId?: string;
+}
+
+export function hireBody(action: ActionBase, factoryId?: string): HireBody {
+  return factoryId === undefined
+    ? { requestId: action.requestId, actor: action.actor }
+    : { requestId: action.requestId, actor: action.actor, factoryId };
+}
+
+/** Corps d'`assignStaff` : l'usine est obligatoire. */
+export interface AssignStaffBody extends ActionBase {
+  factoryId: string;
+}
+
+export function assignStaffBody(action: ActionBase, factoryId: string): AssignStaffBody {
+  return { requestId: action.requestId, actor: action.actor, factoryId };
+}
+
+function readStaff(value: unknown, path: string): Staff {
+  const rec = record(value, path);
+  const staff: Staff = {
+    name: str(rec, "name", path),
+    skinId: str(rec, "skinId", path),
+    role: oneOf(rec, "role", path, STAFF_ROLES),
+    rarity: oneOf(rec, "rarity", path, STAFF_RARITIES),
+    bonusPercent: num(rec, "bonusPercent", path),
+  };
+  if (rec["staffId"] !== undefined) staff.staffId = whole(rec, "staffId", path, 0);
+  if (rec["slot"] !== undefined) staff.slot = whole(rec, "slot", path, SLOT_MIN);
+  if (rec["salaryPercent"] !== undefined) staff.salaryPercent = num(rec, "salaryPercent", path);
+  if (rec["salaryPerHour"] !== undefined) staff.salaryPerHour = num(rec, "salaryPerHour", path);
+  if (rec["hireCost"] !== undefined) staff.hireCost = num(rec, "hireCost", path);
+  if (rec["factoryId"] !== undefined) staff.factoryId = readNullableString(rec, "factoryId", path) ?? null;
+  return staff;
+}
+
+/** Un membre du personnel embauché : le service lui donne toujours un `staffId`. */
+function readMember(value: unknown, path: string): StaffMember {
+  const staff = readStaff(value, path);
+  if (staff.staffId === undefined) throw new ShapeError(`${path}.staffId : entier attendu`);
+  return { ...staff, staffId: staff.staffId };
+}
+
+/** Un candidat du jour : le service lui donne toujours une place, et `hire` en a besoin. */
+function readCandidate(value: unknown, path: string): Candidate {
+  const staff = readStaff(value, path);
+  if (staff.slot === undefined) throw new ShapeError(`${path}.slot : entier attendu`);
+  if (staff.slot > SLOT_MAX) throw new ShapeError(`${path}.slot : ${SLOT_MAX} au plus attendu`);
+  return { ...staff, slot: staff.slot };
+}
+
+/**
+ * Lit le corps 200 de getCandidates : un tableau de `Staff` qui ont chacun une place. Le contrat ne fixe pas le nombre
+ * de candidats ; l'add-on montre ceux que le service donne, dans l'ordre où il les donne.
+ */
+export function parseCandidates(body: unknown): Parsed<Candidate[]> {
+  return attempt(() => list(body, "agence").map((item, i) => readCandidate(item, `agence[${i}]`)));
 }

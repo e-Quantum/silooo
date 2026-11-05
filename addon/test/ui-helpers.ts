@@ -9,6 +9,7 @@ import type {
   ActionBase,
   Balances,
   BuyAmount,
+  Candidate,
   CollectResponse,
   CompanyState,
   CompanyUpdated,
@@ -66,7 +67,10 @@ export function joinOf(store: PlayerStore): JoinResponse {
 
 // ---------------------------------------------------------------- l'API de l'entreprise
 
-export type Company = Pick<CoreApi, "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview">;
+export type Company = Pick<
+  CoreApi,
+  "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview" | "getCandidates" | "hire" | "assignStaff" | "fireStaff"
+>;
 
 export type Call =
   | { readonly op: "getCompany"; readonly companyId: number }
@@ -74,7 +78,11 @@ export type Call =
   | { readonly op: "buyLevels"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly amount: BuyAmount }
   | { readonly op: "restoreStep"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly step: number }
   | { readonly op: "prestige"; readonly companyId: number; readonly action: ActionBase }
-  | { readonly op: "prestigePreview"; readonly companyId: number };
+  | { readonly op: "prestigePreview"; readonly companyId: number }
+  | { readonly op: "getCandidates"; readonly companyId: number }
+  | { readonly op: "hire"; readonly companyId: number; readonly slot: number; readonly action: ActionBase; readonly factoryId: string | undefined }
+  | { readonly op: "assignStaff"; readonly companyId: number; readonly staffId: number; readonly action: ActionBase; readonly factoryId: string }
+  | { readonly op: "fireStaff"; readonly companyId: number; readonly staffId: number; readonly action: ActionBase };
 
 export interface Script {
   getCompany?: Array<ApiResult<CompanyState>>;
@@ -83,6 +91,10 @@ export interface Script {
   restoreStep?: Array<ApiResult<CompanyUpdated>>;
   prestige?: Array<ApiResult<CompanyUpdated>>;
   prestigePreview?: Array<ApiResult<PrestigePreview>>;
+  getCandidates?: Array<ApiResult<Candidate[]>>;
+  hire?: Array<ApiResult<CompanyUpdated>>;
+  assignStaff?: Array<ApiResult<CompanyUpdated>>;
+  fireStaff?: Array<ApiResult<CompanyUpdated>>;
 }
 
 export interface FakeCompany extends Company {
@@ -122,6 +134,22 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     prestigePreview(companyId) {
       calls.push({ op: "prestigePreview", companyId });
       return next("prestigePreview", script.prestigePreview);
+    },
+    getCandidates(companyId) {
+      calls.push({ op: "getCandidates", companyId });
+      return next("getCandidates", script.getCandidates);
+    },
+    hire(companyId, slot, action, factoryId) {
+      calls.push({ op: "hire", companyId, slot, action, factoryId });
+      return next("hire", script.hire);
+    },
+    assignStaff(companyId, staffId, action, factoryId) {
+      calls.push({ op: "assignStaff", companyId, staffId, action, factoryId });
+      return next("assignStaff", script.assignStaff);
+    },
+    fireStaff(companyId, staffId, action) {
+      calls.push({ op: "fireStaff", companyId, staffId, action });
+      return next("fireStaff", script.fireStaff);
     },
   };
 }
