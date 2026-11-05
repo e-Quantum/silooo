@@ -69,4 +69,5 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 - `deploy/` : images, `compose.yml`, scripts de déploiement et de sauvegarde ; `deploy/README.md` et
   [deploiement.md](deploiement.md).
 - `tools/` : `verifier.sh` et les contrôles qu'il enchaîne (`verifier_definitions.mjs`, `generer_types.mjs`,
-  `anti_ia.py`, `verifier_pack.mjs`), leurs tests dans `tools/tests/`.
+  `anti_ia.py`, `verifier_pack.mjs`, `verifier_site.mjs` : les pages du site dans Chromium), leurs tests dans `tools/tests/` ;
+  `tools/partage/` refait l'image de partage du site.

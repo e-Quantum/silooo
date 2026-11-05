@@ -11,11 +11,14 @@ lit « Pour la direction du jeu », la direction du Discord lit « Pour la direc
 - **Le jeu** : phase 5 en cours (`docs/passation.md`). Dernière migration du site sur `main` : `V7__site_registrations.sql` ;
   la suivante prend le numéro libre à la fusion.
 - **Le site** : les six étapes S0 à S5 de la première direction sont sur `main` (commit `69d98b1`), revues dans
-  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, vingt-quatre à corriger, treize à
-  refaire, quatre posées à Kr (trois questions T1, T2, T3). Le kit de Kr est sur `main` : `docs/site.md` le reprend,
-  complété par « Où en est `main` » ; l'original est dans `docs/references/site-kit/`.
-- **Étape en cours** : la première branche de correction, `claude/site-socle`.
-- **Kr** : trois questions dans la révision. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
+  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, huit corrigées (`claude/site-socle`),
+  dix-sept à corriger, treize à refaire, trois posées à Kr (T1 appliquée par sa recommandation, décision 15 ; T2 et T3
+  attendent). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
+  est dans `docs/references/site-kit/`.
+- **Étape en cours** : `claude/site-socle` est finie (fusionnée sur `main` après `tools/verifier.sh` vert) ; la suivante
+  est `claude/site-gabarit`.
+- **Kr** : deux questions encore ouvertes dans la révision (T2, T3) ; T1 a été appliquée par sa recommandation
+  (décision 15), Kr peut la retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
 
 ## Les écarts à corriger
 
@@ -25,7 +28,7 @@ ses lignes sont passées à « corrigé ».
 
 La page d'attente :
 
-- [ ] `claude/site-socle` : R4 (Gradle copie `design/`), R5 (`tools/verifier_site.mjs`), R7 (`robots.txt`,
+- [x] `claude/site-socle` (5 novembre 2026) : R4 (Gradle copie `design/`), R5 (`tools/verifier_site.mjs`), R7 (`robots.txt`,
   `sitemap.xml`), R8 (`Empreinte.kt` et ses vecteurs), R13 (404 avec Oooscar), R30 (débordement de
   `/wiki/personnel/`), R37 (image de partage logo et Oooscar), R2 pour moitié (la politique de sécurité admet les
   scripts du site), R3 selon T1 (`composants.css` dérivé de `bundle.css`)
@@ -127,6 +130,14 @@ garde une copie non suivie de `docs/references/site/`, identique octet pour octe
 7. **L'agence : `game-design.md` et `economie.md` se contredisent.** Le game design parle d'une nouvelle liste de
    candidats achetée en Donar ; le service (décision 33) et `economie.md` disent « rien à acheter ». Le wiki suit le
    service. À trancher par Kr, et le game design à mettre d'accord.
+8. **Fichiers partagés touchés par `claude/site-socle`** (5 novembre 2026) : `core/build.gradle.kts` (Gradle copie
+   `design/` dans les ressources du site et dérive `composants.css` ; `SILOOO_SITE_RENDER_DIR` posé pour les tests),
+   `core/Dockerfile` et `core/Dockerfile.dockerignore` (`design/` entre dans le contexte et dans l'étape de construction,
+   sans ses `.md`, `tokens.json` ni `decor/`), `package.json` et `package-lock.json` de la racine (`playwright@1.62.1` en
+   devDependency exacte), `.github/workflows/ci.yml` (une étape `npm ci` puis `npx playwright install --with-deps chromium`
+   avant le verifier), `tools/verifier.sh` (étape « Site : pages dans Chromium ») et `tools/tests/run.sh` (ses tests). Sur
+   votre poste, `bash tools/verifier.sh` dit « IGNORÉ Site : pages dans Chromium » tant que `npx playwright install
+   chromium` n'a pas tourné ; la CI, elle, joue l'étape.
 
 ## Pour la direction du Discord
 
@@ -247,6 +258,18 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
 14. **Les captures comme preuves.** Seize captures JPEG du site rendu en local sont commises dans
     `docs/references/site/captures-revision/` (1,1 Mo) ; les quatre-vingt-huit captures complètes se régénèrent avec
     `SiteRenderToDisk` et Chromium, ce que `tools/verifier_site.mjs` (R5) outillera.
+15. **T1 appliquée par sa recommandation** (5 novembre 2026, `claude/site-socle`, sans réponse de Kr). kotlinx.html
+    reste le moteur des pages (le gabarit est une fonction, Pebble se greffe plus tard si Kr le demande) ;
+    `composants.css` est dérivé de `design/composants/bundle.css` par Gradle, table `atelierBlobs` de
+    `core/build.gradle.kts` reprise dans `docs/site.md` (les identifiants `/_blob/` ne sont pas des sommes SHA-256 des
+    textures, vérifié : la table s'écrit, elle ne se calcule pas) ; `atelier.css` ne garde que les polices, la base, les
+    réglages que le web demande aux composants et la mise en page, et `SiteAtelierTest` refuse qu'il redéfinisse un
+    `border-image`. Les trente-deux copies de `design/` quittent `core/` : Gradle les pose, l'image Docker reçoit `design/`.
+16. **Playwright à la racine, Chromium en CI, l'image de partage commise.** `playwright@1.62.1` (version exacte, celle
+    déjà présente sur le poste de Kr) est une devDependency du `package.json` de la racine ; `tools/verifier_site.mjs`
+    l'importe, la CI installe Chromium (`npx playwright install --with-deps chromium`), et sur un poste sans Chromium
+    l'étape de `verifier.sh` est ignorée en nommant la commande. L'image de partage est un PNG commis
+    (`site/public/partage.png`), refait à la main avec `tools/partage/capturer.mjs` : Chromium n'entre pas dans Gradle.
 
 ## À valider par Kr
 
@@ -322,6 +345,13 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
 - Le kit : les bulles d'Oooscar (`docs/site.md`, « Animations ») ; la page d'attente, l'inscription, Rejoindre, la boutique,
   le Panthéon, le Guide de la Scierie, l'article d'exemple (maquettes de `docs/references/site/maquettes/`) : à reprendre
   tels quels jusqu'à son avis.
+
+- `claude/site-socle` (5 novembre 2026) : `pages/Erreur.kt`, la page introuvable : « Page introuvable », la bulle
+  d'Oooscar « Cette page s'est envolée. » (le texte du kit), le bouton « Retour à l'accueil », la description « Cette
+  adresse ne mène à rien. » ; `pages/Attente.kt`, l'`alt` du visage oups « Oooscar, la mascotte de Silooo, surpris » ;
+  `pages/Gabarit.kt`, l'`alt` de l'image de partage « Le logo de Silooo et Oooscar, sa mascotte, sur le ciel » ;
+  l'image elle-même, `site/public/partage.png` (le logo, « SILOOO » sur une plaque, Oooscar joie et sa bulle « Salut !
+  Moi, c'est Oooscar. », `tools/partage/partage.html`), à regarder dans un aperçu Discord.
 
 ## Journal
 
@@ -424,3 +454,11 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   à Kr), seize captures commises, puis `docs/site.md`, `docs/site-direction.md` et cette passation réalignés sur le
   kit. Envoyé la révision à Kr avec les trois questions. Suite : `claude/site-socle` (R4, R5, R7, R8, R13, R30, R37,
   R2 pour moitié, R3 selon T1).
+- 5 novembre 2026, 16 h 38 à 17 h 08 (direction du site, deuxième passage, en local). `claude/site-socle` : Gradle copie
+  `design/` et dérive `composants.css` (T1 par sa recommandation, décision 15), `atelier.css` réduit aux réglages du web
+  et à la mise en page, `robots.txt` et `sitemap.xml`, `Empreinte.kt` et ses vecteurs, la 404 avec Oooscar oups, l'image
+  de partage (`tools/partage/`), `script-src 'self'`, le tableau des raretés qui ne déborde plus, `tools/verifier_site.mjs`
+  (étape du verifier, tests de l'outillage, Chromium en CI, décision 16). Tests Gradle verts en local (SQL ignorés sans
+  Docker), 44 pages à 360 et 1 280 px sans écart, captures relues (404, personnel, attente, boutique). Fusion sur `main`
+  après `tools/verifier.sh` complet ; les deux commits de documentation de `claude/site-revision` partent avec elle.
+  Suite : `claude/site-gabarit`.

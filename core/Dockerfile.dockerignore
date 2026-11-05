@@ -14,10 +14,15 @@
 !core/gradle
 !core/src
 !definitions
+!design
 
 # Les tests tournent dans la CI (job verifier), pas dans l'image. Les schémas JSON servent aux outils, pas au service.
 core/src/test
 definitions/schemas
+# De design/, le site ne lit que les fichiers copiés par Gradle : ni la charte ni les fiches des composants.
+design/**/*.md
+design/tokens.json
+design/decor
 
 # Jamais de secret dans une image : fichiers d'environnement, clés, certificats, où qu'ils soient.
 **/.env

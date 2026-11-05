@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
-/** Le dossier `design/` est la source du logo : la copie du site lui ressemble octet pour octet, et on ne la retouche jamais. */
+/** Le dossier `design/` est la source du logo : la copie que Gradle pose dans le site lui ressemble octet pour octet. */
 class SiteLogoTest {
     @Test
     @DisplayName("Les logos du site sont les copies exactes de design/logo/")
@@ -17,7 +17,7 @@ class SiteLogoTest {
             val copy = checkNotNull(SiteLogoTest::class.java.classLoader.getResourceAsStream("site/public/logo/$name")) {
                 "site/public/logo/$name est introuvable"
             }.use { it.readBytes() }
-            assertArrayEquals(source, copy, "$name n'est pas la copie de design/logo/$name : recopie la source, ne retouche pas la copie")
+            assertArrayEquals(source, copy, "$name n'est pas la copie de design/logo/$name : la copie vient de Gradle (processResources), pas d'une retouche")
         }
     }
 }

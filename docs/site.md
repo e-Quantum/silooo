@@ -253,13 +253,16 @@ admis » dans `session/join` pendant la bêta. Contrat d'abord, puis test, puis 
 
 ## Style
 
-Le design system Silooo Atelier, sans le changer. Trois feuilles dans `core/src/main/resources/site/static/css/` :
+Le design system Silooo Atelier, sans le changer. Trois feuilles dans `core/src/main/resources/site/public/`, importées
+dans cet ordre par `site.css`, l'unique feuille liée par les pages (depuis `claude/site-socle`, T1 appliquée) :
 
-- `tokens.css` : copie de `design/tokens.css`.
-- `composants.css` : `design/composants/bundle.css`, où chaque adresse `/_blob/<id>` est remplacée par le fichier
-  de `design/textures/` qui a la même somme SHA-256 (table ci-dessous). Un contrôle de `tools/verifier_site.mjs`
-  vérifie que les deux fichiers ne diffèrent que par ces adresses.
-- `site.css` : les pièces du site, reprises des maquettes de `docs/references/site/maquettes/` (classes `w-*`,
+- `atelier/tokens.css` : copie de `design/tokens.css`, posée par Gradle.
+- `atelier/composants.css` : `design/composants/bundle.css`, où Gradle remplace chaque adresse `/_blob/<id>` par le
+  fichier de `design/textures/` de la table ci-dessous (les identifiants ne sont pas des sommes des textures, vérifié :
+  la table s'écrit, dans `core/build.gradle.kts`, `atelierBlobs`). `SiteAtelierTest` vérifie que les deux fichiers ne
+  diffèrent que par ces adresses.
+- `atelier.css` : les polices, la base, les réglages que le web demande aux composants (chacun dit pourquoi), et les
+  pièces du site, à reprendre des maquettes de `docs/references/site/maquettes/` au fil des branches (classes `w-*`,
   textures ×2 sous 700 px de large, ×3 au-dessus).
 
 | Adresse dans `bundle.css` | Fichier |
@@ -281,10 +284,11 @@ Le design system Silooo Atelier, sans le changer. Trois feuilles dans `core/src/
 | `/_blob/7a5fdd7669e8dcf5d609cc07ba1a9700` | `design/textures/piste.png` |
 | `/_blob/6ac1bc4b9e5d3236ea51ebd88d85ee08` | `design/textures/plein.png` |
 
-Gradle copie `design/` dans les ressources du site au moment de la construction (`site/design/`) : aucune texture,
-icône ou image d'Oooscar n'est recopiée à la main dans `core/`. Polices Jersey 10 (titres), Pixelify Sans (texte),
-Silkscreen (étiquettes), sous licence OFL, en `woff2` dans `site/static/polices/` avec leur licence ; aucun appel à
-Google. Pour les textes longs (Guide, Actus, Légal), le corps passe à 18 px au moins. Le ciel en fond, des îles en
+Gradle copie `design/` dans les ressources du site au moment de la construction (`site/public/atelier/` et
+`site/public/logo/`, `processResources` de `core/build.gradle.kts` ; l'image Docker reçoit `design/` à côté de `core/`) :
+aucune texture, icône ou image d'Oooscar n'est recopiée à la main dans `core/`. Polices Jersey 10 (titres), Pixelify
+Sans (texte), Silkscreen (étiquettes), sous licence OFL, en `woff2` dans `site/public/polices/` avec leur licence ;
+aucun appel à Google. Pour les textes longs (Guide, Actus, Légal), le corps passe à 18 px au moins. Le ciel en fond, des îles en
 blocs, Oooscar en bas des pages.
 
 ## Gabarits et mode du site
@@ -461,7 +465,8 @@ corriger, treize à refaire, quatre posées à Kr.
   Le format exact est à confirmer par Kr (tout est dans `PayNowWebhook.kt`).
 - **Les tests** : `core/src/test/kotlin/com/silooo/core/site/` (pages, style, contenus, wiki, pionniers, webhook,
   statistiques) et les tests SQL de `sitedata` (ignorés sans Docker, joués en CI). `SiteRenderToDisk` écrit les
-  pages rendues quand `SILOOO_SITE_RENDER_DIR` est posé : c'est la base des captures de relecture.
+  pages rendues dans `core/build/site-rendu/` à chaque `gradlew test` (Gradle pose `SILOOO_SITE_RENDER_DIR`) ;
+  `tools/verifier_site.mjs` les ouvre dans Chromium à 360 et 1 280 px, et `--captures` en tire les captures de relecture.
 - **Les variables** (treize, toutes facultatives, décrites dans `core/README.md`) : `SILOOO_SITE_PORT`,
   `SILOOO_SITE_MODE`, `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`, `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU`,
   `SILOOO_SITE_URL_BOUTIQUE` (disparaît avec la boutique PayNow), `SILOOO_SITE_SITES_DE_VOTE` (disparaît au profit de
@@ -469,8 +474,9 @@ corriger, treize à refaire, quatre posées à Kr.
   `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET`.
 - **Ce qui manque** par rapport à ce fichier : les comptes (Xbox, Discord avec code en jeu, sessions), l'espace joueur,
   l'admin, les actus, trois des quatre pages légales, le bandeau direct, le Panthéon, la jauge et la série du vote, le
-  Guide généré, la fenêtre d'achat et la commande PayNow, les quatre animations, la vitrine, `robots.txt`,
-  `sitemap.xml`, l'empreinte du gamertag, `tools/verifier_site.mjs`, la copie de `design/` par Gradle.
+  Guide généré, la fenêtre d'achat et la commande PayNow, les quatre animations, la vitrine. Depuis `claude/site-socle`
+  (5 novembre 2026) : `robots.txt`, `sitemap.xml`, l'empreinte du gamertag, `tools/verifier_site.mjs`, la copie de
+  `design/` par Gradle, `composants.css` dérivé, l'image de partage et la 404 avec Oooscar sont là.
 
 ## La référence : skyblock.rinaorc.com
 

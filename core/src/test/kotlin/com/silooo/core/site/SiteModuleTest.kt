@@ -118,9 +118,38 @@ class SiteModuleTest {
             assertEquals(HttpStatusCode.NotFound, response.status, path)
             val html = response.html()
             assertTrue(html.contains("Page introuvable"), path)
-            assertTrue(html.contains("Cette adresse ne mène à rien."), path)
+            // Oooscar, l'air surpris, porte la phrase du kit dans sa bulle.
+            assertTrue(html.contains("/public/atelier/oooscar/oooscar-oups.png"), "$path : le visage oups")
+            assertTrue(html.contains("Cette page s'est envolée.") || html.contains("Cette page s&#39;est envolée."), path)
             assertTrue(html.contains("Retour à l'accueil") || html.contains("Retour à l&#39;accueil"), path)
             assertWellFormedPage(html, "404 $path")
+        }
+    }
+
+    @Test
+    @DisplayName("robots.txt autorise tout et nomme le sitemap ; sitemap.xml liste les pages du mode, une fois chacune")
+    fun robotsAndSitemap() {
+        fun locations(xml: String) = Regex("<loc>([^<]+)</loc>").findAll(xml).map { it.groupValues[1] }.toList()
+        withSite(SiteMode.ATTENTE) { client ->
+            val robots = client.get("/robots.txt")
+            assertEquals(HttpStatusCode.OK, robots.status)
+            assertEquals(ContentType.Text.Plain, robots.contentType()?.withoutParameters())
+            assertEquals("User-agent: *\nAllow: /\nSitemap: https://silooo.com/sitemap.xml\n", robots.bodyAsText())
+            assertEquals("public, max-age=3600", robots.headers[HttpHeaders.CacheControl])
+            val sitemap = client.get("/sitemap.xml")
+            assertEquals(HttpStatusCode.OK, sitemap.status)
+            assertEquals(ContentType.Application.Xml, sitemap.contentType()?.withoutParameters())
+            val xml = sitemap.bodyAsText()
+            assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"), xml)
+            val locs = locations(xml)
+            for (expected in listOf("https://silooo.com/", "https://silooo.com/mentions/", "https://silooo.com/pionniers/")) assertTrue(expected in locs, "$expected manque : $locs")
+            assertTrue(locs.none { it.contains("/wiki/") || it.contains("/classements/") }, "en attente, ni wiki ni classements : $locs")
+            assertEquals(locs.size, locs.toSet().size, "chaque adresse une fois")
+        }
+        withSite(SiteMode.OUVERT) { client ->
+            val locs = locations(client.get("/sitemap.xml").bodyAsText())
+            for (expected in listOf("https://silooo.com/wiki/", "https://silooo.com/classements/", "https://silooo.com/boutique/", "https://silooo.com/rejoindre/")) assertTrue(expected in locs, "$expected manque : $locs")
+            assertTrue(locs.none { it.contains("/entreprise/") }, "les fiches d'entreprise ne sont pas listées")
         }
     }
 
@@ -166,7 +195,7 @@ class SiteModuleTest {
             assertEquals("same-origin", response.headers["Referrer-Policy"], path)
             val csp = response.headers["Content-Security-Policy"] ?: ""
             assertEquals(
-                "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'",
+                "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; frame-ancestors 'none'",
                 csp,
                 path,
             )

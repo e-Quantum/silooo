@@ -122,6 +122,13 @@ etape_resource_pack() {
   node tools/verifier_pack.mjs
 }
 
+# Les pages du site rendues par les tests Gradle (core/build/site-rendu), ouvertes dans Chromium par Playwright :
+# débordement, erreurs de console, requêtes en échec, images sans alt. Sans Chromium sur un poste, l'étape est ignorée
+# (la sonde répond 3) ; en CI, le workflow installe Chromium et son absence est un échec.
+etape_site() {
+  node tools/verifier_site.mjs
+}
+
 etape_tests_outillage() {
   bash tools/tests/run.sh
 }
@@ -140,6 +147,17 @@ if [ -f core/gradlew ]; then
   etape "silooo-core : tests Gradle" etape_gradle
 else
   ignorer "silooo-core : tests Gradle" "pas de core/gradlew"
+fi
+if [ ! -d core/build/site-rendu ]; then
+  ignorer "Site : pages dans Chromium" "pas de core/build/site-rendu (les tests Gradle ne l'ont pas écrit)"
+else
+  SONDE=0
+  node tools/verifier_site.mjs --sonder || SONDE=$?
+  if [ "$SONDE" -eq 3 ]; then
+    ignorer "Site : pages dans Chromium" "Chromium de Playwright absent (npx playwright install chromium)"
+  else
+    etape "Site : pages dans Chromium" etape_site
+  fi
 fi
 if [ -f addon/package.json ]; then
   etape "Add-on : tests et build" etape_addon
