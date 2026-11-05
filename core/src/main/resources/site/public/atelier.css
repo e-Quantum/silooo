@@ -475,3 +475,261 @@ main { flex: 1 0 auto; width: calc(100% - 2 * var(--pas-4)); max-width: 720px; m
   .nuage, .oooscar__corps #vivant { animation: none; }
   .z, .sa-bulle.pop { animation-duration: 0.01s; }
 }
+
+/* ---------- Les actus */
+/* La liste et chaque actu se posent sur le ciel (main.ciel, sans panneau de fonte) : une colonne de blocs en fonte-900, la
+   largeur reste celle de main (720 px). Les chiffres en px viennent de la maquette SiteActu (corps de 18 px sur 24, lignes
+   de 48 px, chiffres de 28 px), l'ordinateur reprend sa version à 20 px sur 28. */
+main.ciel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-6);
+  color: var(--fonte-900);
+}
+/* La plaque du h1 garde la largeur de son texte au lieu de s'étirer sur la colonne. */
+main.ciel > .sa-plaque { align-self: flex-start; }
+
+/* Le texte d'une liste, d'une introduction, d'un point : 18 px sur 24 (kit, textes longs). */
+.actus__texte, .actu__intro, .actu__points, .actus__vide, .actu__bug { font-size: 18px; line-height: 24px; }
+.actus__texte p, .actu__intro p, .actu__points p { margin: 0 0 var(--pas-4); }
+.actus__texte > :last-child, .actu__intro > :last-child, .actu__points > :last-child { margin-bottom: 0; }
+.actus__vide { margin: 0; }
+/* Un lien du texte, sur le ciel : fonte-900 souligné (le bleu des liens ne s'y lit pas). */
+.actus__texte a, .actu__intro a, .actu__points a { color: var(--fonte-900); }
+
+/* Le rang (.rang) est défini plus bas, avec ceux du chantier : la liste et le sommaire le reprennent. */
+/* Sur le ciel, le cadre de focus or-lingot ne se verrait pas : fonte-900. */
+.actus__liste .rang:focus-visible { outline-color: var(--fonte-900); }
+
+/* La liste : une ligne par actu, le titre d'abord (sur téléphone il a sa ligne, la date et la marque dessous). */
+.actus__liste { display: flex; flex-direction: column; gap: 8px; }
+.actus__liste .rang { flex-wrap: wrap; gap: var(--pas-1) 10px; }
+.actus__liste .rang__titre { flex: 1 1 100%; min-width: 0; }
+.rang__date, .rang__etape {
+  flex: none;
+  font-family: var(--font-etiquette);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.rang__date { color: var(--acier-100); }
+/* La marque « Étape » : une étiquette au liseré laiton, comme les états du chantier. */
+.rang__etape { padding: 2px 6px; border: 2px solid var(--laiton-clair); color: var(--laiton-clair); }
+
+/* Le sommaire chiffré : un panneau de fonte, une ligne par partie écrite, le chiffre dans un carré de la couleur de la partie. */
+.sommaire-actu { display: flex; flex-direction: column; gap: 8px; }
+.rang__numero {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 var(--pas-1);
+  background: var(--email-rouge);
+  border: 2px solid var(--fonte-900);
+  color: var(--papier);
+  font-family: var(--font-affiche);
+  font-size: 24px;
+  line-height: 20px;
+}
+.rang__numero--nouveau { background: var(--email-vert); }
+.rang__numero--changements { background: var(--laiton); color: var(--fonte-900); }
+.rang__numero--corrections { background: var(--email-rouge); }
+
+/* Le fil d'Ariane et la ligne de date : petit texte et étiquette, en fonte-900 sur le ciel. */
+.fil { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--pas-2); font-size: 15px; line-height: 20px; }
+.fil a { display: inline-flex; align-items: center; min-height: 44px; color: var(--fonte-900); font-weight: 600; }
+.fil a:hover { color: var(--fonte-900); text-decoration-thickness: 5px; }
+.fil a:focus-visible, .actu__bug a:focus-visible { outline-color: var(--fonte-900); }
+.actu__meta {
+  margin: 0;
+  font-family: var(--font-etiquette);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Une partie : son titre en affiche, ses points en liste sans puce, un carré de la couleur de la partie devant chacun. */
+.actu__partie { display: flex; flex-direction: column; gap: 8px; }
+.actu__partie h2 { margin: 0; font-family: var(--font-affiche); font-size: 32px; line-height: 30px; font-weight: 400; }
+.actu__points ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.actu__points li { position: relative; padding-left: 20px; }
+.actu__points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--fonte-900);
+}
+.actu__partie--nouveau li::before { background: var(--email-vert-clair); }
+.actu__partie--changements li::before { background: var(--laiton); }
+.actu__partie--corrections li::before { background: var(--email-rouge); }
+
+/* Le lien vers le Discord, en fin d'actu : bien visible, fonte-900 souligné. */
+.actu__bug { margin: 0; }
+.actu__bug a { display: inline-flex; align-items: center; min-height: 44px; color: var(--fonte-900); font-weight: 600; }
+.actu__bug a:hover { color: var(--fonte-900); text-decoration-thickness: 5px; }
+
+@media (min-width: 700px) {
+  main.ciel { gap: var(--pas-8); }
+  .actus__texte, .actu__intro, .actu__points, .actus__vide, .actu__bug { font-size: 20px; line-height: 28px; }
+  .rang { font-size: 20px; line-height: 28px; }
+  /* Une seule ligne par actu : le titre prend la place, la date et la marque restent à droite. */
+  .actus__liste .rang__titre { flex: 1 1 0; }
+  .rang__date { font-size: 14px; line-height: 18px; }
+  .rang__etape { font-size: 14px; line-height: 18px; }
+  .fil { font-size: 17px; line-height: 22px; }
+  .actu__meta { font-size: 16px; line-height: 24px; }
+  .actu__partie h2 { font-size: 44px; line-height: 40px; }
+  .actu__points li { padding-left: 24px; }
+  .actu__points li::before { top: 9px; }
+}
+
+/* ---------- La page d'attente */
+/* D'après les maquettes SiteAttente (téléphone) et SiteAttenteBureau (ordinateur). Le contenu se pose sur le ciel : <main class="ciel attente">
+   n'a pas le panneau de fonte, la page dispose elle-même l'entrée et ses deux panneaux. Téléphone d'abord ; le bloc à partir de 700 px reprend
+   la maquette bureau. Les chemins des tuiles sont relatifs à la feuille, comme ceux de .sol. */
+main.attente { display: flex; flex-direction: column; gap: var(--pas-8); }
+
+/* L'entrée : le logo et le nom, l'accroche, la phrase, le bouton rouge (le seul de la page) et sa note. .attente__colonne porte les textes, .ile le dessin. */
+.attente__entree { padding-top: 8px; }
+.attente__colonne { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.attente__marque { display: flex; align-items: center; gap: 14px; }
+.attente__marque img { width: 66px; height: 80px; flex: none; }
+.attente__marque h1 { margin: 0; font-family: var(--font-affiche); font-size: 72px; line-height: 62px; font-weight: 400; color: var(--fonte-900); }
+.attente__accroche { margin: 0; font-family: var(--font-affiche); font-size: 34px; line-height: 32px; font-weight: 400; }
+.attente__texte { font-size: 18px; line-height: 24px; }
+.attente__texte p { margin: 0 0 var(--pas-4); }
+.attente__texte p:last-child { margin-bottom: 0; }
+/* Le bouton prend toute la largeur sur téléphone. Flex plutôt que block : le texte reste centré dans la hauteur du bouton. */
+a.attente__bouton { display: flex; width: 100%; }
+.attente__petit { margin: 0; font-size: 15px; line-height: 20px; }
+
+/* Les deux panneaux : la maquette garde le padding du composant (6 px), pas celui du grand panneau de fonte des autres pages. La plaque
+   se pose à gauche, au-dessus des rangs. */
+main.attente .sa-panneau { display: flex; flex-direction: column; gap: 10px; padding: var(--pas-2); }
+main.attente .sa-panneau .sa-plaque { align-self: flex-start; }
+.chantier .rang { font-size: 17px; line-height: 22px; }
+
+/* Le dessin d'île n'existe que sur ordinateur (la maquette téléphone n'en a pas). */
+.ile { display: none; }
+
+@media (min-width: 700px) {
+  /* La colonne de la boîte de l'en-tête (1 200 px moins ses deux marges de 36 px) : le contenu tombe sous la marque et le menu. 48 px entre
+     l'entrée et les panneaux, qui s'empilent jusqu'à 959 px (voir plus bas) puis se mettent côte à côte. */
+  main.attente { display: grid; grid-template-columns: minmax(0, 1fr); gap: 48px 40px; width: calc(100% - 2 * var(--pas-12)); max-width: 1128px; margin-bottom: 56px; }
+  .attente__entree { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; align-items: center; padding-top: 12px; }
+
+  /* Les textes à gauche, sur deux colonnes de grille : le bouton et sa note se placent côte à côte à partir de 1 100 px, l'un sous l'autre avant. */
+  .attente__colonne { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 22px 18px; align-items: center; }
+  .attente__colonne > * { grid-column: 1 / -1; }
+  /* Le logo et le nom sont dans l'en-tête de la maquette bureau : ici le h1 « Silooo » ne reste que pour les lecteurs d'écran et les moteurs de recherche. */
+  .attente__marque { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* 84 px sur 74 de la maquette, à partir de 1 273 px ; plus petit en deçà pour que « Produis de jour comme de nuit » tienne dans sa colonne. */
+  .attente__accroche { font-size: clamp(52px, 6.6vw, 84px); line-height: 0.88; }
+  .attente__texte { font-size: 20px; line-height: 28px; }
+  a.attente__bouton { width: auto; justify-self: start; padding: 0 18px 3px; }
+  .attente__petit { max-width: 300px; font-size: 17px; line-height: 22px; }
+
+  /* La grande plaque de la maquette bureau (la petite, du téléphone, est celle du composant). */
+  main.attente .sa-panneau .sa-plaque { font-size: 50px; line-height: 48px; border-width: 15px; border-image-width: 15px; }
+  .chantier .rang { font-size: 20px; line-height: 26px; }
+  .dans-le-jeu .rang { padding: 12px 14px; }
+  .dans-le-jeu .rang > img { width: 48px; height: 48px; }
+  .dans-le-jeu .rang__bloc { gap: 4px; }
+  .dans-le-jeu .rang__titre { font-size: 36px; line-height: 32px; }
+  .dans-le-jeu .rang__detail { font-size: 18px; line-height: 24px; }
+
+  /* Le dessin d'île : 540 px de large, 460 de haut, posé comme la maquette bureau (terre en pyramide renversée, planches, silo, deux nuages).
+     Les textures sont à l'échelle ×3 (tuiles de 48 px) ; dans une colonne plus étroite que 540 px, tout le dessin se réduit d'un coup
+     (zoom 2/3 puis 1/2, tuiles de 32 puis 24 px) plutôt que de déborder sur le texte. overflow-x: clip retient les nuages dans la boîte
+     sans couper le bas du troisième bloc, qui dépasse de 32 px comme sur la maquette. */
+  .ile { display: block; position: relative; width: 100%; max-width: 540px; height: 460px; justify-self: center; overflow-x: clip; zoom: 0.5; }
+}
+@media (min-width: 832px) { .ile { zoom: 0.667; } }
+/* Les deux panneaux côte à côte (une grille de deux colonnes, les panneaux s'étirent à la même hauteur). Sans étape au chantier, « Dans le jeu » prend toute la largeur. */
+@media (min-width: 960px) {
+  main.attente { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .attente__entree { grid-column: 1 / -1; }
+  .attente__entree + .dans-le-jeu { grid-column: 1 / -1; }
+}
+@media (min-width: 1100px) {
+  a.attente__bouton { grid-column: 1; }
+  .attente__colonne > .attente__petit { grid-column: 2; }
+}
+@media (min-width: 1192px) { .ile { zoom: 1; } }
+
+/* Les blocs de terre : box-sizing content-box, comme la maquette (la bordure basse de 3 px s'ajoute à la hauteur). Le premier a l'herbe en haut.
+   Leur largeur vient de leurs bords gauche et droit (480, 384 et 288 px dans la boîte de 540) : ils suivent la boîte si elle se resserre. */
+.ile__bloc { position: absolute; box-sizing: content-box; background: url("atelier/decor/terre.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; border-bottom: 3px solid var(--fonte-900); }
+.ile__bloc-1 { left: 60px; right: 0; top: 300px; height: 96px; background: url("atelier/decor/terre-herbe.png") 0 0 / 48px 48px repeat-x, url("atelier/decor/terre.png") 0 48px / 48px 48px repeat; }
+.ile__bloc-2 { left: 108px; right: 48px; top: 396px; height: 48px; }
+.ile__bloc-3 { left: 156px; right: 96px; top: 444px; height: 48px; }
+/* Les planches : 120 sur 102 bordure comprise. */
+.ile__planches { position: absolute; left: 108px; top: 198px; width: 120px; height: 102px; box-sizing: border-box; border: 3px solid var(--fonte-900); background: url("atelier/decor/planches.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; }
+/* Le silo : un chapeau rouge de 72 px et un corps d'acier de 150 px, bordés de fonte (b et i sont vides, seul le CSS les dessine). */
+.ile__silo { position: absolute; left: 250px; top: 120px; width: 84px; }
+.ile__silo b { display: block; box-sizing: content-box; width: 72px; height: 24px; margin: 0 auto; background: var(--email-rouge); border: 3px solid var(--fonte-900); border-bottom: 0; }
+.ile__silo i { display: block; box-sizing: content-box; height: 150px; background: var(--acier-100); border: 3px solid var(--fonte-900); box-shadow: inset -9px 0 0 var(--fonte-300); }
+/* Les deux nuages réutilisent .nuage (couleur, pas par pas), mais dérivent dans la boîte de l'île et non à travers l'écran (vent-ile
+   anime left en pourcentage de la boîte). left et animation-delay posent chacun à l'endroit de la maquette au premier rendu ; avec
+   « réduire les animations », l'animation s'arrête et le nuage reste là. */
+.ile .ile__nuage-1, .ile .ile__nuage-2 { animation-name: vent-ile; }
+.ile .ile__nuage-1 { top: 40px; left: 40px; width: 120px; height: 24px; animation-duration: 70s; animation-delay: -20s; }
+.ile .ile__nuage-2 { top: 120px; left: 380px; width: 150px; height: 24px; animation-duration: 90s; animation-delay: -70s; }
+@keyframes vent-ile { from { left: -30%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .ile .ile__nuage-1, .ile .ile__nuage-2 { animation: none; }
+}
+
+/* ---------- Les rangs (chantier, dans le jeu, actus) */
+/* Un rang : une ligne de fonte-900 cerclée d'un liseré de fonte-700, texte papier (la maquette .w-rang). C'est un lien (a) ou un bloc (div). */
+.rang {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 10px;
+  background: var(--fonte-900);
+  box-shadow: inset 0 0 0 2px var(--fonte-700);
+  color: var(--papier);
+  font-size: 18px;
+  line-height: 24px;
+  text-decoration: none;
+}
+/* Un lien garde sa couleur au survol (a:hover la passerait au rouge) et son liseré passe au laiton. */
+a.rang:hover { color: var(--papier); box-shadow: inset 0 0 0 2px var(--laiton); }
+/* Une icône en tête de rang, alignée en haut quand le rang a un titre et une phrase. */
+.rang--haut { align-items: flex-start; }
+.rang > img { width: 32px; height: 32px; flex: none; image-rendering: pixelated; }
+/* La pastille d'état d'une étape (la maquette .w-ok) : verte quand l'étape est faite, laiton en cours, fonte à venir. */
+.rang__etat { flex: none; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--fonte-900); }
+.rang__etat--faite { background: var(--email-vert); }
+.rang__etat--en-cours { background: var(--laiton); }
+.rang__etat--a-venir { background: var(--fonte-500); }
+.rang__etat img { width: 20px; height: 20px; flex: none; image-rendering: pixelated; }
+.rang__coche { display: block; flex: none; }
+.rang__nom { min-width: 0; }
+/* Le mot de droite (« Fait », « En cours » s'écrivent en minuscules dans le HTML, le CSS les met en capitales) : en étiquette, comme la maquette. */
+.rang__fin {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--font-etiquette);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rang__etat--faite ~ .rang__fin { color: var(--email-vert-clair); }
+.rang__etat--en-cours ~ .rang__fin { color: var(--laiton-clair); }
+/* Un titre et sa phrase, l'un sous l'autre (« Dans le jeu »). */
+.rang__bloc { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rang__bloc .rang__titre { font-family: var(--font-affiche); font-size: 28px; line-height: 26px; color: var(--laiton-clair); }
+.rang__detail { font-size: 16px; line-height: 21px; }

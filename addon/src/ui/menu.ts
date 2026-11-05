@@ -8,8 +8,11 @@
 //         ├─ PRESTIGE ─────── l'aperçu du service (relu à l'ouverture) ─ Prestige ! ─ l'écran d'après
 //         ├─ PERSONNEL ────── les équipes, un membre à la fois ; AGENCE : les candidats du jour (relus à l'ouverture)
 //         │                   (ces écrans sont dans personnel.ts)
-//         ├─ ASSOCIÉS ─────── les membres de l'entreprise ; Inviter, Parts (le PDG), les invitations reçues
-//         │                   (ces écrans sont dans associes.ts)
+//         │   └ ASSOCIÉS ──── les membres de l'entreprise ; Inviter, Parts (le PDG), les invitations reçues
+//         │                   (ces écrans sont dans associes.ts ; le menu principal n'a que huit places, Associés est sous Personnel)
+//         ├─ BOUTIQUE ─────── les Gemmes du service ; Grades, Pilier, Cosmétiques par catégorie, Boost collectif : un article,
+//         │                   Acheter ou Offrir (relus à l'ouverture) ; PASS : la saison, les paliers, Réclamer, Passer premium
+//         │                   (ces écrans sont dans boutique.ts et pass.ts ; le rappel du vote du jour dans votes.ts)
 //         ├─ VILLE ────────── mairie, bonus, prochaine zone ; Bâtiments, Construire (ces écrans sont dans ville.ts)
 //
 // Les écrans sont des fonctions pures : une vue de l'entreprise (ce que le service a dit) entre, un écran sort
@@ -25,6 +28,7 @@ import { config } from "../config";
 import { isRejectedRequest } from "./associes";
 import {
   BUY_AMOUNTS,
+  PASS_PREMIUM_ITEM_ID,
   RESTORE_STEP_MAX,
   type CompanyState,
   type Factory,
@@ -37,10 +41,9 @@ import type { Pos, Xz } from "../monde/geometrie";
 import { parcelAt, type ParcelReading } from "../monde/ville";
 import type { TravelOutcome } from "../monde/voyage";
 import { describeError, type Clock, type Logger } from "../runtime";
-import type { Actions, ActionOutcome, CandidatesOutcome, PreviewOutcome } from "./actions";
+import type { Actions, ActionOutcome, CandidatesOutcome, CatalogOutcome, PassOutcome, PreviewOutcome, VotesOutcome } from "./actions";
 import { COLOR, colored, ICON } from "./apparence";
 import {
-  associesDetail,
   associesNotice,
   associesScreen,
   invitationScreen,
@@ -50,6 +53,19 @@ import {
   readShares,
   type OnlinePlayer,
 } from "./associes";
+import {
+  affectsCompany,
+  articleParent,
+  articleScreen,
+  boutiqueNotice,
+  boutiqueScreen,
+  boutiqueTile,
+  offrirScreen,
+  pioneerLine,
+  purchaseContext,
+  rayonScreen,
+  shelfParent,
+} from "./boutique";
 import { counterValue } from "./compteur";
 import {
   MAIN,
@@ -71,11 +87,13 @@ import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions
 import type { Invitations } from "./invitations";
 import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
+import { passNotice, palierScreen, paliersScreen, passScreen } from "./pass";
 import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
 import { playRepair } from "./reparation";
 import { batimentScreen, batimentsScreen, construireScreen, ilePrincipaleTile, poserScreen, villeNotice, villeScreen, villeTile } from "./ville";
 import {
   ASSOCIES_TEXTES,
+  BOUTIQUE_TEXTES,
   BULLES,
   CARTE_TEXTES,
   FACTORY_IDS,
@@ -83,6 +101,7 @@ import {
   INCIDENT_TEXTES,
   MENU_TEXTES,
   OBJECTIFS_TEXTES,
+  PASS_TEXTES,
   PRESTIGE_TEXTES,
   SILO_TEXTES,
   USINES_TEXTES,
@@ -119,7 +138,7 @@ function objectifsTile(missions: MissionState | undefined): Entry {
   return { text: button(`${ICON.objectifs} ${MENU_TEXTES.objectifs}`, detail), target: go({ screen: "objectifs" }) };
 }
 
-export function mainScreen(view: CompanyView, missions: MissionState | undefined, notice?: Notice): Screen {
+export function mainScreen(view: CompanyView, missions: MissionState | undefined, notice?: Notice, cosmetics: readonly string[] = []): Screen {
   const tiles: Entry[] = [
     {
       text: button(`${ICON.silo} ${MENU_TEXTES.silo}`, MENU_TEXTES.revenu(formatRate(view.state.ratePerHour))),
@@ -142,13 +161,13 @@ export function mainScreen(view: CompanyView, missions: MissionState | undefined
       text: button(`${ICON.personnel} ${MENU_TEXTES.personnel}`, MENU_TEXTES.nombreMembres((view.state.staff ?? []).length)),
       target: go({ screen: "personnel", page: 0 }),
     },
-    {
-      text: button(`${ICON.associes} ${MENU_TEXTES.associes}`, associesDetail(view)),
-      target: go({ screen: "associes" }),
-    },
+    boutiqueTile(view),
     villeTile(view),
   ];
-  return screenOf(MENU_TEXTES.titre, bodyOf(notice, [`${COLOR.bold}${view.state.name}${COLOR.reset}`]), tiles);
+  // Sous le nom de l'entreprise : le titre Pionnier, quand `join` dit que le joueur le possède.
+  const title = pioneerLine(cosmetics);
+  const lines = [`${COLOR.bold}${view.state.name}${COLOR.reset}`, ...(title === undefined ? [] : [title])];
+  return screenOf(MENU_TEXTES.titre, bodyOf(notice, lines), tiles);
 }
 
 // ---------------------------------------------------------------- les usines
@@ -478,6 +497,10 @@ export function noticeOf(outcome: ActionOutcome, staff = false): Notice | undefi
       return { bubble: VILLE_TEXTES.bulles.batimentPose };
     case "buildingUpgraded":
       return { bubble: VILLE_TEXTES.bulles.batimentAmeliore };
+    case "itemBought":
+      return { bubble: BOUTIQUE_TEXTES.bulles.achete };
+    case "passClaimed":
+      return { bubble: PASS_TEXTES.bulles.palierReclame };
     case "refused":
       return { bubble: staff ? staffRefusalBubble(outcome.reason, outcome.missing) : refusalBubble(outcome.reason, outcome.missing) };
     case "failed":
@@ -533,6 +556,8 @@ export interface MenuDeps<P extends MenuPlayer> {
   /** Les chiffres du monde et de la ville. Absents : definitions/iles.json et definitions/ville.json. */
   readonly defs?: IlesDefinitions;
   readonly ville?: VilleDefinitions;
+  /** Les cosmétiques que `join` a donnés au joueur (le titre Pionnier sous le nom de l'entreprise). Absent : aucun. */
+  readonly cosmetics?: (xuid: Xuid) => readonly string[];
   readonly presenter: FormPresenter<P>;
   readonly clock: Clock;
   /** Attend ce nombre de secondes sur l'horloge du serveur (runtime.ts, pause). */
@@ -566,9 +591,23 @@ function parentOf(route: Route): Route {
       return { screen: "agence" };
     case "embauche":
       return { screen: "candidat", slot: route.slot };
+    case "associes":
+      return { screen: "personnel", page: 0 };
     case "inviter":
     case "invitation":
       return { screen: "associes" };
+    case "rayon":
+      return shelfParent(route.rayon);
+    case "article":
+      return articleParent(route.shelf, route.page);
+    case "offrir":
+      return { screen: "article", itemId: route.itemId, shelf: route.shelf, page: route.page };
+    case "pass":
+      return { screen: "boutique" };
+    case "paliers":
+      return { screen: "pass" };
+    case "palier":
+      return { screen: "paliers", page: route.page };
     case "batiments":
     case "construire":
       return { screen: "ville" };
@@ -577,7 +616,7 @@ function parentOf(route: Route): Route {
     case "poser":
       return { screen: "construire" };
     case "ville":
-    case "associes":
+    case "boutique":
     case "personnel":
     case "usines":
     case "silo":
@@ -596,6 +635,15 @@ interface Reads {
   candidates: CandidatesOutcome | undefined;
   /** La parcelle où se tient le joueur, lue en entrant dans l'écran de pose. */
   parcel: ParcelReading | undefined;
+  /** Le catalogue de la boutique, le pass et les votes du jour, relus à l'entrée dans la boutique. */
+  catalog: CatalogOutcome | undefined;
+  pass: PassOutcome | undefined;
+  votes: VotesOutcome | undefined;
+}
+
+/** Une relecture ratée garde la dernière lecture réussie : l'écran reste, et la bulle d'Oooscar dit que ce n'est pas frais. */
+function keepGood<T extends { readonly kind: string }>(previous: T | undefined, fresh: T): T {
+  return fresh.kind === "failed" && previous !== undefined && previous.kind !== "failed" ? previous : fresh;
 }
 
 export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
@@ -664,7 +712,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
   ): Screen | undefined {
     switch (route.screen) {
       case "main":
-        return mainScreen(view, missions.get(xuid), notice);
+        return mainScreen(view, missions.get(xuid), notice, deps.cosmetics?.(xuid) ?? []);
       case "silo":
         return siloScreen(view, clock.now(), notice);
       case "objectifs":
@@ -711,6 +759,20 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         return construireScreen(notice, ville);
       case "poser":
         return poserScreen(route.buildingType, route.rotation, reads.parcel, notice, ville);
+      case "boutique":
+        return boutiqueScreen(view, reads.catalog, reads.pass, reads.votes, notice);
+      case "rayon":
+        return rayonScreen(reads.catalog, route.rayon, route.page, tilesPerScreen, notice);
+      case "article":
+        return articleScreen(view, reads.catalog, route.itemId, route.shelf, route.page, notice);
+      case "offrir":
+        return offrirScreen(reads.catalog, deps.online?.() ?? [], xuid, route.itemId, route.shelf, route.page, route.choix, tilesPerScreen, notice);
+      case "pass":
+        return passScreen(reads.pass, reads.catalog, notice);
+      case "paliers":
+        return paliersScreen(reads.pass, route.page, tilesPerScreen, notice);
+      case "palier":
+        return palierScreen(reads.pass, route.tier, route.page, notice);
     }
   }
 
@@ -737,6 +799,9 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "buyZone":
       case "upgrade":
       case "place":
+      case "buyItem":
+      case "giftItem":
+      case "claim":
       case "go":
       case "end":
         return undefined;
@@ -748,7 +813,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     let route: Route = MAIN;
     let notice: Notice | undefined;
     /** Ce que le menu a lu du service pour ses écrans : l'aperçu du prestige, les candidats de l'agence. */
-    const reads: Reads = { preview: undefined, candidates: undefined, parcel: undefined };
+    const reads: Reads = { preview: undefined, candidates: undefined, parcel: undefined, catalog: undefined, pass: undefined, votes: undefined };
     /** Relit ce que l'écran d'arrivée montre et que le service peut avoir changé depuis la dernière fois. */
     async function enter(next: Route): Promise<Notice | undefined> {
       // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
@@ -767,6 +832,21 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         const current = views.get(xuid)?.state;
         reads.parcel = current === undefined ? undefined : readParcel(player, current);
       }
+      // La boutique : le catalogue (ce que le joueur possède, le prochain grade), le pass (les paliers à réclamer) et les votes du
+      // jour (le rappel) sont relus ensemble. Seul l'échec du catalogue est dit : sans pass ni votes, la boutique manque d'une ligne.
+      if (next.screen === "boutique") {
+        const [catalog, pass, votes] = await Promise.all([actions.catalog(xuid), actions.pass(xuid), actions.votes(xuid)]);
+        reads.catalog = keepGood(reads.catalog, catalog);
+        reads.pass = keepGood(reads.pass, pass);
+        reads.votes = votes;
+        if (catalog.kind === "failed") return { bubble: failureBubble(catalog.failure, catalog.reason) };
+      }
+      // Le pass aussi : les points montent avec le prestige, les commandes et les missions.
+      if (next.screen === "pass") {
+        const pass = await actions.pass(xuid);
+        reads.pass = keepGood(reads.pass, pass);
+        if (pass.kind === "failed") return { bubble: failureBubble(pass.failure, pass.reason) };
+      }
       // Les associés aussi : un joueur a pu accepter, ou le PDG changer les parts, sans que ce joueur ait agi.
       if (next.screen === "associes") {
         deps.invitations?.opened(xuid);
@@ -784,9 +864,10 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       }
       const screen = screenFor(route, xuid, view, notice, reads);
       if (screen === undefined) {
-        // L'usine, le membre ou le candidat n'existe plus côté service : retour au parent, la bulle reste.
+        // L'usine, le membre ou le candidat n'existe plus côté service : retour au parent, la bulle reste. Si la relecture du
+        // parent échoue à son tour, c'est elle que dit Oooscar.
         route = parentOf(route);
-        await enter(route);
+        notice = (await enter(route)) ?? notice;
         continue;
       }
       const answer = await present(player, screen.spec);
@@ -861,6 +942,30 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
           notice = villeNotice(outcome, "placeBuilding") ?? noticeOf(outcome);
           if (outcome.kind === "buildingPlaced") route = { screen: "ville" };
         }
+      } else if (target.kind === "buyItem") {
+        const context = purchaseContext(reads.catalog, target.itemId, false);
+        const outcome = await actions.buyItem(xuid, target.itemId);
+        notice = boutiqueNotice(outcome, context) ?? noticeOf(outcome);
+        if (outcome.kind === "itemBought") {
+          // Ce que le joueur possède a changé (et le prochain grade) : le catalogue est relu. La piste premium aussi, et le revenu
+          // quand l'article multiplie la production (grade, Pilier, boost).
+          reads.catalog = keepGood(reads.catalog, await actions.catalog(xuid));
+          if (target.itemId === PASS_PREMIUM_ITEM_ID) reads.pass = keepGood(reads.pass, await actions.pass(xuid));
+          if (affectsCompany(target.itemId)) await actions.refresh(xuid);
+        }
+      } else if (target.kind === "giftItem") {
+        const context = purchaseContext(reads.catalog, target.itemId, true);
+        const outcome = await actions.buyItem(xuid, target.itemId, target.forXuid);
+        notice = boutiqueNotice(outcome, context) ?? noticeOf(outcome);
+        // Offert, le joueur revient sur la fiche de l'article : ses Gemmes sont celles du service.
+        if (outcome.kind === "itemBought" && route.screen === "offrir") {
+          route = { screen: "article", itemId: route.itemId, shelf: route.shelf, page: route.page };
+        }
+      } else if (target.kind === "claim") {
+        const outcome = await actions.claimPass(xuid, target.tier, target.track);
+        notice = passNotice(outcome) ?? noticeOf(outcome);
+        // Réclamé, ou refusé parce que la lecture était périmée : le pass est relu pour que le palier montre l'état du service.
+        if (outcome.kind === "passClaimed" || outcome.kind === "refused") reads.pass = keepGood(reads.pass, await actions.pass(xuid));
       } else if (target.kind === "travelCity") {
         if (deps.travelCity === undefined) {
           notice = { bubble: BULLES.bientot };

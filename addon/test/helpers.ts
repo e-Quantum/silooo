@@ -2,10 +2,12 @@
 // transport qui rend des réponses prévues. Rien ici n'importe @minecraft/*.
 
 import type { ApiResult, Header, HttpMethod, Transport, TransportResponse } from "../src/http";
+import { BOUTIQUE } from "../src/monde/definitions";
 import type { Logger, Scheduler } from "../src/runtime";
 import type {
   Balances,
   Candidate,
+  CatalogItem,
   CompanyState,
   EventsPage,
   Factory,
@@ -13,8 +15,11 @@ import type {
   JoinResponse,
   Mission,
   MissionState,
+  PassClaimed,
+  PassState,
   PrestigePreview,
   StaffMember,
+  VotesToday,
 } from "../src/protocol";
 
 export interface RecordingLogger extends Logger {
@@ -203,4 +208,76 @@ export function missionAnnouncement(id: number, xuid: string | null, missionId =
   const payload: Record<string, unknown> = { action: "mission", missionId };
   if (rewardLingots !== null) payload["rewardLingots"] = rewardLingots;
   return { id, xuid, kind: "ANNONCE", payload };
+}
+
+// ---------------------------------------------------------------- la boutique, le pass, les votes
+
+/** Un article du catalogue du service : possédé non, disponible oui, sauf ce que le test change. */
+export function catalogItem(itemId: string, overrides: Partial<CatalogItem> = {}): CatalogItem {
+  return { itemId, gemmes: 100, owned: false, available: true, ...overrides };
+}
+
+/**
+ * Le catalogue tel que le service le rend à un joueur qui ne possède rien : les six grades (le premier seul disponible), les
+ * abonnements (Pilier, puis le préfixe perso, que l'add-on ne montre pas), les cosmétiques en vente, le boost collectif et le
+ * pass premium. Les identifiants et les prix sont ceux de definitions/ ; `changes` ajuste un article par son identifiant.
+ */
+export function shopCatalog(changes: Readonly<Record<string, Partial<CatalogItem>>> = {}): CatalogItem[] {
+  const items: CatalogItem[] = [
+    ...BOUTIQUE.grades.map((grade, i) => catalogItem(grade.id, { gemmes: grade.gemmes, available: i === 0 })),
+    ...BOUTIQUE.abonnements.map((abonnement) => catalogItem(abonnement.id, { gemmes: abonnement.gemmes, available: abonnement.id !== "perso" })),
+    ...BOUTIQUE.cosmetiques.filter((cosmetic) => cosmetic.achetable).map((cosmetic) => catalogItem(cosmetic.id, { gemmes: cosmetic.prixGemmes })),
+    catalogItem("boost-collectif", { gemmes: BOUTIQUE.boostCollectif.prixGemmes }),
+    catalogItem("pass-premium", { gemmes: 250 }),
+  ];
+  return items.map((item) => ({ ...item, ...changes[item.itemId] }));
+}
+
+/** Un pass en cours : 120 points, trois paliers, le premier réclamé sur la piste gratuite. */
+export function passState(overrides: Partial<PassState> = {}): PassState {
+  return {
+    seasonId: "saison-1",
+    name: "Saison 1",
+    startsOn: "2026-11-05",
+    endsOn: "2027-01-31",
+    active: true,
+    points: 120,
+    premium: false,
+    claimed: ["1-GRATUIT"],
+    tiers: [
+      { tier: 1, points: 40, free: { lingots: 1 }, premium: { cosmeticId: "s1-fanion" } },
+      { tier: 2, points: 100, free: { lingots: 1 }, premium: null },
+      { tier: 3, points: 180, free: { lingots: 2 }, premium: { cosmeticId: "s1-lanterne" } },
+    ],
+    ...overrides,
+  };
+}
+
+/** La réponse de `claimPass` : des Lingots sur la piste gratuite, un cosmétique sur la piste premium. */
+export function passClaimed(overrides: Partial<PassClaimed> = {}): PassClaimed {
+  return {
+    seasonId: "saison-1",
+    tier: 2,
+    track: "GRATUIT",
+    rewardLingots: 1,
+    cosmeticId: null,
+    balances: { lingots: 9, gemmes: 0, jetons: 0, cles: 0 },
+    ...overrides,
+  };
+}
+
+/** Les votes du jour : le joueur n'a pas encore voté. */
+export function votesToday(overrides: Partial<VotesToday> = {}): VotesToday {
+  return {
+    day: "2026-11-05",
+    votes: 3,
+    goal: 10,
+    partyReached: false,
+    rewardLingots: 1,
+    partyRewardLingots: 1,
+    streakGoalDays: 7,
+    streakBonusLingots: 2,
+    mine: { votes: 0, streak: 0 },
+    ...overrides,
+  };
 }

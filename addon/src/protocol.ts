@@ -131,6 +131,8 @@ export interface JoinResponse {
   role?: "PDG" | "ASSOCIE";
   rank?: string | null;
   pilierUntil?: string | null;
+  /** Les identifiants des cosmétiques que le joueur possède, titre Pionnier compris (`definitions/boutique.json`). Absent : le joueur n'en a aucun. */
+  cosmetics?: string[];
   balances: Balances;
   state: CompanyState;
   offlineCollected?: number;
@@ -389,6 +391,12 @@ export function parseJoinResponse(body: unknown): Parsed<JoinResponse> {
     if (rank !== undefined) join.rank = rank;
     const pilierUntil = readNullableString(rec, "pilierUntil", "join");
     if (pilierUntil !== undefined) join.pilierUntil = pilierUntil;
+    if (rec["cosmetics"] !== undefined) {
+      join.cosmetics = list(rec["cosmetics"], "join.cosmetics").map((item, i) => {
+        if (typeof item !== "string") throw new ShapeError(`join.cosmetics[${i}] : chaîne attendue`);
+        return item;
+      });
+    }
     if (rec["offlineCollected"] !== undefined) join.offlineCollected = num(rec, "offlineCollected", "join");
     return join;
   });
@@ -1024,4 +1032,247 @@ export function placeBuildingBody(action: ActionBase, buildingType: string, x: n
   if (!Number.isSafeInteger(z) || z < 0) throw new RangeError(`z invalide : ${z}`);
   if (!BUILDING_ROTATIONS.includes(rotation)) throw new RangeError(`rotation invalide : ${rotation}`);
   return { requestId: action.requestId, actor: action.actor, buildingType, x, z, rotation };
+}
+
+// ---------------------------------------------------------------- phase 5 : la boutique, le pass, les votes
+
+/** Gabarits des chemins de la boutique, du pass et des votes. */
+export const SHOP_PATHS = {
+  catalog: "/v1/shop/catalog",
+  purchases: "/v1/shop/purchases",
+} as const;
+
+export const PASS_PATHS = {
+  state: "/v1/pass",
+  claims: "/v1/pass/claims",
+} as const;
+
+export const VOTES_PATH = "/v1/votes/today";
+
+function actorQuery(path: string, actor: Xuid): string {
+  if (!XUID_PATTERN.test(actor)) throw new RangeError(`actor invalide : ${actor}`);
+  return `${path}?actor=${actor}`;
+}
+
+/** Le chemin de `catalog` : le catalogue vu par `actor` (ce qu'il possède, le prochain grade qu'il peut prendre). */
+export function catalogPath(actor: Xuid): string {
+  return actorQuery(SHOP_PATHS.catalog, actor);
+}
+
+/** Le chemin de `getPass`. */
+export function passPath(actor: Xuid): string {
+  return actorQuery(PASS_PATHS.state, actor);
+}
+
+/** Le chemin de `todayVotes`. Sans `xuid`, `mine` rend 0 et 0 ; avec un XUID illisible, la fonction lève une erreur. */
+export function votesTodayPath(xuid?: Xuid): string {
+  if (xuid === undefined) return VOTES_PATH;
+  if (!XUID_PATTERN.test(xuid)) throw new RangeError(`xuid invalide : ${xuid}`);
+  return `${VOTES_PATH}?xuid=${xuid}`;
+}
+
+/** Longueur maximale de `itemId` dans `buyItem` : 48 caractères. */
+export const ITEM_ID_MAX = 48;
+
+/** L'article du boost collectif dans `catalog` et `buyItem` (api/silooo-core.openapi.yaml). C'est un identifiant, pas un chiffre du jeu. */
+export const BOOST_ITEM_ID = "boost-collectif";
+
+/** L'article de la piste premium du pass, dans `catalog` et `buyItem`. */
+export const PASS_PREMIUM_ITEM_ID = "pass-premium";
+
+/** Le cosmétique du titre Pionnier (`join.cosmetics`, `ANNONCE` `pionnier`) : le service ne le vend pas. */
+export const PIONEER_COSMETIC_ID = "pionnier";
+
+/** Un article du catalogue (`catalog`). Le nom, la catégorie et le reste viennent de `definitions/boutique.json`, retrouvés par `itemId`. */
+export interface CatalogItem {
+  itemId: string;
+  /** Le prix en Gemmes, tel que le service le donne. */
+  gemmes: number;
+  /** Le joueur l'a déjà (ou l'abonnement court). */
+  owned: boolean;
+  /** Faux pour un grade pas encore débloqué : les grades se prennent dans l'ordre. */
+  available: boolean;
+}
+
+/** Corps de `buyItem` : l'action, l'article, et le joueur qui le reçoit quand c'est un cadeau. */
+export interface BuyItemBody extends ActionBase {
+  itemId: string;
+  forXuid?: Xuid;
+}
+
+export function buyItemBody(action: ActionBase, itemId: string, forXuid?: Xuid): BuyItemBody {
+  if (itemId === "" || itemId.length > ITEM_ID_MAX) throw new RangeError(`itemId invalide : ${itemId}`);
+  if (forXuid === undefined) return { requestId: action.requestId, actor: action.actor, itemId };
+  if (!XUID_PATTERN.test(forXuid)) throw new RangeError(`forXuid invalide : ${forXuid}`);
+  return { requestId: action.requestId, actor: action.actor, itemId, forXuid };
+}
+
+/** Les deux pistes du pass. */
+export const PASS_TRACKS = ["GRATUIT", "PREMIUM"] as const;
+
+export type PassTrack = (typeof PASS_TRACKS)[number];
+
+/** Un palier du pass (`PassTier`). `free` ou `premium` est nul quand le palier n'a rien sur cette piste. */
+export interface PassTier {
+  tier: number;
+  /** Les points du joueur à atteindre, en tout, pour réclamer ce palier. */
+  points: number;
+  free: { lingots: number } | null;
+  premium: { cosmeticId: string } | null;
+}
+
+/** La progression du pass (`PassState`). Le service compte les points et juge les paliers : l'add-on les montre. */
+export interface PassState {
+  seasonId: string;
+  name: string;
+  /** Le premier jour de la saison, « AAAA-MM-JJ », en UTC. */
+  startsOn: string;
+  /** Le dernier jour de la saison, en UTC. */
+  endsOn: string;
+  /** La saison court aujourd'hui : les points montent et le premium s'achète. */
+  active: boolean;
+  points: number;
+  premium: boolean;
+  /** Les paliers réclamés, « palier-PISTE » (par exemple `3-GRATUIT`). */
+  claimed: string[];
+  tiers: PassTier[];
+}
+
+/** La clé d'un palier réclamé dans `PassState.claimed` : le numéro, un tiret, la piste. */
+export function passClaimKey(tier: number, track: PassTrack): string {
+  return `${tier}-${track}`;
+}
+
+/** Corps de `claimPass`. */
+export interface ClaimPassBody extends ActionBase {
+  tier: number;
+  track: PassTrack;
+}
+
+export function claimPassBody(action: ActionBase, tier: number, track: PassTrack): ClaimPassBody {
+  if (!Number.isSafeInteger(tier) || tier < 1) throw new RangeError(`tier invalide : ${tier}`);
+  if (!PASS_TRACKS.includes(track)) throw new RangeError(`track invalide : ${track}`);
+  return { requestId: action.requestId, actor: action.actor, tier, track };
+}
+
+/** Réponse 200 de `claimPass` (`PassClaimed`). */
+export interface PassClaimed {
+  seasonId: string;
+  tier: number;
+  track: PassTrack;
+  /** Les Lingots versés ; zéro sur la piste premium. */
+  rewardLingots: number;
+  /** Le cosmétique donné ; nul sur la piste gratuite. */
+  cosmeticId: string | null;
+  balances: Balances;
+}
+
+/** Les votes du joueur aujourd'hui et sa série (`PlayerVotes`). */
+export interface PlayerVotes {
+  votes: number;
+  streak: number;
+}
+
+/** Les votes du jour (`VotesToday`) : tout vient du service, qui lit `definitions/vote.json`. */
+export interface VotesToday {
+  day: string;
+  votes: number;
+  goal: number;
+  partyReached: boolean;
+  rewardLingots: number;
+  partyRewardLingots: number;
+  streakGoalDays: number;
+  streakBonusLingots: number;
+  mine: PlayerVotes;
+}
+
+/** Lit un corps de soldes (`Balances`) : la réponse 200 de `buyItem`. */
+export function parseBalances(body: unknown): Parsed<Balances> {
+  return attempt(() => readBalances(body, "soldes"));
+}
+
+function readCatalogItem(value: unknown, path: string): CatalogItem {
+  const rec = record(value, path);
+  const itemId = str(rec, "itemId", path);
+  if (itemId === "") throw new ShapeError(`${path}.itemId : identifiant vide`);
+  return { itemId, gemmes: whole(rec, "gemmes", path, 0), owned: bool(rec, "owned", path), available: bool(rec, "available", path) };
+}
+
+/** Lit le corps 200 de `catalog` : un tableau d'articles, dans l'ordre de la boutique. */
+export function parseCatalog(body: unknown): Parsed<CatalogItem[]> {
+  return attempt(() => list(body, "catalogue").map((item, i) => readCatalogItem(item, `catalogue[${i}]`)));
+}
+
+function readPassTier(value: unknown, path: string): PassTier {
+  const rec = record(value, path);
+  const free = rec["free"];
+  const premium = rec["premium"];
+  return {
+    tier: whole(rec, "tier", path, 1),
+    points: whole(rec, "points", path, 1),
+    free: free === undefined || free === null ? null : { lingots: whole(record(free, `${path}.free`), "lingots", `${path}.free`, 1) },
+    premium:
+      premium === undefined || premium === null
+        ? null
+        : { cosmeticId: str(record(premium, `${path}.premium`), "cosmeticId", `${path}.premium`) },
+  };
+}
+
+/** Lit le corps 200 de `getPass`. */
+export function parsePassState(body: unknown): Parsed<PassState> {
+  return attempt(() => {
+    const rec = record(body, "pass");
+    return {
+      seasonId: str(rec, "seasonId", "pass"),
+      name: str(rec, "name", "pass"),
+      startsOn: str(rec, "startsOn", "pass"),
+      endsOn: str(rec, "endsOn", "pass"),
+      active: bool(rec, "active", "pass"),
+      points: whole(rec, "points", "pass", 0),
+      premium: bool(rec, "premium", "pass"),
+      claimed: list(rec["claimed"], "pass.claimed").map((item, i) => {
+        if (typeof item !== "string") throw new ShapeError(`pass.claimed[${i}] : chaîne attendue`);
+        return item;
+      }),
+      tiers: list(rec["tiers"], "pass.tiers").map((item, i) => readPassTier(item, `pass.tiers[${i}]`)),
+    };
+  });
+}
+
+/** Lit le corps 200 de `claimPass`. */
+export function parsePassClaimed(body: unknown): Parsed<PassClaimed> {
+  return attempt(() => {
+    const rec = record(body, "palier");
+    const cosmeticId = rec["cosmeticId"];
+    if (cosmeticId !== null && cosmeticId !== undefined && typeof cosmeticId !== "string") {
+      throw new ShapeError("palier.cosmeticId : chaîne ou nul attendu");
+    }
+    return {
+      seasonId: str(rec, "seasonId", "palier"),
+      tier: whole(rec, "tier", "palier", 1),
+      track: oneOf(rec, "track", "palier", PASS_TRACKS),
+      rewardLingots: whole(rec, "rewardLingots", "palier", 0),
+      cosmeticId: cosmeticId ?? null,
+      balances: readBalances(rec["balances"], "palier.balances"),
+    };
+  });
+}
+
+/** Lit le corps 200 de `todayVotes`. */
+export function parseVotesToday(body: unknown): Parsed<VotesToday> {
+  return attempt(() => {
+    const rec = record(body, "votes");
+    const mine = record(rec["mine"], "votes.mine");
+    return {
+      day: str(rec, "day", "votes"),
+      votes: whole(rec, "votes", "votes", 0),
+      goal: whole(rec, "goal", "votes", 1),
+      partyReached: bool(rec, "partyReached", "votes"),
+      rewardLingots: whole(rec, "rewardLingots", "votes", 0),
+      partyRewardLingots: whole(rec, "partyRewardLingots", "votes", 0),
+      streakGoalDays: whole(rec, "streakGoalDays", "votes", 2),
+      streakBonusLingots: whole(rec, "streakBonusLingots", "votes", 0),
+      mine: { votes: whole(mine, "votes", "votes.mine", 0), streak: whole(mine, "streak", "votes.mine", 0) },
+    };
+  });
 }

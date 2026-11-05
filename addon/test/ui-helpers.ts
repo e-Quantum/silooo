@@ -14,11 +14,16 @@ import type {
   CollectResponse,
   CompanyState,
   CompanyUpdated,
+  CatalogItem,
   GameEvent,
   JoinResponse,
   MissionState,
+  PassClaimed,
+  PassState,
+  PassTrack,
   PrestigePreview,
   ShareInput,
+  VotesToday,
   Xuid,
 } from "../src/protocol";
 import type { Clock } from "../src/runtime";
@@ -89,6 +94,11 @@ export type Company = Pick<
   | "buyZone"
   | "placeBuilding"
   | "upgradeBuilding"
+  | "catalog"
+  | "buyItem"
+  | "getPass"
+  | "claimPass"
+  | "todayVotes"
 >;
 
 export type Call =
@@ -116,7 +126,12 @@ export type Call =
       readonly z: number;
       readonly rotation: BuildingRotation;
     }
-  | { readonly op: "upgradeBuilding"; readonly companyId: number; readonly buildingId: number; readonly action: ActionBase };
+  | { readonly op: "upgradeBuilding"; readonly companyId: number; readonly buildingId: number; readonly action: ActionBase }
+  | { readonly op: "catalog"; readonly actor: Xuid }
+  | { readonly op: "buyItem"; readonly action: ActionBase; readonly itemId: string; readonly forXuid: Xuid | undefined }
+  | { readonly op: "getPass"; readonly actor: Xuid }
+  | { readonly op: "claimPass"; readonly action: ActionBase; readonly tier: number; readonly track: PassTrack }
+  | { readonly op: "todayVotes"; readonly xuid: Xuid | undefined };
 
 export interface Script {
   getCompany?: Array<ApiResult<CompanyState>>;
@@ -136,6 +151,11 @@ export interface Script {
   buyZone?: Array<ApiResult<CompanyUpdated>>;
   placeBuilding?: Array<ApiResult<CompanyUpdated>>;
   upgradeBuilding?: Array<ApiResult<CompanyUpdated>>;
+  catalog?: Array<ApiResult<CatalogItem[]>>;
+  buyItem?: Array<ApiResult<Balances>>;
+  getPass?: Array<ApiResult<PassState>>;
+  claimPass?: Array<ApiResult<PassClaimed>>;
+  todayVotes?: Array<ApiResult<VotesToday>>;
 }
 
 export interface FakeCompany extends Company {
@@ -219,6 +239,26 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     upgradeBuilding(companyId, buildingId, action) {
       calls.push({ op: "upgradeBuilding", companyId, buildingId, action });
       return next("upgradeBuilding", script.upgradeBuilding);
+    },
+    catalog(actor) {
+      calls.push({ op: "catalog", actor });
+      return next("catalog", script.catalog);
+    },
+    buyItem(action, itemId, forXuid) {
+      calls.push({ op: "buyItem", action, itemId, forXuid });
+      return next("buyItem", script.buyItem);
+    },
+    getPass(actor) {
+      calls.push({ op: "getPass", actor });
+      return next("getPass", script.getPass);
+    },
+    claimPass(action, tier, track) {
+      calls.push({ op: "claimPass", action, tier, track });
+      return next("claimPass", script.claimPass);
+    },
+    todayVotes(xuid) {
+      calls.push({ op: "todayVotes", xuid });
+      return next("todayVotes", script.todayVotes);
     },
   };
 }

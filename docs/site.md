@@ -65,6 +65,7 @@ Elles s'ajoutent à celles de `CLAUDE.md`.
 | `/guide`, `/guide/<sujet>` | Guide | public | bêta |
 | `/actus`, `/actus/<slug>` | Actus | public | page d'attente |
 | `/mentions-legales`, `/cgv`, `/confidentialite`, `/parents` | Légal | public | page d'attente |
+| `/discord` | Le Discord : son rôle, Oooscar, la liaison du compte, les règles, et l'invitation (demande de Kr du 5 novembre 2026, hors kit) | public | page d'attente |
 | `/connexion` | Choix Xbox ou Discord | public | page d'attente |
 | `/compte` | Mon entreprise | joueur connecté | bêta |
 | `/compte/lier` | Lier mon compte (Discord seulement) | joueur connecté | bêta |
@@ -443,8 +444,9 @@ corriger, treize à refaire, quatre posées à Kr.
 - **Les pages** sont écrites en Kotlin avec kotlinx.html (`site/pages/`, `Gabarit.kt` pose la page) ; les textes sont
   des contenus Markdown à en-tête (`titre`, `description`, `url`, `modes`) dans `core/src/main/resources/site/contenu/`,
   où un paragraphe `{{nom}}` est remplacé par un bloc rendu par le code (offres, tableaux du wiki, adresse du jeu).
-  En `attente` : `/`, `/mentions/`, `/pionniers/` et ses sous-pages, le webhook. En `ouvert` s'ajoutent `/rejoindre/`,
-  `/ce-qui-se-vend/`, `/boutique/`, `/vote/`, `/mises-a-jour/`, `/wiki/` et treize pages, `/classements/`,
+  En `attente` : `/`, `/actus/` et ses articles, `/discord/`, les quatre pages légales (`/mentions-legales/`, `/cgv/`,
+  `/confidentialite/`, `/parents/`), `/pionniers/` et ses sous-pages, le webhook. En `ouvert` s'ajoutent `/rejoindre/`,
+  `/ce-qui-se-vend/`, `/boutique/`, `/vote/`, `/wiki/` et treize pages, `/classements/`,
   `/entreprise/{id}/`. Une page introuvable en page Silooo.
 - **Le style** : `public/site.css` importe `public/atelier/tokens.css` (copie de `design/tokens.css`) et
   `public/atelier.css` (les composants `sa-*` réécrits à la main d'après `bundle.css`) ; textures, icônes, logo et
@@ -486,6 +488,10 @@ corriger, treize à refaire, quatre posées à Kr.
   tant que le jeu ne les donne pas). Les bulles d'arrivée sont celles de la table « Oooscar », sauf Vote et Mon
   entreprise (leurs nombres viennent de pages qui n'existent pas encore : accueil en attendant) ; le Guide lit son
   palier dans `economie.json`.
+  Depuis `claude/site-attente` (5 novembre 2026) : la page d'attente des maquettes (le dessin d'île compris, en CSS
+  seul), les quatre pages légales (brouillons à relire par Kr), les actus lues dans des fichiers du jar (`/actus/`,
+  `/actus/<slug>/`, le chantier de l'attente ; l'admin et `news_articles` attendent `claude/site-admin`) et la page
+  `/discord/` demandée par Kr : l'invitation y vit, la navigation de l'attente et le pied y mènent.
 
 ## La référence : skyblock.rinaorc.com
 

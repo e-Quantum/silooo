@@ -39,7 +39,7 @@ class SitePublicPagesTest {
         mode: SiteMode = SiteMode.OUVERT,
         settings: SiteSettings = SiteSettings(),
         discordUrl: String? = null,
-        updates: List<UpdateEntry> = emptyList(),
+        articles: List<NewsArticle> = emptyList(),
         block: suspend ApplicationTestBuilder.(HttpClient) -> Unit,
     ) = testApplication {
         application {
@@ -47,7 +47,7 @@ class SitePublicPagesTest {
                 Dependencies(
                     FakeDatabase(), "cle", definitions = TestDefinitions.loaded, siteMode = mode, discordUrl = discordUrl, siteSettings = settings,
                 ),
-                updates = updates,
+                articles = articles,
             )
         }
         block(createClient { followRedirects = false })
@@ -59,7 +59,7 @@ class SitePublicPagesTest {
         assertTrue(Regex("<title>[^<]+</title>").containsMatchIn(html), "$where : title vide")
         assertTrue(Regex("""<meta name="description" content="[^"]+"""").containsMatchIn(html), "$where : meta description vide")
         for (img in Regex("<img[^>]*>").findAll(html)) {
-            assertTrue(Regex("""\balt="[^"]+"""").containsMatchIn(img.value), "$where : image sans alt : ${img.value}")
+            assertTrue(Regex("""\balt="[^"]*"""").containsMatchIn(img.value), "$where : image sans alt : ${img.value}")
         }
         assertOnlySiteScripts(html, where)
         assertFalse(html.contains("{{"), "$where : un marqueur de contenu est resté dans la page")
@@ -108,6 +108,9 @@ class SitePublicPagesTest {
             assertEquals(HttpStatusCode.OK, response.status)
             val html = response.bodyAsText()
             assertTrue(html.contains("On construit. Reviens vite !"), "la bulle d'Oooscar dit l'attente")
+            assertTrue(html.contains("Produis de jour comme de nuit"), "l'accroche de la maquette SiteAttente")
+            assertTrue(html.contains("Me prévenir"), "le bouton mène à l'inscription des pionniers")
+            assertFalse(html.contains("ouvre bientôt"), "l'attente ne promet plus d'ouverture")
             assertFalse(html.contains("Le serveur ouvre bientôt !"), "l'ancienne annonce n'existe plus")
             assertFalse(html.contains("/rejoindre/"))
             assertFalse(html.contains("play.silooo.com"))
@@ -136,7 +139,7 @@ class SitePublicPagesTest {
     }
 
     @Test
-    @DisplayName("Accueil : le Discord est le seul bouton rouge, et seulement s'il est configuré")
+    @DisplayName("Accueil ouvert : le Discord est le seul bouton rouge, et seulement s'il est configuré")
     fun homeDiscord() {
         fun red(html: String) = Regex("""class="sa-bouton"""").findAll(html).count()
         withSite { client -> assertEquals(0, red(client.get("/").bodyAsText())) }
@@ -312,82 +315,11 @@ class SitePublicPagesTest {
     }
 
     @Test
-    @DisplayName("Mises à jour : 200 en ouvert avec le h1, 404 en attente")
-    fun updatesPage() = checkPage("/mises-a-jour/", "Mises à jour")
-
-    @Test
-    @DisplayName("Mises à jour : zéro entrée dans le dépôt, la page dit que le serveur n'a pas encore ouvert")
-    fun updatesWithoutEntry() {
-        assertEquals(emptyList<String>(), UpdateEntries.BUNDLED, "aucune entrée n'est créée tant que rien n'est déployé")
-        withSite(updates = UpdateEntries.fromClasspath()) { client ->
-            val html = client.get("/mises-a-jour/").bodyAsText()
-            assertTrue(mainText(html).contains("Le serveur n'a pas encore ouvert. Les mises à jour s'écriront ici."))
-            assertFalse(html.contains("<article"))
-        }
-    }
-
-    @Test
-    @DisplayName("Mises à jour : deux entrées, la plus récente en tête, la date en français, le titre en h2")
-    fun updatesWithEntries(@TempDir directory: Path) {
-        Files.writeString(
-            directory.resolve("2026-11-05-premiere.md"),
-            "---\ntitre: Première version\ndescription: Le début.\ndate: 2026-11-05\n---\nLe serveur ouvre.\n",
-        )
-        Files.writeString(
-            directory.resolve("2026-12-01-seconde.md"),
-            "---\ntitre: Seconde version\ndescription: La suite.\ndate: 2026-12-01\n---\nUne usine de plus.\n",
-        )
-        val entries = UpdateEntries.fromDirectory(directory)
-        assertEquals(listOf("2026-12-01-seconde.md", "2026-11-05-premiere.md"), entries.map { it.fileName })
-        withSite(updates = entries) { client ->
-            val html = client.get("/mises-a-jour/").bodyAsText()
-            val text = mainText(html)
-            assertFalse(text.contains("n'a pas encore ouvert"))
-            assertTrue(html.indexOf("Seconde version") < html.indexOf("Première version"), "la plus récente en tête")
-            assertTrue(html.contains("<h2>Seconde version</h2>") && html.contains("<h2>Première version</h2>"))
-            assertTrue(text.contains("1er décembre 2026") && text.contains("5 novembre 2026"), text)
-            assertTrue(text.contains("Une usine de plus.") && text.contains("Le serveur ouvre."))
-            assertTrue(html.contains("""<time datetime="2026-11-05">"""))
-            assertWellFormedPage(html, "/mises-a-jour/ avec entrées")
-        }
-    }
-
-    @Test
     @DisplayName("Une date s'écrit en français")
     fun frenchDates() {
         assertEquals("5 novembre 2026", frenchDate(LocalDate.of(2026, 11, 5)))
         assertEquals("1er décembre 2026", frenchDate(LocalDate.of(2026, 12, 1)))
         assertEquals("28 février 2027", frenchDate(LocalDate.of(2027, 2, 28)))
-    }
-
-    @Test
-    @DisplayName("Mises à jour : un nom de fichier mal formé est refusé, une entrée sans date aussi")
-    fun updatesAreChecked() {
-        val body = "---\ntitre: T\ndescription: D\ndate: 2026-11-05\n---\nTexte.\n"
-        UpdateEntries.parse("2026-11-05-ouverture.md", body)
-        for (name in listOf("ouverture.md", "5-novembre.md", "2026-11-05.md", "2026-11-05-Ouverture.md", "2026-11-05-ouverture.txt", "26-11-05-ouverture.md", "2026-11-05_ouverture.md")) {
-            val error = assertThrows<SiteContentException>(name) { UpdateEntries.parse(name, body) }
-            assertTrue(error.message!!.contains(name), error.message)
-        }
-        val noDate = "---\ntitre: T\ndescription: D\n---\nTexte.\n"
-        assertTrue(assertThrows<SiteContentException> { UpdateEntries.parse("2026-11-05-ouverture.md", noDate) }.message!!.contains("date"))
-        val badDate = body.replace("2026-11-05", "5 novembre 2026")
-        assertTrue(assertThrows<SiteContentException> { UpdateEntries.parse("2026-11-05-ouverture.md", badDate) }.message!!.contains("date"))
-        val otherDate = body.replace("date: 2026-11-05", "date: 2026-11-06")
-        assertThrows<SiteContentException> { UpdateEntries.parse("2026-11-05-ouverture.md", otherDate) }
-        assertThrows<SiteContentException> { UpdateEntries.parse("2026-11-05-ouverture.md", body.replace("titre: T\n", "")) }
-    }
-
-    @Test
-    @DisplayName("La liste des mises à jour livrées est celle du dossier des ressources")
-    fun bundledUpdatesMatchFolder() {
-        val folder = Path.of(checkNotNull(SiteContent::class.java.classLoader.getResource("site/contenu/mises-a-jour")).toURI())
-        val files = Files.list(folder).use { stream ->
-            stream.map { it.fileName.toString() }.filter { it.endsWith(".md") }.sorted().toList()
-        }
-        assertEquals(UpdateEntries.BUNDLED.sorted(), files)
-        // Et chaque entrée livrée se lit.
-        assertEquals(UpdateEntries.BUNDLED.size, UpdateEntries.fromClasspath().size)
     }
 
     @Test
@@ -418,7 +350,7 @@ class SitePublicPagesTest {
     @DisplayName("Aucun chiffre dans les contenus écrits à la main des pages publiques, et aucun nom de grade dans le code")
     fun noTypedNumbers() {
         val content = SiteContent.fromClasspath()
-        for (name in listOf("accueil", "rejoindre", "ce-qui-se-vend", "boutique", "vote", "mises-a-jour")) {
+        for (name in listOf("accueil", "rejoindre", "ce-qui-se-vend", "boutique", "vote")) {
             val page = content.pages.first { it.name == name }
             val text = page.html.replace(Regex("<[^>]*>"), " ")
             assertFalse(Regex("\\d").containsMatchIn(text), "$name.md contient un chiffre : le nombre vient des définitions ou de la configuration")

@@ -9,7 +9,7 @@
 //   --sonder              dit seulement si Chromium est là : code 0 s'il l'est, 3 sinon (1 en CI)
 //
 // Échoue (code 1) si une page déborde horizontalement (en nommant les éléments coupables), si la console a une erreur,
-// si une requête échoue ou répond 400 ou plus, ou si une image n'a pas d'alt. Code 3 si Chromium de Playwright manque
+// si une requête échoue ou répond 400 ou plus, ou si une image n'a pas d'attribut alt (un alt vide dit une image décorative). Code 3 si Chromium de Playwright manque
 // (npx playwright install chromium), sauf en CI (variable CI posée) où c'est un échec : la CI l'installe toujours.
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
@@ -162,7 +162,7 @@ try {
             coupables.push(`${element.tagName.toLowerCase()}${classes ? `.${classes}` : ''} (${Math.round(boite.width)} px, bord droit à ${Math.round(boite.right)})`);
           }
         }
-        const sansAlt = [...document.images].filter((image) => !(image.getAttribute('alt') ?? '').trim()).map((image) => image.getAttribute('src') ?? '?');
+        const sansAlt = [...document.images].filter((image) => image.getAttribute('alt') === null).map((image) => image.getAttribute('src') ?? '?');
         return { largeur, defilement: racine.scrollWidth, coupables: coupables.slice(0, 6), sansAlt };
       });
       if (mesure.defilement > mesure.largeur) {

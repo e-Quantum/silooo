@@ -37,7 +37,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  * Il ne vérifie rien : les pages se contrôlent dans [SiteStyleTest] et [SiteModuleTest].
  *
  * Les dossiers : `/` (attente), `discord/` (attente avec le Discord), `ouvert/` (tout le mode ouvert, Discord posé),
- * `ouvert-complet/` (boutique, sites de vote, mises à jour d'exemple), `ouvert-vivant/` (classement et fiche d'entreprise
+ * `ouvert-complet/` (boutique, sites de vote, actus d'exemple), `ouvert-vivant/` (classement et fiche d'entreprise
  * avec des données), `pionniers/` et `ouvert/pionniers/` (le formulaire et ses réponses), `introuvable/` (le 404), et
  * `site/direct.json` (la réponse du bandeau direct avec trois joueurs et deux votes : le vérificateur sert la racine du rendu,
  * `direct.js` y relit `/site/direct.json`).
@@ -108,22 +108,51 @@ class SiteRenderToDisk {
         }
     }
 
-    /** Les deux modes, avec et sans Discord, avec et sans boutique, sites de vote et mises à jour. */
+    /** Les deux modes, avec et sans Discord, avec et sans boutique, sites de vote et actus. */
     private fun renderModes() {
+        // Deux actus d'exemple au plan fixe, pour voir la liste et un article remplis ; elles ne sont écrites nulle part dans le dépôt.
+        val sample = listOf(
+            NewsArticles.parse(
+                "exemple-semaine-deux.md",
+                "---\ntitre: Une semaine de plus\ndescription: Exemple.\ndate: 2026-12-01\n---\nTexte d'introduction d'exemple.\n\n" +
+                    "## Nouveau\n\n- Un premier point d'exemple.\n- Un second point d'exemple.\n- Un troisième point d'exemple.\n\n" +
+                    "## Changements\n\n- Un changement d'exemple.\n- Un autre changement d'exemple.\n\n" +
+                    "## Corrections\n\n- Une correction d'exemple.\n",
+            ),
+            NewsArticles.parse(
+                "exemple-ouverture.md",
+                "---\ntitre: Le serveur ouvre\ndescription: Exemple.\ndate: 2026-11-20\n---\n\n## Nouveau\n\n- Un point d'exemple.\n\n## Corrections\n\n- Une correction d'exemple.\n",
+            ),
+        )
         val pages = listOf(
-            Triple(SiteMode.ATTENTE, null as String?, listOf("/" to "index.html", "/mentions/" to "mentions/index.html", "/wiki/" to "introuvable/index.html")),
-            Triple(SiteMode.ATTENTE, "https://discord.gg/exemple", listOf("/" to "discord/index.html")),
+            Triple(
+                SiteMode.ATTENTE,
+                null as String?,
+                listOf(
+                    "/" to "index.html",
+                    "/actus/" to "actus/index.html",
+                    "/actus/plans-du-jeu/" to "actus/plans-du-jeu/index.html",
+                    "/mentions-legales/" to "mentions-legales/index.html",
+                    "/cgv/" to "cgv/index.html",
+                    "/confidentialite/" to "confidentialite/index.html",
+                    "/parents/" to "parents/index.html",
+                    "/discord/" to "discord/index.html",
+                    "/wiki/" to "introuvable/index.html",
+                ),
+            ),
+            // La page du Discord avec l'invitation configurée (sans elle, discord/index.html ci-dessus).
+            Triple(SiteMode.ATTENTE, "https://discord.gg/exemple", listOf("/discord/" to "discord-invitation/index.html")),
             Triple(
                 SiteMode.OUVERT,
                 null,
                 listOf(
                     "/" to "ouvert/index.html",
-                    "/mentions/" to "ouvert/mentions/index.html",
+                    "/mentions-legales/" to "ouvert/mentions-legales/index.html",
                     "/rejoindre/" to "ouvert/rejoindre/index.html",
                     "/ce-qui-se-vend/" to "ouvert/ce-qui-se-vend/index.html",
                     "/boutique/" to "ouvert/boutique/index.html",
                     "/vote/" to "ouvert/vote/index.html",
-                    "/mises-a-jour/" to "ouvert/mises-a-jour/index.html",
+                    "/actus/" to "ouvert/actus/index.html",
                 ) + WikiContent.fromClasspath().map { it.url to "ouvert${it.url}index.html" },
             ),
             // Avec la boutique, deux sites de vote et le Discord posés : les liens et les boutons que le mode ouvert montre alors.
@@ -134,7 +163,9 @@ class SiteRenderToDisk {
                     "/" to "ouvert-complet/index.html",
                     "/boutique/" to "ouvert-complet/boutique/index.html",
                     "/vote/" to "ouvert-complet/vote/index.html",
-                    "/mises-a-jour/" to "ouvert-complet/mises-a-jour/index.html",
+                    "/actus/" to "ouvert-complet/actus/index.html",
+                    "/discord/" to "ouvert-complet/discord/index.html",
+                    sample[0].url to "ouvert-complet${sample[0].url}index.html",
                 ),
             ),
         )
@@ -143,11 +174,6 @@ class SiteRenderToDisk {
             voteSites = listOf(VoteSite("Premier site", "https://un.exemple.test/"), VoteSite("Second site", "https://deux.exemple.test/")),
             sileneMcUrl = "https://silenemc.exemple.test/",
             hubyyUrl = "https://hubyy.exemple.test/",
-        )
-        // Deux entrées d'exemple pour voir la page des mises à jour remplie ; elles ne sont écrites nulle part dans le dépôt.
-        val sample = listOf(
-            UpdateEntries.parse("2026-12-01-exemple.md", "---\ntitre: Une usine de plus\ndescription: Exemple.\ndate: 2026-12-01\n---\nTexte d'exemple.\n"),
-            UpdateEntries.parse("2026-11-05-exemple.md", "---\ntitre: Le serveur ouvre\ndescription: Exemple.\ndate: 2026-11-05\n---\nTexte d'exemple.\n"),
         )
         for ((mode, discord, routes) in pages) {
             val complete = routes.first().second.startsWith("ouvert-complet")
@@ -158,7 +184,8 @@ class SiteRenderToDisk {
                             FakeDatabase(), "cle", definitions = TestDefinitions.loaded, siteMode = mode, discordUrl = discord,
                             siteSettings = if (complete) settings else SiteSettings(),
                         ),
-                        updates = if (complete) sample else emptyList(),
+                        // Les actus livrées (le chantier de l'attente, l'article des plans du jeu), et les deux d'exemple en plus pour le mode complet.
+                        articles = if (complete) sample + NewsArticles.fromClasspath() else NewsArticles.fromClasspath(),
                     )
                 }
                 val client = createClient { followRedirects = false }

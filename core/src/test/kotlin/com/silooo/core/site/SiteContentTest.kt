@@ -43,8 +43,30 @@ class SiteContentTest {
         val content = SiteContent.fromClasspath()
         assertEquals(listOf("attente"), content.forMode(SiteMode.ATTENTE).filter { it.url == "/" }.map { it.name })
         assertEquals(listOf("accueil"), content.forMode(SiteMode.OUVERT).filter { it.url == "/" }.map { it.name })
-        assertTrue(content.forMode(SiteMode.ATTENTE).any { it.url == "/mentions/" })
-        assertTrue(content.forMode(SiteMode.OUVERT).any { it.url == "/mentions/" })
+        assertTrue(content.forMode(SiteMode.ATTENTE).any { it.url == "/mentions-legales/" })
+        assertTrue(content.forMode(SiteMode.OUVERT).any { it.url == "/mentions-legales/" })
+    }
+
+    @Test
+    @DisplayName("Les quatre pages légales sont dans les deux modes, à leur adresse, avec des sections et une description de 160 caractères au plus")
+    fun legalPages() {
+        val expected = mapOf(
+            "mentions-legales" to ("/mentions-legales/" to "Mentions légales"),
+            "cgv" to ("/cgv/" to "Conditions de vente"),
+            "confidentialite" to ("/confidentialite/" to "Confidentialité"),
+            "parents" to ("/parents/" to "Note aux parents"),
+        )
+        val content = SiteContent.fromClasspath()
+        for ((name, shown) in expected) {
+            val page = content.pages.single { it.name == name }
+            assertEquals(shown.first, page.url, name)
+            assertEquals(shown.second, page.title, name)
+            assertEquals(setOf(SiteMode.ATTENTE, SiteMode.OUVERT), page.modes, name)
+            assertTrue(page.description.length <= 160, "$name : description de ${page.description.length} caractères")
+            assertTrue(page.html.contains("<h2>"), "$name : des sections en ##")
+            for (mode in SiteMode.entries) assertTrue(content.forMode(mode).any { it.name == name }, "$name : absente du mode ${mode.word}")
+        }
+        assertTrue(content.pages.none { it.name == "mentions" }, "l'ancienne page « mentions » n'existe plus")
     }
 
     @Test
@@ -78,11 +100,11 @@ class SiteContentTest {
     fun markdownRendering() {
         val page = SiteContent.parse(
             "essai.md",
-            validHeader + "## Titre\n\nUn [lien](/mentions/) et <script>alert(1)</script> et [piège](javascript:alert(1)).\n",
+            validHeader + "## Titre\n\nUn [lien](/mentions-legales/) et <script>alert(1)</script> et [piège](javascript:alert(1)).\n",
         )
         assertEquals(setOf(SiteMode.ATTENTE, SiteMode.OUVERT), page.modes)
         assertTrue(page.html.contains("<h2>Titre</h2>"))
-        assertTrue(page.html.contains("""href="/mentions/">lien</a>"""), page.html)
+        assertTrue(page.html.contains("""href="/mentions-legales/">lien</a>"""), page.html)
         assertFalse(page.html.contains("<script>"))
         assertFalse(page.html.contains("javascript:"))
         assertNotNull(page.html)

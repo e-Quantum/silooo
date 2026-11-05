@@ -3,8 +3,11 @@
 // Rien ici ne décide quoi que ce soit : on lit des chiffres et on les rend tels quels.
 
 import brut from "../../../definitions/iles.json";
+import brutBoutique from "../../../definitions/boutique.json";
+import brutPersonnel from "../../../definitions/personnel.json";
 import brutVille from "../../../definitions/ville.json";
-import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
+import brutVote from "../../../definitions/vote.json";
+import type { BoutiqueDefinitions, IlesDefinitions, PersonnelDefinitions, VilleDefinitions, VoteDefinitions } from "../generated/definitions";
 
 /**
  * Le JSON importé a des chaînes larges (`string`), les types générés ont les unions exactes du schéma : le passage
@@ -14,6 +17,18 @@ export const ILES: IlesDefinitions = brut as unknown as IlesDefinitions;
 
 /** La ville de l'île principale : definitions/ville.json (zones, catalogue des bâtiments, prix du niveau 1), lu tel quel. */
 export const VILLE: VilleDefinitions = brutVille as unknown as VilleDefinitions;
+
+/** La boutique : definitions/boutique.json. Les noms, les catégories et les bonus des articles viennent d'ici ; les prix, du catalogue du service. */
+export const BOUTIQUE: BoutiqueDefinitions = brutBoutique as unknown as BoutiqueDefinitions;
+
+/** Les rayons de cosmétiques de la boutique : la clé `categorie` de definitions/boutique.json. */
+export type CosmeticCategory = BoutiqueDefinitions["cosmetiques"][number]["categorie"];
+
+/** Le personnel : definitions/personnel.json. Le nom de chaque rareté vient d'ici. */
+export const PERSONNEL: PersonnelDefinitions = brutPersonnel as unknown as PersonnelDefinitions;
+
+/** Les votes : definitions/vote.json. Le nom de chaque site de vote vient d'ici (le rappel du vote du jour). */
+export const VOTE: VoteDefinitions = brutVote as unknown as VoteDefinitions;
 
 /** Les règles de fond que le schéma JSON ne peut pas dire. Rend une liste de problèmes lisibles, vide si tout va bien. */
 export function verifierIles(defs: IlesDefinitions, tailleDeLaCase: number): string[] {

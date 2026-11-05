@@ -16,6 +16,7 @@ import type { Candidate, Staff, StaffMember } from "../protocol";
 import type { CandidatesOutcome } from "./actions";
 import { COLOR, colored, ICON, RARITY_COLOR } from "./apparence";
 import { MAIN, STATUS_MARK, bodyOf, button, go, pageOf, screenOf, type Entry, type Notice, type Screen } from "./ecran";
+import { associesDetail } from "./associes";
 import type { CompanyView } from "./etat";
 import { formatAmount } from "./nombres";
 import { AGENCE_TEXTES, BULLES, FICHE_TEXTES, MENU_TEXTES, PERSONNEL_TEXTES, USINES_TEXTES, factoryName, failureBubble } from "./textes";
@@ -117,8 +118,8 @@ export function teamLine(view: CompanyView, factoryId: string): string | undefin
 const PERSONNEL_PAGE_ZERO = { screen: "personnel", page: 0 } as const;
 
 /**
- * L'écran Personnel : la porte de l'agence, puis une tuile par équipe (une par usine qui a du monde, puis les membres
- * sans usine). La porte de l'agence reste sur chaque page.
+ * L'écran Personnel : la porte de l'agence et celle des associés, puis une tuile par équipe (une par usine qui a du monde,
+ * puis les membres sans usine). Les deux portes restent sur chaque page.
  */
 export function personnelScreen(view: CompanyView, page: number, tilesPerScreen: number, notice?: Notice): Screen {
   const teams = teamsOf(view);
@@ -130,8 +131,12 @@ export function personnelScreen(view: CompanyView, page: number, tilesPerScreen:
     text: button(`${ICON.agence} ${PERSONNEL_TEXTES.agence}`, PERSONNEL_TEXTES.agenceDetail),
     target: go({ screen: "agence" }),
   };
-  const paged = pageOf(rows, page, tilesPerScreen - 1, (target) => ({ screen: "personnel", page: target }));
-  const entries: Entry[] = [agence, ...paged.entries, { text: PERSONNEL_TEXTES.retour, target: go(MAIN) }];
+  const associes: Entry = {
+    text: button(`${ICON.associes} ${MENU_TEXTES.associes}`, associesDetail(view)),
+    target: go({ screen: "associes" }),
+  };
+  const paged = pageOf(rows, page, tilesPerScreen - 2, (target) => ({ screen: "personnel", page: target }));
+  const entries: Entry[] = [agence, associes, ...paged.entries, { text: PERSONNEL_TEXTES.retour, target: go(MAIN) }];
 
   const lines: string[] = [PERSONNEL_TEXTES.phrase];
   if (teams.length === 0) lines.push(PERSONNEL_TEXTES.vide);

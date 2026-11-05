@@ -7,8 +7,12 @@ import {
   actionBody,
   agencyPath,
   assignStaffBody,
+  BOOST_ITEM_ID,
   BUY_AMOUNTS,
+  buyItemBody,
   buyLevelsBody,
+  catalogPath,
+  claimPassBody,
   collectPath,
   COMPANY_PATHS,
   companyPath,
@@ -22,6 +26,7 @@ import {
   hireBody,
   hirePath,
   inviteBody,
+  ITEM_ID_MAX,
   isRestoreStep,
   isSharePercent,
   isXuid,
@@ -33,15 +38,26 @@ import {
   membersPath,
   MISSIONS_PATH,
   missionsPath,
+  parseBalances,
   parseCandidates,
+  parseCatalog,
   parseCollectResponse,
   parseCompanyState,
   parseCompanyUpdated,
   parseEventsPage,
   parseJoinResponse,
   parseMissionState,
+  parsePassClaimed,
+  parsePassState,
   parsePrestigePreview,
+  parseVotesToday,
+  PASS_PATHS,
+  PASS_PREMIUM_ITEM_ID,
+  PASS_TRACKS,
+  passClaimKey,
+  passPath,
   PATHS,
+  PIONEER_COSMETIC_ID,
   PRESTIGE_NEXT,
   prestigePath,
   prestigePreviewPath,
@@ -55,13 +71,16 @@ import {
   SHARE_MAX,
   SHARE_MIN,
   SLOT_MAX,
+  SHOP_PATHS,
   SLOT_MIN,
   STAFF_PATHS,
   STAFF_RARITIES,
   STAFF_ROLES,
   staffPath,
+  VOTES_PATH,
+  votesTodayPath,
 } from "../src/protocol";
-import { balances, companyState, factory, joinResponse } from "./helpers";
+import { balances, companyState, factory, joinResponse, passClaimed, passState, shopCatalog, votesToday } from "./helpers";
 
 describe("corps de requête", () => {
   it("join : le XUID reste une chaîne, même au-delà de 2^53", () => {
@@ -1183,5 +1202,350 @@ describe("accord avec api/silooo-core.openapi.yaml, entreprise partagée", () =>
 
   it("le contrat n'a ni route pour quitter une entreprise ni route pour lister les invitations", () => {
     assert.doesNotMatch(yaml, /operationId: (leaveCompany|removeMember|kickMember|listInvitations|declineInvite)/);
+  });
+});
+
+// ---------------------------------------------------------------- la boutique, le pass, les votes
+
+describe("la boutique, le pass, les votes : chemins et corps", () => {
+  const action = { requestId: "0197f2a0-0000-7000-8000-000000000001", actor: "42" };
+
+  it("les chemins sont ceux du contrat, l'acteur ou le joueur dans la requête", () => {
+    assert.equal(catalogPath("42"), "/v1/shop/catalog?actor=42");
+    assert.equal(passPath("42"), "/v1/pass?actor=42");
+    assert.equal(votesTodayPath("42"), "/v1/votes/today?xuid=42");
+    assert.equal(votesTodayPath(), "/v1/votes/today");
+    assert.equal(SHOP_PATHS.purchases, "/v1/shop/purchases");
+    assert.equal(PASS_PATHS.claims, "/v1/pass/claims");
+    assert.equal(VOTES_PATH, "/v1/votes/today");
+  });
+
+  it("un acteur qui n'est pas un XUID lève une erreur : rien ne part au service", () => {
+    for (const mauvais of ["", "Alex", "4 2", "42?x=1", "1".repeat(21)]) {
+      assert.throws(() => catalogPath(mauvais), RangeError);
+      assert.throws(() => passPath(mauvais), RangeError);
+      assert.throws(() => votesTodayPath(mauvais), RangeError);
+    }
+  });
+
+  it("buyItemBody : sans cadeau la clé forXuid n'existe pas, avec un cadeau elle porte le destinataire", () => {
+    assert.deepEqual(buyItemBody(action, "mvip"), { ...action, itemId: "mvip" });
+    assert.equal("forXuid" in buyItemBody(action, "mvip"), false);
+    assert.deepEqual(buyItemBody(action, "mvip", "2535428000000003"), { ...action, itemId: "mvip", forXuid: "2535428000000003" });
+  });
+
+  it("buyItemBody : un article vide ou de plus de 48 caractères, un destinataire illisible lèvent une erreur", () => {
+    assert.equal(ITEM_ID_MAX, 48);
+    assert.doesNotThrow(() => buyItemBody(action, "x".repeat(ITEM_ID_MAX)));
+    assert.throws(() => buyItemBody(action, ""), RangeError);
+    assert.throws(() => buyItemBody(action, "x".repeat(ITEM_ID_MAX + 1)), RangeError);
+    assert.throws(() => buyItemBody(action, "mvip", "Bea"), RangeError);
+    assert.throws(() => buyItemBody(action, "mvip", ""), RangeError);
+  });
+
+  it("claimPassBody : le palier est un entier de 1 ou plus, la piste est l'une des deux du contrat", () => {
+    assert.deepEqual([...PASS_TRACKS], ["GRATUIT", "PREMIUM"]);
+    assert.deepEqual(claimPassBody(action, 3, "PREMIUM"), { ...action, tier: 3, track: "PREMIUM" });
+    for (const palier of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 60]) {
+      assert.throws(() => claimPassBody(action, palier, "GRATUIT"), RangeError);
+    }
+    assert.throws(() => claimPassBody(action, 1, "OR" as unknown as "GRATUIT"), RangeError);
+  });
+
+  it("la clé d'un palier réclamé est « palier-PISTE », comme le service la rend", () => {
+    assert.equal(passClaimKey(3, "GRATUIT"), "3-GRATUIT");
+    assert.equal(passClaimKey(12, "PREMIUM"), "12-PREMIUM");
+  });
+
+  it("les identifiants que le contrat nomme sont exportés", () => {
+    assert.equal(BOOST_ITEM_ID, "boost-collectif");
+    assert.equal(PASS_PREMIUM_ITEM_ID, "pass-premium");
+    assert.equal(PIONEER_COSMETIC_ID, "pionnier");
+  });
+});
+
+describe("la boutique, le pass, les votes : lecture des réponses", () => {
+  it("parseBalances lit les soldes de l'acheteur", () => {
+    const lus = parseBalances(balances({ lingots: 5, gemmes: 90 }));
+    assert.ok(lus.ok);
+    assert.equal(lus.value.gemmes, 90);
+    assert.equal(parseBalances({ lingots: 1 }).ok, false);
+    assert.equal(parseBalances(null).ok, false);
+  });
+
+  it("parseCatalog lit les articles dans l'ordre du service", () => {
+    const catalogue = shopCatalog({ mvip: { owned: true } });
+    const lu = parseCatalog(catalogue);
+    assert.ok(lu.ok);
+    assert.deepEqual(lu.value, catalogue);
+    assert.deepEqual(parseCatalog([]), { ok: true, value: [] });
+  });
+
+  it("parseCatalog refuse un article mal formé et nomme la clé", () => {
+    const base = { itemId: "mvip", gemmes: 100, owned: false, available: true };
+    for (const [cle, valeur, attendu] of [
+      ["itemId", 7, /itemId/],
+      ["itemId", "", /itemId/],
+      ["gemmes", -1, /gemmes/],
+      ["gemmes", 1.5, /gemmes/],
+      ["owned", "oui", /owned/],
+      ["available", undefined, /available/],
+    ] as const) {
+      const lu = parseCatalog([{ ...base, [cle]: valeur }]);
+      assert.equal(lu.ok, false, `${cle}=${String(valeur)}`);
+      if (!lu.ok) assert.match(lu.problem, attendu);
+    }
+    assert.equal(parseCatalog({ itemId: "mvip" }).ok, false);
+    assert.equal(parseCatalog("catalogue").ok, false);
+  });
+
+  it("parsePassState lit la saison, les points et les paliers, les récompenses vides restent nulles", () => {
+    const pass = passState({ premium: true });
+    const lu = parsePassState(pass);
+    assert.ok(lu.ok);
+    assert.deepEqual(lu.value, pass);
+    assert.equal(lu.value.tiers[1]?.premium, null);
+    const sansRecompense = parsePassState({ ...pass, tiers: [{ tier: 1, points: 40 }] });
+    assert.ok(sansRecompense.ok);
+    assert.deepEqual(sansRecompense.value.tiers, [{ tier: 1, points: 40, free: null, premium: null }]);
+  });
+
+  it("parsePassState refuse un pass mal formé et nomme la clé", () => {
+    const pass = passState();
+    for (const [cle, valeur, attendu] of [
+      ["seasonId", 3, /seasonId/],
+      ["name", undefined, /name/],
+      ["startsOn", null, /startsOn/],
+      ["endsOn", 20270131, /endsOn/],
+      ["active", "oui", /active/],
+      ["points", -5, /points/],
+      ["premium", 1, /premium/],
+      ["claimed", "1-GRATUIT", /claimed/],
+      ["claimed", [1], /claimed/],
+      ["tiers", {}, /tiers/],
+    ] as const) {
+      const lu = parsePassState({ ...pass, [cle]: valeur });
+      assert.equal(lu.ok, false, `${cle}=${JSON.stringify(valeur)}`);
+      if (!lu.ok) assert.match(lu.problem, attendu);
+    }
+    const mauvaisPalier = parsePassState({ ...pass, tiers: [{ tier: 0, points: 40, free: null, premium: null }] });
+    assert.equal(mauvaisPalier.ok, false);
+    const mauvaiseRecompense = parsePassState({ ...pass, tiers: [{ tier: 1, points: 40, free: { lingots: 0 }, premium: null }] });
+    assert.equal(mauvaiseRecompense.ok, false);
+    const mauvaisCosmetique = parsePassState({ ...pass, tiers: [{ tier: 1, points: 40, free: null, premium: { cosmeticId: 4 } }] });
+    assert.equal(mauvaisCosmetique.ok, false);
+  });
+
+  it("parsePassClaimed lit les Lingots de la piste gratuite et le cosmétique de la piste premium", () => {
+    const gratuit = parsePassClaimed(passClaimed());
+    assert.ok(gratuit.ok);
+    assert.equal(gratuit.value.cosmeticId, null);
+    assert.equal(gratuit.value.rewardLingots, 1);
+    const premium = parsePassClaimed(passClaimed({ track: "PREMIUM", rewardLingots: 0, cosmeticId: "s1-lanterne" }));
+    assert.ok(premium.ok);
+    assert.equal(premium.value.cosmeticId, "s1-lanterne");
+    // Un service qui oublie la clé la rend nulle : la lecture ne l'invente pas autrement.
+    const { cosmeticId: _oublie, ...sans } = passClaimed();
+    const lu = parsePassClaimed(sans);
+    assert.ok(lu.ok);
+    assert.equal(lu.value.cosmeticId, null);
+  });
+
+  it("parsePassClaimed refuse une piste inconnue, un cosmétique qui n'est pas du texte, des soldes absents", () => {
+    assert.equal(parsePassClaimed({ ...passClaimed(), track: "OR" }).ok, false);
+    assert.equal(parsePassClaimed({ ...passClaimed(), cosmeticId: 5 }).ok, false);
+    assert.equal(parsePassClaimed({ ...passClaimed(), tier: 0 }).ok, false);
+    const { balances: _perdus, ...sans } = passClaimed();
+    const lu = parsePassClaimed(sans);
+    assert.equal(lu.ok, false);
+    if (!lu.ok) assert.match(lu.problem, /balances/);
+  });
+
+  it("parseVotesToday lit le jour, l'objectif, les chiffres de vote.json et la part du joueur", () => {
+    const votes = votesToday({ mine: { votes: 1, streak: 3 } });
+    const lu = parseVotesToday(votes);
+    assert.ok(lu.ok);
+    assert.deepEqual(lu.value, votes);
+  });
+
+  it("parseVotesToday refuse un corps mal formé et nomme la clé", () => {
+    const votes = votesToday();
+    for (const [cle, valeur, attendu] of [
+      ["day", 5, /day/],
+      ["votes", -1, /votes/],
+      ["goal", 0, /goal/],
+      ["partyReached", "non", /partyReached/],
+      ["rewardLingots", 1.5, /rewardLingots/],
+      ["streakGoalDays", 1, /streakGoalDays/],
+      ["mine", undefined, /mine/],
+    ] as const) {
+      const lu = parseVotesToday({ ...votes, [cle]: valeur });
+      assert.equal(lu.ok, false, `${cle}=${String(valeur)}`);
+      if (!lu.ok) assert.match(lu.problem, attendu);
+    }
+    const sansSerie = parseVotesToday({ ...votes, mine: { votes: 0 } });
+    assert.equal(sansSerie.ok, false);
+    if (!sansSerie.ok) assert.match(sansSerie.problem, /streak/);
+  });
+
+  it("parseJoinResponse lit les cosmétiques du joueur, et rien quand le service n'en donne pas", () => {
+    const avec = parseJoinResponse({ ...joinResponse(), cosmetics: ["pionnier", "s1-fanion"] });
+    assert.ok(avec.ok);
+    assert.deepEqual(avec.value.cosmetics, ["pionnier", "s1-fanion"]);
+    const sans = parseJoinResponse(joinResponse());
+    assert.ok(sans.ok);
+    assert.equal("cosmetics" in sans.value, false);
+    const mauvais = parseJoinResponse({ ...joinResponse(), cosmetics: ["pionnier", 7] });
+    assert.equal(mauvais.ok, false);
+    if (!mauvais.ok) assert.match(mauvais.problem, /cosmetics/);
+  });
+});
+
+describe("accord avec api/silooo-core.openapi.yaml, boutique, pass et votes", () => {
+  const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+
+  function blocOf(chemin: string): string {
+    const debut = yaml.indexOf(`\n  ${chemin}:`);
+    assert.notEqual(debut, -1, `${chemin} absent de l'OpenAPI`);
+    const fin = yaml.indexOf("\n  /v1/", debut + 1);
+    return yaml.slice(debut, fin === -1 ? undefined : fin);
+  }
+
+  function schemaOf(nom: string): string {
+    const debut = yaml.indexOf(`\n    ${nom}:\n`);
+    assert.notEqual(debut, -1, `${nom} absent de l'OpenAPI`);
+    const suite = yaml.slice(debut + 1).search(/\n {4}[A-Za-z]+:\n/);
+    return yaml.slice(debut, suite === -1 ? undefined : debut + 1 + suite);
+  }
+
+  function requisesDe(bloc: string): string[] {
+    const ouvre = bloc.indexOf("required: [");
+    assert.notEqual(ouvre, -1);
+    return bloc
+      .slice(ouvre + "required: [".length, bloc.indexOf("]", ouvre))
+      .split(",")
+      .map((mot) => mot.trim());
+  }
+
+  it("les chemins et les méthodes sont ceux du contrat", () => {
+    const catalogue = blocOf(SHOP_PATHS.catalog);
+    assert.match(catalogue, /\n {4}get:\n/);
+    assert.match(catalogue, /operationId: catalog\n/);
+    const achats = blocOf(SHOP_PATHS.purchases);
+    assert.match(achats, /\n {4}post:\n/);
+    assert.match(achats, /operationId: buyItem\n/);
+    const pass = blocOf(PASS_PATHS.state);
+    assert.match(pass, /\n {4}get:\n/);
+    assert.match(pass, /operationId: getPass\n/);
+    const reclamations = blocOf(PASS_PATHS.claims);
+    assert.match(reclamations, /\n {4}post:\n/);
+    assert.match(reclamations, /operationId: claimPass\n/);
+    const votes = blocOf(VOTES_PATH);
+    assert.match(votes, /\n {4}get:\n/);
+    assert.match(votes, /operationId: todayVotes\n/);
+  });
+
+  it("catalog et getPass demandent l'acteur, todayVotes un xuid facultatif", () => {
+    assert.match(blocOf(SHOP_PATHS.catalog), /parameters: \[ \{ \$ref: '#\/components\/parameters\/ActorXuid' \} \]/);
+    assert.match(blocOf(PASS_PATHS.state), /parameters: \[ \{ \$ref: '#\/components\/parameters\/ActorXuid' \} \]/);
+    assert.match(blocOf(VOTES_PATH), /parameters: \[ \{ \$ref: '#\/components\/parameters\/PlayerXuidQuery' \} \]/);
+    assert.match(yaml, /PlayerXuidQuery: \{ name: xuid, in: query, required: false/);
+  });
+
+  it("le catalogue rend itemId, gemmes, owned et available, tous obligatoires", () => {
+    assert.deepEqual(requisesDe(blocOf(SHOP_PATHS.catalog)), ["itemId", "gemmes", "owned", "available"]);
+    const modele: Record<string, unknown> = { itemId: "mvip", gemmes: 100, owned: false, available: true };
+    for (const cle of Object.keys(modele)) {
+      const sans = { ...modele };
+      delete sans[cle];
+      assert.equal(parseCatalog([sans]).ok, false, `la lecture accepte un article sans « ${cle} »`);
+    }
+  });
+
+  it("buyItem exige itemId (1 à 48 caractères) et accepte forXuid ; les identifiants spéciaux sont ceux du contrat", () => {
+    const achats = blocOf(SHOP_PATHS.purchases);
+    assert.match(achats, /required: \[itemId\]/);
+    assert.match(achats, new RegExp(`minLength: 1, maxLength: ${ITEM_ID_MAX}`));
+    assert.match(achats, /forXuid: \{ \$ref: '#\/components\/schemas\/Xuid' \}/);
+    assert.ok(yaml.includes(`\`${BOOST_ITEM_ID}\``), "boost-collectif n'est plus nommé par le contrat");
+    assert.ok(yaml.includes(`\`${PASS_PREMIUM_ITEM_ID}\``), "pass-premium n'est plus nommé par le contrat");
+    assert.ok(yaml.includes(`\`${PIONEER_COSMETIC_ID}\``), "pionnier n'est plus nommé par le contrat");
+  });
+
+  it("claimPass exige tier (1 ou plus) et track, avec les deux pistes de l'add-on", () => {
+    const reclamations = blocOf(PASS_PATHS.claims);
+    assert.match(reclamations, /required: \[tier, track\]/);
+    assert.match(reclamations, /tier: \{ type: integer, minimum: 1 \}/);
+    const piste = reclamations.match(/track: \{ type: string, enum: \[([^\]]*)\] \}/);
+    assert.ok(piste, "enum de track absent");
+    assert.deepEqual([...PASS_TRACKS], piste[1]?.split(",").map((mot) => mot.trim()));
+  });
+
+  it("PassState, PassTier et PassClaimed : les clés obligatoires sont lues et exigées", () => {
+    const pass = passState();
+    const requisesPass = requisesDe(schemaOf("PassState"));
+    assert.deepEqual(requisesPass, ["seasonId", "name", "startsOn", "endsOn", "active", "points", "premium", "claimed", "tiers"]);
+    for (const cle of requisesPass) {
+      const sans: Record<string, unknown> = { ...pass };
+      delete sans[cle];
+      assert.equal(parsePassState(sans).ok, false, `la lecture accepte un PassState sans « ${cle} »`);
+    }
+    const requisesPalier = requisesDe(schemaOf("PassTier"));
+    assert.deepEqual(requisesPalier, ["tier", "points", "free", "premium"]);
+    for (const cle of ["tier", "points"]) {
+      const palier: Record<string, unknown> = { ...pass.tiers[0] };
+      delete palier[cle];
+      assert.equal(parsePassState({ ...pass, tiers: [palier] }).ok, false, `la lecture accepte un PassTier sans « ${cle} »`);
+    }
+    const requisesReclame = requisesDe(schemaOf("PassClaimed"));
+    assert.deepEqual(requisesReclame, ["seasonId", "tier", "track", "rewardLingots", "cosmeticId", "balances"]);
+    for (const cle of ["seasonId", "tier", "track", "rewardLingots", "balances"]) {
+      const sans: Record<string, unknown> = { ...passClaimed() };
+      delete sans[cle];
+      assert.equal(parsePassClaimed(sans).ok, false, `la lecture accepte un PassClaimed sans « ${cle} »`);
+    }
+  });
+
+  it("VotesToday et PlayerVotes : les clés obligatoires sont lues et exigées", () => {
+    const votes = votesToday();
+    const requises = requisesDe(schemaOf("VotesToday"));
+    assert.deepEqual(requises, [
+      "day",
+      "votes",
+      "goal",
+      "partyReached",
+      "rewardLingots",
+      "partyRewardLingots",
+      "streakGoalDays",
+      "streakBonusLingots",
+      "mine",
+    ]);
+    for (const cle of requises) {
+      const sans: Record<string, unknown> = { ...votes };
+      delete sans[cle];
+      assert.equal(parseVotesToday(sans).ok, false, `la lecture accepte un VotesToday sans « ${cle} »`);
+    }
+    assert.deepEqual(requisesDe(schemaOf("PlayerVotes")), ["votes", "streak"]);
+  });
+
+  it("les refus de la boutique et du pass sont dans le contrat comme dans la liste de l'add-on", () => {
+    for (const code of [
+      "DEJA_POSSEDE",
+      "GRADE_PRECEDENT_REQUIS",
+      "PAS_ASSEZ_DE_GEMMES",
+      "SAISON_INACTIVE",
+      "PALIER_NON_ATTEINT",
+      "PREMIUM_REQUIS",
+      "DEJA_RECLAME",
+    ]) {
+      assert.ok(yaml.includes(code), `${code} absent de l'OpenAPI`);
+      assert.ok((REFUSAL_REASONS as readonly string[]).includes(code), `${code} absent de REFUSAL_REASONS`);
+    }
+  });
+
+  it("le contrat décrit le payload de BOOST_COLLECTIF avec percent et minutes, sans xuid", () => {
+    assert.match(yaml, /`BOOST_COLLECTIF` \(sans `xuid` ; `percent`, `minutes`,/);
+    assert.ok((GAME_EVENT_KINDS as readonly string[]).includes("BOOST_COLLECTIF"));
+    assert.ok((GAME_EVENT_KINDS as readonly string[]).includes("GEMMES_RECUES"));
   });
 });

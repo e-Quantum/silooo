@@ -781,21 +781,32 @@ l'API, sur son propre port (`SILOOO_SITE_PORT`, 8081 par défaut) : `Main.kt` d�
 n'existe pas sur le port du site, et le Caddy de SileneMC ne joint que celui-là. Le `Dockerfile` déclare `EXPOSE 8081` ; le compose
 ne le publie jamais.
 
-- **Deux modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente et `/mentions/` les mentions.
-  En `ouvert`, `/` est l'accueil et les pages de S2 répondent (voir plus bas). Toute autre adresse répond 404, avec une page Silooo. Le mode
-  `ouvert` n'est écrit dans aucun fichier du dépôt : seul Kr le pose, dans l'environnement du service.
+- **Deux modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente de la maquette, `/actus/` les
+  actus, `/discord/` la page du Discord (le bouton vers `SILOOO_SITE_URL_DISCORD` quand elle est posée), et les quatre pages légales répondent (`/mentions-legales/`, `/cgv/`, `/confidentialite/`, `/parents/`, contenus
+  `site/contenu/<nom>.md` rendus par `pages/Legal.kt`, brouillons à relire par Kr). En `ouvert`, `/` est l'accueil et les pages
+  de S2 répondent (voir plus bas). Toute autre adresse répond 404, avec une page Silooo. Le mode `ouvert` n'est écrit dans aucun
+  fichier du dépôt : seul Kr le pose, dans l'environnement du service.
+- **Les actus** (`Actus.kt`, `pages/Actus.kt`) : un fichier par actu dans `site/contenu/actus/<slug>.md`, listé dans
+  `NewsArticles.BUNDLED` (un test le compare au dossier). En-tête `titre`, `description`, `date` (obligatoire dès que
+  `publie` n'est pas `non`), `etape` (`oui` : l'actu compte dans le panneau « Le chantier » de la page d'attente), `ordre`
+  (le rang d'une étape à venir). Le corps suit le plan fixe du kit : une introduction, puis `## Nouveau`, `## Changements`,
+  `## Corrections`, chacune une liste de points ; un autre intertitre arrête le démarrage. La liste est à `/actus/`, un
+  article publié à `/actus/<slug>/`, dans les deux modes. Le chantier : les étapes publiées (franchies, dans l'ordre des
+  dates), puis les étapes à venir dans l'ordre de `ordre`, la première « en cours ». Demain, la même forme viendra de la
+  table `news_articles` écrite dans l'admin.
 - **Les contenus** sont des fichiers Markdown de `site/contenu/`, avec un en-tête entre deux lignes `---` : `titre`, `description`,
   `url` (elle finit par `/`) et `modes` (`[attente, ouvert]`). `SiteContent` les lit et les rend en HTML (commonmark-java, HTML brut
   escamoté) une seule fois, au démarrage : un en-tête incomplet arrête le démarrage et nomme le fichier. Un contenu neuf demande
   son nom dans `SiteContent.BUNDLED` et une fonction de rendu dans `site/pages/` (choisie dans `SiteRoutes.kt`).
 - **Les pages** sont écrites en DSL HTML (`kotlinx.html`) : `pages/Gabarit.kt` pose la page entière (en-tête, `main`, pied avec la mention
-  de Mojang et le lien Mentions), `Attente.kt`, `Accueil.kt`, `Mentions.kt` et `Erreur.kt` posent le `h1` et le contenu. Aucun script.
+  de Mojang et les liens légaux), `Attente.kt`, `Accueil.kt`, `Legal.kt`, `Discord.kt` et `Erreur.kt` posent le `h1` et le contenu. Une page
+  dont `PageFrame.panneau` est `false` (l'attente, les actus) pose son contenu sur le ciel, comme les maquettes, au lieu du
+  panneau de fonte. Les seuls scripts sont ceux du gabarit (`menu.js`, `oooscar.js`, `direct.js`).
 - **Les pages publiques du mode `ouvert`** (S2) : `/` (accueil), `/rejoindre/`, `/ce-qui-se-vend/`, `/boutique/`, `/vote/`,
-  `/mises-a-jour/`, toutes en 404 en `attente`. Mécanique : un contenu Markdown de `site/contenu/` porte le texte écrit à la main ;
+  toutes en 404 en `attente`. Mécanique : un contenu Markdown de `site/contenu/` porte le texte écrit à la main ;
   un paragraphe seul `{{nom}}` y marque l'endroit d'un bloc que la page Kotlin de `site/pages/` rend depuis les définitions
   (`Dependencies.definitions.shop`) ou la configuration (`SiteSettings`). **Jamais un chiffre tapé** : prix, bonus, jours,
-  Gemmes viennent du JSON, l'adresse et le port de la configuration, et un test le vérifie. Les entrées de mises à jour sont
-  `site/contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (`titre`, `description`, `date`), listées dans `UpdateEntries.BUNDLED`.
+  Gemmes viennent du JSON, l'adresse et le port de la configuration, et un test le vérifie.
 - **Le wiki** (S3) : `site/contenu/wiki/<sujet>.md` (en-tête des contenus plus `ordre`, entier unique), listés dans
   `WikiContent.BUNDLED` (un test les compare au dossier), rendus par `pages/Wiki.kt` ; les tableaux sont des blocs `{{nom}}`
   de `pages/WikiBlocs.kt`, tirés de `Dependencies.definitions`. Ajouter une page : créer le `.md` (url `/wiki/<sujet>/`, `modes:

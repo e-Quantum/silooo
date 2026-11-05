@@ -55,6 +55,41 @@ describe("ViewStore", () => {
     assert.equal(views.get(XUID)?.state.donar, 2);
   });
 
+  it("setBalances range les soldes cités, garde les autres, l'état et le point de départ du compteur", () => {
+    const clock = fakeClock(1_000);
+    const views = createViewStore({
+      players: storeWith({ version: 4, donar: 500, ratePerHour: 3_600 }, { lingots: 4, gemmes: 2, jetons: 7 }),
+      clock,
+    });
+    const avant = views.get(XUID);
+    clock.advance(30_000);
+    assert.equal(views.setBalances(XUID, { gemmes: 90 }), true);
+    const apres = views.get(XUID);
+    assert.deepEqual(apres?.balances, balances({ lingots: 4, gemmes: 90, jetons: 7 }));
+    assert.equal(apres?.state, avant?.state);
+    assert.deepEqual(apres?.anchor, avant?.anchor);
+    assert.equal(views.setBalances(XUID, { lingots: 9, gemmes: 80 }), true);
+    assert.deepEqual(views.get(XUID)?.balances, balances({ lingots: 9, gemmes: 80, jetons: 7 }));
+  });
+
+  it("setBalances ne connaît pas un joueur qui n'a pas eu de réponse de join, et une réponse plus ancienne ne le défait pas", () => {
+    const views = createViewStore({ players: storeWith({ version: 5 }, { gemmes: 1 }), clock: fakeClock() });
+    assert.equal(views.setBalances("999", { gemmes: 5 }), false);
+    views.setBalances(XUID, { gemmes: 50 });
+    // Une réponse du service sans soldes garde ceux que la livraison de Gemmes a rangés.
+    assert.equal(views.apply(XUID, { state: companyState({ version: 6 }) }), true);
+    assert.equal(views.get(XUID)?.balances.gemmes, 50);
+  });
+
+  it("setBalances ne remplace pas la réponse de join : une nouvelle arrivée repart des soldes du service", () => {
+    const store = storeWith({ version: 1 }, { gemmes: 1 });
+    const views = createViewStore({ players: store, clock: fakeClock() });
+    views.setBalances(XUID, { gemmes: 50 });
+    assert.equal(store.get(XUID)?.join.balances.gemmes, 1);
+    store.set({ xuid: XUID, gamertag: GAMERTAG, join: joinResponse({ balances: balances({ gemmes: 3 }) }) });
+    assert.equal(views.get(XUID)?.balances.gemmes, 3);
+  });
+
   it("oublie un joueur parti", () => {
     const store = storeWith();
     const views = createViewStore({ players: store, clock: fakeClock() });
@@ -109,7 +144,7 @@ describe("LinkState", () => {
 });
 
 describe("observeApi", () => {
-  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les vingt-deux routes", async () => {
+  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les vingt-sept routes", async () => {
     const answers: ApiResult<unknown>[] = [];
     const result = (): Promise<ApiResult<never>> => {
       const next = answers.shift();
@@ -139,6 +174,11 @@ describe("observeApi", () => {
       buyZone: result,
       placeBuilding: result,
       upgradeBuilding: result,
+      catalog: result,
+      buyItem: result,
+      getPass: result,
+      claimPass: result,
+      todayVotes: result,
     };
     const link = createLinkState();
     const seen = observeApi(api, link);
@@ -166,6 +206,11 @@ describe("observeApi", () => {
       () => seen.buyZone(7, 1, action),
       () => seen.placeBuilding(7, action, "maison", 128, 128, 0),
       () => seen.upgradeBuilding(7, 3, action),
+      () => seen.catalog(XUID),
+      () => seen.buyItem(action, "vip"),
+      () => seen.getPass(XUID),
+      () => seen.claimPass(action, 1, "GRATUIT"),
+      () => seen.todayVotes(XUID),
     ];
     for (const call of calls) {
       const failed: ApiResult<unknown> = { kind: "network", message: "coupé" };

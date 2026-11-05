@@ -186,6 +186,11 @@ describe("la ville respecte le verrou du joueur", () => {
       acceptInvite: reject,
       placeBuilding: reject,
       upgradeBuilding: reject,
+      catalog: reject,
+      buyItem: reject,
+      getPass: reject,
+      claimPass: reject,
+      todayVotes: reject,
       buyZone: (companyId: number, zoneIndex: number) =>
         new Promise<ApiResult<CompanyUpdated>>((resolve) => {
           calls.push(`buyZone ${companyId} ${zoneIndex}`);

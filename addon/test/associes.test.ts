@@ -15,6 +15,7 @@ import {
 import type { Invitation } from "../src/ui/invitations";
 import { ASSOCIES_TEXTES, BULLES, MENU_TEXTES, USINES_TEXTES } from "../src/ui/textes";
 import { mainScreen } from "../src/ui/menu";
+import { personnelScreen } from "../src/ui/personnel";
 import { missionState } from "./helpers";
 import { XUID, bare, fakeClock, viewsWith } from "./ui-helpers";
 
@@ -48,14 +49,15 @@ describe("membersOf et la tuile du menu", () => {
     assert.equal(associesDetail(viewOf({ members: [PDG, ADA, { ...ADA, xuid: "9", name: "Bo" }] })), "3 associés");
   });
 
-  it("la tuile du menu est juste avant « Ville », active, avec sa ligne d'info", () => {
-    const screen = mainScreen(viewOf({ members: [PDG, ADA] }), missionState());
+  it("le menu principal n'a plus de tuile Associés (huit places) : elle est sur l'écran Personnel, juste après l'Agence, avec sa ligne d'info", () => {
+    const menu = mainScreen(viewOf({ members: [PDG, ADA] }), missionState());
+    assert.ok(!menu.spec.buttons.some((texte) => bare(texte).includes(MENU_TEXTES.associes)));
+    const screen = personnelScreen(viewOf({ members: [PDG, ADA] }), 0, 8);
     const noms = screen.spec.buttons.map((texte) => bare(texte));
-    const index = noms.findIndex((texte) => texte.includes(MENU_TEXTES.associes));
-    assert.ok(index > 0, noms.join("|"));
-    assert.ok(noms[index]?.endsWith("2 associés"), noms[index]);
-    assert.ok(noms[index + 1]?.includes("Ville"), "Associés est juste avant Ville");
-    assert.deepEqual(screen.targets[index], { kind: "go", route: { screen: "associes" } });
+    assert.ok(noms[0]?.includes("Agence"), noms[0]);
+    assert.ok(noms[1]?.includes(MENU_TEXTES.associes), noms[1]);
+    assert.ok(noms[1]?.endsWith("2 associés"), noms[1]);
+    assert.deepEqual(screen.targets[1], { kind: "go", route: { screen: "associes" } });
   });
 });
 
@@ -68,7 +70,7 @@ describe("l'écran des associés", () => {
     assert.deepEqual(screen.targets, [
       { kind: "go", route: { screen: "inviter", page: 0 } },
       { kind: "parts" },
-      { kind: "go", route: { screen: "main" } },
+      { kind: "go", route: { screen: "personnel", page: 0 } },
     ]);
   });
 

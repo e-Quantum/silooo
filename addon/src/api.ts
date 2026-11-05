@@ -8,8 +8,11 @@ import {
   actionBody,
   agencyPath,
   assignStaffBody,
+  buyItemBody,
   buyLevelsBody,
   buyZonePath,
+  catalogPath,
+  claimPassBody,
   collectPath,
   companyPath,
   eventsUrl,
@@ -26,14 +29,21 @@ import {
   levelsPath,
   membersPath,
   missionsPath,
+  parseBalances,
   parseCandidates,
+  parseCatalog,
   parseCollectResponse,
   parseCompanyState,
   parseCompanyUpdated,
   parseEventsPage,
   parseJoinResponse,
   parseMissionState,
+  parsePassClaimed,
+  parsePassState,
   parsePrestigePreview,
+  parseVotesToday,
+  PASS_PATHS,
+  passPath,
   PATHS,
   placeBuildingBody,
   placeBuildingPath,
@@ -43,12 +53,16 @@ import {
   restorePath,
   restoreStepBody,
   setSharesBody,
+  SHOP_PATHS,
   staffPath,
   upgradeBuildingPath,
+  votesTodayPath,
   type ActionBase,
+  type Balances,
   type BuildingRotation,
   type BuyAmount,
   type Candidate,
+  type CatalogItem,
   type CollectResponse,
   type CompanyState,
   type CompanyUpdated,
@@ -56,8 +70,12 @@ import {
   type JoinResponse,
   type MissionState,
   type Parsed,
+  type PassClaimed,
+  type PassState,
+  type PassTrack,
   type PrestigePreview,
   type ShareInput,
+  type VotesToday,
   type Xuid,
 } from "./protocol";
 
@@ -109,6 +127,19 @@ export interface CoreApi {
   placeBuilding(companyId: number, action: ActionBase, buildingType: string, x: number, z: number, rotation: BuildingRotation): Promise<ApiResult<CompanyUpdated>>;
   /** POST /v1/companies/{companyId}/city/buildings/{buildingId} (upgradeBuilding), 200 CompanyUpdated ou 409 Refused. */
   upgradeBuilding(companyId: number, buildingId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
+  /** GET /v1/shop/catalog (catalog), 200 : les articles en Gemmes, avec ce que `actor` possède. */
+  catalog(actor: Xuid): Promise<ApiResult<CatalogItem[]>>;
+  /**
+   * POST /v1/shop/purchases (buyItem), 200 Balances de l'acheteur ou 409 Refused. Avec `forXuid`, l'article va à ce joueur
+   * et c'est encore `actor` qui paie. Rejoué avec le même `requestId`, le service rend la même réponse.
+   */
+  buyItem(action: ActionBase, itemId: string, forXuid?: Xuid): Promise<ApiResult<Balances>>;
+  /** GET /v1/pass (getPass), 200 PassState. */
+  getPass(actor: Xuid): Promise<ApiResult<PassState>>;
+  /** POST /v1/pass/claims (claimPass), 200 PassClaimed ou 409 Refused. */
+  claimPass(action: ActionBase, tier: number, track: PassTrack): Promise<ApiResult<PassClaimed>>;
+  /** GET /v1/votes/today (todayVotes), 200 VotesToday. Avec `xuid`, `mine` donne les votes du joueur et sa série. */
+  todayVotes(xuid?: Xuid): Promise<ApiResult<VotesToday>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -259,6 +290,40 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => upgradeBuildingPath(companyId, buildingId));
       if ("failure" in target) return target.failure;
       return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
+    },
+    async catalog(actor) {
+      const target = pathOrError(() => catalogPath(actor));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parseCatalog);
+    },
+    async buyItem(action, itemId, forXuid) {
+      // Un article ou un destinataire que le contrat refuserait n'envoie rien.
+      let body: ReturnType<typeof buyItemBody>;
+      try {
+        body = buyItemBody(action, itemId, forXuid);
+      } catch (error) {
+        return invalidArgument(describeError(error));
+      }
+      return readBody(await client.post(SHOP_PATHS.purchases, body), parseBalances);
+    },
+    async getPass(actor) {
+      const target = pathOrError(() => passPath(actor));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parsePassState);
+    },
+    async claimPass(action, tier, track) {
+      let body: ReturnType<typeof claimPassBody>;
+      try {
+        body = claimPassBody(action, tier, track);
+      } catch (error) {
+        return invalidArgument(describeError(error));
+      }
+      return readBody(await client.post(PASS_PATHS.claims, body), parsePassClaimed);
+    },
+    async todayVotes(xuid) {
+      const target = pathOrError(() => votesTodayPath(xuid));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parseVotesToday);
     },
   };
 }

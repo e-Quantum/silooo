@@ -2,14 +2,16 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
-import { MEMBER_ROLES, REFUSAL_REASONS, STAFF_RARITIES, STAFF_ROLES } from "../src/protocol";
+import { MEMBER_ROLES, PASS_TRACKS, REFUSAL_REASONS, STAFF_RARITIES, STAFF_ROLES } from "../src/protocol";
 import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, RARITY_COLOR, colored } from "../src/ui/apparence";
 import { formatAmount } from "../src/ui/nombres";
 import {
   AGENCE_TEXTES,
+  ANNONCES_TEXTES,
   ASSOCIES_TEXTES,
   BATIMENT_NOMS,
   BOUSSOLE_TEXTES,
+  BOUTIQUE_TEXTES,
   BULLES,
   CARTE_TEXTES,
   CINEMATIQUE_TEXTES,
@@ -23,6 +25,7 @@ import {
   MISSION_TEXTES,
   MISSION_TEXTES_IDS,
   OBJECTIFS_TEXTES,
+  PASS_TEXTES,
   PERSONNEL_TEXTES,
   PRESTIGE_TEXTES,
   REFUSAL_BUBBLE_REASONS,
@@ -30,6 +33,8 @@ import {
   SILO_TEXTES,
   USINES_TEXTES,
   VILLE_TEXTES,
+  VOTE_TEXTES,
+  dureeEnMots,
   eraName,
   factoryName,
   failureBubble,
@@ -68,6 +73,16 @@ function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
   for (const [id, textes] of Object.entries(MISSION_TEXTES)) liste.push({ nom: `fin de ${id}`, bulle: textes.fin });
   for (const [cle, bulle] of Object.entries(ASSOCIES_TEXTES.bulles)) liste.push({ nom: `associés ${cle}`, bulle });
   for (const [cle, bulle] of Object.entries(VILLE_TEXTES.bulles)) liste.push({ nom: `ville ${cle}`, bulle });
+  for (const [cle, bulle] of Object.entries(BOUTIQUE_TEXTES.bulles)) liste.push({ nom: `boutique ${cle}`, bulle });
+  for (const [cle, bulle] of Object.entries(PASS_TEXTES.bulles)) liste.push({ nom: `pass ${cle}`, bulle });
+  liste.push(
+    { nom: "vote rappel", bulle: VOTE_TEXTES.rappel.bulle },
+    { nom: "vote reçu", bulle: VOTE_TEXTES.vote.bulle },
+    { nom: "vote party", bulle: VOTE_TEXTES.voteParty.bulle },
+    { nom: "annonce gemmes", bulle: ANNONCES_TEXTES.gemmes.bulle },
+    { nom: "annonce pionnier", bulle: ANNONCES_TEXTES.pionnier },
+    { nom: "annonce sans courant", bulle: ANNONCES_TEXTES.sansCourant.bulle },
+  );
   // L'indice d'Oooscar à chaque étape du mini-jeu de réparation, pour chaque sorte et pour le mini-jeu général.
   for (const kind of [...INCIDENT_TEXTES_KINDS, null]) {
     repairSteps(kind).forEach((step, index) => liste.push({ nom: `réparation ${kind ?? "générale"} étape ${index + 1}`, bulle: step.erreur }));
@@ -192,6 +207,10 @@ const TOUS = [
   ...feuilles(AGENCE_TEXTES, "AGENCE_TEXTES"),
   ...feuilles(ASSOCIES_TEXTES, "ASSOCIES_TEXTES"),
   ...feuilles(VILLE_TEXTES, "VILLE_TEXTES"),
+  ...feuilles(BOUTIQUE_TEXTES, "BOUTIQUE_TEXTES"),
+  ...feuilles(PASS_TEXTES, "PASS_TEXTES"),
+  ...feuilles(VOTE_TEXTES, "VOTE_TEXTES"),
+  ...feuilles(ANNONCES_TEXTES, "ANNONCES_TEXTES"),
   ...feuilles(BATIMENT_NOMS, "BATIMENT_NOMS"),
   ...feuilles(INCIDENT_TEXTES, "INCIDENT_TEXTES"),
   ...feuilles(REPARATION_TEXTES, "REPARATION_TEXTES"),
@@ -243,6 +262,13 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
       VILLE_TEXTES.titre,
       VILLE_TEXTES.construire.titre,
       VILLE_TEXTES.poser.titre,
+      BOUTIQUE_TEXTES.titre,
+      BOUTIQUE_TEXTES.rayon.titre,
+      BOUTIQUE_TEXTES.article.titre,
+      BOUTIQUE_TEXTES.offrir.titre,
+      PASS_TEXTES.titre,
+      PASS_TEXTES.paliers.titre,
+      PASS_TEXTES.palier.titre,
     ]) {
       assert.match(titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
     }
@@ -267,6 +293,18 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
       PRESTIGE_TEXTES.apres.usines,
       PRESTIGE_TEXTES.apres.retour,
       CARTE_TEXTES.retour,
+      BOUTIQUE_TEXTES.retour,
+      BOUTIQUE_TEXTES.article.acheter,
+      BOUTIQUE_TEXTES.article.prolonger,
+      BOUTIQUE_TEXTES.article.offrir,
+      BOUTIQUE_TEXTES.article.retour,
+      BOUTIQUE_TEXTES.offrir.retour,
+      ...Object.values(BOUTIQUE_TEXTES.rayons),
+      ...Object.values(BOUTIQUE_TEXTES.categories),
+      PASS_TEXTES.retour,
+      PASS_TEXTES.paliers.page,
+      PASS_TEXTES.passerPremium,
+      ...Object.values(PASS_TEXTES.reclamer),
     ];
     for (const bouton of boutons) {
       assert.ok(mots(bouton).length >= 1 && mots(bouton).length <= 4, bouton);
@@ -823,5 +861,95 @@ describe("textes de l'entreprise partagée", () => {
     assert.equal(refusalBubble("ENTREPRISE_PLEINE").text, "Ton entreprise est pleine.");
     assert.ok(REFUSAL_BUBBLE_REASONS.includes("DEJA_POSSEDE"));
     assert.equal(ASSOCIES_TEXTES.bulles.dejaAssocie.text, "Il est déjà associé.");
+  });
+});
+
+// ---------------------------------------------------------------- la boutique, le pass, les votes, les annonces
+
+describe("textes de la boutique, du pass, des votes et des annonces", () => {
+  const lire = (fichier: string): unknown => JSON.parse(readFileSync(resolve("..", "definitions", fichier), "utf8"));
+
+  it("le nom de chaque rareté du personnel est celui de definitions/personnel.json, et la liste des raretés est la même", () => {
+    const raretes = (lire("personnel.json") as { raretes: Record<string, { nom: string }> }).raretes;
+    assert.deepEqual(Object.keys(raretes).sort(), [...STAFF_RARITIES].sort());
+    for (const rarete of STAFF_RARITIES) {
+      assert.equal(PERSONNEL_TEXTES.raretes[rarete], raretes[rarete]?.nom, rarete);
+    }
+  });
+
+  it("chaque catégorie de cosmétique de definitions/boutique.json a son rayon, et rien d'autre", () => {
+    const cosmetiques = (lire("boutique.json") as { cosmetiques: Array<{ categorie: string }> }).cosmetiques;
+    const categories = [...new Set(cosmetiques.map((cosmetique) => cosmetique.categorie))].sort();
+    assert.deepEqual(Object.keys(BOUTIQUE_TEXTES.categories).sort(), categories);
+  });
+
+  it("les deux pistes du pass sont celles du contrat, avec un nom et un bouton chacune", () => {
+    assert.deepEqual(Object.keys(PASS_TEXTES.pistes).sort(), [...PASS_TRACKS].sort());
+    assert.deepEqual(Object.keys(PASS_TEXTES.reclamer).sort(), [...PASS_TRACKS].sort());
+  });
+
+  it("l'endroit où l'on achète des Gemmes est dit sans adresse", () => {
+    assert.doesNotMatch(BOUTIQUE_TEXTES.gemmesManquent, /https?:|www\.|\.(com|fr|net|org)\b/i);
+    assert.ok(BOUTIQUE_TEXTES.gemmesManquent.includes("site"));
+  });
+
+  it("les bulles qui réussissent sont des « joie » ou des « fier », celles qui refusent des « oups »", () => {
+    const reussies = [
+      BOUTIQUE_TEXTES.bulles.achete,
+      BOUTIQUE_TEXTES.bulles.prolonge,
+      BOUTIQUE_TEXTES.bulles.boostLance,
+      BOUTIQUE_TEXTES.bulles.offert,
+      PASS_TEXTES.bulles.palierReclame,
+      PASS_TEXTES.bulles.premiumActif,
+      VOTE_TEXTES.rappel.bulle,
+      VOTE_TEXTES.vote.bulle,
+      VOTE_TEXTES.voteParty.bulle,
+      ANNONCES_TEXTES.gemmes.bulle,
+      ANNONCES_TEXTES.pionnier,
+    ];
+    for (const bulle of reussies) assert.ok(["joie", "fier"].includes(bulle.expression), bulle.text);
+    const refus = [
+      BOUTIQUE_TEXTES.bulles.dejaChezLui,
+      BOUTIQUE_TEXTES.bulles.gradePrecedentPourLui,
+      BOUTIQUE_TEXTES.bulles.plusEnVente,
+      ANNONCES_TEXTES.sansCourant.bulle,
+    ];
+    for (const bulle of refus) assert.equal(bulle.expression, "oups", bulle.text);
+  });
+
+  it("une ligne de tchat tient sur une seule ligne, avec ou sans pseudo", () => {
+    const lignes = [
+      ANNONCES_TEXTES.boost.avecNom("Bea", "25", "une heure"),
+      ANNONCES_TEXTES.boost.sansNom("25", "une heure"),
+      ANNONCES_TEXTES.gemmes.ligne("400", "900"),
+      ANNONCES_TEXTES.sansCourant.ligne("Carrière"),
+      VOTE_TEXTES.rappel.ligne("Hubyy"),
+      VOTE_TEXTES.vote.recompense("3"),
+      VOTE_TEXTES.voteParty.ligne("2"),
+    ];
+    for (const ligne of lignes) {
+      assert.doesNotMatch(ligne, /\n/, ligne);
+      assert.match(ligne, /[.]$|Lingots?$|[0-9]$/, ligne);
+    }
+  });
+
+  it("la durée d'un boost se dit en mots : une heure, des heures rondes, sinon des minutes", () => {
+    assert.equal(dureeEnMots(60), "une heure");
+    assert.equal(dureeEnMots(120), "2 heures");
+    assert.equal(dureeEnMots(90), "90 minutes");
+    assert.equal(dureeEnMots(1), "1 minute");
+    assert.equal(dureeEnMots(30), "30 minutes");
+  });
+
+  it("Lingot et Gemmes gardent leur nom du jeu et leur pluriel", () => {
+    assert.equal(VOTE_TEXTES.vote.recompense("1"), "+1 Lingot");
+    assert.equal(VOTE_TEXTES.vote.recompense("12"), "+12 Lingots");
+    assert.equal(PASS_TEXTES.tuile.lingots("1"), "1 Lingot");
+    assert.equal(PASS_TEXTES.tuile.lingots("2"), "2 Lingots");
+    assert.equal(PASS_TEXTES.aReclamer(0), "Rien à réclamer");
+    assert.equal(PASS_TEXTES.aReclamer(1), "1 récompense à réclamer");
+    assert.equal(PASS_TEXTES.aReclamer(4), "4 récompenses à réclamer");
+    assert.equal(BOUTIQUE_TEXTES.details.articles(1), "1 article");
+    assert.equal(BOUTIQUE_TEXTES.details.articles(3), "3 articles");
   });
 });

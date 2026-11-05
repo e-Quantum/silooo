@@ -42,6 +42,11 @@ export interface ViewStore {
    * comparer les versions (deux entreprises n'ont pas la même suite de versions). Rend faux si le joueur n'est pas là.
    */
   switchCompany(xuid: Xuid, update: ViewUpdate): boolean;
+  /**
+   * Range des soldes que le service a donnés seuls (l'achat en boutique, un palier du pass, la livraison de Gemmes) :
+   * la vue garde son état et le point de départ du compteur, et prend les soldes cités. Rend faux si le joueur n'est pas là.
+   */
+  setBalances(xuid: Xuid, change: Partial<Balances>): boolean;
 }
 
 interface Entry {
@@ -95,6 +100,13 @@ export function createViewStore(deps: ViewStoreDeps): ViewStore {
       const entry = entryOf(xuid);
       if (entry === undefined) return false;
       const view = makeView(update.state, update.balances ?? entry.view.balances, clock.now());
+      entries.set(xuid, { source: entry.source, view });
+      return true;
+    },
+    setBalances(xuid, change) {
+      const entry = entryOf(xuid);
+      if (entry === undefined) return false;
+      const view: CompanyView = { state: entry.view.state, balances: { ...entry.view.balances, ...change }, anchor: entry.view.anchor };
       entries.set(xuid, { source: entry.source, view });
       return true;
     },
@@ -174,5 +186,10 @@ export function observeApi(api: CoreApi, link: LinkState): CoreApi {
     placeBuilding: (companyId, action, buildingType, x, z, rotation) =>
       watch(api.placeBuilding(companyId, action, buildingType, x, z, rotation)),
     upgradeBuilding: (companyId, buildingId, action) => watch(api.upgradeBuilding(companyId, buildingId, action)),
+    catalog: (actor) => watch(api.catalog(actor)),
+    buyItem: (action, itemId, forXuid) => watch(api.buyItem(action, itemId, forXuid)),
+    getPass: (actor) => watch(api.getPass(actor)),
+    claimPass: (action, tier, track) => watch(api.claimPass(action, tier, track)),
+    todayVotes: (xuid) => watch(api.todayVotes(xuid)),
   };
 }

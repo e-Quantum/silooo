@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createCoreApi } from "../src/api";
 import { createCoreClient } from "../src/http";
-import { balances, companyState, factory, json, scriptedTransport } from "./helpers";
+import { balances, companyState, factory, json, passClaimed, passState, scriptedTransport, shopCatalog, votesToday } from "./helpers";
 
 const action = { requestId: "0197f2a0-0000-7000-8000-000000000001", actor: "42" };
 
@@ -728,6 +728,256 @@ describe("acceptInvite", () => {
       assert.equal(resultat.kind, "error");
       if (resultat.kind === "error") assert.equal(resultat.reason, "REQUETE_INVALIDE");
     }
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------- la boutique, le pass, les votes
+
+describe("catalog", () => {
+  const catalogue = shopCatalog();
+
+  it("lit le catalogue d'un joueur par un GET, l'acteur dans la requête", async () => {
+    const { transport, api } = setup([json(200, catalogue)]);
+    const result = await api.catalog("42");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, catalogue);
+    assert.equal(transport.requests[0]?.method, "GET");
+    assert.equal(transport.requests[0]?.url, "http://core:8080/v1/shop/catalog?actor=42");
+    assert.equal(transport.requests[0]?.body, undefined);
+  });
+
+  it("rejoue une fois une lecture qui tombe en panne", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, catalogue)]);
+    assert.equal((await api.catalog("42")).kind, "ok");
+    assert.equal(transport.requests.length, 2);
+  });
+
+  it("un article sans possession devient une erreur lisible qui nomme la clé", async () => {
+    const { api } = setup([json(200, [{ itemId: "vip", gemmes: 500, available: true }])]);
+    const result = await api.catalog("42");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") {
+      assert.equal(result.reason, "REPONSE_INATTENDUE");
+      assert.match(result.detail ?? "", /owned/);
+    }
+  });
+
+  it("un joueur inconnu du service (400) est une erreur du service, pas une panne", async () => {
+    const { api } = setup([json(400, { reason: "REQUETE_INVALIDE" })]);
+    assert.deepEqual(await api.catalog("42"), { kind: "error", status: 400, reason: "REQUETE_INVALIDE" });
+  });
+
+  it("un acteur qui n'est pas un XUID n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, catalogue)]);
+    const result = await api.catalog("Alex");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.equal(result.reason, "REQUETE_INVALIDE");
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+describe("buyItem", () => {
+  const soldes = balances({ lingots: 4, gemmes: 90 });
+
+  it("poste l'action et l'article ; sans cadeau la clé forXuid n'existe pas", async () => {
+    const { transport, api } = setup([json(200, soldes)]);
+    const result = await api.buyItem(action, "vip");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, soldes);
+    const request = transport.requests[0];
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.url, "http://core:8080/v1/shop/purchases");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), { ...action, itemId: "vip" });
+  });
+
+  it("un cadeau envoie le destinataire dans le corps", async () => {
+    const { transport, api } = setup([json(200, soldes)]);
+    await api.buyItem(action, "chat-atelier", "2535428000000003");
+    assert.deepEqual(bodyOf(transport.requests[0] ?? { body: undefined }), { ...action, itemId: "chat-atelier", forXuid: "2535428000000003" });
+  });
+
+  it("rejoué avec le même requestId, le corps est identique : le service rend la même réponse", async () => {
+    const { transport, api } = setup([json(200, soldes)]);
+    await api.buyItem(action, "vip");
+    await api.buyItem(action, "vip");
+    assert.equal(transport.requests.length, 2);
+    assert.equal(transport.requests[0]?.body, transport.requests[1]?.body);
+  });
+
+  it("les refus du contrat gardent leur code ; PAS_ASSEZ_DE_GEMMES rend ce qui manque", async () => {
+    const { api } = setup([json(409, { reason: "PAS_ASSEZ_DE_GEMMES", missing: 40 })]);
+    assert.deepEqual(await api.buyItem(action, "vip"), { kind: "refused", status: 409, reason: "PAS_ASSEZ_DE_GEMMES", missing: 40 });
+    for (const reason of ["DEJA_POSSEDE", "GRADE_PRECEDENT_REQUIS", "SAISON_INACTIVE", "CONFLIT_REESSAYER"]) {
+      const { api: autre } = setup([json(409, { reason })]);
+      assert.deepEqual(await autre.buyItem(action, "vip"), { kind: "refused", status: 409, reason });
+    }
+  });
+
+  it("un article inconnu ou un destinataire inconnu (400) reste une erreur du service, sans refus du jeu", async () => {
+    const { api } = setup([json(400, { reason: "REQUETE_INVALIDE" })]);
+    assert.deepEqual(await api.buyItem(action, "inconnu", "2535428000000003"), { kind: "error", status: 400, reason: "REQUETE_INVALIDE" });
+  });
+
+  it("une écriture n'est jamais rejouée toute seule", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, soldes)]);
+    assert.equal((await api.buyItem(action, "vip")).kind, "error");
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("un réseau coupé devient un résultat network", async () => {
+    const { api } = setup([new Error("connexion refusée")]);
+    assert.equal((await api.buyItem(action, "vip")).kind, "network");
+  });
+
+  it("une réponse hors contrat devient une erreur lisible", async () => {
+    const { api } = setup([json(200, { lingots: 1 })]);
+    const result = await api.buyItem(action, "vip");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.equal(result.reason, "REPONSE_INATTENDUE");
+  });
+
+  it("un article vide ou trop long, un destinataire qui n'est pas un XUID n'envoient aucune requête", async () => {
+    const { transport, api } = setup([json(200, soldes)]);
+    for (const resultat of [
+      await api.buyItem(action, ""),
+      await api.buyItem(action, "x".repeat(49)),
+      await api.buyItem(action, "vip", "Bea"),
+    ]) {
+      assert.equal(resultat.kind, "error");
+      if (resultat.kind === "error") assert.equal(resultat.reason, "REQUETE_INVALIDE");
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+describe("getPass", () => {
+  const pass = passState();
+
+  it("lit le pass d'un joueur par un GET, l'acteur dans la requête", async () => {
+    const { transport, api } = setup([json(200, pass)]);
+    const result = await api.getPass("42");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, pass);
+    assert.equal(transport.requests[0]?.method, "GET");
+    assert.equal(transport.requests[0]?.url, "http://core:8080/v1/pass?actor=42");
+  });
+
+  it("une saison hors contrat devient une erreur lisible qui nomme la clé", async () => {
+    const { seasonId: _perdu, ...sans } = pass;
+    const { api } = setup([json(200, sans)]);
+    const result = await api.getPass("42");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.match(result.detail ?? "", /seasonId/);
+  });
+
+  it("un acteur qui n'est pas un XUID n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, pass)]);
+    assert.equal((await api.getPass("")).kind, "error");
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+describe("claimPass", () => {
+  const reclame = passClaimed();
+
+  it("poste l'action, le palier et la piste", async () => {
+    const { transport, api } = setup([json(200, reclame)]);
+    const result = await api.claimPass(action, 2, "GRATUIT");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, reclame);
+    const request = transport.requests[0];
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.url, "http://core:8080/v1/pass/claims");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), { ...action, tier: 2, track: "GRATUIT" });
+  });
+
+  it("la piste premium rend un cosmétique et pas de Lingots", async () => {
+    const premium = passClaimed({ tier: 3, track: "PREMIUM", rewardLingots: 0, cosmeticId: "s1-lanterne" });
+    const { api } = setup([json(200, premium)]);
+    const result = await api.claimPass(action, 3, "PREMIUM");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") {
+      assert.equal(result.body.cosmeticId, "s1-lanterne");
+      assert.equal(result.body.rewardLingots, 0);
+    }
+  });
+
+  it("les refus du contrat gardent leur code ; PALIER_NON_ATTEINT rend les points qui manquent", async () => {
+    const { api } = setup([json(409, { reason: "PALIER_NON_ATTEINT", missing: 60 })]);
+    assert.deepEqual(await api.claimPass(action, 3, "GRATUIT"), { kind: "refused", status: 409, reason: "PALIER_NON_ATTEINT", missing: 60 });
+    for (const reason of ["PREMIUM_REQUIS", "DEJA_RECLAME", "CONFLIT_REESSAYER"]) {
+      const { api: autre } = setup([json(409, { reason })]);
+      assert.deepEqual(await autre.claimPass(action, 1, "PREMIUM"), { kind: "refused", status: 409, reason });
+    }
+  });
+
+  it("une écriture n'est jamais rejouée toute seule, et le même requestId part tel quel au rejeu", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, reclame)]);
+    assert.equal((await api.claimPass(action, 2, "GRATUIT")).kind, "error");
+    assert.equal(transport.requests.length, 1);
+    await api.claimPass(action, 2, "GRATUIT");
+    assert.equal(transport.requests[0]?.body, transport.requests[1]?.body);
+  });
+
+  it("un palier ou une piste que le contrat refuserait n'envoient aucune requête", async () => {
+    const { transport, api } = setup([json(200, reclame)]);
+    for (const resultat of [
+      await api.claimPass(action, 0, "GRATUIT"),
+      await api.claimPass(action, 1.5, "GRATUIT"),
+      await api.claimPass(action, 1, "OR" as unknown as "GRATUIT"),
+    ]) {
+      assert.equal(resultat.kind, "error");
+      if (resultat.kind === "error") assert.equal(resultat.reason, "REQUETE_INVALIDE");
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+
+  it("une réponse sans soldes devient une erreur lisible", async () => {
+    const { balances: _perdus, ...sans } = reclame;
+    const { api } = setup([json(200, sans)]);
+    const result = await api.claimPass(action, 2, "GRATUIT");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.equal(result.reason, "REPONSE_INATTENDUE");
+  });
+});
+
+describe("todayVotes", () => {
+  const votes = votesToday({ mine: { votes: 1, streak: 3 } });
+
+  it("lit les votes du jour par un GET, le joueur dans la requête", async () => {
+    const { transport, api } = setup([json(200, votes)]);
+    const result = await api.todayVotes("42");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, votes);
+    assert.equal(transport.requests[0]?.method, "GET");
+    assert.equal(transport.requests[0]?.url, "http://core:8080/v1/votes/today?xuid=42");
+  });
+
+  it("sans joueur, la requête n'a pas de paramètre", async () => {
+    const { transport, api } = setup([json(200, votesToday())]);
+    await api.todayVotes();
+    assert.equal(transport.requests[0]?.url, "http://core:8080/v1/votes/today");
+  });
+
+  it("un joueur qui n'a pas voté : zéro vote et zéro série", async () => {
+    const { api } = setup([json(200, votesToday())]);
+    const result = await api.todayVotes("42");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body.mine, { votes: 0, streak: 0 });
+  });
+
+  it("une réponse sans la part du joueur devient une erreur lisible", async () => {
+    const { mine: _perdue, ...sans } = votes;
+    const { api } = setup([json(200, sans)]);
+    const result = await api.todayVotes("42");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.match(result.detail ?? "", /mine/);
+  });
+
+  it("un XUID illisible n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, votes)]);
+    assert.equal((await api.todayVotes("Alex")).kind, "error");
     assert.equal(transport.requests.length, 0);
   });
 });

@@ -383,14 +383,14 @@ node tools/verifier_site.mjs --sonder >/dev/null 2>&1 || SONDE=$?
 if [ "$SONDE" -eq 3 ]; then
   echo "  (ignoré : Chromium de Playwright absent, npx playwright install chromium)"
 else
-  # Un faux site : une page propre, puis trois pages fautives (un bloc de 2 000 px, une image sans alt, une feuille absente).
+  # Un faux site : une page propre (une image décrite, une décorative avec alt vide), puis trois pages fautives (un bloc de 2 000 px, une image sans alt, une feuille absente).
   pixel='data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
   page_html() {
     printf '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Essai</title>%s</head><body>%s</body></html>\n' "$1" "$2"
   }
   mkdir -p "$TMP/site/propre" "$TMP/site/public" "$TMP/site-ko/deborde" "$TMP/site-ko/sans-alt" "$TMP/site-ko/css-absente"
   printf 'body { margin: 0; }\n' > "$TMP/site/public/site.css"
-  page_html '<link rel="stylesheet" href="/public/site.css">' "<h1>Propre</h1><img src=\"$pixel\" alt=\"Un pixel\">" > "$TMP/site/propre/index.html"
+  page_html '<link rel="stylesheet" href="/public/site.css">' "<h1>Propre</h1><img src=\"$pixel\" alt=\"Un pixel\"><img src=\"$pixel\" alt=\"\">" > "$TMP/site/propre/index.html"
   cp -r "$TMP/site/propre" "$TMP/site/public" "$TMP/site-ko/"
   page_html '' '<div style="width: 2000px">Large</div>' > "$TMP/site-ko/deborde/index.html"
   page_html '' "<img src=\"$pixel\">" > "$TMP/site-ko/sans-alt/index.html"
