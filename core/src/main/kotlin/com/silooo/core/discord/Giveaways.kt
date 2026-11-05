@@ -169,14 +169,14 @@ class GiveawayFeature(
             options = listOf(
                 CommandOption(GiveawayTexts.TITLE_OPTION, GiveawayTexts.TITLE_DESCRIPTION, required = true),
                 CommandOption(GiveawayTexts.PRIZE_OPTION, GiveawayTexts.PRIZE_DESCRIPTION, required = true, choices = GiveawayPrize.ALL),
-                CommandOption(GiveawayTexts.AMOUNT_OPTION, GiveawayTexts.AMOUNT_DESCRIPTION),
-                CommandOption(GiveawayTexts.COSMETIC_OPTION, GiveawayTexts.COSMETIC_DESCRIPTION),
                 CommandOption(
                     GiveawayTexts.DURATION_OPTION,
                     GiveawayTexts.DURATION_DESCRIPTION,
                     required = true,
                     choices = GiveawayTexts.DURATIONS.map { it.toString() },
                 ),
+                CommandOption(GiveawayTexts.AMOUNT_OPTION, GiveawayTexts.AMOUNT_DESCRIPTION),
+                CommandOption(GiveawayTexts.COSMETIC_OPTION, GiveawayTexts.COSMETIC_DESCRIPTION),
                 CommandOption(GiveawayTexts.MILESTONE_OPTION, GiveawayTexts.MILESTONE_DESCRIPTION, choices = listOf(GiveawayTexts.MILESTONE_YES)),
             ),
             staffOnly = true,
@@ -230,8 +230,8 @@ class GiveawayFeature(
     }
 
     private suspend fun launch(event: DiscordEvent.CommandUsed) {
-        val staff = context.ids.role(STAFF)
-        if (staff != null && staff !in event.user.roleIds) return refuse(event, GiveawayTexts.NOT_STAFF)
+        val staff = context.ids.role(STAFF) ?: return refuse(event, STAFF_ROLE_UNAVAILABLE)
+        if (staff !in event.user.roleIds) return refuse(event, GiveawayTexts.NOT_STAFF)
         val order = when (val parsed = parse(event.options)) {
             is Parsed.Refused -> return refuse(event, parsed.text)
             is Parsed.Valid -> parsed.order

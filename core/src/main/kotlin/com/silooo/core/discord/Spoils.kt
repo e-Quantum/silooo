@@ -123,8 +123,8 @@ class SpoilFeature(
     }
 
     private suspend fun deposit(event: DiscordEvent.CommandUsed) {
-        val staff = context.ids.role(STAFF)
-        if (staff != null && staff !in event.user.roleIds) return refuse(event, SpoilTexts.NOT_STAFF)
+        val staff = context.ids.role(STAFF) ?: return refuse(event, STAFF_ROLE_UNAVAILABLE)
+        if (staff !in event.user.roleIds) return refuse(event, SpoilTexts.NOT_STAFF)
         val channel = channel() ?: return refuse(event, SpoilTexts.NO_CHANNEL)
         val text = event.options[SpoilTexts.TEXT_OPTION].orEmpty().trim()
         if (text.isEmpty()) return refuse(event, SpoilTexts.EMPTY_TEXT)

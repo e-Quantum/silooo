@@ -260,9 +260,26 @@ class AnnounceTest {
         val (answer, onlyToUser) = reply.sent.single()
         assertEquals("Cette commande est pour le staff.", answer.text)
         assertTrue(onlyToUser)
-        assertEquals(noDraft, setup.press("annonce-publier", roles = emptySet()).sent.single().first.text)
+        assertEquals("Cette commande est pour le staff.", setup.press("annonce-publier", roles = emptySet()).sent.single().first.text)
         assertEquals(0, setup.timer.pending)
         assertTrue(setup.fake.posted.isEmpty())
+    }
+
+    @Test
+    @DisplayName("Le rôle Staff est revérifié à la publication, même après un aperçu autorisé")
+    fun staffRoleIsRecheckedBeforePublishing() {
+        val setup = Setup()
+        setup.announce("Un étage de plus", "Le silo a monté un étage.")
+
+        val denied = setup.press("annonce-publier", roles = emptySet())
+        assertEquals("Cette commande est pour le staff.", denied.sent.single().first.text)
+        assertTrue(denied.sent.single().second)
+        assertTrue(denied.edits.isEmpty())
+        assertTrue(setup.fake.posted.isEmpty())
+        assertEquals(1, setup.timer.pending, "le refus ne consomme pas le brouillon")
+
+        setup.press("annonce-publier")
+        assertEquals(1, setup.published.size)
     }
 
     @Test

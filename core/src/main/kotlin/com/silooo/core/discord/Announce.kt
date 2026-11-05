@@ -110,8 +110,8 @@ class AnnounceFeature(
     }
 
     private suspend fun draft(event: DiscordEvent.CommandUsed) {
-        val staff = context.ids.role(STAFF)
-        if (staff != null && staff !in event.user.roleIds) return refuse(event, AnnounceTexts.NOT_STAFF)
+        val staff = context.ids.role(STAFF) ?: return refuse(event, STAFF_ROLE_UNAVAILABLE)
+        if (staff !in event.user.roleIds) return refuse(event, AnnounceTexts.NOT_STAFF)
         val title = event.options[AnnounceTexts.TITLE_OPTION].orEmpty().trim()
         val text = event.options[AnnounceTexts.TEXT_OPTION].orEmpty().trim()
         if (title.isEmpty()) return refuse(event, AnnounceTexts.EMPTY_TITLE)
@@ -129,6 +129,8 @@ class AnnounceFeature(
     }
 
     private suspend fun publish(event: DiscordEvent.ButtonPressed) {
+        val staff = context.ids.role(STAFF) ?: return tell(event, STAFF_ROLE_UNAVAILABLE)
+        if (staff !in event.user.roleIds) return tell(event, AnnounceTexts.NOT_STAFF)
         val userId = event.user.id
         val draft = drafts[userId] ?: return tell(event, AnnounceTexts.NO_DRAFT)
         val channel = context.ids.channel(ANNONCES) ?: return tell(event, AnnounceTexts.NO_CHANNEL)

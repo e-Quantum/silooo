@@ -30,6 +30,9 @@ interface Feature {
     suspend fun handle(event: DiscordEvent) {}
 }
 
+/** Un rôle Staff absent n'autorise aucune action réservée au staff. Texte à valider par Kr. */
+internal const val STAFF_ROLE_UNAVAILABLE = "Le rôle Staff n'est pas configuré sur le serveur."
+
 /** Ce qu'une fonction a sous la main : le serveur, les identifiants du plan, le temps, la phase. */
 class BotContext(
     val server: DiscordServer,

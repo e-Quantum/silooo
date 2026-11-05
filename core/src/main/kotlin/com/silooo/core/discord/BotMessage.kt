@@ -112,6 +112,13 @@ data class CommandSpec(
     init {
         require(NAME.matches(name)) { "un nom de commande en minuscules, sans espace" }
         require(description.length in 1..MAX_DESCRIPTION) { "une description de commande de 1 à " + MAX_DESCRIPTION + " caractères" }
+        var optionalSeen = false
+        for (option in options) {
+            require(!optionalSeen || !option.required) {
+                "commande /" + name + " : l'option obligatoire « " + option.name + " » doit précéder les options facultatives"
+            }
+            if (!option.required) optionalSeen = true
+        }
     }
 
     companion object {

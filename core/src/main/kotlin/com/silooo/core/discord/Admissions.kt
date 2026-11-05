@@ -121,8 +121,8 @@ class AdmissionFeature(
             event.id.startsWith(AdmissionTexts.LATER_PREFIX) -> Action.LATER
             else -> return
         }
-        val staff = context.ids.role(STAFF)
-        if (staff != null && staff !in event.user.roleIds) return tell(event, AdmissionTexts.NOT_STAFF)
+        val staff = context.ids.role(STAFF) ?: return tell(event, STAFF_ROLE_UNAVAILABLE)
+        if (staff !in event.user.roleIds) return tell(event, AdmissionTexts.NOT_STAFF)
         val key = event.id.removePrefix(action.prefix)
         val admission = store.admission(key)
         val registration = store.registration(key)
