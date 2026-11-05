@@ -57,7 +57,9 @@ class SiteModuleTest {
         val response = client.get("/")
         assertEquals(HttpStatusCode.OK, response.status)
         val html = response.html()
-        assertTrue(html.contains("Le serveur ouvre bientôt."))
+        // L'annonce est la bulle d'Oooscar (six mots au plus) ; le texte ne la répète pas.
+        assertTrue(html.substringAfter("<main").contains("Le serveur ouvre bientôt !"))
+        assertFalse(html.substringAfter("<main").contains("Le serveur ouvre bientôt."))
         assertTrue(html.contains("Un tycoon d&#39;usines dans le ciel") || html.contains("Un tycoon d'usines dans le ciel"))
         assertFalse(html.contains("play.silooo.com"))
         assertFalse(Regex("""19132|:\d{4,5}\b""").containsMatchIn(html.substringAfter("<main")), "pas de port de serveur")
