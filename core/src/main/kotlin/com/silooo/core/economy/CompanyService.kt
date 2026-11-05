@@ -3,7 +3,11 @@ package com.silooo.core.economy
 import com.silooo.core.api.CompanyState
 import com.silooo.core.api.CompanyUpdated
 import com.silooo.core.api.FactoryState
+import com.silooo.core.api.PrestigePreview
+import com.silooo.core.api.PrestigeShare
+import com.silooo.core.api.Refusal
 import com.silooo.core.api.RefusalCodes
+import com.silooo.core.api.Role
 import com.silooo.core.api.refuse
 import com.silooo.core.db.CompanyColumn
 import com.silooo.core.db.Xuid
@@ -12,11 +16,17 @@ import com.silooo.core.events.GameEventKind
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryRecord
+import com.silooo.core.session.Membership
 import com.silooo.core.session.Production
 import com.silooo.core.session.Regime
 import com.silooo.core.session.SessionStore
 import com.silooo.core.session.buildCompanyState
+import io.ktor.http.HttpStatusCode
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.sql.Connection
+import java.time.Duration
+import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
@@ -36,7 +46,8 @@ class RequestRejected(message: String) : RuntimeException(message, null, false, 
 data class Collected(val collected: Double, val offlineHours: Double, val state: CompanyState)
 
 /**
- * Les quatre routes d'économie de la phase 3, sans HTTP : `getCompany`, `collect`, `buyLevels` et `restoreStep`.
+ * Les routes d'économie de la phase 3 et le prestige, sans HTTP : `getCompany`, `collect`, `buyLevels`, `restoreStep`,
+ * `prestigePreview` et `prestige`.
  * Les routes valident l'entrée et répondent ; ce service lit, décide et écrit, dans la transaction que l'appelant lui
  * donne ([Connection]). Il ne contient aucun chiffre du jeu : prix, production et plafond viennent du [EconomyEngine]
  * et de [EconomyFigures], qui les tirent de `definitions/`.
@@ -171,16 +182,143 @@ class CompanyService(
         return updated(connection, actor, after, factories.replacing(restored))
     }
 
+    /**
+     * Ce que rapporterait un prestige maintenant, ou null si l'entreprise n'existe pas. Rien n'est écrit. Le calcul
+     * est celui de [prestige] : la production en attente (en ligne) compte dans les Donar gagnés, le seuil est celui de
+     * la course. Quand le seuil n'est pas atteint le prestige est refusé, donc il ne rapporte rien : les Lingots et les
+     * parts sont à zéro (**à valider par Kr**), `next` dit quand même ce qui viendrait après.
+     */
+    fun prestigePreview(connection: Connection, companyId: Long): PrestigePreview? {
+        if (!companies.companyExists(connection, companyId)) return null
+        val company = sessions.loadCompany(connection, companyId)
+        val factories = sessions.loadFactories(connection, companyId)
+        val earned = company.donarEarned + figures.pendingProduction(connection, company, factories, Regime.ONLINE).earned
+        val course = company.courseNumber
+        val allowed = engine.canPrestige(course, earned)
+        val total = if (allowed) engine.prestigeLingots(course, earned) else 0L
+        val doubled = if (allowed) engine.prestigeLingots(course, earned * 2) else 0L
+        val shares = splitLingots(total, companies.loadShares(connection, companyId))
+        return PrestigePreview(
+            allowed = allowed,
+            lingotsTotal = total,
+            lingotsIfDoubled = doubled,
+            shares = shares.map { PrestigeShare(it.xuid.text, it.lingots) },
+            next = if (engine.prestigeGivesStar(course)) NEXT_STAR else "$NEXT_ERA_PREFIX${engine.eraAt(course + 1)}",
+        )
+    }
+
+    /**
+     * Le prestige : réservé au PDG, permis quand les Donar gagnés atteignent le seuil de la course. Dans l'ordre :
+     *  1. La production en attente est versée d'abord (en ligne) : elle compte pour le seuil et pour les Lingots.
+     *  2. La course suivante : Donar et Donar gagnés à zéro, `course_number` + 1, époque et étoiles selon le moteur,
+     *     `course_started_at` et `last_collect_at` à maintenant, en UNE écriture `updateCompany`.
+     *  3. Les usines repartent ([CompanyStore.restartFactories]), les Lingots se partagent ([splitLingots]) et se
+     *     créditent un membre à la fois (`player_balances` et `currency_ledger`), la ligne de `prestige_history` s'écrit.
+     *  4. Chaque membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part.
+     *
+     * Refus : `PAS_LE_PDG` (403) pour un associé ; `SEUIL_NON_ATTEINT` avec les Donar qui manquent. Un acteur qui n'est pas
+     * membre : [RequestRejected]. Rien n'est écrit avant un refus.
+     */
+    fun prestige(connection: Connection, companyId: Long, actor: Xuid): CompanyUpdated {
+        val membership = membershipOf(connection, companyId, actor)
+        if (membership.role != Role.PDG) throw Refusal(HttpStatusCode.Forbidden, RefusalCodes.NOT_THE_CEO)
+        val company = sessions.loadCompany(connection, companyId)
+        val factories = sessions.loadFactories(connection, companyId)
+
+        val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
+        val earned = company.donarEarned + production.earned
+        val course = company.courseNumber
+        val threshold = engine.prestigeThreshold(course)
+        if (!engine.canPrestige(course, earned)) refuse(RefusalCodes.THRESHOLD_NOT_REACHED, missing = (threshold - earned).finiteOrMax())
+
+        val total = engine.prestigeLingots(course, earned)
+        val shares = splitLingots(total, companies.loadShares(connection, companyId))
+        val nextCourse = course + 1
+        val nextEra = engine.eraAt(nextCourse)
+        val nextStars = engine.starsAt(nextCourse)
+        val now = production.at
+
+        val version = updateCompany(
+            connection,
+            companyId,
+            company.version,
+            CompanyColumn.DONAR to 0.0,
+            CompanyColumn.DONAR_EARNED to 0.0,
+            CompanyColumn.COURSE_NUMBER to nextCourse,
+            CompanyColumn.ERA to nextEra,
+            CompanyColumn.STARS to nextStars,
+            CompanyColumn.COURSE_STARTED_AT to now,
+            CompanyColumn.LAST_COLLECT_AT to now,
+        )
+        companies.restartFactories(connection, companyId, engine.startingLevels())
+        val refId = "entreprise-$companyId-course-$course"
+        for (share in shares) {
+            if (share.lingots > 0) companies.creditLingots(connection, share.xuid, share.lingots, REASON_PRESTIGE, refId)
+        }
+        companies.recordPrestige(
+            connection,
+            PrestigeRecord(
+                companyId = companyId,
+                courseNumber = course,
+                eraBefore = company.era,
+                starsAfter = nextStars,
+                threshold = threshold,
+                donarEarned = earned,
+                lingotsTotal = total,
+                durationHours = hoursBetween(company.courseStartedAt, now),
+                decidedBy = actor,
+            ),
+        )
+        for (share in shares) {
+            companies.publish(
+                connection,
+                EVENT_KIND,
+                share.xuid,
+                event(ACTION_PRESTIGE, companyId) {
+                    put("course", course)
+                    put("era", nextEra)
+                    put("stars", nextStars)
+                    put("lingotsTotal", total)
+                    put("lingots", share.lingots)
+                },
+            )
+        }
+
+        val after = company.copy(
+            era = nextEra,
+            stars = nextStars,
+            courseNumber = nextCourse,
+            donar = 0.0,
+            donarEarned = 0.0,
+            courseStartedAt = now,
+            lastCollectAt = now,
+            version = version,
+        )
+        return updated(connection, actor, after, sessions.loadFactories(connection, companyId))
+    }
+
+    /** La durée entre [from] et [to] en heures, à deux décimales (`prestige_history.duration_hours`), jamais négative. */
+    private fun hoursBetween(from: Instant, to: Instant): BigDecimal {
+        val millis = maxOf(0L, Duration.between(from, to).toMillis())
+        return BigDecimal(millis).divide(BigDecimal(MILLIS_PER_HOUR), 2, RoundingMode.HALF_UP).min(MAX_DURATION_HOURS)
+    }
+
     private fun requireKnownFactory(factoryId: String) {
         if (factoryId !in knownFactories) throw RequestRejected("Usine inconnue de usines.json : $factoryId")
     }
 
-    /** L'entreprise et ses usines, pour un acteur qui en est membre. Sinon [RequestRejected]. */
-    private fun loadForActor(connection: Connection, companyId: Long, actor: Xuid): Pair<CompanyRecord, List<FactoryRecord>> {
+    /** L'appartenance de l'acteur à l'entreprise, avec son rôle. Sinon [RequestRejected]. */
+    private fun membershipOf(connection: Connection, companyId: Long, actor: Xuid): Membership {
         val membership = sessions.membershipOf(connection, actor)
         if (membership == null || membership.companyId != companyId) {
             throw RequestRejected("L'acteur $actor n'est pas membre de l'entreprise $companyId")
         }
+        return membership
+    }
+
+    /** L'entreprise et ses usines, pour un acteur qui en est membre. Sinon [RequestRejected]. */
+    private fun loadForActor(connection: Connection, companyId: Long, actor: Xuid): Pair<CompanyRecord, List<FactoryRecord>> {
+        membershipOf(connection, companyId, actor)
         return sessions.loadCompany(connection, companyId) to sessions.loadFactories(connection, companyId)
     }
 
@@ -243,5 +381,17 @@ class CompanyService(
         const val ACTION_COLLECT = "collect"
         const val ACTION_BUY_LEVELS = "buyLevels"
         const val ACTION_RESTORE_STEP = "restoreStep"
+        const val ACTION_PRESTIGE = "prestige"
+
+        /** `currency_ledger.reason` des Lingots du prestige. */
+        const val REASON_PRESTIGE = "prestige"
+
+        /** Valeurs de `PrestigePreview.next` : `EPOQUE_<n>` pour l'époque suivante, `ETOILE` après la dernière. */
+        const val NEXT_ERA_PREFIX = "EPOQUE_"
+        const val NEXT_STAR = "ETOILE"
+
+        /** Une heure en millisecondes, et la plus grande durée que `prestige_history.duration_hours` (DECIMAL(8,2)) garde. */
+        private const val MILLIS_PER_HOUR = 3_600_000L
+        private val MAX_DURATION_HOURS = BigDecimal("999999.99")
     }
 }

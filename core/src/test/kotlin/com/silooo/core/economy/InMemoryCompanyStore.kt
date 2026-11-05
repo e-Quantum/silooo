@@ -1,6 +1,7 @@
 package com.silooo.core.economy
 
 import com.silooo.core.api.FactoryState
+import com.silooo.core.api.Role
 import com.silooo.core.db.Xuid
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.session.FactoryRecord
@@ -18,8 +19,19 @@ class InMemoryCompanyStore(private val sessions: InMemorySessionStore) : Company
 
     data class Published(val kind: GameEventKind, val xuid: Xuid?, val payload: JsonObject)
 
+    /** Un versement de Lingots : une ligne de `currency_ledger`. */
+    data class Credit(val xuid: Xuid, val amount: Long, val reason: String, val refId: String)
+
     val saved = mutableListOf<SavedFactory>()
     val published = mutableListOf<Published>()
+    val credits = mutableListOf<Credit>()
+    val prestiges = mutableListOf<PrestigeRecord>()
+
+    /** Les remises à zéro des usines demandées, avec les usines de départ passées (entreprise, usines de départ). */
+    val restarts = mutableListOf<Pair<Long, Map<String, Int>>>()
+
+    /** Les parts de Lingots posées par un test (`share_percent`). Sans part posée : 100 pour le PDG, 0 pour un associé. */
+    val sharePercents = LinkedHashMap<Xuid, Int>()
 
     override fun companyExists(connection: Connection, companyId: Long): Boolean = companyId in sessions.companies
 
@@ -34,5 +46,36 @@ class InMemoryCompanyStore(private val sessions: InMemorySessionStore) : Company
     override fun publish(connection: Connection, kind: GameEventKind, xuid: Xuid?, payload: JsonObject): Long {
         published += Published(kind, xuid, payload)
         return published.size.toLong()
+    }
+
+    override fun loadShares(connection: Connection, companyId: Long): List<MemberShare> =
+        sessions.members.filterValues { it.companyId == companyId }.entries
+            .sortedBy { it.key.number }
+            .map { (xuid, membership) -> MemberShare(xuid, membership.role, sharePercents[xuid] ?: if (membership.role == Role.PDG) 100 else 0) }
+
+    override fun creditLingots(connection: Connection, xuid: Xuid, amount: Long, reason: String, refId: String): Long {
+        val before = sessions.balances.getValue(xuid)
+        val after = before.copy(lingots = before.lingots + amount)
+        sessions.balances[xuid] = after
+        credits += Credit(xuid, amount, reason, refId)
+        return after.lingots
+    }
+
+    override fun restartFactories(connection: Connection, companyId: Long, starting: Map<String, Int>) {
+        val list = sessions.factories.getValue(companyId)
+        for (index in list.indices) {
+            val factory = list[index]
+            val level = starting[factory.factoryId]
+            list[index] = if (level != null) {
+                FactoryRecord(factory.factoryId, FactoryState.ACTIVE, 0, level, openIncidentId = null)
+            } else {
+                FactoryRecord(factory.factoryId, FactoryState.EN_RUINE, 0, 0, openIncidentId = null)
+            }
+        }
+        restarts += companyId to starting
+    }
+
+    override fun recordPrestige(connection: Connection, record: PrestigeRecord) {
+        prestiges += record
     }
 }

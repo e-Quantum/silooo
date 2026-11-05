@@ -62,6 +62,23 @@ data class CompanyState(
     val version: Int,
 )
 
+/** Schéma `PrestigePreview.shares[]` : les Lingots qu'un membre recevrait. */
+@Serializable
+data class PrestigeShare(val xuid: String, val lingots: Long)
+
+/**
+ * Schéma `PrestigePreview` : ce que rapporterait un prestige maintenant. `next` vaut `EPOQUE_2`, `EPOQUE_3`,
+ * `EPOQUE_4` ou `ETOILE` ; il reste une chaîne, l'énumération de l'OpenAPI suivant les époques d'`usines.json`.
+ */
+@Serializable
+data class PrestigePreview(
+    val allowed: Boolean,
+    val lingotsTotal: Long,
+    val lingotsIfDoubled: Long,
+    val shares: List<PrestigeShare>,
+    val next: String,
+)
+
 /** Schéma `JoinResponse`. */
 @Serializable
 data class JoinResponse(
