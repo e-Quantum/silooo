@@ -88,6 +88,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200':
           description: tout ce qu'il faut pour afficher le joueur
           content:
@@ -141,6 +142,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200':
           description: ce qui a été encaissé et le nouvel état
           content:
@@ -221,6 +223,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
 
   /v1/companies/{companyId}/agency:
@@ -289,6 +292,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
     delete:
       summary: Renvoie un membre du personnel (seul cas où il part)
@@ -303,6 +307,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
 
   /v1/companies/{companyId}/prestige/preview:
@@ -483,6 +488,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200':
           description: commande mise à jour
           content:

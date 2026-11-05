@@ -49,7 +49,7 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
 - [x] Moteur d'économie (prix des niveaux, production, paliers, prestige, notation) et tests dorés
 - [x] Tests de contrat sur les 29 opérations de l'OpenAPI (les routes pas faites répondent 501)
 - [ ] Brancher le moteur sur `join` (`EconomyFigures` : revenu, multiplicateur, seuil, hors ligne ; `CompanyBootstrap` : la Carrière de départ et la grille des cases) : sous-agent en cours, branche `claude/phase1-branchement`
-- [ ] Contrat : déclarer le 409 `CONFLIT_REESSAYER` sur les six opérations qui peuvent le rendre (`join`, `collect`, `resolveIncident`, `fireStaff`, `assignStaff`, `deliverOrder`), puis retirer `KNOWN_409_GAPS` du test de contrat
+- [x] Contrat : le 409 `CONFLIT_REESSAYER` est déclaré sur les six opérations qui peuvent le rendre (`join`, `collect`, `resolveIncident`, `fireStaff`, `assignStaff`, `deliverOrder`) ; `KNOWN_409_GAPS` est vide dans le test de contrat
 - [x] Image Docker de silooo-core construite par la CI, publiée sur le registre GitHub depuis `main`
 
 ## Phase 2 : Bedrock
@@ -139,8 +139,8 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
     <gamertag> », suffixe « 2 », « 3 » si le nom est pris, coupé à 32 caractères. Texte vu par les joueurs :
     à valider par Kr. Le départ du joueur se fige dans `players.last_seen_at`, sans migration V2.
 18. **Écarts de contrat gelés dans les tests.** Six opérations peuvent répondre 409 `CONFLIT_REESSAYER` sans
-    le déclarer : `ContractTest` gèle la liste (`KNOWN_409_GAPS`) et la direction corrige le contrat après le
-    branchement du moteur (case de la phase 1), pour ne pas croiser les modifications.
+    le déclarer : `ContractTest` gelait la liste (`KNOWN_409_GAPS`) ; la direction a déclaré le 409 sur les six dans
+    l'OpenAPI le 5 novembre 2026 et la liste est vide : toute opération nouvelle avec `requestId` doit déclarer le sien.
 19. **Quatrième fichier de définitions, `monde.json`.** L'écart entre les cases de l'archipel, le nombre de
     cases par rangée et l'origine de la grille sont des chiffres du jeu (`docs/game-design.md` : « au moins
     600 × 600 blocs par joueur ») : ils vont dans `definitions/`, pas dans le code. Au-delà des neuf seuils de

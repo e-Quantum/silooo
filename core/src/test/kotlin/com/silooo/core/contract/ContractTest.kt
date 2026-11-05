@@ -222,12 +222,11 @@ class ContractTest {
             (op.body?.let { "requestId" in contract.requiredProperties(it) } ?: false)
 
     @Test
-    @DisplayName("409 CONFLIT_REESSAYER : les opérations qui peuvent le rendre sans le déclarer sont les trous connus du contrat, ni plus ni moins")
+    @DisplayName("409 CONFLIT_REESSAYER : toute opération qui peut le rendre le déclare dans le contrat")
     fun knownGapsOf409() {
         // CONFLIT_REESSAYER sort de l'idempotence (même requestId en cours) et du verrou optimiste : toute opération
-        // avec requestId peut le rendre, et join aussi (conflits répétés). Le contrat ne le déclare pas partout.
-        // Cette liste est le rapport de ces trous à la direction ; elle ne doit ni grandir (un nouveau trou) ni
-        // garder une entrée corrigée (retirer l'opération d'ici quand le contrat gagne son 409).
+        // avec requestId peut le rendre, et join aussi (conflits répétés). Le contrat le déclare sur chacune depuis
+        // le 5 novembre 2026 : une opération nouvelle avec requestId doit déclarer son 409, sinon ce test le dit.
         val canConflict = operations.filter { carriesRequestId(it) || it.id == "join" }
         val gaps = canConflict.filter { 409 !in it.responses }.map { it.id }.toSet()
         assertEquals(KNOWN_409_GAPS, gaps)
@@ -412,9 +411,10 @@ class ContractTest {
         val WRITTEN = mapOf("heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200)
 
         /**
-         * Les opérations qui peuvent répondre 409 CONFLIT_REESSAYER sans le déclarer dans le contrat : à signaler
-         * à la direction, qui décide d'ajouter `'409': Refused` à l'OpenAPI (puis de vider cette liste).
+         * Les opérations qui peuvent répondre 409 CONFLIT_REESSAYER sans le déclarer dans le contrat. Vide : les six
+         * trous relevés par la session des routes ont été comblés dans l'OpenAPI par la direction. Une entrée ici est
+         * un trou connu, à signaler à la direction, jamais une tolérance durable.
          */
-        val KNOWN_409_GAPS = setOf("join", "collect", "resolveIncident", "fireStaff", "assignStaff", "deliverOrder")
+        val KNOWN_409_GAPS = emptySet<String>()
     }
 }
