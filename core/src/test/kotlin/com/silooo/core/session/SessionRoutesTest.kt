@@ -26,6 +26,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import java.sql.SQLException
 import java.sql.SQLTransactionRollbackException
 import java.time.Instant
 import kotlinx.serialization.json.jsonObject
@@ -268,6 +269,21 @@ class SessionRoutesTest {
     fun deadlockBecomesConflict() = withApp { app ->
         app.store.failOnEnter = { SQLTransactionRollbackException("Deadlock found when trying to get lock", "40001", 1213) }
         val response = join("""{"xuid":"$kr","gamertag":"Kr"}""")
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals(RefusalCodes.CONFLICT_RETRY, SiloooJson.decodeFromString(RefusedBody.serializer(), response.bodyAsText()).reason)
+    }
+
+    @Test
+    @DisplayName("MariaDB 12 : une ligne changée depuis la lecture (erreur 1020) est reprise, puis devient CONFLIT_REESSAYER si elle persiste")
+    fun snapshotConflictIsRetriedThenBecomesConflict() = withApp { app ->
+        val checkRead = { SQLException("Record has changed since last read in table 'archipelago_slots'", "HY000", 1020) }
+        var attempts = 0
+        app.store.failOnEnter = { if (attempts++ < 2) checkRead() else null }
+        assertEquals(HttpStatusCode.OK, join("""{"xuid":"$kr","gamertag":"Kr"}""").status)
+        assertEquals(3, attempts, "deux échecs 1020, puis la réussite")
+
+        app.store.failOnEnter = { checkRead() }
+        val response = join("""{"xuid":"$other","gamertag":"Autre"}""")
         assertEquals(HttpStatusCode.Conflict, response.status)
         assertEquals(RefusalCodes.CONFLICT_RETRY, SiloooJson.decodeFromString(RefusedBody.serializer(), response.bodyAsText()).reason)
     }

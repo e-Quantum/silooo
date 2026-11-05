@@ -5,9 +5,10 @@ import com.silooo.core.db.Claim
 import com.silooo.core.db.Database
 import com.silooo.core.db.JdbcApiRequestStore
 import com.silooo.core.db.StoredResponse
+import com.silooo.core.db.isTransientConflict
 import io.ktor.http.HttpStatusCode
 import java.sql.Connection
-import java.sql.SQLTransactionRollbackException
+import java.sql.SQLException
 import java.time.Duration
 import java.util.UUID
 import kotlinx.coroutines.NonCancellable
@@ -56,8 +57,9 @@ class Idempotency(
 
         val claim = try {
             database.transaction { store.claim(it, requestId, endpoint, owner, staleAfter) }
-        } catch (e: SQLTransactionRollbackException) {
+        } catch (e: SQLException) {
             // Deux appels se sont disputé la reprise d'un marqueur abandonné : l'autre gagne.
+            if (!e.isTransientConflict()) throw e
             return CONFLICT
         }
         when (claim) {
@@ -85,11 +87,12 @@ class Idempotency(
             return refusal.toStored()
         } catch (e: MarkerLost) {
             return CONFLICT
-        } catch (e: SQLTransactionRollbackException) {
-            // Blocage mortel ou délai dépassé dans la base : transitoire, comme un conflit de version.
-            release(requestId, owner)
-            return CONFLICT
         } catch (e: Throwable) {
+            if (e.isTransientConflict()) {
+                // Blocage mortel, ou ligne changée depuis la lecture (innodb_snapshot_isolation) : transitoire, comme un conflit de version.
+                release(requestId, owner)
+                return CONFLICT
+            }
             release(requestId, owner, suppressedInto = e)
             throw e
         }
