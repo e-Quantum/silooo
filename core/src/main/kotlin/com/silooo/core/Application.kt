@@ -8,6 +8,7 @@ import com.silooo.core.api.notDoneRoutes
 import com.silooo.core.api.respondError
 import com.silooo.core.db.Database
 import com.silooo.core.definitions.Definitions
+import com.silooo.core.economy.EconomyEngine
 import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.eventsRoutes
 import com.silooo.core.server.ServerPresence
@@ -40,6 +41,8 @@ class Dependencies(
     val serverPresence: ServerPresence = ServerPresence(),
     /** Les définitions du jeu, chargées une fois au démarrage (usines, économie, boutique). */
     val definitions: Definitions,
+    /** Les formules du jeu (prix, production, prestige, notation), bâties sur [definitions]. */
+    val economy: EconomyEngine = EconomyEngine(definitions),
 )
 
 /**
