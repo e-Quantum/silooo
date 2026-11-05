@@ -1,6 +1,7 @@
 package com.silooo.core.contract
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.GameEvent
@@ -87,6 +88,7 @@ class ContractTest {
         val database = PassThroughDatabase()
         return Dependencies(
             database = database,
+            definitions = TestDefinitions.loaded,
             apiKey = KEY,
             idempotency = Idempotency(database, InMemoryApiRequestStore()),
             economyFigures = TestEconomy(),

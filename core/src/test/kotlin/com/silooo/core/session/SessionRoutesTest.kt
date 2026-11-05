@@ -1,6 +1,7 @@
 package com.silooo.core.session
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
@@ -59,6 +60,7 @@ class SessionRoutesTest {
             siloooModule(
                 Dependencies(
                     database = database,
+                    definitions = TestDefinitions.loaded,
                     apiKey = key,
                     // join et leave n'ont pas de requestId : si l'idempotence servait, ce magasin le dirait.
                     idempotency = Idempotency(database, NeverUsedApiRequestStore),

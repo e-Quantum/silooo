@@ -1,6 +1,7 @@
 package com.silooo.core.events
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.api.EventsPage
 import com.silooo.core.api.SERVER_KEY_HEADER
 import com.silooo.core.api.SiloooJson
@@ -111,7 +112,7 @@ class GameEventsSqlTest {
     @Test
     @DisplayName("GET /v1/events lit la vraie base, page par page, avec le curseur")
     fun routeReadsTheRealTable() = testApplication {
-        application { siloooModule(Dependencies(database = MariaDbSupport.database, apiKey = "cle-de-test")) }
+        application { siloooModule(Dependencies(database = MariaDbSupport.database,definitions = TestDefinitions.loaded, apiKey = "cle-de-test")) }
         val ids = (1..5).map { publish(GameEventKind.ANNONCE, null, it) }
 
         suspend fun page(after: Long, limit: Int): EventsPage {

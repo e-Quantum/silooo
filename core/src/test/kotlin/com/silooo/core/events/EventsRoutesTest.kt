@@ -1,6 +1,7 @@
 package com.silooo.core.events
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.EventsPage
@@ -49,7 +50,7 @@ class EventsRoutesTest {
         testApplication {
             val database = PassThroughDatabase()
             val store = InMemoryEventStore(events)
-            application { siloooModule(Dependencies(database = database, apiKey = key, eventStore = store)) }
+            application { siloooModule(Dependencies(database = database,definitions = TestDefinitions.loaded, apiKey = key, eventStore = store)) }
             block(store, database)
         }
 

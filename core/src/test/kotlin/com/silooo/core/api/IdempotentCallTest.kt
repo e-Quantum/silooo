@@ -1,6 +1,7 @@
 package com.silooo.core.api
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.PassThroughDatabase
 import com.silooo.core.siloooModule
@@ -46,7 +47,7 @@ class IdempotentCallTest {
         val database = PassThroughDatabase()
         val store = InMemoryApiRequestStore()
         val runs = AtomicInteger()
-        val dependencies = Dependencies(database = database, apiKey = key, idempotency = Idempotency(database, store))
+        val dependencies = Dependencies(database = database,definitions = TestDefinitions.loaded, apiKey = key, idempotency = Idempotency(database, store))
         application {
             siloooModule(dependencies)
             routing {

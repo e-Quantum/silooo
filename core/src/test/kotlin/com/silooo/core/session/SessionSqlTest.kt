@@ -1,6 +1,7 @@
 package com.silooo.core.session
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.api.JoinResponse
 import com.silooo.core.api.Role
 import com.silooo.core.api.SERVER_KEY_HEADER
@@ -303,7 +304,7 @@ class SessionSqlTest {
     fun overHttp() = testApplication {
         application {
             siloooModule(
-                Dependencies(database = database, apiKey = "cle-de-test", economyFigures = economy, companyBootstrap = TestBootstrap),
+                Dependencies(database = database,definitions = TestDefinitions.loaded, apiKey = "cle-de-test", economyFigures = economy, companyBootstrap = TestBootstrap),
             )
         }
         suspend fun post(path: String, body: String) = client.post(path) {
