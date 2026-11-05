@@ -32,6 +32,7 @@ class DefinitionsBootstrapTest {
             worldJson,
             TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE),
             TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE),
+            TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE),
         )
         return DefinitionsBootstrap(engine, changed)
     }

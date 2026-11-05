@@ -244,6 +244,49 @@ export type IlesPoint = {
   readonly z: number;
 };
 
+// ---- incidents.json
+
+/** Identifiants de incidents.json, tableau « sortes ». */
+export type IncidentKindId =
+  | "incendie"
+  | "panne"
+  | "courroie";
+
+/** Forme de definitions/incidents.json : à quelle cadence un incident survient pendant qu'un joueur est en ligne, les sortes d'incident et leur ralentissement, la récompense du mini-jeu de réparation, et ce que l'électricité demande. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type IncidentsDefinitions = {
+  readonly version: number;
+  /** La cadence des incidents. Le temps se découpe en créneaux ; à chaque créneau, une entreprise qui a un joueur en ligne tire au sort, une seule fois, si un incident survient. Jamais pendant une absence. */
+  readonly frequence: {
+    /** Durée d'un créneau, en minutes. Elle doit diviser une journée (1440 minutes) : les créneaux d'un jour UTC se suivent sans reste, et le numéro du créneau fait partie du tirage. */
+    readonly creneauMinutes: number;
+    /** La chance qu'un incident survienne à un créneau, en pourcent. C'est un tirage gratuit, figé par l'entreprise, le jour et le numéro du créneau : personne ne peut le relancer ni le payer. */
+    readonly chancePourcent: number;
+  };
+  /** Les sortes d'incident (début d'incendie, machine en panne, courroie cassée). Dans l'ordre : le tirage s'y réfère par la position, donc changer l'ordre change les tirages. */
+  readonly sortes: readonly IncidentsSorte[];
+  /** Ce que donne le mini-jeu de réparation réussi. */
+  readonly recompense: {
+    /** La récompense, en Donar, vaut ce nombre de minutes du revenu de l'usine réparée, calculé comme si elle n'avait jamais été ralentie. */
+    readonly minutesDeRevenu: number;
+  };
+  /** Ce que l'électricité demande aux usines modernes. */
+  readonly electricite: {
+    /** À partir de cette époque de l'entreprise, une usine dont l'entrée « electricite » de usines.json est vraie s'arrête quand l'entreprise n'a pas de Centrale active. */
+    readonly aPartirDeEpoque: number;
+    /** L'identifiant (usines.json) de l'usine qui produit le courant : la Centrale. Elle compte quand elle est active, au niveau 1 au moins. */
+    readonly usineCentrale: string;
+  };
+};
+
+export type IncidentsSorte = {
+  /** Identifiant en kebab-case, 16 caractères au plus (colonne factory_incidents.kind). Il ne change plus : c'est la clé que la base et l'add-on gardent. */
+  readonly id: IncidentKindId;
+  /** Le facteur sur la production de l'usine tant que l'incident dure : 0,5 veut dire moitié moins vite. Strictement entre 0 et 1 : un incident ralentit, il n'arrête ni ne fait rien perdre. Deux décimales au plus (colonne factory_incidents.slowdown). */
+  readonly ralentissement: number;
+  /** Le poids de cette sorte dans le tirage : une sorte de poids 2 survient deux fois plus souvent qu'une de poids 1. */
+  readonly poids: number;
+};
+
 // ---- missions.json
 
 /** Identifiants de missions.json, tableau « missions ». */

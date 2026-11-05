@@ -1,0 +1,1 @@
+$.frequence.chancePourcent: doit être au plus 100, reçu 120

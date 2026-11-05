@@ -309,9 +309,50 @@ function controlesPersonnel(fichier, d) {
   }
 }
 
+const MINUTES_PAR_JOUR = 24 * 60;
+
+function controlesIncidents(fichier, d, dossier) {
+  doublons(fichier, "$.sortes", liste(d.sortes), "la sorte");
+  // Les créneaux d'un jour UTC se suivent sans reste : le numéro du créneau fait partie du tirage.
+  const creneau = d.frequence?.creneauMinutes;
+  if (Number.isInteger(creneau) && creneau >= 1 && MINUTES_PAR_JOUR % creneau !== 0) {
+    signaler(fichier, "$.frequence.creneauMinutes", `${creneau} minutes ne divisent pas une journée (${MINUTES_PAR_JOUR} minutes) : les créneaux ne se suivraient pas sans reste`);
+  }
+  // La colonne factory_incidents.slowdown est un DECIMAL(3,2) : deux décimales au plus.
+  liste(d.sortes).forEach((s, i) => {
+    const facteur = s?.ralentissement;
+    if (typeof facteur === "number" && Math.abs(facteur * 100 - Math.round(facteur * 100)) > 1e-9) {
+      signaler(fichier, `$.sortes[${i}].ralentissement`, `${facteur} a plus de deux décimales (colonne factory_incidents.slowdown)`);
+    }
+  });
+  // La Centrale doit exister, et ne pas dépendre elle-même du courant qu'elle produit.
+  const fichierUsines = join(dossier, "usines.json");
+  if (!existsSync(fichierUsines)) return;
+  let usines;
+  try {
+    usines = liste(JSON.parse(readFileSync(fichierUsines, "utf8").replace(/^﻿/, "")).usines);
+  } catch {
+    return; // usines.json illisible : sa propre vérification le dit, il n'y a rien à croiser
+  }
+  const centrale = texte(d.electricite?.usineCentrale);
+  if (centrale !== null) {
+    const usine = usines.find((u) => u?.id === centrale);
+    if (!usine) {
+      signaler(fichier, "$.electricite.usineCentrale", `« ${centrale} » n'est pas une usine de usines.json`);
+    } else if (usine.electricite === true) {
+      signaler(fichier, "$.electricite.usineCentrale", `« ${centrale} » dépend elle-même de l'électricité : sans courant, elle ne pourrait jamais redémarrer`);
+    }
+  }
+  const epoques = usines.map((u) => u?.epoque).filter((e) => Number.isInteger(e));
+  const premiere = d.electricite?.aPartirDeEpoque;
+  if (Number.isInteger(premiere) && epoques.length > 0 && premiere > Math.max(...epoques)) {
+    signaler(fichier, "$.electricite.aPartirDeEpoque", `${premiere} dépasse la dernière époque de usines.json (${Math.max(...epoques)}) : l'électricité ne servirait jamais`);
+  }
+}
+
 const CONTROLES = {
   usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions,
-  personnel: controlesPersonnel,
+  personnel: controlesPersonnel, incidents: controlesIncidents,
 };
 
 // ---------------------------------------------------------------- programme

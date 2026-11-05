@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "source": "UrbaFactory-equilibrage-v2.xlsx (propositions de calibrage, 4 nov. 2026)",
+  "unites": {
+    "prixNiveau1": "Donar",
+    "productionParNiveau": "Donar par heure de jeu, salaires déduits, avant multiplicateurs"
+  },
+  "usines": [
+    {
+      "id": "carriere",
+      "nom": "Carrière",
+      "epoque": 1,
+      "produit": [
+        "pierre",
+        "sable",
+        "charbon"
+      ],
+      "entrees": [],
+      "decouverte": "depart",
+      "prixNiveau1": 100,
+      "productionParNiveau": 2400,
+      "electricite": false
+    },
+    {
+      "id": "centrale",
+      "nom": "Centrale",
+      "epoque": 3,
+      "produit": [
+        "electricite"
+      ],
+      "entrees": [
+        "charbon"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 1000000000,
+      "productionParNiveau": 600000000,
+      "electricite": false
+    },
+    {
+      "id": "verrerie",
+      "nom": "Verrerie",
+      "epoque": 3,
+      "produit": [
+        "verre"
+      ],
+      "entrees": [
+        "sable",
+        "electricite"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 20000000000,
+      "productionParNiveau": 3300000000,
+      "electricite": true
+    }
+  ]
+}

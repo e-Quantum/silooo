@@ -48,6 +48,7 @@ class MissionServiceTest {
             TestDefinitions.text(DefinitionsLoader.WORLD_FILE),
             missions,
             TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE),
+            TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE),
         )
 
     private class Bench(val definitions: Definitions) {

@@ -12,7 +12,7 @@ import kotlinx.serialization.json.longOrNull
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel. Chargé une fois au
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents. Chargé une fois au
  * démarrage ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
@@ -26,6 +26,7 @@ class Definitions(
     val world: WorldDefinitions,
     val missions: MissionsDefinitions,
     val personnel: PersonnelDefinitions,
+    val incidents: IncidentsDefinitions,
 ) {
     /**
      * Les Lingots de chaque mission, par identifiant : le nombre que son `recompense` désigne dans economie.json. Le
@@ -36,7 +37,7 @@ class Definitions(
     }.toMap()
 
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel)
+        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -47,6 +48,12 @@ class Definitions(
 internal object DefinitionsChecks {
     /** La longueur de `player_missions.mission_id`. */
     const val MISSION_ID_MAX_LENGTH = 48
+
+    /** La longueur de `factory_incidents.kind`. */
+    const val INCIDENT_KIND_MAX_LENGTH = 16
+
+    /** Les minutes d'une journée : une constante de la nature, pas un chiffre d'équilibrage. */
+    const val MINUTES_PER_DAY = 24 * 60
 
     private val MISSION_ID = Regex("^[a-z0-9]+(-[a-z0-9]+)*$")
     private val economyTree = Json { encodeDefaults = true }
@@ -80,6 +87,7 @@ internal object DefinitionsChecks {
         world: WorldDefinitions,
         missions: MissionsDefinitions,
         personnel: PersonnelDefinitions,
+        incidents: IncidentsDefinitions,
     ): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
@@ -154,7 +162,45 @@ internal object DefinitionsChecks {
         }
 
         personnelProblems(personnel, ::check)
+        incidentsProblems(incidents, factories, ::check)
         return problems
+    }
+
+    private fun incidentsProblems(incidents: IncidentsDefinitions, factories: FactoriesDefinitions, check: (Boolean, () -> String) -> Unit) {
+        val frequency = incidents.frequency
+        check(frequency.slotMinutes in 1..MINUTES_PER_DAY && MINUTES_PER_DAY % frequency.slotMinutes == 0) {
+            "incidents.json : frequence.creneauMinutes doit diviser une journée ($MINUTES_PER_DAY minutes)"
+        }
+        check(frequency.chancePercent.isFinite() && frequency.chancePercent > 0.0 && frequency.chancePercent <= 100.0) {
+            "incidents.json : frequence.chancePourcent doit être entre 0 (exclu) et 100"
+        }
+
+        check(incidents.kinds.isNotEmpty()) { "incidents.json : sortes ne doit pas être vide" }
+        check(incidents.kinds.map { it.id }.let { it.size == it.toSet().size }) { "incidents.json : deux sortes ont le même id" }
+        incidents.kinds.forEachIndexed { index, kind ->
+            check(MISSION_ID.matches(kind.id) && kind.id.length <= INCIDENT_KIND_MAX_LENGTH) {
+                "incidents.json : sortes[$index].id « ${kind.id} » doit être en kebab-case, $INCIDENT_KIND_MAX_LENGTH caractères au plus"
+            }
+            check(kind.slowdown.isFinite() && kind.slowdown > 0.0 && kind.slowdown < 1.0) {
+                "incidents.json : ${kind.id}.ralentissement doit être strictement entre 0 et 1"
+            }
+            check(kind.slowdown * 100.0 - Math.rint(kind.slowdown * 100.0) in -PERCENT_TOLERANCE..PERCENT_TOLERANCE) {
+                "incidents.json : ${kind.id}.ralentissement a plus de deux décimales (colonne factory_incidents.slowdown)"
+            }
+            check(kind.weight >= 1) { "incidents.json : ${kind.id}.poids doit être au moins 1" }
+        }
+
+        check(incidents.reward.revenueMinutes.isFinite() && incidents.reward.revenueMinutes > 0.0) {
+            "incidents.json : recompense.minutesDeRevenu doit être positif"
+        }
+
+        val electricity = incidents.electricity
+        check(electricity.fromEra >= 1) { "incidents.json : electricite.aPartirDeEpoque doit être au moins 1" }
+        val powerPlant = factories.factories.firstOrNull { it.id == electricity.powerPlantId }
+        check(powerPlant != null) { "incidents.json : electricite.usineCentrale « ${electricity.powerPlantId} » n'est pas une usine de usines.json" }
+        check(powerPlant == null || !powerPlant.needsElectricity) {
+            "incidents.json : electricite.usineCentrale « ${electricity.powerPlantId} » dépend elle-même de l'électricité"
+        }
     }
 
     private fun personnelProblems(personnel: PersonnelDefinitions, check: (Boolean, () -> String) -> Unit) {
