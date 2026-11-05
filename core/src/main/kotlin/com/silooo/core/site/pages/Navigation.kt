@@ -1,5 +1,6 @@
 package com.silooo.core.site.pages
 
+import com.silooo.core.definitions.Definitions
 import com.silooo.core.definitions.ShopDefinitions
 import com.silooo.core.site.ContentPage
 import com.silooo.core.site.SiteMode
@@ -41,6 +42,8 @@ internal class SiteShell(
     val nav: List<NavItem>,
     val settings: SiteSettings,
     val shop: ShopDefinitions,
+    /** Toutes les définitions chargées : le wiki en tire ses tableaux (usines, raretés, incidents, entreprise). */
+    val definitions: Definitions,
 ) {
     /** L'adresse publique sans barre finale, prête à recevoir un chemin qui commence par `/`. */
     val siteUrl: String = siteUrl.trimEnd('/')

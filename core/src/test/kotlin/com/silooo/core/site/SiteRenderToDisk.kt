@@ -44,7 +44,7 @@ class SiteRenderToDisk {
                     "/boutique/" to "ouvert/boutique/index.html",
                     "/vote/" to "ouvert/vote/index.html",
                     "/mises-a-jour/" to "ouvert/mises-a-jour/index.html",
-                ),
+                ) + WikiContent.fromClasspath().map { it.url to "ouvert${it.url}index.html" },
             ),
             // Avec la boutique, deux sites de vote et le Discord posés : les liens et les boutons que le mode ouvert montre alors.
             Triple(

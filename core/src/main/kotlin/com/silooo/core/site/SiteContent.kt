@@ -14,6 +14,8 @@ class ContentPage(
     val modes: Set<SiteMode>,
     /** Le corps du Markdown, rendu en HTML. */
     val html: String,
+    /** La clé facultative `ordre` de l'en-tête : la place d'une page de wiki dans l'index (voir [WikiContent]). */
+    val order: Int? = null,
 )
 
 /** Un contenu est illisible : le message dit quel fichier et pourquoi, le démarrage du site échoue. */
@@ -71,7 +73,10 @@ class SiteContent(val pages: List<ContentPage>) {
                     SiteMode.parse(it) ?: throw IllegalArgumentException("mode inconnu dans « modes » : « $it »")
                 }
                 require(modes.isNotEmpty()) { "« modes » ne peut pas être vide" }
-                return ContentPage(name, field("titre"), field("description"), url, modes.toSet(), Markdown.toHtml(body))
+                val order = header.fields["ordre"]?.let {
+                    it.toIntOrNull()?.takeIf { value -> value > 0 } ?: throw IllegalArgumentException("« ordre » doit être un entier positif : « $it »")
+                }
+                return ContentPage(name, field("titre"), field("description"), url, modes.toSet(), Markdown.toHtml(body), order)
             } catch (e: IllegalArgumentException) {
                 throw SiteContentException("Contenu $fileName : ${e.message}")
             }

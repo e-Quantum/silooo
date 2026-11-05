@@ -9,6 +9,8 @@ import com.silooo.core.site.pages.mentions
 import com.silooo.core.site.pages.misesAJour
 import com.silooo.core.site.pages.rejoindre
 import com.silooo.core.site.pages.vote
+import com.silooo.core.site.pages.wikiIndex
+import com.silooo.core.site.pages.wikiPage
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.html.respondHtml
 import io.ktor.server.http.content.staticResources
@@ -22,9 +24,9 @@ import kotlinx.html.HTML
  * tombe dans le 404 du module. Les pages du mode `ouvert` ne sont pas enregistrées en mode `attente` : leur
  * adresse y répond 404, comme n'importe quelle adresse inconnue.
  */
-internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell, updates: List<UpdateEntry>) {
+internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell, updates: List<UpdateEntry>, wiki: List<ContentPage>) {
     for (page in pages) {
-        val render = renderer(page, shell, updates)
+        val render = renderer(page, shell, updates, wiki)
         get(page.url) { call.respondHtml(HttpStatusCode.OK) { render() } }
         // /mentions mène à /mentions/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.
         if (page.url != "/") {
@@ -35,7 +37,7 @@ internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell, update
 }
 
 /** La fonction de rendu d'un contenu, choisie par son nom de fichier. Un contenu sans page fait échouer le démarrage. */
-private fun renderer(page: ContentPage, shell: SiteShell, updates: List<UpdateEntry>): HTML.() -> Unit = when (page.name) {
+private fun renderer(page: ContentPage, shell: SiteShell, updates: List<UpdateEntry>, wiki: List<ContentPage>): HTML.() -> Unit = when (page.name) {
     "attente" -> { { attente(shell, page) } }
     "accueil" -> { { accueil(shell, page) } }
     "mentions" -> { { mentions(shell, page) } }
@@ -44,5 +46,6 @@ private fun renderer(page: ContentPage, shell: SiteShell, updates: List<UpdateEn
     "boutique" -> { { boutique(shell, page) } }
     "vote" -> { { vote(shell, page) } }
     "mises-a-jour" -> { { misesAJour(shell, page, updates) } }
-    else -> throw SiteContentException("Contenu ${page.name}.md : aucune page ne sait l'afficher")
+    WikiContent.INDEX -> { { wikiIndex(shell, page, wiki) } }
+    else -> if (page.name.startsWith("wiki/")) { { wikiPage(shell, page) } } else throw SiteContentException("Contenu ${page.name}.md : aucune page ne sait l'afficher")
 }

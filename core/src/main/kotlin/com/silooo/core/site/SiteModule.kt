@@ -49,24 +49,26 @@ private val SiteHeaders = createApplicationPlugin("SiteHeaders") {
  * pas de `/v1`, pas de clé, pas de JSON. Il ne sert que des pages HTML et des fichiers.
  *
  * Les contenus se lisent ici, une fois : un contenu cassé fait échouer le démarrage avec le nom du fichier.
- * [content] et [updates] ne changent que dans les tests.
+ * [content], [updates] et [wiki] ne changent que dans les tests.
  */
 fun Application.siteModule(
     dependencies: Dependencies,
     content: SiteContent = SiteContent.fromClasspath(),
     updates: List<UpdateEntry> = UpdateEntries.fromClasspath(),
+    wiki: List<ContentPage> = WikiContent.fromClasspath(),
 ) {
     install(SiteHeaders)
 
     // Valide les contenus du mode au démarrage (une adresse prise deux fois, un contenu sans page). La navigation
     // ne liste que les pages que ce mode rend : les pages d'erreur la portent aussi, d'où son calcul avant elles.
-    val pages = content.forMode(dependencies.siteMode)
+    val pages = SiteContent(content.pages + WikiContent.check(wiki)).forMode(dependencies.siteMode)
     val shell = SiteShell(
         dependencies.siteUrl,
         dependencies.discordUrl,
         Navigation.items(dependencies.siteMode, pages),
         dependencies.siteSettings,
         dependencies.definitions.shop,
+        dependencies.definitions,
     )
 
     install(StatusPages) {
@@ -78,5 +80,5 @@ fun Application.siteModule(
         }
     }
 
-    routing { siteRoutes(pages, shell, updates) }
+    routing { siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") }) }
 }
