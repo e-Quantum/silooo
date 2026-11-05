@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "commentaire": "Les votes pour le serveur et la Vote party. Valeurs de départ, à valider par Kr. Le jour est le jour UTC. La série compte les jours de suite où le joueur a voté ; au bout de serie.jours jours de suite, le vote de ce jour-là donne serie.lingotsEnPlus de plus, puis la série repart au même rythme (7 jours, 14 jours, 21 jours). Quand le serveur reçoit voteParty.votesParJour votes dans un jour, chaque joueur présent reçoit voteParty.lingotsParJoueur, une seule fois ce jour-là. Tous les Lingots sont hors prestige.",
+  "recompense": {
+    "lingotsParVote": 0
+  },
+  "serie": {
+    "jours": 7,
+    "lingotsEnPlus": 2
+  },
+  "voteParty": {
+    "votesParJour": 10,
+    "lingotsParJoueur": 1
+  },
+  "sites": [
+    {
+      "id": "hubyy",
+      "nom": "Hubyy"
+    }
+  ]
+}

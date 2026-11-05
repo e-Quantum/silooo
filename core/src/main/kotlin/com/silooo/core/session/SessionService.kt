@@ -37,6 +37,7 @@ class SessionService(
     private val bootstrap: CompanyBootstrap,
     private val online: OnlinePlayers = OnlinePlayers.NOBODY,
     private val deliveries: PendingDeliveries = PendingDeliveries.NONE,
+    private val votes: PendingVotes = PendingVotes.NONE,
 ) {
     /**
      * Inscrit le joueur, verse les livraisons de Gemmes qui l'attendaient (via [PendingDeliveries]), crée son entreprise au
@@ -90,6 +91,8 @@ class SessionService(
         val entry = store.enterPlayer(connection, xuid, gamertag)
         // Les Gemmes que le site a vendues à ce joueur avant qu'il ne vienne : versées tout de suite, le solde de la réponse les montre.
         deliveries.relieve(connection, xuid, gamertag)
+        // Les votes que Hubyy a envoyés sous ce pseudo avant que le service le connaisse : versés de même, dans la même transaction.
+        votes.relieve(connection, xuid, gamertag)
 
         var membership = store.membershipOf(connection, xuid)
         var companyCreated = false

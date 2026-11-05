@@ -54,6 +54,8 @@ import com.silooo.core.shop.ITEM_ID_MAX_LENGTH
 import com.silooo.core.shop.ShopRules
 import com.silooo.core.siloooModule
 import com.silooo.core.staff.InMemoryStaffStore
+import com.silooo.core.vote.InMemoryVoteStore
+import com.silooo.core.vote.VoteService
 import io.ktor.client.request.header
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
@@ -142,6 +144,8 @@ class ContractTest {
         shop: InMemoryShopStore,
     ): Dependencies {
         val database = RecordingDatabase()
+        val clock = MutableClock(sessions.now)
+        val votes = InMemoryVoteStore(sessions)
         return Dependencies(
             database = database,
             definitions = TestDefinitions.loaded,
@@ -155,12 +159,14 @@ class ContractTest {
             missionStore = missions,
             orderStore = InMemoryOrderStore(sessions),
             findingStore = InMemoryFindingStore(sessions),
-            clock = MutableClock(sessions.now),
+            clock = clock,
             staffStore = InMemoryStaffStore(sessions),
             incidentStore = incidents,
             memberStore = members,
             cityStore = city,
             shopStore = shop,
+            voteStore = votes,
+            voteService = VoteService(TestDefinitions.loaded, votes, clock) { emptySet() },
         )
     }
 
@@ -353,9 +359,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 32 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    @DisplayName("Le contrat compte 33 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
     fun thirtyOperations() {
-        assertEquals(32, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+        assertEquals(33, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {
@@ -744,6 +750,8 @@ class ContractTest {
             dynamicTest("getFindings : $url") { assertBadRequest(operations.single { it.id == "getFindings" }, url, null) }
         } + badOrderQueries.map { query ->
             dynamicTest("todayOrder : $query") { assertBadRequest(operations.single { it.id == "todayOrder" }, "/v1/orders/today$query", null) }
+        } + badOrderQueries.map { query ->
+            dynamicTest("todayVotes : $query") { assertBadRequest(operations.single { it.id == "todayVotes" }, "/v1/votes/today$query", null) }
         } + queries.map { query ->
             dynamicTest("pollEvents : $query") { assertBadRequest(operations.single { it.id == "pollEvents" }, "/v1/events$query", null) }
         }
@@ -1355,6 +1363,7 @@ class ContractTest {
             "upgradeBuilding" to 200,
             "catalog" to 200,
             "buyItem" to 200,
+            "todayVotes" to 200,
         )
 
         /** Les Lingots du PDG dans les tests de la ville quand le prix n'est pas l'objet du test : de quoi tout payer. */

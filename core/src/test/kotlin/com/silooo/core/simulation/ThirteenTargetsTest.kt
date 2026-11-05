@@ -59,7 +59,7 @@ class ThirteenTargetsTest {
     private fun withPriceGrowthTimes(factor: Double): Definitions {
         val base = SimulationFixture.definitions
         val levels = base.economy.levels.copy(priceGrowth = base.economy.levels.priceGrowth * factor)
-        return Definitions(base.economy.copy(levels = levels), base.factories, base.shop, base.world, base.missions, base.personnel, base.incidents, base.city)
+        return Definitions(base.economy.copy(levels = levels), base.factories, base.shop, base.world, base.missions, base.personnel, base.incidents, base.city, base.vote)
     }
 
     /** Les cibles mesurées sur les `courses` premières courses ; les étapes des courses non jouées sont « jamais atteintes ». */

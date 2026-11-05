@@ -472,9 +472,13 @@ function controlesVille(fichier, d, dossier) {
   }
 }
 
+function controlesVote(fichier, d) {
+  doublons(fichier, "$.sites", liste(d.sites), "le site");
+}
+
 const CONTROLES = {
   usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions,
-  personnel: controlesPersonnel, incidents: controlesIncidents, ville: controlesVille,
+  personnel: controlesPersonnel, incidents: controlesIncidents, ville: controlesVille, vote: controlesVote,
 };
 
 // ---------------------------------------------------------------- programme

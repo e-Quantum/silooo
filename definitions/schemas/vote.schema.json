@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/vote.schema.json",
+  "title": "Votes pour le serveur et Vote party de Silooo",
+  "description": "Forme de definitions/vote.json : la récompense d'un vote, le bonus de série, la Vote party et les sites de vote connus. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "commentaire", "recompense", "serie", "voteParty", "sites"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "commentaire": { "type": "string" },
+    "recompense": {
+      "description": "Ce que donne un vote reçu, en Lingots hors prestige.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lingotsParVote"],
+      "properties": {
+        "lingotsParVote": {
+          "description": "Les Lingots versés au joueur pour chaque vote reçu. Au moins un : un vote sans récompense n'a pas de sens.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "serie": {
+      "description": "Le bonus de série : des jours de vote de suite.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jours", "lingotsEnPlus"],
+      "properties": {
+        "jours": {
+          "description": "Le nombre de jours UTC de suite où le joueur a voté pour que le vote de ce jour-là donne le bonus. Au moins deux : un seul jour serait chaque vote.",
+          "type": "integer",
+          "minimum": 2
+        },
+        "lingotsEnPlus": {
+          "description": "Les Lingots de plus pour le vote qui boucle la série, en plus de recompense.lingotsParVote.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "voteParty": {
+      "description": "La Vote party : un objectif de votes pour tout le serveur, dans un jour UTC.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["votesParJour", "lingotsParJoueur"],
+      "properties": {
+        "votesParJour": {
+          "description": "Le nombre de votes que le serveur doit recevoir dans un jour pour que la Vote party ait lieu. Elle n'a lieu qu'une fois par jour.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "lingotsParJoueur": {
+          "description": "Les Lingots que reçoit chaque joueur présent au moment où la Vote party a lieu.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "sites": {
+      "description": "Les sites de vote connus. L'identifiant est ce que server_votes.site garde pour un vote venu de ce site ; un service inconnu est accepté tel qu'il s'annonce, car le jeton authentifie déjà l'émetteur.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "nom"],
+        "properties": {
+          "id": {
+            "description": "L'identifiant du site, en minuscules et tirets (32 caractères au plus).",
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "maxLength": 32
+          },
+          "nom": {
+            "description": "Le nom du site tel que le service de vote l'annonce (serviceName).",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      }
+    }
+  }
+}

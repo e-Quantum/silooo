@@ -6,6 +6,7 @@ import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 import com.silooo.core.site.VoteSite
+import com.silooo.core.vote.VotifierSettings
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -51,11 +52,13 @@ data class ServiceConfig(
     val discord: DiscordConfig? = null,
     /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For`. */
     val siteTrustedProxy: Boolean = false,
+    /** La réception des votes de Hubyy (`SILOOO_VOTIFIER_TOKEN` et `SILOOO_VOTIFIER_PORT`) ; `null` tant que le jeton n'est pas posé : rien n'écoute. */
+    val votifier: VotifierSettings? = null,
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy)"
+            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, votifier=$votifier)"
 }
 
 /**
@@ -82,6 +85,15 @@ object Config {
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
     const val SITE_TRUSTED_PROXY = "SILOOO_SITE_TRUSTED_PROXY"
+
+    /** Le jeton que Hubyy signe ses votes avec (Votifier 2). Un secret : posé seulement dans l'environnement du conteneur, jamais dans le dépôt. Absent : la réception des votes est éteinte. */
+    const val VOTIFIER_TOKEN = "SILOOO_VOTIFIER_TOKEN"
+
+    /** Le port TCP où le service reçoit les votes. */
+    const val VOTIFIER_PORT = "SILOOO_VOTIFIER_PORT"
+
+    /** 8192 quand `SILOOO_VOTIFIER_PORT` n'est pas posé : le port habituel de Votifier. Le compose publie le même (`${SILOOO_VOTIFIER_PORT:-8192}`). */
+    const val DEFAULT_VOTIFIER_PORT = 8192
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -164,6 +176,7 @@ object Config {
         val siteAdmission = reader.siteAdmission()
         val discord = reader.discord()
         val trustedProxy = reader.trustedProxy()
+        val votifier = reader.votifier(port, sitePort)
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
@@ -171,6 +184,7 @@ object Config {
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
             siteSettings = checkNotNull(siteSettings),
             siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
+            votifier = votifier,
         )
     }
 
@@ -261,6 +275,25 @@ object Config {
                 return null
             }
             return Duration.ofSeconds(seconds)
+        }
+
+        /**
+         * La réception des votes : `null` sans jeton (éteinte, ce n'est pas une erreur). Avec un jeton, le port doit être valide et
+         * différent de ceux de l'API et du site : trois serveurs ne partagent pas un port.
+         */
+        fun votifier(apiPort: Int?, sitePort: Int?): VotifierSettings? {
+            val token = env[VOTIFIER_TOKEN]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val raw = env[VOTIFIER_PORT]
+            val port = if (raw.isNullOrBlank()) DEFAULT_VOTIFIER_PORT else raw.trim().toIntOrNull()
+            if (port == null || port !in 1..65535) {
+                problems += "$VOTIFIER_PORT doit être un numéro de port entre 1 et 65535"
+                return null
+            }
+            if (port == apiPort || port == sitePort) {
+                problems += "$VOTIFIER_PORT ($port) doit être différent de $PORT et de $SITE_PORT : trois serveurs, trois ports"
+                return null
+            }
+            return VotifierSettings(port, token)
         }
 
         /** Le port du site : un port valide, et jamais celui de l'API (deux serveurs ne partagent pas un port). */

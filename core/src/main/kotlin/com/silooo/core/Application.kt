@@ -57,6 +57,7 @@ import com.silooo.core.session.CompanyBootstrap
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionStore
+import com.silooo.core.session.PendingVotes
 import com.silooo.core.session.sessionRoutes
 import com.silooo.core.staff.JdbcStaffStore
 import com.silooo.core.staff.StaffStore
@@ -78,6 +79,12 @@ import io.ktor.server.application.log
 import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import com.silooo.core.vote.JdbcVoteStore
+import com.silooo.core.vote.VoteService
+import com.silooo.core.vote.VoteStore
+import com.silooo.core.vote.VotifierSettings
+import com.silooo.core.vote.launchVotifier
+import com.silooo.core.vote.voteRoutes
 import java.time.Clock
 import java.security.SecureRandom
 import java.time.Duration
@@ -161,6 +168,17 @@ class Dependencies(
     val siteTrustedProxy: Boolean = false,
     /** Signe les cookies et les jetons du site. Tiré au démarrage : il change à chaque redémarrage, une inscription en cours recommence. */
     val siteSessionSecret: ByteArray = ByteArray(32).also { SecureRandom().nextBytes(it) },
+    /** Les accès SQL des votes pour le serveur (`server_votes`), de leur récompense en Lingots et de leurs événements. */
+    val voteStore: VoteStore = JdbcVoteStore(),
+    /**
+     * Les votes, sans HTTP : `todayVotes`, la réception de Votifier et le rattrapage de `join`. Il n'y en a qu'un par processus : son
+     * verrou range les réceptions en file (la Vote party n'a lieu qu'une fois). La présence vient des signaux de vie.
+     */
+    val voteService: VoteService = VoteService(definitions, voteStore, clock) { serverPresence.onlineXuids() },
+    /** Le rattrapage des votes d'un pseudo inconnu au moment du vote, à `join`. `null` : pas de rattrapage (les tests). */
+    val pendingVotes: PendingVotes? = null,
+    /** La réception des votes de Hubyy (`SILOOO_VOTIFIER_TOKEN`). `null` : éteinte, aucun port n'est ouvert. */
+    val votifier: VotifierSettings? = null,
 )
 
 /**
@@ -185,6 +203,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
 
     dependencies.apiRequestRetention?.let { launchApiRequestPurge(dependencies.idempotency, it) }
     dependencies.deliveries?.let { relief -> dependencies.deliveryPoll?.let { every -> launchDeliveryPoll(relief, every) } }
+    dependencies.votifier?.let { settings -> launchVotifier(settings, dependencies.voteService, dependencies.database) }
     dependencies.incidentTick?.let { every ->
         val ticker = IncidentTicker(dependencies.database, dependencies.sessionStore, incidentService(dependencies)) {
             dependencies.serverPresence.onlineXuids()
@@ -210,6 +229,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             cityRoutes(dependencies)
             memberRoutes(dependencies)
             shopRoutes(dependencies)
+            voteRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }

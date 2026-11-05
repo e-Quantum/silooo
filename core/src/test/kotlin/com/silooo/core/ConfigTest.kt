@@ -5,6 +5,7 @@ import com.silooo.core.site.SiteMode
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -195,5 +196,66 @@ class ConfigTest {
         val text = Config.service(complete).toString()
         assertTrue(text.contains("sitePort=8081") && text.contains("siteMode=attente"), text)
         assertFalse(text.contains("cle-de-test"), text)
+    }
+    // --- la réception des votes (Votifier)
+
+    private val votifierToken = "jeton-factice-pour-les-tests-seulement"
+
+    @Test
+    @DisplayName("Sans SILOOO_VOTIFIER_TOKEN, la réception des votes est éteinte : pas de réglage, pas d'erreur")
+    fun votifierIsOffWithoutAToken() {
+        assertNull(Config.service(complete).votifier)
+        assertNull(Config.service(complete + (Config.VOTIFIER_TOKEN to "   ")).votifier, "un jeton vide compte pour un jeton absent")
+        assertNull(Config.service(complete + (Config.VOTIFIER_PORT to "pas-un-port")).votifier, "le port n'est lu que si le jeton est posé")
+    }
+
+    @Test
+    @DisplayName("Avec un jeton, le port vaut 8192 par défaut ; SILOOO_VOTIFIER_PORT le change")
+    fun votifierPort() {
+        val byDefault = Config.service(complete + (Config.VOTIFIER_TOKEN to votifierToken)).votifier
+        assertEquals(Config.DEFAULT_VOTIFIER_PORT, byDefault?.port)
+        assertEquals(8192, Config.DEFAULT_VOTIFIER_PORT)
+        assertEquals(votifierToken, byDefault?.token)
+
+        val custom = Config.service(complete + (Config.VOTIFIER_TOKEN to votifierToken) + (Config.VOTIFIER_PORT to " 9192 ")).votifier
+        assertEquals(9192, custom?.port)
+    }
+
+    @Test
+    @DisplayName("Un port Votifier qui n'est pas un port, ou qui est celui de l'API ou du site, est refusé et nommé")
+    fun invalidVotifierPort() {
+        val withToken = complete + (Config.VOTIFIER_TOKEN to votifierToken)
+        for (bad in listOf("abc", "0", "70000", "-1")) {
+            val error = assertThrows<ConfigException>("SILOOO_VOTIFIER_PORT=$bad") { Config.service(withToken + (Config.VOTIFIER_PORT to bad)) }
+            assertTrue(error.message!!.contains(Config.VOTIFIER_PORT), error.message)
+        }
+        assertThrows<ConfigException> { Config.service(withToken + (Config.VOTIFIER_PORT to Config.DEFAULT_PORT.toString())) }
+        assertThrows<ConfigException> { Config.service(withToken + (Config.VOTIFIER_PORT to Config.DEFAULT_SITE_PORT.toString())) }
+        assertThrows<ConfigException> { Config.service(withToken + (Config.PORT to "8192")) }
+    }
+
+    @Test
+    @DisplayName("Le jeton Votifier ne s'affiche jamais, ni dans la configuration ni dans les réglages ; le port, si")
+    fun votifierTokenStaysHidden() {
+        val config = Config.service(complete + (Config.VOTIFIER_TOKEN to votifierToken))
+        val text = config.toString()
+
+        assertFalse(text.contains(votifierToken), text)
+        assertFalse(config.votifier.toString().contains(votifierToken))
+        assertTrue(text.contains("port=8192"), text)
+    }
+
+    @Test
+    @DisplayName("Un port Votifier invalide est listé avec les autres problèmes, dans un seul message")
+    fun votifierProblemIsListedWithTheOthers() {
+        val error = assertThrows<ConfigException> {
+            Config.service(
+                (complete - Config.API_KEY) + (Config.VOTIFIER_TOKEN to votifierToken) + (Config.VOTIFIER_PORT to "abc"),
+            )
+        }
+
+        assertTrue(error.message!!.contains(Config.API_KEY), error.message)
+        assertTrue(error.message!!.contains(Config.VOTIFIER_PORT), error.message)
+        assertFalse(error.message!!.contains(votifierToken), error.message)
     }
 }

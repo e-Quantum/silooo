@@ -12,7 +12,7 @@ import kotlinx.serialization.json.longOrNull
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents, la ville. Chargé une fois au
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents, la ville, les votes. Chargé une fois au
  * démarrage ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
@@ -28,6 +28,7 @@ class Definitions(
     val personnel: PersonnelDefinitions,
     val incidents: IncidentsDefinitions,
     val city: CityDefinitions,
+    val vote: VoteDefinitions,
 ) {
     /**
      * Les Lingots de chaque mission, par identifiant : le nombre que son `recompense` désigne dans economie.json. Le
@@ -41,7 +42,7 @@ class Definitions(
     val resources: List<String> = factories.factories.flatMap { it.products }.distinct()
 
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents, city)
+        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents, city, vote)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -102,6 +103,7 @@ internal object DefinitionsChecks {
         personnel: PersonnelDefinitions,
         incidents: IncidentsDefinitions,
         city: CityDefinitions,
+        vote: VoteDefinitions,
     ): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
@@ -194,6 +196,7 @@ internal object DefinitionsChecks {
         personnelProblems(personnel, ::check)
         incidentsProblems(incidents, factories, ::check)
         cityProblems(city, economy, ::check)
+        voteProblems(vote, ::check)
         return problems
     }
 
@@ -285,6 +288,30 @@ internal object DefinitionsChecks {
     }
 
     private val ROTATIONS = setOf(0, 90, 180, 270)
+
+    /** La longueur de `server_votes.site`. */
+    const val VOTE_SITE_MAX_LENGTH = 32
+
+    /** La longueur du nom d'un site de vote (`serviceName`) ; c'est son `id` qui s'écrit dans `server_votes.site`. */
+    const val VOTE_SITE_NAME_MAX_LENGTH = 64
+
+    private fun voteProblems(vote: VoteDefinitions, check: (Boolean, () -> String) -> Unit) {
+        check(vote.reward.lingotsPerVote >= 1) { "vote.json : recompense.lingotsParVote doit être au moins 1" }
+        check(vote.streak.days >= 2) { "vote.json : serie.jours doit être au moins 2" }
+        check(vote.streak.bonusLingots >= 1) { "vote.json : serie.lingotsEnPlus doit être au moins 1" }
+        check(vote.party.votesPerDay >= 1) { "vote.json : voteParty.votesParJour doit être au moins 1" }
+        check(vote.party.lingotsPerPlayer >= 1) { "vote.json : voteParty.lingotsParJoueur doit être au moins 1" }
+        check(vote.sites.isNotEmpty()) { "vote.json : sites ne doit pas être vide" }
+        check(vote.sites.map { it.id }.let { it.size == it.toSet().size }) { "vote.json : deux sites ont le même id" }
+        vote.sites.forEachIndexed { index, site ->
+            check(MISSION_ID.matches(site.id) && site.id.length <= VOTE_SITE_MAX_LENGTH) {
+                "vote.json : sites[$index].id « ${site.id} » doit être en kebab-case, $VOTE_SITE_MAX_LENGTH caractères au plus"
+            }
+            check(site.name.isNotBlank() && site.name.length <= VOTE_SITE_NAME_MAX_LENGTH) {
+                "vote.json : sites[$index].nom doit avoir de 1 à $VOTE_SITE_NAME_MAX_LENGTH caractères"
+            }
+        }
+    }
 
     private fun incidentsProblems(incidents: IncidentsDefinitions, factories: FactoriesDefinitions, check: (Boolean, () -> String) -> Unit) {
         val frequency = incidents.frequency
