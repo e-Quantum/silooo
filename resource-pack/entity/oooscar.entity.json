@@ -1,0 +1,22 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "silooo:oooscar",
+      "materials": { "default": "entity_alphatest" },
+      "textures": { "default": "textures/entity/oooscar" },
+      "geometry": { "default": "geometry.silooo_oooscar" },
+      "animations": {
+        "balancement": "animation.silooo_oooscar.balancement",
+        "accueil": "animation.silooo_oooscar.accueil"
+      },
+      "scripts": {
+        "animate": [
+          "balancement",
+          { "accueil": "query.life_time < 2.0" }
+        ]
+      },
+      "render_controllers": ["controller.render.silooo_oooscar"]
+    }
+  }
+}
