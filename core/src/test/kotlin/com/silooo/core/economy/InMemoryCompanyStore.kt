@@ -39,7 +39,8 @@ class InMemoryCompanyStore(private val sessions: InMemorySessionStore) : Company
         val list = sessions.factories.getValue(companyId)
         val index = list.indexOfFirst { it.factoryId == factoryId }
         check(index >= 0) { "usine $factoryId absente de l'entreprise $companyId" }
-        list[index] = FactoryRecord(factoryId, state, restoreStep, level, list[index].openIncidentId)
+        // `copy` : l'incident ouvert (identifiant, facteur, sorte) reste sur l'usine, comme le SQL ne touche pas factory_incidents.
+        list[index] = list[index].copy(state = state, restoreStep = restoreStep, level = level)
         saved += SavedFactory(companyId, factoryId, state, restoreStep, level)
     }
 
