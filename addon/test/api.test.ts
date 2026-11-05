@@ -135,3 +135,70 @@ describe("restoreStep", () => {
     assert.deepEqual(result, { kind: "error", status: 501, reason: "PAS_FAIT" });
   });
 });
+
+describe("getMissions", () => {
+  const missions = { current: { id: "bienvenue-mairie", progress: 0, target: 1, rewardLingots: 10 }, completed: [] };
+
+  it("lit les missions du joueur par un GET sur son adresse", async () => {
+    const { transport, api } = setup([json(200, missions)]);
+    const result = await api.getMissions("42");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, missions);
+    assert.equal(transport.requests[0]?.method, "GET");
+    assert.equal(transport.requests[0]?.url, "http://core:8080/v1/players/42/missions");
+    assert.equal(transport.requests[0]?.body, undefined);
+  });
+
+  it("toutes les missions terminées : current vaut null", async () => {
+    const { api } = setup([json(200, { current: null, completed: ["bienvenue-mairie"] })]);
+    const result = await api.getMissions("42");
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body, { current: null, completed: ["bienvenue-mairie"] });
+  });
+
+  it("rejoue une fois une lecture qui tombe en panne", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, missions)]);
+    const result = await api.getMissions("42");
+    assert.equal(result.kind, "ok");
+    assert.equal(transport.requests.length, 2);
+  });
+
+  it("une réponse hors contrat devient une erreur lisible qui nomme la clé", async () => {
+    const { api } = setup([json(200, { completed: [] })]);
+    const result = await api.getMissions("42");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") {
+      assert.equal(result.reason, "REPONSE_INATTENDUE");
+      assert.match(result.detail ?? "", /missions\.current/);
+    }
+  });
+
+  it("un joueur inconnu du service (400) est une erreur du service, pas une panne", async () => {
+    const { api } = setup([json(400, { reason: "JOUEUR_INCONNU" })]);
+    const result = await api.getMissions("42");
+    assert.deepEqual(result, { kind: "error", status: 400, reason: "JOUEUR_INCONNU" });
+  });
+
+  it("une route pas encore écrite (501) reste une erreur du service", async () => {
+    const { api } = setup([json(501, { reason: "PAS_FAIT" })]);
+    const result = await api.getMissions("42");
+    assert.deepEqual(result, { kind: "error", status: 501, reason: "PAS_FAIT" });
+  });
+
+  it("un XUID illisible n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, missions)]);
+    const result = await api.getMissions("pas-un-xuid");
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") {
+      assert.equal(result.reason, "REQUETE_INVALIDE");
+      assert.equal(result.status, 0);
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+
+  it("le service injoignable : kind network", async () => {
+    const { api } = setup([new Error("connexion refusée")]);
+    const result = await api.getMissions("42");
+    assert.equal(result.kind, "network");
+  });
+});

@@ -13,13 +13,14 @@ import type {
   CompanyState,
   CompanyUpdated,
   JoinResponse,
+  MissionState,
   Xuid,
 } from "../src/protocol";
 import type { Clock } from "../src/runtime";
 import { createPlayerStore, type PlayerStore } from "../src/state";
 import { createViewStore, type ViewStore } from "../src/ui/etat";
 import type { ActionFormSpec, FormAnswer, FormPresenter } from "../src/ui/formulaires";
-import { balances, companyState, joinResponse } from "./helpers";
+import { balances, companyState, joinResponse, missionState, ok } from "./helpers";
 
 export interface FakeClock extends Clock {
   advance(ms: number): void;
@@ -108,6 +109,27 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     restoreStep(companyId, factoryId, action, step) {
       calls.push({ op: "restoreStep", companyId, factoryId, action, step });
       return next("restoreStep", script.restoreStep);
+    },
+  };
+}
+
+// ---------------------------------------------------------------- l'API des missions
+
+export interface FakeMissionsApi extends Pick<CoreApi, "getMissions"> {
+  /** Le joueur de chaque lecture, dans l'ordre. */
+  readonly calls: Xuid[];
+}
+
+/** Rend les réponses dans l'ordre ; quand elles sont épuisées, la dernière sert encore. Par défaut : la mission de bienvenue, à zéro. */
+export function fakeMissionsApi(script: ReadonlyArray<ApiResult<MissionState>> = [ok(missionState())]): FakeMissionsApi {
+  const calls: Xuid[] = [];
+  return {
+    calls,
+    getMissions(xuid) {
+      calls.push(xuid);
+      const answer = script[Math.min(calls.length - 1, script.length - 1)];
+      if (answer === undefined) return Promise.reject(new Error("script des missions vide"));
+      return Promise.resolve(answer);
     },
   };
 }

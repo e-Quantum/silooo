@@ -32,7 +32,7 @@ Un chiffre du jeu vit dans `definitions/` et nulle part ailleurs. Cette recette 
    - Le bonus par Lingot détenu se calcule, pour une entreprise, sur la moyenne des Lingots de ses membres (`docs/socle.md`). Un réglage de Lingots ne se pense jamais en total d'équipe.
 3. **Passe les schémas.** `tools/verifier.sh` lance `tools/verifier_definitions.mjs`, qui valide chaque fichier de `definitions/` contre `definitions/schemas/`. Si un schéma refuse la valeur, corrige la valeur, jamais le schéma. Fichier touché : aucun.
 4. **Rejoue les tests dorés de `core/`** quand ils existent (phase 1). Ils sont tirés du tableur : un test doré qui casse dit que le chiffre sort des cibles. Ne modifie pas le test. Si l'écart est voulu, le tableur et les tests se recalent ensemble, avec Kr : garde le réglage sur ta branche `claude/*`, ne le pousse pas sur `main` et dis-le dans le compte rendu. Fichier touché : aucun.
-5. **Lance le simulateur** `tools/simulateur` quand il existe (phase 4), comme l'explique son README. Il rejoue le tableur sur les `definitions/` modifiées. Lis le temps de chaque étape. Fichier touché : aucun.
+5. **Lance le simulateur** : `cd core && ./gradlew test --tests 'com.silooo.core.simulation.*' --console=plain -i`, comme l'explique `docs/economie.md`, section « Le simulateur ». Il rejoue le joueur type du tableur sur les `definitions/` modifiées et mesure le temps de chacune des 13 étapes ; `ThirteenTargetsTest` imprime le tableau et échoue si une étape sort de sa fourchette. Fichier touché : aucun.
 6. **Compare aux 13 cibles du tableur.** Les tests dorés de `core/` (phase 1) rejouent les achats du joueur type et vérifient les 13 étapes de la feuille Synthèse : c'est eux qui font la comparaison. Avant qu'ils existent, une session ne peut pas recalculer le tableur (ses formules demandent Excel) : dis-le dans le compte rendu et laisse le réglage « à valider par Kr ». Les 13 restent dans leur cible ; sinon, annule le changement et dis pourquoi. Fichier touché : aucun.
 7. **Écris l'historique** pour un changement gardé. Ajoute une ligne dans la section « Historique des réglages » de `docs/economie.md` : date, clé, ancienne valeur, nouvelle valeur, pourquoi. Une ligne par clé. C'est le seul endroit de la doc où un chiffre du jeu s'écrit, parce qu'il date le changement. Fichier touché : `docs/economie.md`.
 8. **Marque le changement « à valider par Kr »** dans le compte rendu (voir « En fin de session »). Il peut être commité, jamais présenté comme définitif. Fichier touché : aucun.
@@ -64,7 +64,7 @@ cd core && ./gradlew test  # tests dorés, dès la phase 1
 ```
 
 - Un seul Gradle à la fois sur le VPS : construis sur le PC ou dans la CI.
-- `tools/simulateur` : voir l'étape 5, dès la phase 4.
+- Le simulateur (`core/src/test/kotlin/com/silooo/core/simulation/`) : voir l'étape 5.
 
 ## En fin de session
 

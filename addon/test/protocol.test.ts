@@ -19,11 +19,14 @@ import {
   joinBody,
   leaveBody,
   levelsPath,
+  MISSIONS_PATH,
+  missionsPath,
   parseCollectResponse,
   parseCompanyState,
   parseCompanyUpdated,
   parseEventsPage,
   parseJoinResponse,
+  parseMissionState,
   PATHS,
   REFUSAL_REASONS,
   RESTORE_STEP_MAX,
@@ -400,5 +403,146 @@ describe("accord avec api/silooo-core.openapi.yaml, routes de l'entreprise", () 
 
   it("CompanyUpdated exige state et balances", () => {
     assert.deepEqual(listAfter("    CompanyUpdated:", "required:"), ["state", "balances"]);
+  });
+});
+
+describe("les missions : chemin et lecture", () => {
+  it("le chemin remplace le XUID, qui reste une chaîne", () => {
+    assert.equal(missionsPath("42"), "/v1/players/42/missions");
+    assert.equal(missionsPath("9007199254740993123"), "/v1/players/9007199254740993123/missions");
+  });
+
+  it("un XUID illisible lève une erreur : rien ne part au service", () => {
+    for (const xuid of ["", "abc", "4 2", "42/missions", "-1", "1.5", "123456789012345678901"]) {
+      assert.throws(() => missionsPath(xuid), RangeError, xuid);
+    }
+  });
+
+  it("parseMissionState lit la mission en cours et les missions terminées", () => {
+    const parsed = parseMissionState({
+      current: { id: "bienvenue-mairie", progress: 0, target: 1, rewardLingots: 10 },
+      completed: ["premiere", "seconde"],
+    });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, {
+      current: { id: "bienvenue-mairie", progress: 0, target: 1, rewardLingots: 10 },
+      completed: ["premiere", "seconde"],
+    });
+  });
+
+  it("parseMissionState lit `current: null` quand toutes les missions sont terminées", () => {
+    const parsed = parseMissionState({ current: null, completed: ["bienvenue-mairie"] });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, { current: null, completed: ["bienvenue-mairie"] });
+  });
+
+  it("parseMissionState rend les chiffres du service tels quels, sans rien en déduire", () => {
+    const parsed = parseMissionState({ current: { id: "x", progress: 7, target: 3, rewardLingots: 0 }, completed: [] });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value.current, { id: "x", progress: 7, target: 3, rewardLingots: 0 });
+  });
+
+  it("parseMissionState ignore les clés en plus, que le contrat pourra ajouter", () => {
+    const parsed = parseMissionState({
+      current: { id: "x", progress: 1, target: 2, rewardLingots: 3, bonus: "oui" },
+      completed: [],
+      saison: 4,
+    });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, { current: { id: "x", progress: 1, target: 2, rewardLingots: 3 }, completed: [] });
+  });
+
+  it("parseMissionState nomme la clé fautive", () => {
+    const mission = { id: "x", progress: 1, target: 2, rewardLingots: 3 };
+    const lire = (corps: unknown) => parseMissionState(corps);
+    assert.deepEqual(lire(undefined), { ok: false, problem: "missions : objet attendu" });
+    assert.deepEqual(lire([]), { ok: false, problem: "missions : objet attendu" });
+    assert.deepEqual(lire({ completed: [] }), { ok: false, problem: "missions.current : mission ou null attendu" });
+    assert.deepEqual(lire({ current: mission }), { ok: false, problem: "missions.completed : tableau attendu" });
+    assert.deepEqual(lire({ current: "x", completed: [] }), { ok: false, problem: "missions.current : objet attendu" });
+    assert.deepEqual(lire({ current: { ...mission, id: 3 }, completed: [] }), { ok: false, problem: "missions.current.id : chaîne attendue" });
+    assert.deepEqual(lire({ current: { ...mission, id: "" }, completed: [] }), { ok: false, problem: "missions.current.id : identifiant vide" });
+    assert.deepEqual(lire({ current: { ...mission, progress: "1" }, completed: [] }), {
+      ok: false,
+      problem: "missions.current.progress : nombre attendu",
+    });
+    assert.deepEqual(lire({ current: { ...mission, target: 1.5 }, completed: [] }), {
+      ok: false,
+      problem: "missions.current.target : entier attendu",
+    });
+    assert.deepEqual(lire({ current: { ...mission, rewardLingots: 0.25 }, completed: [] }), {
+      ok: false,
+      problem: "missions.current.rewardLingots : entier attendu",
+    });
+    assert.deepEqual(lire({ current: mission, completed: ["a", 4] }), { ok: false, problem: "missions.completed[1] : identifiant attendu" });
+    assert.deepEqual(lire({ current: mission, completed: [""] }), { ok: false, problem: "missions.completed[0] : identifiant attendu" });
+  });
+
+  it("parseMissionState refuse les bornes du contrat : progress au moins 0, target au moins 1, récompense au moins 0", () => {
+    const mission = { id: "x", progress: 1, target: 2, rewardLingots: 3 };
+    for (const [cle, valeur] of [["progress", -1], ["target", 0], ["target", -2], ["rewardLingots", -5]] as const) {
+      const parsed = parseMissionState({ current: { ...mission, [cle]: valeur }, completed: [] });
+      assert.equal(parsed.ok, false, `${cle} = ${valeur}`);
+    }
+    assert.equal(parseMissionState({ current: { ...mission, progress: 0, rewardLingots: 0 }, completed: [] }).ok, true);
+    assert.equal(parseMissionState({ current: { ...mission, target: 1 }, completed: [] }).ok, true);
+  });
+
+  it("parseMissionState refuse les nombres qui ne sont pas des nombres", () => {
+    const mission = { id: "x", progress: 1, target: 2, rewardLingots: 3 };
+    for (const valeur of [Number.NaN, Number.POSITIVE_INFINITY, null, undefined]) {
+      assert.equal(parseMissionState({ current: { ...mission, progress: valeur }, completed: [] }).ok, false);
+    }
+  });
+});
+
+/** Le contrat est dans l'OpenAPI : si le chemin ou une clé obligatoire des missions dérive, ces tests échouent. */
+describe("accord avec api/silooo-core.openapi.yaml, missions", () => {
+  const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+
+  function requiredOf(schema: string): string[] {
+    const debut = yaml.indexOf(`    ${schema}:\n`);
+    assert.notEqual(debut, -1, `schéma ${schema} absent de l'OpenAPI`);
+    const ouvre = yaml.indexOf("required: [", debut);
+    const ferme = yaml.indexOf("]", ouvre);
+    return yaml
+      .slice(ouvre + "required: [".length, ferme)
+      .split(",")
+      .map((mot) => mot.trim())
+      .filter((mot) => mot !== "");
+  }
+
+  it("le chemin existe et c'est un GET nommé getMissions", () => {
+    const debut = yaml.indexOf(`\n  ${MISSIONS_PATH}:`);
+    assert.notEqual(debut, -1, `${MISSIONS_PATH} absent de l'OpenAPI`);
+    assert.match(yaml.slice(debut, debut + 300), /\n {4}get:\n/);
+    assert.ok(yaml.indexOf("operationId: getMissions", debut) > debut);
+  });
+
+  it("Mission : toutes les clés obligatoires sont lues et exigées", () => {
+    const modele: Record<string, unknown> = { id: "bienvenue-mairie", progress: 0, target: 1, rewardLingots: 10 };
+    const requises = requiredOf("Mission");
+    assert.deepEqual([...requises].sort(), Object.keys(modele).sort());
+    for (const cle of requises) {
+      const sans = { ...modele };
+      delete sans[cle];
+      assert.equal(parseMissionState({ current: sans, completed: [] }).ok, false, `Mission : la lecture accepte une réponse sans « ${cle} »`);
+    }
+  });
+
+  it("MissionState : current et completed sont exigés", () => {
+    const requises = requiredOf("MissionState");
+    assert.deepEqual(requises, ["current", "completed"]);
+    assert.equal(parseMissionState({ completed: [] }).ok, false);
+    assert.equal(parseMissionState({ current: null }).ok, false);
+  });
+
+  it("les annonces de mission portent payload.action = mission, comme le contrat le dit", () => {
+    const debut = yaml.indexOf("operationId: getMissions");
+    assert.notEqual(debut, -1);
+    const texte = yaml.slice(Math.max(0, debut - 900), debut);
+    assert.match(texte, /`payload\.action` vaut `mission`/);
+    assert.match(texte, /`missionId`/);
+    assert.match(texte, /`rewardLingots`/);
   });
 });

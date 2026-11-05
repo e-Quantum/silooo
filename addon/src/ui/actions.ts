@@ -7,11 +7,14 @@
 // empêche un double paiement si la première tentative avait finalement abouti. Un second conflit est rendu tel quel.
 //
 // Un seul appel à la fois par joueur : un doigt qui appuie deux fois ne paie pas deux fois.
+//
+// Après un encaissement réussi, `afterCollect` est appelé : c'est le moment où le service a pu faire avancer la
+// mission en cours (ui/missions.ts relit alors les missions). Ce qu'il rend ne change rien au résultat de l'action.
 
 import type { CoreApi } from "../api";
 import { describeFailure, type ApiResult } from "../http";
 import type { ActionBase, BuyAmount, Xuid } from "../protocol";
-import type { Logger } from "../runtime";
+import { describeError, type Logger } from "../runtime";
 import type { ViewStore, ViewUpdate } from "./etat";
 
 export const CONFLICT_REASON = "CONFLIT_REESSAYER";
@@ -38,6 +41,8 @@ export interface ActionsDeps {
   /** Un UUID neuf à chaque appel (runtime.ts, createRequestIdGenerator). */
   readonly newRequestId: () => string;
   readonly log: Logger;
+  /** Appelé, et attendu, après chaque encaissement réussi. Une exception est journalisée, jamais relancée. */
+  readonly afterCollect?: (xuid: Xuid) => Promise<void>;
 }
 
 /** Une action prête à partir : tout ce qu'il faut pour l'envoyer, et pour lire ce qu'elle rapporte. */
@@ -51,6 +56,15 @@ interface Plan<T> {
 export function createActions(deps: ActionsDeps): Actions {
   const { api, views, newRequestId, log } = deps;
   const running = new Set<Xuid>();
+
+  async function afterCollect(xuid: Xuid): Promise<void> {
+    if (deps.afterCollect === undefined) return;
+    try {
+      await deps.afterCollect(xuid);
+    } catch (error) {
+      log.warn(`après collect : ${describeError(error)}`);
+    }
+  }
 
   async function run<T>(xuid: Xuid, plan: Plan<T>): Promise<ActionOutcome> {
     if (running.has(xuid)) return { kind: "busy" };
@@ -98,15 +112,18 @@ export function createActions(deps: ActionsDeps): Actions {
   }
 
   return {
-    collect: (xuid) =>
-      run(xuid, {
+    collect: async (xuid) => {
+      const outcome = await run(xuid, {
         label: "collect",
         send: (companyId, action) => api.collect(companyId, action),
         accept: (body) => ({
           update: { state: body.state },
           outcome: { kind: "collected", collected: body.collected, offlineHours: body.offlineHours },
         }),
-      }),
+      });
+      if (outcome.kind === "collected") await afterCollect(xuid);
+      return outcome;
+    },
     buyLevels: (xuid, factoryId, amount) =>
       run(xuid, {
         label: "buyLevels",

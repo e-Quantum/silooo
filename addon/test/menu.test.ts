@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { CompanyState, CompanyUpdated, Factory } from "../src/protocol";
+import type { CompanyState, CompanyUpdated, Factory, MissionState } from "../src/protocol";
 import { createActions, type ActionOutcome } from "../src/ui/actions";
 import { COLOR } from "../src/ui/apparence";
 import { counterValue } from "../src/ui/compteur";
 import { createViewStore, type CompanyView } from "../src/ui/etat";
-import { createMenu, ficheScreen, mainScreen, noticeOf, siloScreen, unavailableScreen, usinesScreen } from "../src/ui/menu";
+import { createMissions } from "../src/ui/missions";
+import { createMenu, ficheScreen, mainScreen, noticeOf, objectifsScreen, siloScreen, unavailableScreen, usinesScreen } from "../src/ui/menu";
 import { formatAmount, formatCount, formatRate } from "../src/ui/nombres";
-import { BULLES, FACTORY_NAMES, FICHE_TEXTES, MENU_TEXTES, SILO_TEXTES, USINES_TEXTES } from "../src/ui/textes";
-import { balances, companyState, factory, ok, recordingLogger } from "./helpers";
+import { BULLES, FACTORY_NAMES, FICHE_TEXTES, MENU_TEXTES, MISSION_TEXTES, OBJECTIFS_TEXTES, SILO_TEXTES, USINES_TEXTES } from "../src/ui/textes";
+import { balances, companyState, factory, mission, missionState, ok, recordingLogger } from "./helpers";
 import {
   PLAYER,
   XUID,
@@ -18,6 +19,7 @@ import {
   failure,
   fakeClock,
   fakeCompany,
+  fakeMissionsApi,
   fakePresenter,
   plain,
   press,
@@ -47,16 +49,16 @@ const titleOf = (spec: { title: string }) => spec.title;
 // ---------------------------------------------------------------- les écrans
 
 describe("menu principal", () => {
-  const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }));
+  const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }), missionState());
 
-  it("cinq tuiles : Silo et Usines actifs, Carte, Objectifs et Amis verrouillés", () => {
+  it("cinq tuiles : Silo, Usines et Objectifs actifs, Carte et Amis verrouillés", () => {
     assert.equal(screen.spec.title, MENU_TEXTES.titre);
     assert.equal(screen.spec.buttons.length, 5);
     assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
       "silo",
       "usines",
       "soon",
-      "soon",
+      "objectifs",
       "soon",
     ]);
   });
@@ -68,14 +70,13 @@ describe("menu principal", () => {
   });
 
   it("les tuiles verrouillées portent un cadenas et un mot, en gris", () => {
-    for (const index of [2, 3, 4]) {
+    for (const index of [2, 4]) {
       const text = screen.spec.buttons[index] ?? "";
       assert.ok(text.startsWith(COLOR.locked), text);
       assert.ok(bare(text).includes("[X]"));
       assert.ok(bare(text).endsWith(MENU_TEXTES.bientot));
     }
     assert.match(bare(screen.spec.buttons[2] ?? ""), /Carte/);
-    assert.match(bare(screen.spec.buttons[3] ?? ""), /Objectifs/);
     assert.match(bare(screen.spec.buttons[4] ?? ""), /Amis/);
   });
 
@@ -84,12 +85,12 @@ describe("menu principal", () => {
   });
 
   it("une bulle d'Oooscar passe avant le nom", () => {
-    const withNotice = mainScreen(viewOf(), { bubble: BULLES.bientot });
+    const withNotice = mainScreen(viewOf(), undefined, { bubble: BULLES.bientot });
     assert.match(bare(withNotice.spec.body), /^Oooscar \[oups\] Pas encore disponible\.\n\nEntreprise de test$/);
   });
 
   it("une seule usine s'écrit au singulier", () => {
-    assert.match(bare(mainScreen(viewOf({ factories: many(1) })).spec.buttons[1] ?? ""), /1 usine$/);
+    assert.match(bare(mainScreen(viewOf({ factories: many(1) }), undefined).spec.buttons[1] ?? ""), /1 usine$/);
   });
 
   it("tient dans les huit tuiles d'un écran", () => {
@@ -363,17 +364,26 @@ function after(level: number, version = 2, extra: Partial<Factory> = {}): Compan
   };
 }
 
-function setup(replies: readonly Reply[], script: Script = {}, state: Partial<CompanyState> = { factories: [ACTIVE] }) {
+/** Le menu tel que main.ts le monte : les missions relues après chaque encaissement, et à l'ouverture des objectifs. */
+function setup(
+  replies: readonly Reply[],
+  script: Script = {},
+  state: Partial<CompanyState> = { factories: [ACTIVE] },
+  missionAnswers: Parameters<typeof fakeMissionsApi>[0] = undefined,
+) {
   const clock = fakeClock(0);
   const store = storeWith(state);
   const views = createViewStore({ players: store, clock });
   const api = fakeCompany(script);
+  const missionsApi = fakeMissionsApi(missionAnswers);
   const log = recordingLogger();
-  const actions = createActions({ api, views, newRequestId: sequentialIds(), log });
+  const missions = createMissions({ api: missionsApi, players: store, say: () => undefined, log });
+  const actions = createActions({ api, views, newRequestId: sequentialIds(), log, afterCollect: missions.refresh });
   const presenter = fakePresenter(replies);
   const waits: number[] = [];
   const menu = createMenu({
     views,
+    missions,
     actions,
     presenter,
     clock,
@@ -383,7 +393,7 @@ function setup(replies: readonly Reply[], script: Script = {}, state: Partial<Co
     busyRetries: 3,
     busyRetrySeconds: 0.5,
   });
-  return { menu, presenter, api, views, log, waits, store };
+  return { menu, presenter, api, views, log, waits, store, missions, missionsApi };
 }
 
 describe("parcours : menu, Usines, fiche, montée", () => {
@@ -498,7 +508,8 @@ function setupSmallPages(replies: readonly Reply[]) {
   const log = recordingLogger();
   const presenter = fakePresenter(replies);
   const actions = createActions({ api: fakeCompany(), views, newRequestId: sequentialIds(), log });
-  const menu = createMenu({ views, actions, presenter, clock, wait: async () => undefined, log, tilesPerScreen: 4 });
+  const missions = createMissions({ api: fakeMissionsApi(), players: store, say: () => undefined, log });
+  const menu = createMenu({ views, missions, actions, presenter, clock, wait: async () => undefined, log, tilesPerScreen: 4 });
   return { menu, presenter };
 }
 
@@ -590,7 +601,7 @@ describe("parcours : Silo et encaissement", () => {
 });
 
 describe("parcours : tuiles verrouillées", () => {
-  for (const nom of ["Carte", "Objectifs", "Amis"]) {
+  for (const nom of ["Carte", "Amis"]) {
     it(`${nom} : le menu reste, Oooscar dit que ce n'est pas encore disponible, aucun appel au service`, async () => {
       const { menu, presenter, api } = setup([press(nom), close]);
       await menu.open(PLAYER);
@@ -689,5 +700,196 @@ describe("parcours : fermeture, écran occupé, joueur parti", () => {
     for (const spec of presenter.shown) {
       assert.doesNotMatch(plain(spec), /\p{Extended_Pictographic}|\.\.\.|…/u);
     }
+  });
+});
+
+// ---------------------------------------------------------------- les objectifs
+
+describe("menu principal, tuile Objectifs", () => {
+  const tile = (missions: MissionState | undefined): string => bare(mainScreen(viewOf(), missions).spec.buttons[3] ?? "");
+
+  it("est active : une icône, le nom du jeu, et la ligne d'info de la mission en cours telle que le service la donne", () => {
+    assert.equal(tile(missionState()), "[O] Objectifs\nMission 0/1");
+    assert.equal(tile(missionState({ current: mission({ progress: 3, target: 12 }) })), "[O] Objectifs\nMission 3/12");
+    assert.equal(
+      tile(missionState({ current: mission({ progress: 1_250, target: 20_000 }) })),
+      `[O] Objectifs\nMission ${formatCount(1_250)}/${formatCount(20_000)}`,
+    );
+  });
+
+  it("n'a rien de verrouillé : ni cadenas, ni gris, ni « Bientôt »", () => {
+    const text = mainScreen(viewOf(), missionState()).spec.buttons[3] ?? "";
+    assert.ok(!text.startsWith(COLOR.locked));
+    assert.ok(!bare(text).includes("[X]"));
+    assert.ok(!bare(text).includes(MENU_TEXTES.bientot));
+  });
+
+  it("toutes les missions terminées : le service n'en donne plus, la tuile le dit", () => {
+    assert.equal(tile({ current: null, completed: ["bienvenue-mairie"] }), "[O] Objectifs\nPlus de mission");
+  });
+
+  it("rien n'a pu être lu : la tuile reste active, sans ligne d'info inventée", () => {
+    assert.equal(tile(undefined), "[O] Objectifs");
+    const screen = mainScreen(viewOf(), undefined);
+    assert.deepEqual(screen.targets[3], { kind: "go", route: { screen: "objectifs" } });
+  });
+
+  it("la ligne d'info est en gris, comme celle des autres tuiles", () => {
+    const text = mainScreen(viewOf(), missionState()).spec.buttons[3] ?? "";
+    assert.ok(text.includes(`${COLOR.muted}Mission 0/1`), text);
+  });
+});
+
+describe("écran des objectifs", () => {
+  const body = (missions: MissionState | undefined, notice?: Parameters<typeof objectifsScreen>[1]): string =>
+    bare(objectifsScreen(missions, notice).spec.body);
+
+  it("la mission en cours : titre, consigne, avancement et récompense du service, puis les missions terminées", () => {
+    const screen = objectifsScreen(missionState());
+    assert.equal(screen.spec.title, OBJECTIFS_TEXTES.titre);
+    assert.equal(
+      bare(screen.spec.body),
+      [
+        "EN COURS",
+        "Bienvenue à la mairie",
+        "Encaisse au Silo",
+        "Avancement 0/1",
+        "Récompense 10 Lingots",
+        "",
+        "TERMINÉES",
+        "Aucune mission terminée.",
+      ].join("\n"),
+    );
+  });
+
+  it("un seul bouton, Retour, qui ramène au menu", () => {
+    const screen = objectifsScreen(missionState());
+    assert.deepEqual(screen.spec.buttons, [OBJECTIFS_TEXTES.retour]);
+    assert.deepEqual(screen.targets, [{ kind: "go", route: { screen: "main" } }]);
+  });
+
+  it("l'avancement et la récompense sont ceux du service, mis en forme et jamais recalculés", () => {
+    const text = body(missionState({ current: mission({ progress: 2, target: 5, rewardLingots: 1_250 }) }));
+    assert.match(text, /^Avancement 2\/5$/m);
+    assert.ok(text.split("\n").includes(`Récompense ${formatCount(1_250)} Lingots`), text);
+    const autre = body(missionState({ current: mission({ progress: 0, target: 1, rewardLingots: 0 }) }));
+    assert.match(autre, /^Récompense 0 Lingots$/m);
+  });
+
+  it("la récompense a la couleur des Lingots, le titre est en gras", () => {
+    const brut = objectifsScreen(missionState()).spec.body;
+    assert.ok(brut.includes(`${COLOR.lingots}Récompense 10 Lingots${COLOR.reset}`), brut);
+    assert.ok(brut.includes(`${COLOR.bold}Bienvenue à la mairie${COLOR.reset}`), brut);
+  });
+
+  it("les missions terminées sont listées par leur titre, dans l'ordre du service, avec un repère de réussite", () => {
+    const text = objectifsScreen({ current: null, completed: ["bienvenue-mairie", "mission-du-futur"] }).spec.body;
+    const lignes = bare(text).split("\n");
+    assert.deepEqual(lignes.slice(-2), ["[O] Bienvenue à la mairie", "[O] Mission du futur"]);
+    assert.ok(text.includes(`${COLOR.success}[O]${COLOR.reset} Bienvenue à la mairie`), text);
+    assert.ok(!text.includes(OBJECTIFS_TEXTES.aucuneTerminee));
+  });
+
+  it("plus de mission en cours : le service le dit, l'écran ne montre ni consigne ni récompense", () => {
+    const text = body({ current: null, completed: ["bienvenue-mairie"] });
+    assert.ok(text.startsWith(OBJECTIFS_TEXTES.plusDeMission));
+    assert.ok(!text.includes("EN COURS"));
+    assert.ok(!text.includes("Récompense"));
+    assert.ok(!text.includes("Avancement"));
+  });
+
+  it("une mission que cet add-on ne connaît pas : un titre lisible tiré de l'identifiant, pas de consigne inventée", () => {
+    const text = body(missionState({ current: mission({ id: "visite-du-port", progress: 1, target: 4, rewardLingots: 7 }) }));
+    assert.equal(text.split("\n")[1], "Visite du port");
+    assert.equal(text.split("\n")[2], "Avancement 1/4");
+    assert.match(text, /^Récompense 7 Lingots$/m);
+  });
+
+  it("rien n'a pu être lu : Oooscar panique, aucun chiffre n'est inventé", () => {
+    const text = body(undefined);
+    assert.equal(text, "Oooscar [panique] Le service ne répond pas.");
+    assert.doesNotMatch(text, /\d/);
+  });
+
+  it("une bulle d'Oooscar passe avant les lignes de l'écran", () => {
+    assert.match(body(missionState(), { bubble: BULLES.bientot }), /^Oooscar \[oups\] Pas encore disponible\.\n\nEN COURS\n/);
+  });
+
+  it("chaque mission des textes a un titre et une consigne qui s'affichent", () => {
+    for (const [id, textes] of Object.entries(MISSION_TEXTES)) {
+      const text = body(missionState({ current: mission({ id }) }));
+      assert.ok(text.includes(textes.titre), id);
+      assert.ok(text.includes(textes.consigne), id);
+    }
+  });
+});
+
+describe("parcours : objectifs", () => {
+  it("Objectifs lit les missions au service avant de montrer l'écran, et Retour revient au menu", async () => {
+    const { menu, presenter, missionsApi } = setup([press("Objectifs"), press("Retour"), close]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "OBJECTIFS", "MENU"]);
+    assert.deepEqual(missionsApi.calls, [XUID]);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /^EN COURS\nBienvenue à la mairie\nEncaisse au Silo\nAvancement 0\/1\nRécompense 10 Lingots/);
+  });
+
+  it("la tuile du menu montre la lecture faite en ouvrant les objectifs", async () => {
+    const { menu, presenter } = setup([press("Objectifs"), press("Retour"), close]);
+    await menu.open(PLAYER);
+    assert.equal(bare(presenter.shown[0]?.buttons[3] ?? ""), "[O] Objectifs");
+    assert.equal(bare(presenter.shown[2]?.buttons[3] ?? ""), "[O] Objectifs\nMission 0/1");
+  });
+
+  it("chaque ouverture relit : l'avancement du service est celui de la dernière lecture", async () => {
+    const { menu, presenter, missionsApi } = setup(
+      [press("Objectifs"), press("Retour"), press("Objectifs"), close],
+      {},
+      undefined,
+      [ok(missionState({ current: mission({ progress: 1, target: 3 }) })), ok(missionState({ current: mission({ progress: 2, target: 3 }) }))],
+    );
+    await menu.open(PLAYER);
+    assert.equal(missionsApi.calls.length, 2);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /Avancement 1\/3/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Avancement 2\/3/);
+  });
+
+  it("le service ne répond pas et rien n'était connu : Oooscar panique, le menu reste utilisable", async () => {
+    const { menu, presenter, log } = setup([press("Objectifs"), press("Retour"), close], {}, undefined, [unreachable()]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "OBJECTIFS", "MENU"]);
+    assert.equal(bare(presenter.shown[1]?.body ?? ""), "Oooscar [panique] Le service ne répond pas.");
+    assert.match(log.warns.join("\n"), /missions de .* : /);
+  });
+
+  it("le service ne répond plus mais une lecture existe : l'écran garde la dernière lecture", async () => {
+    const { menu, presenter } = setup(
+      [press("Objectifs"), press("Retour"), press("Objectifs"), close],
+      {},
+      undefined,
+      [ok(missionState({ current: mission({ progress: 1, target: 3 }) })), unreachable()],
+    );
+    await menu.open(PLAYER);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Avancement 1\/3/);
+  });
+
+  it("un encaissement relit les missions, et la tuile le montre sans que l'add-on dise « mission faite »", async () => {
+    const { menu, presenter, missionsApi } = setup(
+      [press("Silo"), press("Encaisser"), press("Retour"), close],
+      { collect: [ok({ collected: 1_500, offlineHours: 0, state: companyState({ version: 2, donar: 1_540 }) })] },
+      undefined,
+      [ok({ current: null, completed: ["bienvenue-mairie"] })],
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(missionsApi.calls, [XUID]);
+    const ecrans = presenter.shown.map((spec) => bare(`${spec.title}\n${spec.body}\n${spec.buttons.join("\n")}`));
+    assert.ok(ecrans[3]?.includes("[O] Objectifs\nPlus de mission"), ecrans[3]);
+    for (const texte of ecrans) assert.doesNotMatch(texte, /mission (faite|terminée|accomplie)/i);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[joie\] Production encaissée !/);
+  });
+
+  it("un encaissement qui n'aboutit pas ne relit rien", async () => {
+    const { menu, missionsApi } = setup([press("Silo"), press("Encaisser"), close], { collect: [unreachable()] });
+    await menu.open(PLAYER);
+    assert.deepEqual(missionsApi.calls, []);
   });
 });

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { CoreApi } from "../src/api";
 import type { ApiResult } from "../src/http";
 import type { JoinResponse } from "../src/protocol";
-import { createSessionHandlers, registerSessionEvents, type LeaveEventLike, type SessionHooks, type SpawnEventLike } from "../src/session";
+import { combineHooks, createSessionHandlers, registerSessionEvents, type LeaveEventLike, type SessionHooks, type SpawnEventLike } from "../src/session";
 import { createPlayerStore } from "../src/state";
 import { provisionalXuid as X } from "../src/identity";
 import { joinResponse, ok, recordingLogger } from "./helpers";
@@ -319,5 +319,152 @@ describe("crochets de la partie monde", () => {
     const { handlers, store } = avecCrochets({});
     await handlers.onSpawn(joueur("42", "Alex"));
     assert.equal(store.size, 1);
+  });
+});
+
+describe("combineHooks", () => {
+  interface Alex {
+    id: string;
+    name: string;
+  }
+  const alex: Alex = { id: "42", name: "Alex" };
+
+  it("appelle chaque jeu de crochets, dans l'ordre, pour les quatre moments", () => {
+    const seen: string[] = [];
+    const part = (nom: string): SessionHooks<Alex> => ({
+      arriving: (p) => void seen.push(`${nom} arriving ${p.name}`),
+      joined: (p, join) => void seen.push(`${nom} joined ${p.name} ${join.companyId}`),
+      joinFailed: (p) => void seen.push(`${nom} joinFailed ${p.name}`),
+      left: (e) => void seen.push(`${nom} left ${e.playerName}`),
+    });
+    const hooks = combineHooks(recordingLogger(), part("a"), part("b"));
+    hooks.arriving?.(alex);
+    void hooks.joined?.(alex, joinResponse());
+    hooks.joinFailed?.(alex);
+    hooks.left?.(leave("42", "Alex"));
+    assert.deepEqual(seen, [
+      "a arriving Alex",
+      "b arriving Alex",
+      "a joined Alex 7",
+      "b joined Alex 7",
+      "a joinFailed Alex",
+      "b joinFailed Alex",
+      "a left Alex",
+      "b left Alex",
+    ]);
+  });
+
+  it("un jeu de crochets qui n'a pas un des moments est simplement sauté", async () => {
+    const seen: string[] = [];
+    const hooks = combineHooks<Alex>(recordingLogger(), {}, { joined: () => void seen.push("joined") }, { left: () => void seen.push("left") });
+    hooks.arriving?.(alex);
+    await hooks.joined?.(alex, joinResponse());
+    hooks.joinFailed?.(alex);
+    hooks.left?.(leave("42", "Alex"));
+    assert.deepEqual(seen, ["joined", "left"]);
+  });
+
+  it("joined se résout quand tous les crochets ont fini, et ils tournent ensemble", async () => {
+    const order: string[] = [];
+    let finishFirst: () => void = () => undefined;
+    const first: SessionHooks<Alex> = {
+      joined: () =>
+        new Promise<void>((resolve) => {
+          order.push("first start");
+          finishFirst = () => {
+            order.push("first end");
+            resolve();
+          };
+        }),
+    };
+    const second: SessionHooks<Alex> = {
+      joined: async () => {
+        order.push("second start");
+        order.push("second end");
+      },
+    };
+    const hooks = combineHooks(recordingLogger(), first, second);
+    let done = false;
+    const joined = hooks.joined?.(alex, joinResponse());
+    void Promise.resolve(joined).then(() => {
+      done = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(order, ["first start", "second start", "second end"]);
+    assert.equal(done, false);
+    finishFirst();
+    await joined;
+    assert.equal(done, true);
+  });
+
+  it("l'exception d'un crochet est journalisée et n'empêche pas les suivants", async () => {
+    const log = recordingLogger();
+    const seen: string[] = [];
+    const bad: SessionHooks<Alex> = {
+      arriving: () => {
+        throw new Error("arriving cassé");
+      },
+      joined: () => {
+        throw new Error("joined cassé");
+      },
+      joinFailed: () => {
+        throw new Error("joinFailed cassé");
+      },
+      left: () => {
+        throw new Error("left cassé");
+      },
+    };
+    const good: SessionHooks<Alex> = {
+      arriving: () => void seen.push("arriving"),
+      joined: () => void seen.push("joined"),
+      joinFailed: () => void seen.push("joinFailed"),
+      left: () => void seen.push("left"),
+    };
+    const hooks = combineHooks(log, bad, good);
+    hooks.arriving?.(alex);
+    await hooks.joined?.(alex, joinResponse());
+    hooks.joinFailed?.(alex);
+    hooks.left?.(leave("42", "Alex"));
+    assert.deepEqual(seen, ["arriving", "joined", "joinFailed", "left"]);
+    assert.equal(log.errors.length, 4);
+    assert.match(log.errors[0] ?? "", /^crochet arriving : .*arriving cassé/);
+    assert.match(log.errors[1] ?? "", /^crochet joined : .*joined cassé/);
+    assert.match(log.errors[2] ?? "", /^crochet joinFailed : .*joinFailed cassé/);
+    assert.match(log.errors[3] ?? "", /^crochet left : .*left cassé/);
+  });
+
+  it("une promesse rejetée est journalisée aussi, et joined ne rejette jamais", async () => {
+    const log = recordingLogger();
+    const seen: string[] = [];
+    const hooks = combineHooks<Alex>(
+      log,
+      { joined: () => Promise.reject(new Error("cinématique cassée")) },
+      { joined: async () => void seen.push("missions lues") },
+    );
+    await hooks.joined?.(alex, joinResponse());
+    assert.deepEqual(seen, ["missions lues"]);
+    assert.equal(log.errors.length, 1);
+    assert.match(log.errors[0] ?? "", /^crochet joined : .*cinématique cassée/);
+  });
+
+  it("branché sur la session : l'arrivée appelle les crochets de chaque partie, le joueur est déjà rangé", async () => {
+    const calls: string[] = [];
+    const log = recordingLogger();
+    const store = createPlayerStore();
+    const seenInStore: Array<boolean> = [];
+    const hooks = combineHooks<{ id: string; name: string }>(
+      log,
+      { joined: () => void calls.push("monde") },
+      { joined: (p) => void seenInStore.push(store.get(X(p.name)) !== undefined) },
+    );
+    const handlers = createSessionHandlers({
+      api: { join: async (xuid) => ok(joinResponse({ xuid })), leave: async () => ok(null, 204) },
+      store,
+      log,
+      hooks,
+    });
+    await handlers.onSpawn(spawn("42", "Alex"));
+    assert.deepEqual(calls, ["monde"]);
+    assert.deepEqual(seenInStore, [true]);
   });
 });

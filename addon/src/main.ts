@@ -36,7 +36,8 @@ import {
   type Logger,
   type Scheduler,
 } from "./runtime";
-import { createSessionHandlers, registerSessionEvents, type SessionHooks } from "./session";
+import type { Xuid } from "./protocol";
+import { combineHooks, createSessionHandlers, registerSessionEvents, type SessionHooks } from "./session";
 import { createPlayerStore, type PlayerStore } from "./state";
 import { createActions } from "./ui/actions";
 import { registerMenuItem } from "./ui/boussole";
@@ -44,6 +45,7 @@ import { createLinkState, createViewStore, observeApi, type LinkState, type View
 import { createFormPresenter } from "./ui/formulaires";
 import { createHud, startHud } from "./ui/hud";
 import { createMenu } from "./ui/menu";
+import { createMissions, type Missions } from "./ui/missions";
 import { BOUSSOLE_TEXTES, CINEMATIQUE_TEXTES } from "./ui/textes";
 
 /** L'objet du menu, tel que le joueur le reçoit : nommé, gardé à la mort, impossible à jeter ou à ranger ailleurs. */
@@ -53,6 +55,16 @@ function newMenuItem(): ItemStack {
   item.keepOnDeath = true;
   item.lockMode = ItemLockMode.inventory;
   return item;
+}
+
+/** Écrit un texte dans le tchat du joueur. Un joueur parti entre-temps n'a personne à qui parler : rien ne se passe. */
+function tellPlayer(xuid: Xuid, text: string): void {
+  for (const player of world.getAllPlayers()) {
+    if (playerXuid(player) === xuid) {
+      player.sendMessage(text);
+      return;
+    }
+  }
 }
 
 /** Ce que la partie « monde » donne au reste : les crochets de la session, et « ce joueur arrive, ne lui montre rien ». */
@@ -147,16 +159,25 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
 function startScreens(deps: {
   readonly api: CoreApi;
   readonly views: ViewStore;
+  readonly missions: Missions;
   readonly link: LinkState;
   readonly busy: (player: Player) => boolean;
   readonly scheduler: Scheduler;
   readonly log: Logger;
 }): void {
-  const { api, views, link, busy, scheduler, log } = deps;
+  const { api, views, missions, link, busy, scheduler, log } = deps;
   try {
-    const actions = createActions({ api, views, newRequestId: createRequestIdGenerator(), log });
+    // Après chaque encaissement, le service a pu faire avancer la mission : on la relit.
+    const actions = createActions({
+      api,
+      views,
+      newRequestId: createRequestIdGenerator(),
+      log,
+      afterCollect: missions.refresh,
+    });
     const menu = createMenu<Player>({
       views,
+      missions,
       actions,
       presenter: createFormPresenter(),
       clock: systemClock,
@@ -175,6 +196,7 @@ function startScreens(deps: {
     const hud = createHud<Player>({
       players: () => world.getAllPlayers(),
       views,
+      missions,
       link,
       clock: systemClock,
       status: createStatusLog(log, "HUD"),
@@ -213,8 +235,12 @@ function main(): void {
     const store: PlayerStore = createPlayerStore();
     const views = createViewStore({ players: store, clock: systemClock });
 
+    const missions = createMissions({ api, players: store, say: tellPlayer, log });
+
     const worldPart = startWorld({ views, scheduler, log });
-    registerSessionEvents(world, createSessionHandlers<Player>({ api, store, log, hooks: worldPart.hooks }), log);
+    // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu.
+    const hooks = combineHooks<Player>(log, worldPart.hooks, { joined: (player) => missions.arrive(playerXuid(player)) });
+    registerSessionEvents(world, createSessionHandlers<Player>({ api, store, log, hooks }), log);
 
     const heartbeat = createHeartbeat({
       api,
@@ -229,8 +255,9 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    // Aucun écouteur d'événements pour l'instant : l'affichage des événements du service arrive plus tard (listeners.on).
+    // Un seul écouteur pour l'instant : l'annonce d'une mission terminée. Les autres événements du service arrivent plus tard.
     const listeners = createEventListeners(log);
+    listeners.on("ANNONCE", missions.onAnnonce);
     startEventPolling(
       scheduler,
       createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),
@@ -238,7 +265,7 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    startScreens({ api, views, link, busy: worldPart.busy, scheduler, log });
+    startScreens({ api, views, missions, link, busy: worldPart.busy, scheduler, log });
 
     log.info(`add-on démarré (serveur ${serverId})`);
   } catch (error) {

@@ -2,7 +2,8 @@
 //
 //   MENU ─┬─ SILO ─────────── Encaisser
 //         ├─ USINES ── fiche ─ Monter de 1 / de 10 / au palier / au max   (usine en ruine : l'étape suivante)
-//         └─ Carte, Objectifs, Amis : verrouillés, un mot « Bientôt »
+//         ├─ OBJECTIFS ────── la mission en cours et les missions terminées (relues à l'ouverture)
+//         └─ Carte, Amis : verrouillés, un mot « Bientôt »
 //
 // Les écrans sont des fonctions pures : une vue de l'entreprise (ce que le service a dit) entre, un écran sort
 // (titre, corps, boutons, et ce que chaque bouton fait). Rien n'y est calculé : chaque chiffre montré est un champ
@@ -14,22 +15,26 @@
 
 import { playerXuid } from "../identity";
 import { config } from "../config";
-import { BUY_AMOUNTS, RESTORE_STEP_MAX, type BuyAmount, type Factory, type Xuid } from "../protocol";
+import { BUY_AMOUNTS, RESTORE_STEP_MAX, type BuyAmount, type Factory, type MissionState, type Xuid } from "../protocol";
 import { describeError, type Clock, type Logger } from "../runtime";
 import type { Actions, ActionOutcome } from "./actions";
 import { COLOR, colored, ICON } from "./apparence";
 import { counterValue } from "./compteur";
 import type { CompanyView, ViewStore } from "./etat";
 import type { ActionFormSpec, FormAnswer, FormPresenter } from "./formulaires";
+import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
 import {
   BULLES,
   FICHE_TEXTES,
   MENU_TEXTES,
+  OBJECTIFS_TEXTES,
   SILO_TEXTES,
   USINES_TEXTES,
   factoryName,
   failureBubble,
+  missionTexts,
+  missionTitle,
   refusalBubble,
   renderBubble,
   type Bubble,
@@ -42,6 +47,7 @@ import { canBuyLevels, factoryStatus, nextRestoreStep, type FactoryStatus } from
 export type Route =
   | { readonly screen: "main" }
   | { readonly screen: "silo" }
+  | { readonly screen: "objectifs" }
   | { readonly screen: "usines"; readonly page: number }
   | { readonly screen: "fiche"; readonly factoryId: string; readonly page: number };
 
@@ -111,7 +117,22 @@ function lockedTile(label: string): Entry {
   };
 }
 
-export function mainScreen(view: CompanyView, notice?: Notice): Screen {
+/**
+ * La tuile Objectifs : la ligne d'info dit où en est la mission en cours, d'après la dernière lecture du service.
+ * Tant que rien n'a pu être lu, la tuile n'a pas de ligne d'info ; l'écran, lui, relit à l'ouverture.
+ */
+function objectifsTile(missions: MissionState | undefined): Entry {
+  let detail: string | undefined;
+  if (missions !== undefined) {
+    detail =
+      missions.current === null
+        ? OBJECTIFS_TEXTES.tuile.plusDeMission
+        : OBJECTIFS_TEXTES.tuile.enCours(formatCount(missions.current.progress), formatCount(missions.current.target));
+  }
+  return { text: button(`${ICON.objectifs} ${MENU_TEXTES.objectifs}`, detail), target: go({ screen: "objectifs" }) };
+}
+
+export function mainScreen(view: CompanyView, missions: MissionState | undefined, notice?: Notice): Screen {
   const tiles: Entry[] = [
     {
       text: button(`${ICON.silo} ${MENU_TEXTES.silo}`, MENU_TEXTES.revenu(formatRate(view.state.ratePerHour))),
@@ -122,7 +143,7 @@ export function mainScreen(view: CompanyView, notice?: Notice): Screen {
       target: go({ screen: "usines", page: 0 }),
     },
     lockedTile(MENU_TEXTES.carte),
-    lockedTile(MENU_TEXTES.objectifs),
+    objectifsTile(missions),
     lockedTile(MENU_TEXTES.amis),
   ];
   return screenOf(MENU_TEXTES.titre, bodyOf(notice, [`${COLOR.bold}${view.state.name}${COLOR.reset}`]), tiles);
@@ -232,6 +253,37 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
   return screenOf(FICHE_TEXTES.titre, bodyOf(notice, lines), entries);
 }
 
+// ---------------------------------------------------------------- les objectifs
+
+/**
+ * Les objectifs, dans l'ordre de la fiche : la mission en cours (titre, consigne, avancement et récompense tels que
+ * le service les donne), puis les missions terminées. Sans lecture du service, Oooscar le dit et rien n'est inventé.
+ */
+export function objectifsScreen(missions: MissionState | undefined, notice?: Notice): Screen {
+  const entries: Entry[] = [{ text: OBJECTIFS_TEXTES.retour, target: go(MAIN) }];
+  if (missions === undefined) {
+    return screenOf(OBJECTIFS_TEXTES.titre, bodyOf(notice ?? { bubble: BULLES.serviceInjoignable }, []), entries);
+  }
+
+  const lines: string[] = [];
+  const current = missions.current;
+  if (current === null) {
+    lines.push(OBJECTIFS_TEXTES.plusDeMission);
+  } else {
+    lines.push(colored(COLOR.paper, OBJECTIFS_TEXTES.enCours), `${COLOR.bold}${missionTitle(current.id)}${COLOR.reset}`);
+    const texts = missionTexts(current.id);
+    if (texts !== undefined) lines.push(texts.consigne);
+    lines.push(
+      OBJECTIFS_TEXTES.avancement(formatCount(current.progress), formatCount(current.target)),
+      colored(COLOR.lingots, OBJECTIFS_TEXTES.recompense(formatCount(current.rewardLingots))),
+    );
+  }
+  lines.push("", colored(COLOR.paper, OBJECTIFS_TEXTES.terminees));
+  if (missions.completed.length === 0) lines.push(OBJECTIFS_TEXTES.aucuneTerminee);
+  for (const id of missions.completed) lines.push(`${colored(COLOR.success, ICON.objectifs)} ${missionTitle(id)}`);
+  return screenOf(OBJECTIFS_TEXTES.titre, bodyOf(notice, lines), entries);
+}
+
 // ---------------------------------------------------------------- le silo
 
 export function siloScreen(view: CompanyView, nowMs: number, notice?: Notice): Screen {
@@ -288,6 +340,8 @@ export interface MenuPlayer {
 
 export interface MenuDeps<P extends MenuPlayer> {
   readonly views: Pick<ViewStore, "get">;
+  /** Les missions : lues pour la tuile Objectifs, relues quand le joueur ouvre l'écran des objectifs. */
+  readonly missions: Pick<Missions, "get" | "refresh">;
   readonly actions: Actions;
   readonly presenter: FormPresenter<P>;
   readonly clock: Clock;
@@ -313,13 +367,14 @@ function parentOf(route: Route): Route {
       return { screen: "usines", page: route.page };
     case "usines":
     case "silo":
+    case "objectifs":
     case "main":
       return MAIN;
   }
 }
 
 export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
-  const { views, actions, presenter, clock, wait, log } = deps;
+  const { views, missions, actions, presenter, clock, wait, log } = deps;
   const tilesPerScreen = deps.tilesPerScreen ?? config.ui.tilesPerScreen;
   const busyRetries = deps.busyRetries ?? config.ui.formBusyRetries;
   const busyRetrySeconds = deps.busyRetrySeconds ?? config.ui.formBusyRetrySeconds;
@@ -338,12 +393,14 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     }
   }
 
-  function screenFor(route: Route, view: CompanyView, notice: Notice | undefined): Screen | undefined {
+  function screenFor(route: Route, xuid: Xuid, view: CompanyView, notice: Notice | undefined): Screen | undefined {
     switch (route.screen) {
       case "main":
-        return mainScreen(view, notice);
+        return mainScreen(view, missions.get(xuid), notice);
       case "silo":
         return siloScreen(view, clock.now(), notice);
+      case "objectifs":
+        return objectifsScreen(missions.get(xuid), notice);
       case "usines":
         return usinesScreen(view, route.page, tilesPerScreen, notice);
       case "fiche":
@@ -377,7 +434,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         await present(player, unavailableScreen().spec);
         return;
       }
-      const screen = screenFor(route, view, notice);
+      const screen = screenFor(route, xuid, view, notice);
       if (screen === undefined) {
         // L'usine n'existe plus côté service : retour au parent, la bulle reste.
         route = parentOf(route);
@@ -388,8 +445,13 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       const target = screen.targets[answer.index];
       if (target === undefined || target.kind === "end") return;
       notice = undefined;
-      if (target.kind === "go") route = target.route;
-      else notice = await act(xuid, target);
+      if (target.kind === "go") {
+        route = target.route;
+        // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
+        if (route.screen === "objectifs") await missions.refresh(xuid);
+      } else {
+        notice = await act(xuid, target);
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 // Le contrat avec silooo-core : heartbeat, join, leave et pollEvents (phase 2), puis getCompany, collect,
-// buyLevels et restoreStep (phase 3). Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui
+// buyLevels et restoreStep, puis getMissions (phase 3). Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui
 // fabriquent les corps et lisent les réponses. Quand le contrat change, il change d'abord dans l'OpenAPI.
 
 // ---------------------------------------------------------------- types du contrat
@@ -457,6 +457,74 @@ export function parseCompanyUpdated(body: unknown): Parsed<CompanyUpdated> {
     return {
       state: readCompanyState(rec["state"], "update.state"),
       balances: readBalances(rec["balances"], "update.balances"),
+    };
+  });
+}
+
+// ---------------------------------------------------------------- phase 3 : les missions
+
+/** Une mission en cours (`Mission` du contrat). Les textes sont ceux de l'add-on, retrouvés par `id`. */
+export interface Mission {
+  /** Identifiant du catalogue `definitions/missions.json`. */
+  id: string;
+  /** Actions faites, d'après le service. */
+  progress: number;
+  /** Actions à faire. */
+  target: number;
+  /** Lingots versés par le service quand la mission se termine. */
+  rewardLingots: number;
+}
+
+/** Réponse 200 de `getMissions` (`MissionState`). */
+export interface MissionState {
+  /** La première mission pas terminée, ou null quand toutes le sont. */
+  current: Mission | null;
+  /** Les identifiants des missions terminées, dans l'ordre du catalogue. */
+  completed: string[];
+}
+
+/** Gabarit du chemin de `getMissions`. `{xuid}` est remplacé par `missionsPath`. */
+export const MISSIONS_PATH = "/v1/players/{xuid}/missions";
+
+/** Le schéma `Xuid` du contrat : un entier décimal de 1 à 20 chiffres, écrit en chaîne. */
+const XUID_PATTERN = /^[0-9]{1,20}$/;
+
+export function missionsPath(xuid: Xuid): string {
+  if (!XUID_PATTERN.test(xuid)) throw new RangeError(`xuid invalide : ${xuid}`);
+  return MISSIONS_PATH.replace("{xuid}", xuid);
+}
+
+function whole(rec: Rec, key: string, path: string, least: number): number {
+  const value = num(rec, key, path);
+  if (!Number.isInteger(value)) throw new ShapeError(`${path}.${key} : entier attendu`);
+  if (value < least) throw new ShapeError(`${path}.${key} : ${least} au moins attendu`);
+  return value;
+}
+
+function readMission(value: unknown, path: string): Mission {
+  const rec = record(value, path);
+  const id = str(rec, "id", path);
+  if (id === "") throw new ShapeError(`${path}.id : identifiant vide`);
+  return {
+    id,
+    progress: whole(rec, "progress", path, 0),
+    target: whole(rec, "target", path, 1),
+    rewardLingots: whole(rec, "rewardLingots", path, 0),
+  };
+}
+
+/** Lit le corps 200 de getMissions. `current` doit être là, mission ou null : son absence est une réponse hors contrat. */
+export function parseMissionState(body: unknown): Parsed<MissionState> {
+  return attempt(() => {
+    const rec = record(body, "missions");
+    const current = rec["current"];
+    if (current === undefined) throw new ShapeError("missions.current : mission ou null attendu");
+    return {
+      current: current === null ? null : readMission(current, "missions.current"),
+      completed: list(rec["completed"], "missions.completed").map((id, i) => {
+        if (typeof id !== "string" || id === "") throw new ShapeError(`missions.completed[${i}] : identifiant attendu`);
+        return id;
+      }),
     };
   });
 }
