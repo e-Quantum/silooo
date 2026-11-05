@@ -48,6 +48,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
 | `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json, missions.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
+| `SILOOO_DELIVERY_POLL_SECONDS` | Intervalle du relevé des commandes de Gemmes du site (`shop_deliveries`), de 1 à 3600 secondes | non, 30 par défaut |
 | `SILOOO_SITE_PORT` | Port du site public, différent de `SILOOO_PORT` | non, 8081 par défaut |
 | `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
 | `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
@@ -118,6 +119,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 | `mission/` | `GET /v1/players/{xuid}/missions` : `MissionRoutes`, `MissionService` (la chaîne de missions, l'avancement, la fin), `MissionStore` et `JdbcMissionStore` (`player_missions`, versement des Lingots, événement) ; `CompanyService.collect` l'appelle |
+| `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries`, Gemmes), `ShopFigures` (les bonus de Donar du PDG que le moteur lit) et `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
@@ -578,6 +580,55 @@ de chiffres sont dans `docs/economie.md`, section « La ville côté service » 
   écrit en dur dans le chemin de `buyZone` (le test de contrat vérifie qu'il égale le nombre de zones des définitions) ;
   `CompanyState.city` est facultatif ; le catalogue des missions n'a que `collect`, donc aucune mission de ville ; `SiloooJson` est
   tolérant et accepte un entier entre guillemets.
+
+## La boutique côté service
+
+Deux routes, déjà nommées au contrat (qui reste à 32 opérations), et maintenant écrites : `catalog` (`GET /v1/shop/catalog?actor=`) et
+`buyItem` (`POST /v1/shop/purchases`, corps : `requestId`, `actor`, `itemId`, et `forXuid` pour un cadeau). S'y ajoute le relevé des
+livraisons de Gemmes, qui n'a pas de route : il tourne dans le service. Le service décide de tout (prix, ordre des grades, bonus) ;
+les règles de jeu et les tableaux de chiffres sont dans `docs/economie.md`, section « La boutique : Gemmes, grades et Pilier » ; les
+chiffres eux-mêmes dans `definitions/boutique.json`, que cette tranche n'a pas touché.
+
+- **Le code** est dans `shop/` : `ShopRules` (les règles pures sur `definitions/` : ordre des grades, catalogue, refus, prolongation
+  d'un abonnement, bonus), `ShopService` (`catalog` et `buy`), `ShopRoutes` (la forme des requêtes et `call.idempotent`),
+  `ShopStore` et `JdbcShopStore` (le SQL sur `player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries` et les
+  Gemmes), `ShopFigures` (la boutique vue par le moteur : les bonus du PDG), `DeliveryRelief` (le relevé des livraisons, avec
+  `launchDeliveryPoll`, la boucle que le module lance). `economy/ShopBonusSource` est l'interface que le moteur lit, comme
+  `CityBonusSource` ; `session/PendingDeliveries` est la seule chose que `join` sache du relevé. Sans source, rien ne change.
+- **`catalog`** : les six grades dans l'ordre, puis `pilier` et `perso`, avec `owned` et `available` vus de l'`actor`. Un `actor`
+  absent, mal formé ou inconnu du service : 400, rien d'écrit.
+- **`buyItem`, l'ordre des vérifications** : forme de la requête (400 avant tout : `itemId` vide ou de plus de 48 caractères,
+  `forXuid` mal formé), article inconnu ou pas vendu (400), acheteur ou destinataire inconnu (400), puis les Gemmes de l'acheteur sont
+  verrouillées et lues, puis les refus du jeu (409 : `DEJA_POSSEDE`, `GRADE_PRECEDENT_REQUIS`, `PAS_ASSEZ_DE_GEMMES` avec la somme qui
+  manque), puis seulement les écritures. Un refus n'écrit rien. La réponse est le solde de l'acheteur (`Balances`).
+- **Une seule transaction, celle de l'idempotence** : l'achat dans `shop_purchases` (clé unique sur le `requestId`), le débit des
+  Gemmes (`creditBalance` négatif, motif `boutique`, référence : l'article), puis le grade (`player_ranks`, source `achat` ou
+  `cadeau`) ou l'abonnement prolongé (`player_subscriptions`, `months_total` plus un) avec les Gemmes qu'il rend au destinataire
+  (motif `pilier`). Si une écriture échoue, tout est annulé. Aucun événement n'est écrit pour un achat.
+- **Le relevé des livraisons** (`DeliveryRelief`) verse les lignes de `shop_deliveries` sans `delivered_at` dont le joueur est connu,
+  par XUID puis par pseudo, à intervalle (`Dependencies.deliveries` et `deliveryPoll`, câblés par `Main`) et au `join`
+  (`SessionService.join` l'appelle juste après l'inscription du joueur, dans la même transaction). Une livraison se verse en une
+  transaction : la ligne marquée (`UPDATE ... WHERE delivered_at IS NULL`, qui doit toucher une ligne), les Gemmes (motif
+  `livraison`, référence : la commande), l'événement `GEMMES_RECUES` (`orderId`, `gemmes`, `gemmesTotal`). Un passage vide au plus
+  `DeliveryRelief.BATCH` (100) lignes, chacune dans sa transaction : une qui échoue est notée et retentée au passage suivant. Les
+  tests passent `deliveries = null` : ni relevé ni tâche de fond.
+- **Les bonus** entrent dans le moteur par `economy/EngineFigures` : le multiplicateur global, après celui de la ville, est multiplié
+  par `1 + grade / 100` (le plus haut grade du PDG) puis `1 + Pilier / 100` (tant qu'il court) : `EconomyEngine.withShopBonuses`, qui
+  rend exactement le calcul d'avant quand les deux sont nuls. C'est le PDG de l'entreprise qui compte (`JdbcShopStore.ceoHoldings`).
+  Un achat ne règle pas la production en attente : voir `docs/economie.md`.
+- **Aucune migration** : V1 a déjà `shop_deliveries`, `shop_purchases`, `player_ranks` et `player_subscriptions`.
+- **Les tests** : `shop/ShopRulesTest` (ordre, catalogue, refus, prolongation, bonus), `shop/ShopRoutesTest` (sans base : les deux
+  routes, refus, 400, rejeu, cadeau), `shop/DeliveryReliefTest` (à qui revient une livraison, ce qui reste en attente, versement
+  unique, rattrapage au `join`, tâche de fond du module), `economy/EngineFiguresShopTest` (réponses identiques sans grade ni Pilier,
+  PDG, bonus non cumulés, bonus versés), `ConfigDeliveryPollTest`, `ContractTest` (les deux opérations, toujours 32), et
+  `shop/ShopSqlTest` (MariaDB, CI seulement, ignoré sans Docker) : lignes, journal et solde écrits et annulés ensemble, une
+  livraison versée une fois même relevée deux fois ou en même temps, le rattrapage au `join`, deux achats simultanés du même grade.
+  `shop/InMemoryShopStore` est le faux magasin partagé des tests.
+- **Les manques du contrat** (à traiter avec Kr) : pas de code de refus pour « le Perso demande le grade Ultime » (rendu en
+  `GRADE_PRECEDENT_REQUIS`) ; pas de 404 ni de 403 pour un article, un acheteur ou un destinataire inconnu (rendus en 400
+  `REQUETE_INVALIDE`) ; aucun événement d'achat n'existe, donc l'add-on ne peut apprendre un grade ou un Pilier acheté ailleurs qu'en
+  relisant le catalogue ou en rejoignant ; `Balances` est la seule réponse de `buyItem`, sans le grade ni la fin du Pilier. Le
+  contrat n'a pas encore de section d'écarts à part : ces points sont notés ici, comme pour la ville.
 
 ## Le site
 

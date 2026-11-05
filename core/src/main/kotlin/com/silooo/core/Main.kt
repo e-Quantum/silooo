@@ -6,6 +6,8 @@ import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
 import com.silooo.core.registration.HttpDiscordIdentity
+import com.silooo.core.shop.DeliveryRelief
+import com.silooo.core.shop.JdbcShopStore
 import com.silooo.core.site.siteModule
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -63,12 +65,16 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     Migrations.validate(config.database)
     val database = HikariDatabase.connect(config.database)
     try {
+        val shopStore = JdbcShopStore()
         val dependencies = Dependencies(
             database = database,
             apiKey = config.apiKey,
             definitions = definitions,
+            shopStore = shopStore,
             apiRequestRetention = config.apiRequestRetention,
             incidentTick = INCIDENT_TICK_EVERY,
+            deliveries = DeliveryRelief(database, shopStore),
+            deliveryPoll = config.deliveryPoll,
             siteMode = config.siteMode,
             siteUrl = config.siteUrl,
             discordUrl = config.discordUrl,

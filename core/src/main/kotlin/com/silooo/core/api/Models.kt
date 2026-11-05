@@ -231,3 +231,11 @@ data class Finding(val id: String, val foundAt: String)
 /** Schéma `FindingBook` : le Carnet du joueur, le nombre de trouvailles que le jeu propose et la prime de chacune. */
 @Serializable
 data class FindingBook(val found: List<Finding>, val total: Int, val rewardLingots: Long)
+
+/**
+ * Un élément de la réponse de `catalog` : un article de la boutique, son prix en Gemmes, et ce que le joueur demandé en est.
+ * [owned] : il le possède (le grade à vie, ou l'abonnement qui court). [available] : il peut l'acheter maintenant (pour un grade,
+ * le seul premier qu'il n'a pas encore ; pour un abonnement, ce qu'il demande est réuni).
+ */
+@Serializable
+data class CatalogItem(val itemId: String, val gemmes: Long, val owned: Boolean, val available: Boolean)

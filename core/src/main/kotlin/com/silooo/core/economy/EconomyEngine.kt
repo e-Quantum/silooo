@@ -420,6 +420,20 @@ class EconomyEngine(private val definitions: Definitions) {
         return if (donarProductionPercent == 0.0) multiplier else multiplier * (1.0 + donarProductionPercent / PERCENT)
     }
 
+    /**
+     * Le multiplicateur global avec les bonus de la boutique : `multiplier × (1 + grade / 100) × (1 + pilier / 100)`, chaque bonus
+     * jouant comme celui de la ville. [gradePercent] est celui du plus haut grade du PDG (un seul, jamais la somme des grades),
+     * [pilierPercent] celui de son Pilier tant qu'il court (`boutique.json`). Un bonus à zéro n'est pas appliqué : sans grade ni
+     * Pilier, c'est `multiplier` lui-même, bit pour bit. **À valider par Kr.**
+     */
+    fun withShopBonuses(multiplier: Double, gradePercent: Int, pilierPercent: Int): Double {
+        require(gradePercent >= 0 && pilierPercent >= 0) { "Un bonus de boutique n'est pas négatif : $gradePercent, $pilierPercent" }
+        var result = multiplier
+        if (gradePercent != 0) result *= 1.0 + gradePercent / PERCENT
+        if (pilierPercent != 0) result *= 1.0 + pilierPercent / PERCENT
+        return result
+    }
+
     // ---------------------------------------------------------------- hors ligne
 
     /**
