@@ -193,6 +193,30 @@ class SiteModuleTest {
     }
 
     @Test
+    @DisplayName("Bêta : / reste la page d'attente, les pages de l'ouverture répondent, le sitemap les liste, /classements/ lit la base")
+    fun betaShowsEverythingButTheHome() = withSite(SiteMode.BETA) { client ->
+        val home = client.get("/")
+        assertEquals(HttpStatusCode.OK, home.status)
+        val html = home.html()
+        assertEquals("On construit. Reviens vite !", Regex("""<p class="sa-bulle"[^>]*>([^<]+)</p>""").find(html)?.groupValues?.get(1))
+        assertTrue(html.contains("Produis de jour comme de nuit"))
+        assertFalse(html.contains("Tu hérites d&#39;une carrière abandonnée") || html.contains("Tu hérites d'une carrière abandonnée"), "ce n'est pas l'accueil")
+        assertWellFormedPage(html, "/ (bêta)")
+        for (path in listOf("/rejoindre/", "/ce-qui-se-vend/", "/boutique/", "/vote/", "/wiki/", "/actus/", "/discord/", "/mentions-legales/", "/cgv/", "/confidentialite/", "/parents/")) {
+            val response = client.get(path)
+            assertEquals(HttpStatusCode.OK, response.status, path)
+            assertWellFormedPage(response.html(), "$path (bêta)")
+        }
+        // Les classements existent en bêta : la route lit la base, que FakeDatabase refuse (page d'erreur), au lieu d'un 404.
+        assertEquals(HttpStatusCode.InternalServerError, client.get("/classements/").status)
+        val locs = Regex("<loc>([^<]+)</loc>").findAll(client.get("/sitemap.xml").bodyAsText()).map { it.groupValues[1] }.toList()
+        for (expected in listOf("https://silooo.com/", "https://silooo.com/wiki/", "https://silooo.com/classements/", "https://silooo.com/boutique/", "https://silooo.com/rejoindre/")) {
+            assertTrue(expected in locs, "$expected manque : $locs")
+        }
+        assertEquals(locs.size, locs.toSet().size, "chaque adresse une fois")
+    }
+
+    @Test
     @DisplayName("Le CSS et les logos sont servis avec le bon type et un cache d'un jour")
     fun staticFiles() = withSite(SiteMode.ATTENTE) { client ->
         val css = client.get("/public/site.css")

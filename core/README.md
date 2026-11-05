@@ -50,7 +50,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
 | `SILOOO_DELIVERY_POLL_SECONDS` | Intervalle du relevé des commandes de Gemmes du site (`shop_deliveries`), de 1 à 3600 secondes | non, 30 par défaut |
 | `SILOOO_SITE_PORT` | Port du site public, différent de `SILOOO_PORT` | non, 8081 par défaut |
-| `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
+| `SILOOO_SITE_MODE` | Le mode du site : `attente`, `beta` (tout sauf la vitrine) ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
 | `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
 | `SILOOO_SITE_URL_DISCORD` | Le lien Discord affiché sur la page d'accueil et d'attente | non, pas de lien tant qu'elle n'est pas posée |
 | `SILOOO_SITE_ADRESSE_JEU` | L'adresse du serveur de jeu affichée sur l'accueil et Rejoindre (sans port) | non, `play.silooo.com` par défaut |
@@ -62,6 +62,8 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_SITE_ADMISSION` | La règle d'admission des pionniers : `discord` (admis quand le compte Discord est relié) ou `tous` (admis dès l'inscription, pour l'ouverture) ; toute autre valeur arrête le service | non, `discord` par défaut |
 | `SILOOO_DISCORD_CLIENT_ID` | L'identifiant de l'application Discord de « Relier Discord » ; va avec le secret (une seule des deux arrête le service) | non, pas de bouton « Relier Discord » sans elle |
 | `SILOOO_DISCORD_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
+| `SILOOO_XBOX_CLIENT_ID` | L'identifiant de l'application Azure de la connexion Xbox du site (comptes Microsoft personnels) ; va avec le secret (une seule des deux arrête le service) | non, pas de porte Xbox sans elle |
+| `SILOOO_XBOX_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
 | `SILOOO_SITE_TRUSTED_PROXY` | `true` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose) ; `false` ou absente : l'adresse vue par silooo-core | non, `false` par défaut |
 | `SILOOO_PAYNOW_WEBHOOK_SECRET` | La clé de la signature des webhooks de PayNow (`POST /paynow/webhook`) ; ne s'affiche jamais | non, sans elle le webhook répond 503 |
 | `SILOOO_VOTIFIER_TOKEN` | Le jeton de Votifier 2, avec lequel Hubyy signe ses votes ; ne s'affiche jamais | non, sans lui rien n'écoute et les votes de Hubyy ne sont pas reçus |
@@ -781,11 +783,11 @@ l'API, sur son propre port (`SILOOO_SITE_PORT`, 8081 par défaut) : `Main.kt` d�
 n'existe pas sur le port du site, et le Caddy de SileneMC ne joint que celui-là. Le `Dockerfile` déclare `EXPOSE 8081` ; le compose
 ne le publie jamais.
 
-- **Deux modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente de la maquette, `/actus/` les
+- **Trois modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente de la maquette, `/actus/` les
   actus, `/discord/` la page du Discord (le bouton vers `SILOOO_SITE_URL_DISCORD` quand elle est posée), et les quatre pages légales répondent (`/mentions-legales/`, `/cgv/`, `/confidentialite/`, `/parents/`, contenus
-  `site/contenu/<nom>.md` rendus par `pages/Legal.kt`, brouillons à relire par Kr). En `ouvert`, `/` est l'accueil et les pages
-  de S2 répondent (voir plus bas). Toute autre adresse répond 404, avec une page Silooo. Le mode `ouvert` n'est écrit dans aucun
-  fichier du dépôt : seul Kr le pose, dans l'environnement du service.
+  `site/contenu/<nom>.md` rendus par `pages/Legal.kt`, brouillons à relire par Kr). En `beta`, tout répond sauf la vitrine : `/` reste la page d'attente. En `ouvert`, `/` est l'accueil et les pages
+  de S2 répondent (voir plus bas). Toute autre adresse répond 404, avec une page Silooo. Les modes `beta` et `ouvert` ne sont écrits dans aucun
+  fichier du dépôt : seul Kr les pose, dans l'environnement du service.
 - **Les actus** (`Actus.kt`, `pages/Actus.kt`) : un fichier par actu dans `site/contenu/actus/<slug>.md`, listé dans
   `NewsArticles.BUNDLED` (un test le compare au dossier). En-tête `titre`, `description`, `date` (obligatoire dès que
   `publie` n'est pas `non`), `etape` (`oui` : l'actu compte dans le panneau « Le chantier » de la page d'attente), `ordre`

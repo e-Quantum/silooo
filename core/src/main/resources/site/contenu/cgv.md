@@ -2,7 +2,7 @@
 titre: Conditions de vente
 description: Les conditions d'achat des Gemmes : prix, paiement, livraison, rétractation, mineurs, réclamations.
 url: /cgv/
-modes: [attente, ouvert]
+modes: [attente, beta, ouvert]
 ---
 Ces conditions valent pour tout achat de Gemmes sur silooo.com. Elles s'appliquent dès l'ouverture de la boutique.
 

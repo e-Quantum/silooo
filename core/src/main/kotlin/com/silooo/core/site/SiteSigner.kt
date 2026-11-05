@@ -8,14 +8,18 @@ import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/** Ce que le cookie de session porte : la clé du gamertag inscrit et, pendant « Relier Discord », l'`state` attendu au retour. */
-internal class PioneerSession(val key: String, val state: String? = null)
+/**
+ * Ce que le cookie d'une connexion en cours porte, entre le départ vers Xbox ou Discord et le retour : l'`state` attendu,
+ * la porte (`x` ou `d`) et, pour Discord, la case « Rejoindre aussi le Discord ».
+ */
+internal class OAuthStart(val state: String, val door: Char, val joinGuild: Boolean)
 
 /**
- * Signe les deux seules choses que le site confie au navigateur : le jeton caché du formulaire et le cookie de
- * session. Un jeton ou un cookie est `base64(charge).base64(HMAC-SHA256)` ; la charge commence par une lettre qui dit
- * ce que c'est (`f` formulaire, `c` cookie), pour qu'on ne puisse pas se servir de l'un à la place de l'autre. Le secret
- * est tiré au démarrage (`Dependencies.siteSessionSecret`) : un redémarrage invalide tout, une inscription en cours recommence.
+ * Signe la seule chose que le site confie au navigateur sans la garder en base : le cookie d'une connexion en cours
+ * (la session, elle, vit dans `web_sessions` ; son cookie est un jeton aléatoire). Une valeur est
+ * `base64(charge).base64(HMAC-SHA256)` ; la charge commence par une lettre qui dit ce que c'est (`o` départ OAuth), pour
+ * qu'on ne puisse pas se servir de l'une à la place d'une autre. Le secret est tiré au démarrage
+ * (`Dependencies.siteSessionSecret`) : un redémarrage invalide une connexion en cours, qui recommence.
  */
 internal class SiteSigner(secret: ByteArray, private val clock: Clock) {
     private val key = SecretKeySpec(secret, "HmacSHA256")
@@ -23,34 +27,32 @@ internal class SiteSigner(secret: ByteArray, private val clock: Clock) {
     private val encoder = Base64.getUrlEncoder().withoutPadding()
     private val decoder = Base64.getUrlDecoder()
 
-    /** Le jeton caché d'un formulaire : valable [FORM_TOKEN_LIFETIME]. */
-    fun formToken(): String = sign("f|${clock.millis()}|${randomHex(8)}")
-
-    fun isValidFormToken(token: String?): Boolean {
-        val parts = verify(token)?.split('|') ?: return false
-        if (parts.size != 3 || parts[0] != "f") return false
-        val issued = parts[1].toLongOrNull() ?: return false
-        val age = clock.millis() - issued
-        // Un jeton « du futur » (plus d'une minute) n'a pas pu être émis par ce service.
-        return age >= -CLOCK_SLACK_MILLIS && age <= FORM_TOKEN_LIFETIME.toMillis()
+    /** La valeur du cookie d'une connexion en cours, qui expire dans [START_LIFETIME]. */
+    fun startCookie(start: OAuthStart): String {
+        val expires = clock.instant().plus(START_LIFETIME).epochSecond
+        return sign("o|$expires|${start.state}|${start.door}|${if (start.joinGuild) 1 else 0}")
     }
 
-    /** La valeur du cookie de session, qui expire dans [SESSION_LIFETIME]. */
-    fun sessionCookie(session: PioneerSession): String {
-        val expires = clock.instant().plus(SESSION_LIFETIME).epochSecond
-        return sign("c|$expires|${session.key}|${session.state.orEmpty()}")
-    }
-
-    fun readSession(cookie: String?): PioneerSession? {
+    fun readStart(cookie: String?): OAuthStart? {
         val parts = verify(cookie)?.split('|') ?: return null
-        if (parts.size != 4 || parts[0] != "c") return null
+        if (parts.size != 5 || parts[0] != "o") return null
         val expires = parts[1].toLongOrNull() ?: return null
-        if (expires <= clock.instant().epochSecond || parts[2].isEmpty()) return null
-        return PioneerSession(parts[2], parts[3].ifEmpty { null })
+        if (expires <= clock.instant().epochSecond || parts[2].isEmpty() || parts[3].length != 1) return null
+        return OAuthStart(parts[2], parts[3][0], parts[4] == "1")
     }
 
     /** Un état OAuth2 aléatoire, à usage unique. */
     fun newState(): String = randomHex(16)
+
+    /** Le jeton d'une session (32 octets aléatoires) : le cookie le porte, la base n'en garde que [hash]. */
+    fun newToken(): String = encoder.encodeToString(ByteArray(32).also { random.nextBytes(it) })
+
+    /** Le jeton anti-CSRF d'une session. */
+    fun newCsrf(): String = randomHex(16)
+
+    /** L'empreinte SHA-256 d'un jeton, en hexadécimal (64 caractères). */
+    fun hash(token: String): String =
+        MessageDigest.getInstance("SHA-256").digest(token.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
     /** Compare deux textes en temps constant. */
     fun sameText(a: String?, b: String?): Boolean =
@@ -87,9 +89,8 @@ internal class SiteSigner(secret: ByteArray, private val clock: Clock) {
         ByteArray(bytes).also { random.nextBytes(it) }.joinToString("") { "%02x".format(it) }
 
     companion object {
-        val FORM_TOKEN_LIFETIME: Duration = Duration.ofMinutes(10)
-        val SESSION_LIFETIME: Duration = Duration.ofHours(1)
-        private const val CLOCK_SLACK_MILLIS = 60_000L
+        /** Le temps laissé au visiteur pour revenir de Xbox ou de Discord. */
+        val START_LIFETIME: Duration = Duration.ofMinutes(10)
         private const val MAX_VALUE_LENGTH = 512
     }
 }

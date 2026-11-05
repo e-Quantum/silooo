@@ -2,7 +2,7 @@
 titre: Les usines
 description: Niveaux, paliers, remise en état et liste des usines du jeu.
 url: /wiki/usines/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 2
 ---
 ## Une usine

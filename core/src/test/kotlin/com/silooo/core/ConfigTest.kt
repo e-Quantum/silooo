@@ -151,11 +151,21 @@ class ConfigTest {
     }
 
     @Test
-    @DisplayName("Un mode du site inconnu est refusé et le message cite la variable")
+    @DisplayName("SILOOO_SITE_MODE=beta est lu (casse et espaces autour sans effet)")
+    fun betaSiteModeIsRead() {
+        for (word in listOf("beta", " Beta ", "BETA")) {
+            assertEquals(SiteMode.BETA, Config.service(complete + (Config.SITE_MODE to word)).siteMode, word)
+        }
+        assertEquals(listOf("attente", "beta", "ouvert"), SiteMode.entries.map { it.word })
+    }
+
+    @Test
+    @DisplayName("Un mode du site inconnu est refusé et le message cite la variable et les trois modes")
     fun unknownSiteMode() {
         for (bad in listOf("ouvert!", "closed", "1")) {
             val error = assertThrows<ConfigException>(bad) { Config.service(complete + (Config.SITE_MODE to bad)) }
             assertTrue(error.message!!.contains(Config.SITE_MODE), error.message)
+            assertTrue(error.message!!.contains("attente ou beta ou ouvert"), error.message)
         }
     }
 

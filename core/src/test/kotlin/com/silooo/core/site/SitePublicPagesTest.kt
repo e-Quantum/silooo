@@ -28,7 +28,8 @@ import org.junit.jupiter.api.io.TempDir
 
 /**
  * Les six pages publiques du mode ouvert (S2) : Accueil, Rejoindre, Ce qui se vend, Boutique, Vote, Mises à jour.
- * Chaque page répond 200 en `ouvert` et 404 en `attente`. Les valeurs attendues sont construites depuis
+ * Chaque page répond 200 en `ouvert` et 404 en `attente` ; la bêta montre tout sauf l'accueil (`/` y reste la page
+ * d'attente). Les valeurs attendues sont construites depuis
  * `TestDefinitions.loaded.shop` et depuis les réglages passés au module : aucun chiffre du jeu n'est écrit ici.
  */
 class SitePublicPagesTest {
@@ -88,6 +89,14 @@ class SitePublicPagesTest {
             assertWellFormedPage(html, path)
             assertEquals(inNavigation, html.contains("""aria-current="page""""), "$path : la navigation la marque courante")
         }
+        withSite(SiteMode.BETA) { client ->
+            val response = client.get(path)
+            assertEquals(HttpStatusCode.OK, response.status, "$path doit répondre 200 en bêta")
+            val html = response.bodyAsText()
+            assertTrue(Regex("""<h1[^>]*>$h1</h1>""").containsMatchIn(html), "$path (bêta) : h1 « $h1 » attendu")
+            assertWellFormedPage(html, "$path (bêta)")
+            assertEquals(inNavigation, html.contains("""aria-current="page""""), "$path (bêta) : la navigation la marque courante")
+        }
         withSite(SiteMode.ATTENTE) { client ->
             assertEquals(HttpStatusCode.NotFound, client.get(path).status, "$path doit répondre 404 en mode attente")
         }
@@ -102,6 +111,14 @@ class SitePublicPagesTest {
             assertWellFormedPage(html, "/")
             assertTrue(html.contains("Un tycoon d&#39;usines dans le ciel, sur Minecraft Bedrock.") || html.contains("Un tycoon d'usines dans le ciel, sur Minecraft Bedrock."))
             assertFalse(html.contains("ouvre bientôt"))
+        }
+        // La bêta montre tout sauf la vitrine : / y reste la page d'attente, pas l'accueil.
+        withSite(SiteMode.BETA) { client ->
+            val html = client.get("/").bodyAsText()
+            assertTrue(html.contains("On construit. Reviens vite !"), "la bulle d'Oooscar dit l'attente")
+            assertTrue(html.contains("Produis de jour comme de nuit"), "l'accroche de la maquette SiteAttente")
+            assertFalse(html.contains("Tu hérites d&#39;une carrière abandonnée") || html.contains("Tu hérites d'une carrière abandonnée"), "ce n'est pas l'accueil")
+            assertWellFormedPage(html, "/ (bêta)")
         }
         withSite(SiteMode.ATTENTE) { client ->
             val response = client.get("/")
@@ -329,8 +346,8 @@ class SitePublicPagesTest {
         val labels = Regex("""<a href="[^"]*" class="[^"]*navigation__(?:lien|bouton)"[^>]*>([^<]+)</a>""")
             .findAll(html).map { it.groupValues[1] }.toList()
         assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), labels)
-        // Mon compte est le seul bouton de fonte de la navigation ; il mène à l'inscription des pionniers.
-        assertTrue(html.contains("""<a href="/pionniers/" class="sa-bouton sa-bouton--fonte navigation__bouton">Mon compte</a>"""))
+        // Mon compte est le seul bouton de fonte de la navigation ; il mène à /compte/.
+        assertTrue(html.contains("""<a href="/compte/" class="sa-bouton sa-bouton--fonte navigation__bouton">Mon compte</a>"""))
         assertEquals(1, Regex("""navigation__bouton""").findAll(html).count())
     }
 

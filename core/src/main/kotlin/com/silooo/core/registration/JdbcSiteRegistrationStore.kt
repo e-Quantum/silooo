@@ -5,16 +5,17 @@ import java.sql.SQLIntegrityConstraintViolationException
 
 /** Le SQL de [SiteRegistrationStore] sur `site_registrations` (V7). Testé sur MariaDB par Testcontainers (`SiteRegistrationSqlTest`). */
 class JdbcSiteRegistrationStore : SiteRegistrationStore {
-    override fun insert(connection: Connection, key: String, gamertag: String, admitted: Boolean): Boolean =
+    override fun insert(connection: Connection, key: String, gamertag: String, admitted: Boolean, pioneer: Boolean): Boolean =
         try {
             // Un INSERT simple : la clé primaire refuse la seconde écriture (ni INSERT IGNORE, qui tait aussi une valeur trop longue,
             // ni ON DUPLICATE KEY, dont le nombre de lignes change selon le réglage du pilote). InnoDB n'annule que cette instruction.
             connection.prepareStatement(
-                "INSERT INTO site_registrations (gamertag_key, gamertag, admitted_at) VALUES (?, ?, IF(?, UTC_TIMESTAMP(3), NULL))",
+                "INSERT INTO site_registrations (gamertag_key, gamertag, pioneer, admitted_at) VALUES (?, ?, ?, IF(?, UTC_TIMESTAMP(3), NULL))",
             ).use {
                 it.setString(1, key)
                 it.setString(2, gamertag)
-                it.setBoolean(3, admitted)
+                it.setBoolean(3, pioneer)
+                it.setBoolean(4, admitted)
                 it.executeUpdate() == 1
             }
         } catch (e: SQLIntegrityConstraintViolationException) {
@@ -55,6 +56,12 @@ class JdbcSiteRegistrationStore : SiteRegistrationStore {
         if (updated == 1) return LinkOutcome.LINKED
         return if (find(connection, key) == null) LinkOutcome.NOT_REGISTERED else LinkOutcome.ALREADY_LINKED
     }
+
+    override fun unlink(connection: Connection, key: String): Boolean =
+        connection.prepareStatement("UPDATE site_registrations SET discord_user_id = NULL, linked_at = NULL WHERE gamertag_key = ? AND discord_user_id IS NOT NULL").use {
+            it.setString(1, key)
+            it.executeUpdate() == 1
+        }
 
     override fun admit(connection: Connection, key: String): Boolean =
         connection.prepareStatement("UPDATE site_registrations SET admitted_at = UTC_TIMESTAMP(3) WHERE gamertag_key = ? AND admitted_at IS NULL").use {

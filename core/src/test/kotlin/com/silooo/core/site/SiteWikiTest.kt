@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 /**
- * Le wiki (S3) : treize pages sous `/wiki/` en mode `ouvert`, 404 en `attente`. Les valeurs attendues sont construites
+ * Le wiki (S3) : treize pages sous `/wiki/` en modes `beta` et `ouvert`, 404 en `attente`. Les valeurs attendues sont construites
  * depuis `TestDefinitions.loaded` : aucun chiffre du jeu n'est écrit ici.
  */
 class SiteWikiTest {
@@ -54,16 +54,16 @@ class SiteWikiTest {
     private val pagesOnly = wikiPages.filter { it.name != WikiContent.INDEX }
 
     @Test
-    @DisplayName("Le wiki a treize contenus : l'index et douze pages, rendues en ouvert seulement")
+    @DisplayName("Le wiki a treize contenus : l'index et douze pages, rendues en bêta et en ouvert seulement")
     fun thirteenContents() {
         assertEquals(13, wikiPages.size)
         assertEquals(12, pagesOnly.size)
         assertEquals(listOf("/wiki/"), wikiPages.filter { it.name == WikiContent.INDEX }.map { it.url })
-        assertTrue(wikiPages.all { it.modes == setOf(SiteMode.OUVERT) }, "le wiki ne se rend qu'en ouvert")
+        assertTrue(wikiPages.all { it.modes == setOf(SiteMode.BETA, SiteMode.OUVERT) }, "le wiki ne se rend qu'en bêta et en ouvert")
     }
 
     @Test
-    @DisplayName("Chaque page du wiki : 200 en ouvert, 404 en attente, un seul h1, lang, title, description, seulement les scripts du site, un bouton rouge au plus")
+    @DisplayName("Chaque page du wiki : 200 en ouvert et en bêta, 404 en attente, un seul h1, lang, title, description, seulement les scripts du site, un bouton rouge au plus")
     fun everyPage() {
         for (page in wikiPages) {
             withSite(SiteMode.OUVERT) { client ->
@@ -79,6 +79,9 @@ class SiteWikiTest {
                 assertFalse(html.contains("{{"), "${page.url} : un marqueur est resté")
                 assertTrue(Regex("""class="sa-bouton"""").findAll(html).count() <= 1, "${page.url} : un seul bouton rouge")
                 if (page.name == WikiContent.INDEX) assertTrue(html.contains("""aria-current="page""""), "l'index est la page courante de la navigation")
+            }
+            withSite(SiteMode.BETA) { client ->
+                assertEquals(HttpStatusCode.OK, client.get(page.url).status, "${page.url} doit répondre 200 en bêta")
             }
             withSite(SiteMode.ATTENTE) { client ->
                 assertEquals(HttpStatusCode.NotFound, client.get(page.url).status, "${page.url} doit répondre 404 en attente")

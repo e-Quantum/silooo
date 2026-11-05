@@ -2,7 +2,7 @@
 titre: Mentions légales
 description: L'éditeur, l'hébergeur et le contact de Silooo, la mention Minecraft et les autres textes légaux.
 url: /mentions-legales/
-modes: [attente, ouvert]
+modes: [attente, beta, ouvert]
 ---
 ## Éditeur
 

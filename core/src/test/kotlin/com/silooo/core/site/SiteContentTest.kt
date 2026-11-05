@@ -42,13 +42,38 @@ class SiteContentTest {
     fun oneHomePerMode() {
         val content = SiteContent.fromClasspath()
         assertEquals(listOf("attente"), content.forMode(SiteMode.ATTENTE).filter { it.url == "/" }.map { it.name })
+        // La bêta montre tout sauf la vitrine : `/` reste la page d'attente.
+        assertEquals(listOf("attente"), content.forMode(SiteMode.BETA).filter { it.url == "/" }.map { it.name })
         assertEquals(listOf("accueil"), content.forMode(SiteMode.OUVERT).filter { it.url == "/" }.map { it.name })
-        assertTrue(content.forMode(SiteMode.ATTENTE).any { it.url == "/mentions-legales/" })
-        assertTrue(content.forMode(SiteMode.OUVERT).any { it.url == "/mentions-legales/" })
+        for (mode in SiteMode.entries) assertTrue(content.forMode(mode).any { it.url == "/mentions-legales/" }, "mentions légales : absentes du mode ${mode.word}")
     }
 
     @Test
-    @DisplayName("Les quatre pages légales sont dans les deux modes, à leur adresse, avec des sections et une description de 160 caractères au plus")
+    @DisplayName("La bêta montre tout sauf la vitrine : les pages de l'ouverture, moins l'accueil, plus l'attente")
+    fun betaShowsEverythingButTheShopWindow() {
+        val content = SiteContent.fromClasspath()
+        val beta = content.forMode(SiteMode.BETA).map { it.name }.toSet()
+        // La page des pionniers a ses propres modes (elle appartient aux comptes) : elle ne se compare pas ici.
+        val open = content.forMode(SiteMode.OUVERT).map { it.name }.toSet() - setOf("accueil", "pionniers")
+        assertTrue(beta.containsAll(open), "absentes de la bêta : ${open - beta}")
+        assertTrue("attente" in beta && "accueil" !in beta)
+        // L'attente ne montre rien de l'ouverture que ses pages à elle.
+        val waiting = content.forMode(SiteMode.ATTENTE).map { it.name }.toSet()
+        for (name in listOf("rejoindre", "boutique", "classements", "vote", "ce-qui-se-vend")) {
+            assertTrue(name !in waiting && name in beta, name)
+        }
+    }
+
+    @Test
+    @DisplayName("Les pages du wiki se rendent en bêta et en ouvert, jamais en attente")
+    fun wikiIsBetaAndOpen() {
+        val wiki = WikiContent.fromClasspath()
+        assertTrue(wiki.isNotEmpty())
+        for (page in wiki) assertEquals(setOf(SiteMode.BETA, SiteMode.OUVERT), page.modes, page.name)
+    }
+
+    @Test
+    @DisplayName("Les quatre pages légales sont dans les trois modes, à leur adresse, avec des sections et une description de 160 caractères au plus")
     fun legalPages() {
         val expected = mapOf(
             "mentions-legales" to ("/mentions-legales/" to "Mentions légales"),
@@ -61,7 +86,7 @@ class SiteContentTest {
             val page = content.pages.single { it.name == name }
             assertEquals(shown.first, page.url, name)
             assertEquals(shown.second, page.title, name)
-            assertEquals(setOf(SiteMode.ATTENTE, SiteMode.OUVERT), page.modes, name)
+            assertEquals(setOf(SiteMode.ATTENTE, SiteMode.BETA, SiteMode.OUVERT), page.modes, name)
             assertTrue(page.description.length <= 160, "$name : description de ${page.description.length} caractères")
             assertTrue(page.html.contains("<h2>"), "$name : des sections en ##")
             for (mode in SiteMode.entries) assertTrue(content.forMode(mode).any { it.name == name }, "$name : absente du mode ${mode.word}")

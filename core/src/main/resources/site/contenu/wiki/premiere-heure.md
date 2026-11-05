@@ -2,7 +2,7 @@
 titre: La première heure
 description: Ce qui t'arrive à ta première connexion, de la carrière abandonnée à la mission de la mairie.
 url: /wiki/premiere-heure/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 1
 ---
 ## L'arrivée

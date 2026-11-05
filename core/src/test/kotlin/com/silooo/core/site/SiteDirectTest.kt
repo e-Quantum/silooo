@@ -195,7 +195,8 @@ class SiteDirectTest {
             }
             body
         }
-        assertEquals(bodies[0], bodies[1], "le mode ne change rien à la réponse")
+        assertEquals(SiteMode.entries.size, bodies.size)
+        for ((index, body) in bodies.withIndex()) assertEquals(bodies[0], body, "le mode ${SiteMode.entries[index].word} ne change rien à la réponse")
         val direct = Json.parseToJsonElement(bodies[0]).jsonObject
         assertEquals(3, direct.getValue("joueurs").jsonPrimitive.int)
         assertEquals(2, direct.getValue("voteParty").jsonObject.getValue("votes").jsonPrimitive.int)
