@@ -55,6 +55,139 @@ export type BoutiqueEuros = string;
 
 export type BoutiquePourcentage = number;
 
+// ---- discord.json
+
+/** Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways et les concours. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type DiscordDefinitions = {
+  readonly version: number;
+  readonly commentaire: string;
+  /** Le fuseau horaire des heures du fichier et du rapport du lundi, au format de la base IANA. */
+  readonly fuseau: string;
+  /** Le bonjour d'Oooscar après l'accueil guidé, et les arrivées groupées. */
+  readonly accueil: {
+    /** Les secondes entre la fin de l'accueil guidé et le bonjour, selon le rôle de plateforme choisi. */
+    readonly bonjourSecondes: {
+      readonly console: number;
+      readonly telephone: number;
+      readonly pc: number;
+    };
+    /** Quand les arrivées se bousculent, un seul bonjour toutes ces secondes. */
+    readonly groupeSecondes: number;
+    /** Combien de nouveaux au plus un bonjour groupé mentionne ; au-delà, une ligne avec leur nombre. */
+    readonly groupeMentionsMax: number;
+  };
+  /** Le statut d'Oooscar, qui alterne deux lignes. */
+  readonly statut: {
+    /** Combien de secondes chaque ligne du statut reste affichée. */
+    readonly alternanceSecondes: number;
+  };
+  /** Les vocaux verrouillés en tête du serveur, renommés par le bot ; Discord limite ces renommages. */
+  readonly vocauxInfo: {
+    /** Combien de renommages au plus par vocal dans la fenêtre. */
+    readonly renommagesMax: number;
+    /** La fenêtre des renommages, en minutes. Discord en accorde deux par dix minutes. */
+    readonly fenetreMinutes: number;
+  };
+  /** Les coulisses : des spoils déposés à l'avance, publiés quand assez de membres ont réagi au précédent. */
+  readonly spoils: {
+    /** Le seuil proposé par défaut au dépôt d'un spoil, en part des membres du serveur (0,4 = 40 %). */
+    readonly partDesMembres: number;
+    /** Toutes ces secondes, le bot met à jour le compte des réactions sous le spoil en cours. */
+    readonly miseAJourSecondes: number;
+    /** L'emoji du serveur qui compte comme réaction au spoil. */
+    readonly emoji: DiscordNomEmoji;
+    /** À partir de cette heure, un spoil au seuil attend le matin. */
+    readonly nuitDebutHeure: DiscordHeure;
+    /** L'heure du matin où les spoils en attente partent. */
+    readonly nuitFinHeure: DiscordHeure;
+  };
+  /** L'XP de tchat : des points par message, des rôles aux niveaux, le classement de la semaine. */
+  readonly xp: {
+    /** Le moins de points qu'un message compté rapporte. */
+    readonly pointsMin: number;
+    /** Le plus de points qu'un message compté rapporte ; au moins pointsMin. */
+    readonly pointsMax: number;
+    /** Un seul message compté par membre dans cet intervalle. */
+    readonly intervalleSecondes: number;
+    /** Les points de base d'un niveau : le niveau n demande niveauBase × n + niveauCroissance × n × (n - 1) / 2 points. */
+    readonly niveauBase: number;
+    /** Ce que chaque niveau demande de plus que le précédent. */
+    readonly niveauCroissance: number;
+    /** Les salons du plan où les messages comptent ; les autres (salons du bot, tchat du jeu) ne donnent rien. */
+    readonly salons: readonly DiscordIdentifiantDuPlan[];
+    /** Les rôles du plan donnés aux niveaux, du plus bas au plus haut. */
+    readonly roles: readonly {
+      readonly niveau: number;
+      readonly role: DiscordIdentifiantDuPlan;
+    }[];
+    /** Combien de membres le classement de la semaine cite, le lundi. */
+    readonly classementTaille: number;
+  };
+  /** Le top réactions de la semaine au Panthéon : qui a donné le plus de réactions, une par message. */
+  readonly reactions: {
+    /** Combien de membres le tableau cite. */
+    readonly topTaille: number;
+    /** Les salons du plan où les réactions comptent. */
+    readonly salons: readonly DiscordIdentifiantDuPlan[];
+  };
+  /** Un message assez réagi est recopié dans les meilleurs moments. */
+  readonly meilleursMoments: {
+    /** L'emoji du serveur qui compte. */
+    readonly emoji: DiscordNomEmoji;
+    /** Le nombre de membres différents, l'auteur et les bots exclus, qui fait recopier le message. */
+    readonly seuil: number;
+  };
+  /** Le petit jeu du monte-charge : un bouton par membre, de temps en temps. */
+  readonly monteCharge: {
+    /** Les minutes qu'un membre attend entre deux appuis sur « +1 étage ». */
+    readonly attenteMinutes: number;
+  };
+  /** Le rapport du lundi dans le journal du bot. */
+  readonly rapport: {
+    /** L'heure du lundi où le rapport part. */
+    readonly heure: DiscordHeure;
+    /** Le rapport compte les arrivants qui ont relié leur compte dans ce délai, en jours. */
+    readonly reliesSousJours: number;
+    /** Le rapport compte les membres revenus écrire après ce délai, en jours. */
+    readonly revenusApresJours: number;
+  };
+  /** Les rappels privés, tous désactivés au départ. */
+  readonly rappels: {
+    /** Combien de rappels au plus par membre et par jour. */
+    readonly parJour: number;
+    /** À partir de cette heure, à l'heure du joueur, aucun rappel sauf les Gemmes reçues. */
+    readonly nuitDebutHeure: DiscordHeure;
+    /** L'heure où les rappels reprennent. */
+    readonly nuitFinHeure: DiscordHeure;
+  };
+  /** Les giveaways : gratuits, un bouton pour participer. */
+  readonly giveaways: {
+    /** Combien de giveaways par mois, les grandes étapes en plus. */
+    readonly parMois: number;
+  };
+  /** Les concours d'îles et de villes. */
+  readonly concours: {
+    /** Combien de concours par mois avant la bêta et le seuil de membres. */
+    readonly parMoisAvantBeta: number;
+    /** À partir de ce nombre de membres, et une fois la bêta ouverte, un concours par semaine. */
+    readonly membresPourHebdo: number;
+  };
+  /** Les Aides sur candidature. */
+  readonly aides: {
+    /** À partir de ce nombre de membres, la commande de candidature s'ouvre. */
+    readonly candidaturesDesMembres: number;
+  };
+};
+
+/** Un identifiant du plan du serveur : minuscules, chiffres et tirets. */
+export type DiscordIdentifiantDuPlan = string;
+
+/** Une heure du jour, de 0 à 23, dans le fuseau du fichier. */
+export type DiscordHeure = number;
+
+/** Le nom d'un emoji du serveur, sans les deux-points. */
+export type DiscordNomEmoji = string;
+
 // ---- economie.json
 
 /** Forme de definitions/economie.json. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
