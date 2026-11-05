@@ -57,7 +57,7 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
 Condition de sortie (plan) : un joueur sur console rejoint `play.silooo.com` et apparaît sur son île ;
 mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : voir « À faire par Kr ».
 
-- [ ] `docs/bedrock.md` : les faits « à relever » relevés pour la version épinglée (modules et versions, fichier de permissions, téléchargement de BDS, réseau, limites), avec leurs sources : sous-agent en cours, branche `claude/phase2-releve`
+- [x] `docs/bedrock.md` : les faits « à relever » relevés pour la version épinglée (modules et versions, fichier de permissions, téléchargement de BDS, réseau, limites), avec leurs sources et leur fiabilité ; reste une courte liste « Reste à relever » (fichiers livrés dans le zip, activation de « Beta APIs », erreurs réseau), à vider sur le BDS de test
 - [ ] `deploy/bds/` : image BDS épinglée (version et somme contrôlées), utilisateur non root, monde dans un volume, `config/default/permissions.json` qui autorise `server-net` et `server-admin`, gabarit de `server.properties` (port de l'ADR 0004)
 - [ ] `deploy/compose.yml` : projet `silooo`, services `silooo-migrate`, `silooo-core` (512 Mo) et `silooo-bds` (1,5 Gio), réseau de SileneMC rejoint en externe, secrets lus dans le fichier d'environnement non versionné
 - [ ] `deploy/scripts/deploy.sh <tag>` : sauvegarde, tirage des images, migration, redémarrage, test de fumée, retour arrière ; `docs/deploiement.md` mis à jour
@@ -71,7 +71,8 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
-- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir en UDP et TCP
+- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (recommandé : 19142 à 19173 ; `docs/adr/0004-port-bedrock.md`)
+- [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI, et une clé de lecture du registre `ghcr.io` pour le VPS
@@ -148,6 +149,17 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
     `prestige.facteurSeuilSuivant`. Les deux à valider par Kr (en cours, sous-agent de branchement).
 20. **Phase 2 ouverte avant la fin de la phase 1.** Le relevé des faits Bedrock ne dépend pas du
     branchement du moteur : il part en parallèle, dans la limite de trois sessions à la fois.
+21. **Build BDS épinglé : 1.26.62.1.** La version 26.60 a reçu deux correctifs (26.61, 26.62) sans changement
+    de protocole ni de modules stables ; les consoles sont déjà à jour. On installe le dernier correctif de la
+    ligne 26.60, et `docs/bedrock.md` garde « 26.60 » comme version de la ligne. La somme SHA-256 du zip se
+    calcule une fois et s'épingle dans `deploy/` (Mojang ne publie qu'un en-tête `Content-MD5`).
+22. **Option « Beta APIs » acceptée.** `server-net` et `server-admin` sont en bêta en 26.60 et l'exigent sur le
+    monde ; sans `server-net`, l'add-on ne parle pas à silooo-core. Le coût est connu : à chaque version de
+    Bedrock, les deux modules peuvent changer de numéro ; `docs/bedrock.md` garde la procédure. La méthode pour
+    activer l'option sur un monde de BDS reste à trouver (question à Kr, voir « À faire par Kr »).
+23. **NetherNet seul.** BDS 26.60 refuse RakNet ; le compose publie le port TCP de signalisation et une plage
+    UDP, dimensionnée sur `max-players`, sous la forme « IP publique:port ». ADR 0004 mis à jour (toujours
+    « Proposée »).
 
 ## À valider par Kr
 
@@ -194,3 +206,13 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
   routes (`verifier`, `migration`, `image` publiée) ; celle d'après en cours. Deux sous-agents lancés : le
   branchement du moteur sur `join` (`claude/phase1-branchement`) et le relevé Bedrock de la phase 2
   (`claude/phase2-releve`). Vérifier : `gh run list --branch main`, `git log --oneline -12 origin/main`.
+- **5 novembre 2026, 6 h 05 : direction, contrat complété et relevé Bedrock fusionné.** Le 409
+  `CONFLIT_REESSAYER` est déclaré sur les six opérations qui peuvent le rendre et le test de contrat n'a plus
+  de trou connu. Le relevé Bedrock est sur `main` (`docs/bedrock.md`, 252 lignes : modules `server` 2.11.0 et
+  `server-ui` 2.3.0 stables, `server-net` et `server-admin` 1.0.0-beta avec « Beta APIs », permissions de BDS,
+  `secrets.json` lu par `server-admin`, API `server-net`, URL de téléchargement testée pour 1.26.60.6, 1.26.61.1
+  et 1.26.62.1, NetherNet obligatoire avec signalisation TCP et plage UDP, chien de garde, manifeste). ADR 0004
+  et plan mis à jour en conséquence. Décisions 21 à 23. Deux sous-agents de phase 2 lancés : `deploy/`
+  (image BDS, compose, `deploy.sh`, `claude/phase2-deploy`) et `addon/` (projet TypeScript, client
+  `server-net`, heartbeat, `join`, `leave`, événements, types générés, `claude/phase2-addon`) ; le branchement
+  du moteur (phase 1) est toujours en cours. Vérifier : `git log --oneline -6 origin/main`.
