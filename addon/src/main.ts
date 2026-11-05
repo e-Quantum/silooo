@@ -24,6 +24,7 @@ import { createIslandBuilder } from "./monde/constructeur";
 import { ILES } from "./monde/definitions";
 import { createOooscarManager } from "./monde/oooscar";
 import { createWorldSync } from "./monde/synchro";
+import { createTravel, type Travel } from "./monde/voyage";
 import {
   consoleLogger,
   createRequestIdGenerator,
@@ -71,9 +72,11 @@ function tellPlayer(xuid: Xuid, text: string): void {
 interface WorldPart {
   readonly hooks: SessionHooks<Player>;
   readonly busy: (player: Player) => boolean;
+  /** Téléporte un joueur sur l'île d'une de ses usines (la carte du menu). Absent quand le monde n'a pas démarré. */
+  readonly travel?: Travel<Player>;
 }
 
-/** Sans partie « monde » : rien n'est occupé, aucun crochet. */
+/** Sans partie « monde » : rien n'est occupé, aucun crochet, aucun voyage. */
 const NO_WORLD: WorldPart = { hooks: {}, busy: () => false };
 
 /**
@@ -125,12 +128,13 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
     });
     scheduler.every(config.world.syncSeconds, guard(log, "îles", sync.tick));
 
+    const arrivalWorld = createArrivalWorld();
     const arrivals = createArrivals<Player>({
       defs: ILES,
       builder,
       oooscar,
       runner,
-      world: createArrivalWorld(),
+      world: arrivalWorld,
       keyOf: playerXuid,
       texts: { speaker: CINEMATIQUE_TEXTES.qui, plans: CINEMATIQUE_TEXTES.plans },
       scheduler,
@@ -145,6 +149,7 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
         left: (event) => arrivals.left(leavingXuid(event)),
       },
       busy: arrivals.busy,
+      travel: createTravel<Player>({ defs: ILES, builder, world: arrivalWorld, originOf: sync.originOf, log }),
     };
   } catch (error) {
     log.error(`monde indisponible : ${describeError(error)}`);
@@ -162,10 +167,11 @@ function startScreens(deps: {
   readonly missions: Missions;
   readonly link: LinkState;
   readonly busy: (player: Player) => boolean;
+  readonly travel: Travel<Player> | undefined;
   readonly scheduler: Scheduler;
   readonly log: Logger;
 }): void {
-  const { api, views, missions, link, busy, scheduler, log } = deps;
+  const { api, views, missions, link, busy, travel, scheduler, log } = deps;
   try {
     // Après chaque encaissement, le service a pu faire avancer la mission : on la relit.
     const actions = createActions({
@@ -179,6 +185,7 @@ function startScreens(deps: {
       views,
       missions,
       actions,
+      ...(travel === undefined ? {} : { travel }),
       presenter: createFormPresenter(),
       clock: systemClock,
       wait: (seconds) => pause(scheduler, seconds),
@@ -265,7 +272,7 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    startScreens({ api, views, missions, link, busy: worldPart.busy, scheduler, log });
+    startScreens({ api, views, missions, link, busy: worldPart.busy, travel: worldPart.travel, scheduler, log });
 
     log.info(`add-on démarré (serveur ${serverId})`);
   } catch (error) {

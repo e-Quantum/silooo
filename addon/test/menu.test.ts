@@ -1,15 +1,43 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { CompanyState, CompanyUpdated, Factory, MissionState } from "../src/protocol";
-import { createActions, type ActionOutcome } from "../src/ui/actions";
+import type { Balances, CompanyState, CompanyUpdated, Factory, MissionState } from "../src/protocol";
+import { createActions, type ActionOutcome, type PreviewOutcome } from "../src/ui/actions";
 import { COLOR } from "../src/ui/apparence";
 import { counterValue } from "../src/ui/compteur";
 import { createViewStore, type CompanyView } from "../src/ui/etat";
 import { createMissions } from "../src/ui/missions";
-import { createMenu, ficheScreen, mainScreen, noticeOf, objectifsScreen, siloScreen, unavailableScreen, usinesScreen } from "../src/ui/menu";
+import type { TravelOutcome } from "../src/monde/voyage";
+import {
+  apresScreen,
+  carteScreen,
+  createMenu,
+  ficheScreen,
+  mainScreen,
+  noticeOf,
+  objectifsScreen,
+  prestigeScreen,
+  siloScreen,
+  travelNotice,
+  unavailableScreen,
+  usinesScreen,
+  type MenuDeps,
+} from "../src/ui/menu";
 import { formatAmount, formatCount, formatRate } from "../src/ui/nombres";
-import { BULLES, FACTORY_NAMES, FICHE_TEXTES, MENU_TEXTES, MISSION_TEXTES, OBJECTIFS_TEXTES, SILO_TEXTES, USINES_TEXTES } from "../src/ui/textes";
-import { balances, companyState, factory, mission, missionState, ok, recordingLogger } from "./helpers";
+import {
+  BULLES,
+  CARTE_TEXTES,
+  FACTORY_IDS,
+  FACTORY_NAMES,
+  FICHE_TEXTES,
+  MENU_TEXTES,
+  MISSION_TEXTES,
+  OBJECTIFS_TEXTES,
+  PRESTIGE_TEXTES,
+  refusalBubble,
+  SILO_TEXTES,
+  USINES_TEXTES,
+} from "../src/ui/textes";
+import { balances, companyState, factory, mission, missionState, ok, prestigePreview, recordingLogger } from "./helpers";
 import {
   PLAYER,
   XUID,
@@ -51,14 +79,15 @@ const titleOf = (spec: { title: string }) => spec.title;
 describe("menu principal", () => {
   const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }), missionState());
 
-  it("cinq tuiles : Silo, Usines et Objectifs actifs, Carte et Amis verrouillés", () => {
+  it("six tuiles : Silo, Usines, Carte, Objectifs et Prestige actifs, Amis verrouillé", () => {
     assert.equal(screen.spec.title, MENU_TEXTES.titre);
-    assert.equal(screen.spec.buttons.length, 5);
+    assert.equal(screen.spec.buttons.length, 6);
     assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
       "silo",
       "usines",
-      "soon",
+      "carte",
       "objectifs",
+      "prestige",
       "soon",
     ]);
   });
@@ -69,15 +98,15 @@ describe("menu principal", () => {
     assert.match(buttons[1] ?? "", /Usines\n3 usines/);
   });
 
-  it("les tuiles verrouillées portent un cadenas et un mot, en gris", () => {
-    for (const index of [2, 4]) {
-      const text = screen.spec.buttons[index] ?? "";
-      assert.ok(text.startsWith(COLOR.locked), text);
-      assert.ok(bare(text).includes("[X]"));
-      assert.ok(bare(text).endsWith(MENU_TEXTES.bientot));
+  it("la tuile verrouillée porte un cadenas et un mot, en gris", () => {
+    const text = screen.spec.buttons[5] ?? "";
+    assert.ok(text.startsWith(COLOR.locked), text);
+    assert.ok(bare(text).includes("[X]"));
+    assert.ok(bare(text).endsWith(MENU_TEXTES.bientot));
+    assert.match(bare(text), /Amis/);
+    for (const index of [0, 1, 2, 3, 4]) {
+      assert.ok(!(screen.spec.buttons[index] ?? "").startsWith(COLOR.locked), `tuile ${index}`);
     }
-    assert.match(bare(screen.spec.buttons[2] ?? ""), /Carte/);
-    assert.match(bare(screen.spec.buttons[4] ?? ""), /Amis/);
   });
 
   it("le corps porte le nom de l'entreprise tel que le service le donne", () => {
@@ -365,11 +394,14 @@ function after(level: number, version = 2, extra: Partial<Factory> = {}): Compan
 }
 
 /** Le menu tel que main.ts le monte : les missions relues après chaque encaissement, et à l'ouverture des objectifs. */
+type Travel = NonNullable<MenuDeps<typeof PLAYER>["travel"]>;
+
 function setup(
   replies: readonly Reply[],
   script: Script = {},
   state: Partial<CompanyState> = { factories: [ACTIVE] },
   missionAnswers: Parameters<typeof fakeMissionsApi>[0] = undefined,
+  extras: { readonly travel?: Travel; readonly tilesPerScreen?: number } = {},
 ) {
   const clock = fakeClock(0);
   const store = storeWith(state);
@@ -389,9 +421,10 @@ function setup(
     clock,
     wait: async (seconds) => void waits.push(seconds),
     log,
-    tilesPerScreen: 8,
+    tilesPerScreen: extras.tilesPerScreen ?? 8,
     busyRetries: 3,
     busyRetrySeconds: 0.5,
+    ...(extras.travel === undefined ? {} : { travel: extras.travel }),
   });
   return { menu, presenter, api, views, log, waits, store, missions, missionsApi };
 }
@@ -601,18 +634,16 @@ describe("parcours : Silo et encaissement", () => {
 });
 
 describe("parcours : tuiles verrouillées", () => {
-  for (const nom of ["Carte", "Amis"]) {
-    it(`${nom} : le menu reste, Oooscar dit que ce n'est pas encore disponible, aucun appel au service`, async () => {
-      const { menu, presenter, api } = setup([press(nom), close]);
-      await menu.open(PLAYER);
-      assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MENU"]);
-      assert.match(bare(presenter.shown[1]?.body ?? ""), /^Oooscar \[oups\] Pas encore disponible\./);
-      assert.deepEqual(api.calls, []);
-    });
-  }
+  it("Amis : le menu reste, Oooscar dit que ce n'est pas encore disponible, aucun appel au service", async () => {
+    const { menu, presenter, api } = setup([press("Amis"), close]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MENU"]);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /^Oooscar \[oups\] Pas encore disponible\./);
+    assert.deepEqual(api.calls, []);
+  });
 
   it("la bulle ne reste qu'un écran", async () => {
-    const { menu, presenter } = setup([press("Carte"), press("Usines"), press("Retour"), close]);
+    const { menu, presenter } = setup([press("Amis"), press("Usines"), press("Retour"), close]);
     await menu.open(PLAYER);
     assert.doesNotMatch(bare(presenter.shown[3]?.body ?? ""), /Oooscar/);
   });
@@ -891,5 +922,580 @@ describe("parcours : objectifs", () => {
     const { menu, missionsApi } = setup([press("Silo"), press("Encaisser"), close], { collect: [unreachable()] });
     await menu.open(PLAYER);
     assert.deepEqual(missionsApi.calls, []);
+  });
+});
+
+// ---------------------------------------------------------------- la carte
+
+function viewWith(state: Partial<CompanyState> = {}, soldes: Partial<Balances> = {}): CompanyView {
+  const view = viewsWith(state, fakeClock(0), soldes).views.get(XUID);
+  if (view === undefined) throw new Error("vue absente");
+  return view;
+}
+
+describe("menu principal, tuiles Carte et Prestige", () => {
+  const screen = mainScreen(viewOf({ factories: many(3), courseNumber: 4 }), missionState());
+
+  it("la tuile Carte est active : le nombre d'îles est celui des usines de l'entreprise", () => {
+    assert.equal(bare(screen.spec.buttons[2] ?? ""), "[C] Carte\n3 îles");
+    assert.equal(bare(mainScreen(viewOf({ factories: many(1) }), undefined).spec.buttons[2] ?? ""), "[C] Carte\n1 île");
+    assert.deepEqual(screen.targets[2], { kind: "go", route: { screen: "carte", page: 0 } });
+  });
+
+  it("la tuile Prestige est active : le numéro de la course est celui du service", () => {
+    assert.equal(bare(screen.spec.buttons[4] ?? ""), "[P] Prestige\nCourse 4");
+    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "prestige" } });
+  });
+
+  it("ni l'une ni l'autre n'est grisée ni marquée « Bientôt »", () => {
+    for (const index of [2, 4]) {
+      const text = screen.spec.buttons[index] ?? "";
+      assert.ok(!text.startsWith(COLOR.locked), text);
+      assert.ok(!bare(text).includes(MENU_TEXTES.bientot), text);
+      assert.ok(!bare(text).includes("[X]"), text);
+    }
+  });
+});
+
+describe("écran de la carte", () => {
+  const view = viewOf({
+    factories: [
+      factory({ factoryId: "carriere", level: 12 }),
+      factory({ factoryId: "scierie", state: "REMISE_EN_ETAT", level: 0, restoreStep: 2 }),
+      factory({ factoryId: "ferme", state: "EN_RUINE", level: 0, ratePerHour: 0 }),
+    ],
+  });
+  const screen = carteScreen(view, 0, 20);
+
+  it("la phrase, puis l'île principale verrouillée, une ligne par usine dans l'ordre du jeu, et Retour", () => {
+    assert.equal(screen.spec.title, CARTE_TEXTES.titre);
+    assert.equal(screen.spec.body, CARTE_TEXTES.phrase);
+    assert.equal(screen.spec.buttons.length, 1 + FACTORY_IDS.length + 1);
+    assert.equal(bare(screen.spec.buttons.at(-1) ?? ""), CARTE_TEXTES.retour);
+    assert.deepEqual(screen.targets.at(-1), { kind: "go", route: { screen: "main" } });
+  });
+
+  it("l'île principale n'est pas construite : cadenas, gris, « Bientôt », et Oooscar dit « Pas encore disponible »", () => {
+    const text = screen.spec.buttons[0] ?? "";
+    assert.ok(text.startsWith(COLOR.locked), text);
+    assert.equal(bare(text), `[X] ${CARTE_TEXTES.ilePrincipale}\n${MENU_TEXTES.bientot}`);
+    assert.deepEqual(screen.targets[0], { kind: "soon" });
+  });
+
+  it("une usine de l'entreprise : son nom et son état d'après le service, et la route de son île", () => {
+    assert.equal(bare(screen.spec.buttons[1] ?? ""), `[U] Carrière\n${CARTE_TEXTES.etat.entiere("12")}`);
+    assert.equal(bare(screen.spec.buttons[2] ?? ""), `[T] Scierie\n${CARTE_TEXTES.etat.enTravaux(2, 4)}`);
+    assert.equal(bare(screen.spec.buttons[3] ?? ""), `[X] Ferme\n${CARTE_TEXTES.etat.enRuine}`);
+    assert.deepEqual(screen.targets[1], { kind: "travel", factoryId: "carriere" });
+    assert.deepEqual(screen.targets[2], { kind: "travel", factoryId: "scierie" });
+    assert.deepEqual(screen.targets[3], { kind: "travel", factoryId: "ferme" });
+  });
+
+  it("une usine que le joueur n'a pas : « ????? » en gris avec un cadenas, son nom reste caché", () => {
+    const hidden = screen.spec.buttons.slice(4, 1 + FACTORY_IDS.length);
+    assert.equal(hidden.length, FACTORY_IDS.length - 3);
+    for (const text of hidden) {
+      assert.ok(text.startsWith(COLOR.locked), text);
+      assert.equal(bare(text), `[X] ${CARTE_TEXTES.inconnue}`);
+    }
+    for (const target of screen.targets.slice(4, 1 + FACTORY_IDS.length)) {
+      assert.deepEqual(target, { kind: "soon", bubble: BULLES.usinePasEncore });
+    }
+    const all = plain(screen.spec);
+    for (const id of FACTORY_IDS.slice(3)) {
+      assert.ok(!all.includes(FACTORY_NAMES[id as keyof typeof FACTORY_NAMES]), id);
+    }
+  });
+
+  it("l'ordre est celui du jeu, pas celui du service", () => {
+    const reversed = carteScreen(viewOf({ factories: [factory({ factoryId: "ferme" }), factory({ factoryId: "carriere" })] }), 0, 20);
+    const names = reversed.spec.buttons.slice(1, 4).map((text) => bare(text).split("\n")[0]);
+    assert.deepEqual(names, ["[U] Carrière", `[X] ${CARTE_TEXTES.inconnue}`, "[U] Ferme"]);
+  });
+
+  it("une usine du service que l'add-on ne connaît pas encore vient après les autres, avec un nom lisible", () => {
+    const next = carteScreen(viewOf({ factories: [factory({ factoryId: "usine-du-futur" })] }), 0, 40);
+    assert.equal(next.spec.buttons.length, 1 + FACTORY_IDS.length + 1 + 1);
+    assert.equal(bare(next.spec.buttons[1 + FACTORY_IDS.length] ?? "").split("\n")[0], "[U] Usine du futur");
+    assert.deepEqual(next.targets[1 + FACTORY_IDS.length], { kind: "travel", factoryId: "usine-du-futur" });
+  });
+
+  it("une entreprise sans usine : tout est caché, rien ne mène nulle part", () => {
+    const empty = carteScreen(viewOf({ factories: [] }), 0, 40);
+    assert.ok(empty.targets.every((target) => target.kind !== "travel"));
+  });
+
+  it("pages : Précédent et Suite aux bons endroits, page indiquée, île principale en tête de la première seulement", () => {
+    const labels = (page: number) => carteScreen(view, page, 4).spec.buttons.map((b) => bare(b).split("\n")[0]);
+    assert.equal(labels(0)[0], `[X] ${CARTE_TEXTES.ilePrincipale}`);
+    assert.deepEqual(labels(0).slice(4), [USINES_TEXTES.suite, CARTE_TEXTES.retour]);
+    assert.ok(labels(1).includes(USINES_TEXTES.precedent) && labels(1).includes(USINES_TEXTES.suite));
+    assert.ok(!labels(1).includes(`[X] ${CARTE_TEXTES.ilePrincipale}`));
+    assert.deepEqual(labels(3).slice(-2), [USINES_TEXTES.precedent, CARTE_TEXTES.retour]);
+    assert.match(bare(carteScreen(view, 1, 4).spec.body), new RegExp(USINES_TEXTES.page(2, 4)));
+    assert.deepEqual(carteScreen(view, 0, 4).targets[4], { kind: "go", route: { screen: "carte", page: 1 } });
+    assert.deepEqual(carteScreen(view, 1, 4).targets[4], { kind: "go", route: { screen: "carte", page: 0 } });
+  });
+
+  it("une page hors limites revient dans les limites", () => {
+    assert.equal(carteScreen(view, 99, 4).spec.body, carteScreen(view, 3, 4).spec.body);
+    assert.equal(carteScreen(view, -3, 4).spec.body, carteScreen(view, 0, 4).spec.body);
+  });
+
+  it("une bulle d'Oooscar passe avant la phrase", () => {
+    const withNotice = carteScreen(view, 0, 20, { bubble: BULLES.ilePasPrete });
+    assert.match(bare(withNotice.spec.body), /^Oooscar \[oups\] L'île n'est pas encore prête\.\n\nChoisis une île/);
+  });
+
+  it("tient dans les huit tuiles d'un écran, plus la navigation", () => {
+    for (let page = 0; page < 4; page += 1) {
+      assert.ok(carteScreen(view, page, 8).spec.buttons.length <= 8 + 3);
+    }
+  });
+});
+
+describe("travelNotice", () => {
+  it("l'île introuvable et l'île pas prête ont chacune leur bulle", () => {
+    assert.deepEqual(travelNotice("unavailable"), { bubble: BULLES.ileIntrouvable });
+    assert.deepEqual(travelNotice("waiting"), { bubble: BULLES.ilePasPrete });
+  });
+
+  it("arrivé ou parti : pas de bulle, le menu se ferme", () => {
+    assert.equal(travelNotice("arrived"), undefined);
+    assert.equal(travelNotice("gone"), undefined);
+  });
+});
+
+describe("parcours : carte et voyage", () => {
+  const TWO = { factories: [ACTIVE, factory({ factoryId: "scierie", state: "EN_RUINE", level: 0, ratePerHour: 0 })] };
+
+  function travelling(outcome: TravelOutcome | Error) {
+    const calls: Array<{ readonly player: { readonly name: string }; readonly state: CompanyState; readonly factoryId: string }> = [];
+    const travel: Travel = async (player, state, factoryId) => {
+      calls.push({ player, state, factoryId });
+      if (outcome instanceof Error) throw outcome;
+      return outcome;
+    };
+    return { calls, travel };
+  }
+
+  it("arrivé : le joueur est sur son île, le menu se ferme sans autre écran ni appel au service", async () => {
+    const { calls, travel } = travelling("arrived");
+    const { menu, presenter, api } = setup([press("Carte"), press("Carrière")], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "CARTE"]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.factoryId, "carriere");
+    assert.equal(calls[0]?.player, PLAYER);
+    assert.equal(calls[0]?.state.companyId, 7);
+    assert.deepEqual(api.calls, []);
+  });
+
+  it("l'état donné au voyage est celui que le service a rendu en dernier", async () => {
+    const { calls, travel } = travelling("arrived");
+    const { menu, views } = setup([press("Carte"), press("Carrière")], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.equal(calls[0]?.state, views.get(XUID)?.state);
+  });
+
+  it("une usine en ruine mène aussi à son île : le monde la dessine en ruine", async () => {
+    const { calls, travel } = travelling("arrived");
+    const { menu } = setup([press("Carte"), press("Scierie")], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.equal(calls[0]?.factoryId, "scierie");
+  });
+
+  it("joueur parti pendant l'attente : le menu se ferme sans bulle", async () => {
+    const { travel } = travelling("gone");
+    const { menu, presenter } = setup([press("Carte"), press("Carrière")], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown.length, 2);
+  });
+
+  it("île pas prête : la carte revient avec la bulle d'Oooscar, et le joueur peut réessayer", async () => {
+    const { calls, travel } = travelling("waiting");
+    const { menu, presenter } = setup([press("Carte"), press("Carrière"), press("Carrière"), close], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "CARTE", "CARTE", "CARTE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[oups\] L'île n'est pas encore prête\./);
+    assert.equal(calls.length, 2);
+  });
+
+  it("île introuvable : la carte revient avec la bulle d'Oooscar", async () => {
+    const { travel } = travelling("unavailable");
+    const { menu, presenter } = setup([press("Carte"), press("Carrière"), close], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[oups\] Je ne trouve pas cette île\./);
+  });
+
+  it("sans monde (le voyage n'est pas branché) : « Pas encore disponible » et la carte reste", async () => {
+    const { menu, presenter, api } = setup([press("Carte"), press("Carrière"), close], {}, TWO);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "CARTE", "CARTE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[oups\] Pas encore disponible\./);
+    assert.deepEqual(api.calls, []);
+  });
+
+  it("l'île principale et les usines cachées : une bulle, aucun voyage", async () => {
+    const { calls, travel } = travelling("arrived");
+    const { menu, presenter } = setup(
+      [press("Carte"), press("Île principale"), press("?????"), close],
+      {},
+      { factories: [ACTIVE] },
+      undefined,
+      { travel },
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "CARTE", "CARTE", "CARTE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[oups\] Pas encore disponible\./);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[oups\] Tu n'as pas encore cette usine\./);
+    assert.deepEqual(calls, []);
+  });
+
+  it("Retour ramène au menu ; la bulle ne reste qu'un écran", async () => {
+    const { menu, presenter } = setup([press("Carte"), press("Île principale"), press("Retour"), close]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "CARTE", "CARTE", "MENU"]);
+    assert.doesNotMatch(bare(presenter.shown[3]?.body ?? ""), /Oooscar/);
+  });
+
+  it("les pages de la carte : Suite puis Précédent", async () => {
+    const { menu, presenter } = setup([press("Carte"), press("Suite"), press("Précédent"), close], {}, TWO, undefined, { tilesPerScreen: 4 });
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "CARTE", "CARTE", "CARTE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /Page 2 sur 4/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Page 1 sur 4/);
+  });
+
+  it("le voyage qui lève est journalisé, rien ne remonte, le menu peut se rouvrir", async () => {
+    const { travel } = travelling(new Error("monde en panne"));
+    const { menu, log, presenter } = setup([press("Carte"), press("Carrière"), close], {}, TWO, undefined, { travel });
+    await menu.open(PLAYER);
+    assert.match(log.warns.join("\n"), /menu de Alex : Error: monde en panne/);
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown.length, 3);
+  });
+
+  it("le texte brut de la carte ne contient ni emoji ni point de suspension", async () => {
+    const { menu, presenter } = setup([press("Carte"), press("Île principale"), close], {}, TWO);
+    await menu.open(PLAYER);
+    for (const spec of presenter.shown) {
+      assert.doesNotMatch(plain(spec), /\p{Extended_Pictographic}|\.\.\.|…/u);
+    }
+  });
+});
+
+// ---------------------------------------------------------------- le prestige
+
+describe("écran du prestige : avant", () => {
+  const view = viewOf({ era: 1, courseNumber: 3, threshold: 2_500_000 });
+  const preview = (overrides: Parameters<typeof prestigePreview>[0] = {}): PreviewOutcome => ({
+    kind: "preview",
+    preview: prestigePreview(overrides),
+  });
+  const body = (lookup: PreviewOutcome | undefined, notice?: Parameters<typeof prestigeScreen>[3]) =>
+    bare(prestigeScreen(view, lookup, XUID, notice).spec.body);
+
+  it("permis : où en est la course, ce que le service annonce, ce qui repart et ce qui reste", () => {
+    const screen = prestigeScreen(view, preview(), XUID);
+    const avant = PRESTIGE_TEXTES.avant;
+    assert.equal(screen.spec.title, PRESTIGE_TEXTES.titre);
+    assert.equal(
+      bare(screen.spec.body),
+      [
+        "Course 3 · Époque 1 : Artisanale",
+        "",
+        avant.pret,
+        avant.principe,
+        avant.total(formatCount(1_200)),
+        avant.doubler(formatCount(1_700)),
+        "",
+        "Course suivante : époque 2, Vapeur",
+        "",
+        avant.repartTitre,
+        ...avant.repart,
+        "",
+        avant.resteTitre,
+        avant.reste,
+      ].join("\n"),
+    );
+  });
+
+  it("permis : « Prestige ! » confirme, « Retour » ramène au menu", () => {
+    const screen = prestigeScreen(view, preview(), XUID);
+    assert.deepEqual(screen.spec.buttons.map(bare), [PRESTIGE_TEXTES.avant.confirmer, PRESTIGE_TEXTES.avant.retour]);
+    assert.deepEqual(screen.targets, [{ kind: "prestige" }, { kind: "go", route: { screen: "main" } }]);
+  });
+
+  it("les Lingots sont ceux du service, mis en forme, jamais recalculés", () => {
+    const text = body(preview({ lingotsTotal: 1_234_567, lingotsIfDoubled: 2_000_000 }));
+    assert.ok(text.includes(PRESTIGE_TEXTES.avant.total(formatCount(1_234_567))), text);
+    assert.ok(text.includes(PRESTIGE_TEXTES.avant.doubler(formatCount(2_000_000))), text);
+  });
+
+  it("sans Lingots du doublé : la ligne n'existe pas", () => {
+    const { lingotsIfDoubled: _omitted, ...rest } = prestigePreview();
+    assert.doesNotMatch(body({ kind: "preview", preview: rest }), /deux fois plus/);
+  });
+
+  it("seul dans l'entreprise : pas de part à montrer", () => {
+    assert.doesNotMatch(body(preview()), /Ta part|Un associé/);
+  });
+
+  it("plusieurs membres : la part de chaque membre, la sienne reconnue à son identifiant, l'ordre du service gardé", () => {
+    const text = body(
+      preview({
+        shares: [
+          { xuid: "2535400000000002", lingots: 500 },
+          { xuid: XUID, lingots: 700 },
+        ],
+      }),
+    );
+    assert.ok(text.includes(PRESTIGE_TEXTES.avant.unAssocie(formatCount(500))), text);
+    assert.ok(text.includes(PRESTIGE_TEXTES.avant.taPart(formatCount(700))), text);
+    assert.ok(text.indexOf("Un associé") < text.indexOf("Ta part"), "l'ordre du service est gardé");
+  });
+
+  it("la course suivante suit le champ « next » du service : une époque, ou une étoile", () => {
+    assert.match(body(preview({ next: "EPOQUE_2" })), /Course suivante : époque 2, Vapeur/);
+    assert.match(body(preview({ next: "EPOQUE_3" })), /Course suivante : époque 3, Moderne/);
+    assert.match(body(preview({ next: "EPOQUE_4" })), /Course suivante : époque 4, Futuriste/);
+    assert.ok(body(preview({ next: "ETOILE" })).includes(PRESTIGE_TEXTES.suivante.etoile));
+  });
+
+  it("pas permis : le seuil du service, aucun bouton de confirmation, aucun Lingot annoncé", () => {
+    const screen = prestigeScreen(view, preview({ allowed: false, lingotsTotal: 0, lingotsIfDoubled: 0, shares: [] }), XUID);
+    const text = bare(screen.spec.body);
+    assert.ok(text.includes(PRESTIGE_TEXTES.avant.pasEncore), text);
+    assert.ok(text.includes(PRESTIGE_TEXTES.avant.seuil(formatAmount(2_500_000))), text);
+    assert.doesNotMatch(text, /Lingots en tout|deux fois plus|Ta part/);
+    assert.deepEqual(screen.spec.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+    assert.deepEqual(screen.targets, [{ kind: "go", route: { screen: "main" } }]);
+    assert.ok(screen.spec.body.includes(`${COLOR.blocked}${PRESTIGE_TEXTES.avant.pasEncore}`));
+  });
+
+  it("l'autorisation est en couleur ET en mots, jamais la couleur seule", () => {
+    const screen = prestigeScreen(view, preview(), XUID);
+    assert.ok(screen.spec.body.includes(`${COLOR.success}${PRESTIGE_TEXTES.avant.pret}`));
+  });
+
+  it("le numéro de course et le nom de l'époque viennent de l'état du service", () => {
+    const later = prestigeScreen(viewOf({ era: 3, courseNumber: 12 }), preview({ next: "EPOQUE_4" }), XUID);
+    assert.match(bare(later.spec.body), /^Course 12 · Époque 3 : Moderne\n/);
+  });
+
+  it("sans aperçu lu : Oooscar dit que le service ne répond pas, il ne reste que « Retour »", () => {
+    const screen = prestigeScreen(view, undefined, XUID);
+    assert.equal(bare(screen.spec.body), `Oooscar [panique] ${BULLES.serviceInjoignable.text}`);
+    assert.deepEqual(screen.spec.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+  });
+
+  it("aperçu en échec : la bulle de l'échec, rien d'inventé", () => {
+    const failed = (failure: "network" | "error" | "unavailable", reason: string): PreviewOutcome => ({ kind: "failed", failure, reason });
+    assert.match(body(failed("network", "RESEAU")), /^Oooscar \[panique\]/);
+    assert.ok(body(failed("error", "ERREUR_INTERNE")).includes(BULLES.problemeService.text));
+    assert.ok(body(failed("error", "PAS_FAIT")).includes(BULLES.bientot.text));
+    assert.doesNotMatch(body(failed("network", "RESEAU")), /Lingots|Seuil/);
+  });
+
+  it("une bulle d'Oooscar passe avant tout, y compris sur un aperçu lu", () => {
+    const text = body(preview(), { bubble: refusalBubble("PAS_LE_PDG") });
+    assert.match(text, /^Oooscar \[oups\] Seul le PDG peut le faire\.\n\nCourse 3/);
+  });
+});
+
+describe("écran du prestige : après", () => {
+  const apres = PRESTIGE_TEXTES.apres;
+  const view = viewWith({ era: 2, courseNumber: 4, stars: 0, donar: 0, factories: many(2) }, { lingots: 1_200 });
+  const screen = apresScreen(view);
+
+  it("l'état que le service vient de rendre : course, époque, Lingots du solde, Donar remis à zéro, la suite", () => {
+    assert.equal(screen.spec.title, PRESTIGE_TEXTES.titre);
+    assert.equal(
+      bare(screen.spec.body),
+      ["Course 4 · Époque 2 : Vapeur", apres.lingots(formatCount(1_200)), SILO_TEXTES.donar(formatAmount(0)), "", apres.suite].join("\n"),
+    );
+  });
+
+  it("les étoiles n'apparaissent que si l'entreprise en a", () => {
+    assert.doesNotMatch(bare(screen.spec.body), /Étoiles/);
+    const starred = apresScreen(viewWith({ stars: 2, era: 4, courseNumber: 20 }, { lingots: 5 }));
+    assert.ok(bare(starred.spec.body).includes(apres.etoiles("2")));
+  });
+
+  it("deux boutons : voir les usines, ou retour au menu", () => {
+    assert.deepEqual(screen.spec.buttons.map(bare), [apres.usines, apres.retour]);
+    assert.deepEqual(screen.targets, [
+      { kind: "go", route: { screen: "usines", page: 0 } },
+      { kind: "go", route: { screen: "main" } },
+    ]);
+  });
+
+  it("la bulle de fierté d'Oooscar passe avant le corps", () => {
+    const withNotice = apresScreen(view, { bubble: BULLES.prestige });
+    assert.match(bare(withNotice.spec.body), /^Oooscar \[fier\] Prestige accompli, patron !\n\nCourse 4/);
+  });
+});
+
+describe("noticeOf : le prestige", () => {
+  it("un prestige réussi : la bulle de fierté", () => {
+    assert.deepEqual(noticeOf({ kind: "prestiged" }), { bubble: BULLES.prestige });
+  });
+
+  it("le refus PAS_LE_PDG : seul le PDG peut le faire", () => {
+    assert.equal(noticeOf({ kind: "refused", reason: "PAS_LE_PDG" })?.bubble.text, "Seul le PDG peut le faire.");
+  });
+
+  it("le refus SEUIL_NON_ATTEINT : les Donar qui manquent si le service les donne, sinon la phrase du seuil", () => {
+    assert.equal(noticeOf({ kind: "refused", reason: "SEUIL_NON_ATTEINT", missing: 4_000 })?.bubble.text, `Il te manque ${formatAmount(4_000)} Donar.`);
+    assert.equal(noticeOf({ kind: "refused", reason: "SEUIL_NON_ATTEINT" })?.bubble.text, "Le seuil n'est pas atteint.");
+  });
+});
+
+describe("parcours : prestige", () => {
+  const STATE = { factories: [ACTIVE], era: 1, courseNumber: 2, threshold: 5_000, donar: 9_000 };
+
+  /** Ce que le service rend après le prestige : la course suivante, la Carrière seule debout, les Lingots versés. */
+  function prestiged(version = 2): CompanyUpdated {
+    return {
+      state: companyState({
+        version,
+        era: 2,
+        courseNumber: 3,
+        donar: 0,
+        donarEarned: 0,
+        factories: [
+          factory({ factoryId: "carriere", level: 1 }),
+          factory({ factoryId: "scierie", state: "EN_RUINE", level: 0, ratePerHour: 0 }),
+        ],
+      }),
+      balances: balances({ lingots: 1_200 }),
+    };
+  }
+
+  it("avant puis après : l'aperçu, la confirmation, l'état rafraîchi et les îles qui suivent", async () => {
+    const { menu, presenter, api, views } = setup(
+      [press("Prestige"), press("Prestige !"), press("Voir les usines"), close],
+      { prestigePreview: [ok(prestigePreview())], prestige: [ok(prestiged())] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE", "USINES"]);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /^Course 2 · Époque 1 : Artisanale/);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /Lingots en tout 1.200/);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[fier\] Prestige accompli, patron !\n\nCourse 3 · Époque 2 : Vapeur/);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /Tu as 1.200 Lingots/);
+    assert.ok(presenter.shown[3]?.buttons.map(bare).includes("[X] Scierie\nEn ruine"));
+    assert.deepEqual(api.calls, [
+      { op: "prestigePreview", companyId: 7 },
+      { op: "prestige", companyId: 7, action: { requestId: "id-1", actor: XUID } },
+    ]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+    assert.equal(views.get(XUID)?.balances.lingots, 1_200);
+  });
+
+  it("après le prestige, le menu montre la course suivante", async () => {
+    const { menu, presenter } = setup(
+      [press("Prestige"), press("Prestige !"), press("Retour"), close],
+      { prestigePreview: [ok(prestigePreview())], prestige: [ok(prestiged())] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE", "MENU"]);
+    assert.equal(bare(presenter.shown[0]?.buttons[4] ?? ""), "[P] Prestige\nCourse 2");
+    assert.equal(bare(presenter.shown[3]?.buttons[4] ?? ""), "[P] Prestige\nCourse 3");
+  });
+
+  it("l'aperçu est relu à chaque ouverture de l'écran", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Prestige"), press("Retour"), press("Prestige"), close],
+      { prestigePreview: [ok(prestigePreview()), ok(prestigePreview({ lingotsTotal: 1_900 }))] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview", "prestigePreview"]);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /Lingots en tout 1.200/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Lingots en tout 1.900/);
+  });
+
+  it("refus PAS_LE_PDG : l'écran revient avec la bulle, l'aperçu relu, rien n'a changé", async () => {
+    const { menu, presenter, api, views } = setup(
+      [press("Prestige"), press("Prestige !"), close],
+      { prestigePreview: [ok(prestigePreview()), ok(prestigePreview())], prestige: [refused("PAS_LE_PDG")] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[oups\] Seul le PDG peut le faire\.\n\nCourse 2/);
+    assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview", "prestige", "prestigePreview"]);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("refus SEUIL_NON_ATTEINT : les Donar qui manquent, et l'aperçu relu retire le bouton de confirmation", async () => {
+    const stale = prestigePreview();
+    const now = prestigePreview({ allowed: false, lingotsTotal: 0, lingotsIfDoubled: 0, shares: [] });
+    const { menu, presenter } = setup(
+      [press("Prestige"), press("Prestige !"), close],
+      { prestigePreview: [ok(stale), ok(now)], prestige: [refused("SEUIL_NON_ATTEINT", 4_000)] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    const body = bare(presenter.shown[2]?.body ?? "");
+    assert.ok(body.startsWith(`Oooscar [oups] Il te manque ${formatAmount(4_000)} Donar.`), body);
+    assert.ok(body.includes(PRESTIGE_TEXTES.avant.pasEncore), body);
+    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+  });
+
+  it("CONFLIT_REESSAYER : l'état est rechargé, le prestige rejoué une fois avec le même requestId, le joueur ne voit que le succès", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Prestige"), press("Prestige !"), close],
+      {
+        prestigePreview: [ok(prestigePreview())],
+        prestige: [refused("CONFLIT_REESSAYER"), ok(prestiged(6))],
+        getCompany: [ok(companyState({ ...STATE, version: 5 }))],
+      },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview", "prestige", "getCompany", "prestige"]);
+    const ids = api.calls.flatMap((call) => (call.op === "prestige" ? [call.action.requestId] : []));
+    assert.equal(ids.length, 2);
+    assert.equal(ids[0], ids[1]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /Prestige accompli/);
+    assert.equal(presenter.shown.length, 3);
+  });
+
+  it("service injoignable pendant le prestige : l'écran revient avec la panique d'Oooscar, rien n'est affiché comme fait", async () => {
+    const { menu, presenter, views } = setup(
+      [press("Prestige"), press("Prestige !"), close],
+      { prestigePreview: [ok(prestigePreview()), unreachable()], prestige: [unreachable()] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[panique\]/);
+    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("aperçu injoignable à l'ouverture : la panique d'Oooscar, « Retour » seul, aucun prestige possible", async () => {
+    const { menu, presenter, api } = setup([press("Prestige"), press("Retour"), close], { prestigePreview: [unreachable()] }, STATE);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "MENU"]);
+    assert.match(bare(presenter.shown[1]?.body ?? ""), /^Oooscar \[panique\]/);
+    assert.deepEqual(presenter.shown[1]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+    assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview"]);
+  });
+
+  it("le texte brut des écrans du prestige ne contient ni emoji ni point de suspension", async () => {
+    const { menu, presenter } = setup(
+      [press("Prestige"), press("Prestige !"), press("Retour"), close],
+      { prestigePreview: [ok(prestigePreview())], prestige: [ok(prestiged())] },
+      STATE,
+    );
+    await menu.open(PLAYER);
+    for (const spec of presenter.shown) {
+      assert.doesNotMatch(plain(spec), /\p{Extended_Pictographic}|\.\.\.|…/u);
+    }
   });
 });

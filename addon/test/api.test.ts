@@ -202,3 +202,95 @@ describe("getMissions", () => {
     assert.equal(result.kind, "network");
   });
 });
+
+describe("prestigePreview", () => {
+  const apercu = { allowed: true, lingotsTotal: 1_200, lingotsIfDoubled: 1_700, shares: [{ xuid: "42", lingots: 1_200 }], next: "EPOQUE_2" };
+
+  it("lit l'aperçu par un GET, sans corps", async () => {
+    const { transport, api } = setup([json(200, apercu)]);
+    const result = await api.prestigePreview(7);
+    assert.deepEqual(result, { kind: "ok", status: 200, body: apercu });
+    assert.equal(transport.requests[0]?.method, "GET");
+    assert.equal(transport.requests[0]?.url, "http://core:8080/v1/companies/7/prestige/preview");
+    assert.equal(transport.requests[0]?.body, undefined);
+  });
+
+  it("rejoue une fois une lecture qui tombe en panne", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, apercu)]);
+    const result = await api.prestigePreview(7);
+    assert.equal(result.kind, "ok");
+    assert.equal(transport.requests.length, 2);
+  });
+
+  it("une réponse hors contrat devient une erreur lisible qui nomme la clé", async () => {
+    const { api } = setup([json(200, { ...apercu, next: "EPOQUE_9" })]);
+    const result = await api.prestigePreview(7);
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") {
+      assert.equal(result.reason, "REPONSE_INATTENDUE");
+      assert.match(result.detail ?? "", /prestige\.next/);
+    }
+  });
+
+  it("une route pas encore écrite (501) reste une erreur du service", async () => {
+    const { api } = setup([json(501, { reason: "PAS_FAIT" })]);
+    const result = await api.prestigePreview(7);
+    assert.deepEqual(result, { kind: "error", status: 501, reason: "PAS_FAIT" });
+  });
+
+  it("un identifiant d'entreprise illisible n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, apercu)]);
+    const result = await api.prestigePreview(Number.NaN);
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.equal(result.reason, "REQUETE_INVALIDE");
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+describe("prestige", () => {
+  it("poste l'action, sans montant, et lit l'état rendu avec les soldes", async () => {
+    const { transport, api } = setup([json(200, { state: companyState({ courseNumber: 3 }), balances: balances({ lingots: 1_200 }) })]);
+    const result = await api.prestige(7, action);
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") {
+      assert.equal(result.body.state.courseNumber, 3);
+      assert.equal(result.body.balances.lingots, 1_200);
+    }
+    const request = transport.requests[0];
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.url, "http://core:8080/v1/companies/7/prestige");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), action);
+  });
+
+  it("le refus 403 PAS_LE_PDG garde son code", async () => {
+    const { api } = setup([json(403, { reason: "PAS_LE_PDG" })]);
+    const result = await api.prestige(7, action);
+    assert.deepEqual(result, { kind: "refused", status: 403, reason: "PAS_LE_PDG" });
+  });
+
+  it("le refus 409 SEUIL_NON_ATTEINT rend les Donar qui manquent", async () => {
+    const { api } = setup([json(409, { reason: "SEUIL_NON_ATTEINT", missing: 4_000 })]);
+    const result = await api.prestige(7, action);
+    assert.deepEqual(result, { kind: "refused", status: 409, reason: "SEUIL_NON_ATTEINT", missing: 4_000 });
+  });
+
+  it("une écriture n'est jamais rejouée toute seule", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, {})]);
+    const result = await api.prestige(7, action);
+    assert.equal(result.kind, "error");
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("un réseau coupé devient un résultat network", async () => {
+    const { api } = setup([new Error("connexion refusée")]);
+    const result = await api.prestige(7, action);
+    assert.equal(result.kind, "network");
+  });
+
+  it("un identifiant d'entreprise illisible n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, {})]);
+    const result = await api.prestige(-3, action);
+    assert.equal(result.kind, "error");
+    assert.equal(transport.requests.length, 0);
+  });
+});

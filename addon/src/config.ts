@@ -58,6 +58,8 @@ export interface WorldSettings {
   readonly buildRetryMaxSeconds: number;
   /** Combien de temps l'arrivée attend que la mini-île de départ soit posée, avant de laisser le joueur où il est. */
   readonly arrivalWaitSeconds: number;
+  /** Au plus ce temps d'attente avant de téléporter un joueur qui choisit une île sur la carte : le temps qu'elle soit posée. */
+  readonly travelWaitSeconds: number;
   /** L'entité d'Oooscar : l'identifiant de pack/entities/oooscar.json. */
   readonly oooscarType: string;
   /** Oooscar apparaît après cette attente, et on réessaie ce nombre de fois : le chunk d'arrivée n'est pas chargé à la seconde où le joueur y arrive. */
@@ -146,6 +148,7 @@ export const config: Config = {
     buildRetrySeconds: 2,
     buildRetryMaxSeconds: 30,
     arrivalWaitSeconds: 30,
+    travelWaitSeconds: 10,
     oooscarType: "silooo:oooscar",
     oooscarSpawnRetrySeconds: 1,
     oooscarSpawnRetries: 5,

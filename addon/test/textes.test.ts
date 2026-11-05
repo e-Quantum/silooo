@@ -4,10 +4,13 @@ import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { REFUSAL_REASONS } from "../src/protocol";
 import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, colored } from "../src/ui/apparence";
+import { formatAmount } from "../src/ui/nombres";
 import {
   BOUSSOLE_TEXTES,
   BULLES,
+  CARTE_TEXTES,
   CINEMATIQUE_TEXTES,
+  FACTORY_IDS,
   FACTORY_NAMES,
   FICHE_TEXTES,
   HUD_TEXTES,
@@ -15,9 +18,11 @@ import {
   MISSION_TEXTES,
   MISSION_TEXTES_IDS,
   OBJECTIFS_TEXTES,
+  PRESTIGE_TEXTES,
   REFUSAL_BUBBLE_REASONS,
   SILO_TEXTES,
   USINES_TEXTES,
+  eraName,
   factoryName,
   failureBubble,
   missionEndBubble,
@@ -158,6 +163,8 @@ const TOUS = [
   ...feuilles(FICHE_TEXTES, "FICHE_TEXTES"),
   ...feuilles(SILO_TEXTES, "SILO_TEXTES"),
   ...feuilles(OBJECTIFS_TEXTES, "OBJECTIFS_TEXTES"),
+  ...feuilles(PRESTIGE_TEXTES, "PRESTIGE_TEXTES"),
+  ...feuilles(CARTE_TEXTES, "CARTE_TEXTES"),
   ...Object.entries(MISSION_TEXTES).flatMap(([id, t]) => [
     { chemin: `MISSION_TEXTES.${id}.titre`, texte: t.titre },
     { chemin: `MISSION_TEXTES.${id}.consigne`, texte: t.consigne },
@@ -165,6 +172,9 @@ const TOUS = [
   ...feuilles(CINEMATIQUE_TEXTES, "CINEMATIQUE_TEXTES"),
   ...toutesLesBulles().map(({ nom, bulle }) => ({ chemin: `bulle ${nom}`, texte: bulle.text })),
 ];
+
+/** Le chemin du seul texte qui porte des points d'interrogation : le nom caché d'une usine que le joueur n'a pas encore. */
+const QUESTIONS_PERMISES = "CARTE_TEXTES.inconnue";
 
 describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () => {
   it("le contrôle trouve les textes", () => {
@@ -174,8 +184,14 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
   it("ni emoji, ni point de suspension, ni « !! », ni tiret cadratin, ni question", () => {
     for (const { chemin, texte } of TOUS) {
       assert.doesNotMatch(texte, /\p{Extended_Pictographic}/u, chemin);
-      assert.doesNotMatch(texte, /\.\.\.|…|!!|—|\?/, `${chemin} : ${texte}`);
+      assert.doesNotMatch(texte, /\.\.\.|…|!!|—/, `${chemin} : ${texte}`);
+      if (chemin !== QUESTIONS_PERMISES) assert.doesNotMatch(texte, /\?/, `${chemin} : ${texte}`);
     }
+  });
+
+  it("le seul point d'interrogation est le « ????? » de la carte : une usine cachée, pas une question", () => {
+    const avec = TOUS.filter(({ texte }) => texte.includes("?"));
+    assert.deepEqual(avec, [{ chemin: QUESTIONS_PERMISES, texte: "?????" }]);
   });
 
   it("tutoiement : jamais « vous », « votre » ni « vos »", () => {
@@ -183,7 +199,14 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
   });
 
   it("les titres de fenêtre sont en capitales, d'un ou deux mots", () => {
-    for (const titre of [MENU_TEXTES.titre, USINES_TEXTES.titre, FICHE_TEXTES.titre, SILO_TEXTES.titre]) {
+    for (const titre of [
+      MENU_TEXTES.titre,
+      USINES_TEXTES.titre,
+      FICHE_TEXTES.titre,
+      SILO_TEXTES.titre,
+      PRESTIGE_TEXTES.titre,
+      CARTE_TEXTES.titre,
+    ]) {
       assert.match(titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
     }
   });
@@ -203,6 +226,10 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
       MENU_TEXTES.retour,
       USINES_TEXTES.precedent,
       USINES_TEXTES.suite,
+      PRESTIGE_TEXTES.avant.retour,
+      PRESTIGE_TEXTES.apres.usines,
+      PRESTIGE_TEXTES.apres.retour,
+      CARTE_TEXTES.retour,
     ];
     for (const bouton of boutons) {
       assert.ok(mots(bouton).length >= 1 && mots(bouton).length <= 4, bouton);
@@ -361,5 +388,91 @@ describe("textes des missions", () => {
     assert.equal(OBJECTIFS_TEXTES.avancement("2", "5"), "Avancement 2/5");
     assert.equal(OBJECTIFS_TEXTES.recompense("10"), "Récompense 10 Lingots");
     assert.equal(OBJECTIFS_TEXTES.tuile.enCours("2", "5"), "Mission 2/5");
+  });
+});
+
+// ---------------------------------------------------------------- le prestige et la carte
+
+describe("textes du prestige et de la carte", () => {
+  const lire = (...morceaux: string[]): string => readFileSync(resolve("..", ...morceaux), "utf8");
+
+  it("l'ordre des usines de la carte est celui de definitions/usines.json et de definitions/iles.json", () => {
+    const usines = JSON.parse(lire("definitions", "usines.json")) as { usines: Array<{ id: string }> };
+    const iles = JSON.parse(lire("definitions", "iles.json")) as { usines: Array<{ id: string }> };
+    assert.deepEqual([...FACTORY_IDS], usines.usines.map((u) => u.id));
+    assert.deepEqual([...FACTORY_IDS], iles.usines.map((u) => u.id));
+  });
+
+  it("les noms d'époque sont ceux de docs/game-design.md, et un numéro inconnu n'a pas de nom inventé", () => {
+    const table = [...lire("docs", "game-design.md").matchAll(/^\| ([1-4]) · ([^|]+?) \|/gm)];
+    const noms = new Map(table.map((m) => [Number(m[1]), m[2] ?? ""]));
+    assert.equal(noms.size, 4, "la table des époques de game-design.md est introuvable");
+    for (const [numero, nom] of noms) assert.equal(eraName(numero), nom);
+    for (const era of [0, 5, -1, 1.5, Number.NaN]) assert.equal(eraName(era), "");
+  });
+
+  it("les gabarits mettent en forme ce que le service a dit, sans rien ajouter", () => {
+    assert.equal(PRESTIGE_TEXTES.tuile("4"), "Course 4");
+    assert.equal(PRESTIGE_TEXTES.epoque("2", "Vapeur"), "Époque 2 : Vapeur");
+    assert.equal(PRESTIGE_TEXTES.epoque("9", ""), "Époque 9");
+    assert.equal(PRESTIGE_TEXTES.course("3", "Époque 1 : Artisanale"), "Course 3 · Époque 1 : Artisanale");
+    assert.equal(PRESTIGE_TEXTES.suivante.epoque("2", "Vapeur"), "Course suivante : époque 2, Vapeur");
+    assert.equal(PRESTIGE_TEXTES.suivante.epoque("9", ""), "Course suivante : époque 9");
+    assert.equal(PRESTIGE_TEXTES.avant.seuil("2,5 M"), "Seuil 2,5 M Donar");
+    assert.equal(PRESTIGE_TEXTES.avant.total("1 200"), "Lingots en tout 1 200");
+    assert.equal(PRESTIGE_TEXTES.avant.taPart("700"), "Ta part 700 Lingots");
+    assert.equal(PRESTIGE_TEXTES.avant.unAssocie("500"), "Un associé 500 Lingots");
+    assert.equal(PRESTIGE_TEXTES.avant.doubler("1 700"), "Avec deux fois plus de Donar : 1 700 Lingots");
+    assert.equal(PRESTIGE_TEXTES.apres.etoiles("2"), "Étoiles 2");
+    assert.equal(PRESTIGE_TEXTES.apres.lingots("1 200"), "Tu as 1 200 Lingots");
+    assert.equal(CARTE_TEXTES.etat.entiere("12"), "Entière · niv. 12");
+    assert.equal(CARTE_TEXTES.etat.enTravaux(2, 4), "En travaux 2/4");
+  });
+
+  it("les phrases fixes n'ont aucun chiffre : tous les nombres viennent du service", () => {
+    const fixes = [
+      PRESTIGE_TEXTES.suivante.etoile,
+      PRESTIGE_TEXTES.avant.principe,
+      PRESTIGE_TEXTES.avant.pret,
+      PRESTIGE_TEXTES.avant.pasEncore,
+      ...PRESTIGE_TEXTES.avant.repart,
+      PRESTIGE_TEXTES.avant.reste,
+      PRESTIGE_TEXTES.apres.suite,
+      CARTE_TEXTES.phrase,
+      CARTE_TEXTES.etat.enRuine,
+    ];
+    for (const texte of fixes) assert.doesNotMatch(texte, /[0-9]/, texte);
+  });
+
+  it("« Prestige ! » est le bouton de confirmation du design system, et le seul à finir par un point d'exclamation", () => {
+    assert.equal(PRESTIGE_TEXTES.avant.confirmer, "Prestige !");
+    assert.ok(lire("design", "README.md").includes("« Prestige ! »"));
+    const boutons = [PRESTIGE_TEXTES.avant.retour, PRESTIGE_TEXTES.apres.usines, PRESTIGE_TEXTES.apres.retour, CARTE_TEXTES.retour];
+    for (const bouton of boutons) assert.doesNotMatch(bouton, /[.!?]$/, bouton);
+  });
+
+  it("l'écran d'avant dit ce qui repart et ce qui reste : le Donar et les usines repartent, les Lingots restent", () => {
+    assert.match(PRESTIGE_TEXTES.avant.repart.join(" "), /Donar/);
+    assert.match(PRESTIGE_TEXTES.avant.repart.join(" "), /usines/);
+    assert.match(PRESTIGE_TEXTES.avant.reste, /Lingots/);
+    assert.match(PRESTIGE_TEXTES.avant.reste, /Gemmes/);
+  });
+
+  it("la bulle du prestige réussi est fière, le refus du seuil dit les Donar qui manquent", () => {
+    assert.equal(BULLES.prestige.expression, "fier");
+    assert.equal(refusalBubble("SEUIL_NON_ATTEINT", 4_000).text, `Il te manque ${formatAmount(4_000)} Donar.`);
+    assert.equal(refusalBubble("SEUIL_NON_ATTEINT").text, "Le seuil n'est pas atteint.");
+    assert.equal(refusalBubble("PAS_LE_PDG").text, "Seul le PDG peut le faire.");
+  });
+
+  it("les bulles de la carte sont celles d'Oooscar qui s'excuse", () => {
+    for (const bulle of [BULLES.usinePasEncore, BULLES.ileIntrouvable, BULLES.ilePasPrete]) {
+      assert.equal(bulle.expression, "oups");
+    }
+  });
+
+  it("le repère du prestige est dans l'habillage provisoire, pas dans les textes", () => {
+    assert.equal(ICON.prestige, "[P]");
+    assert.equal(ICON.carte, "[C]");
   });
 });

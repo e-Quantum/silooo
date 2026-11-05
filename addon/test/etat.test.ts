@@ -109,7 +109,7 @@ describe("LinkState", () => {
 });
 
 describe("observeApi", () => {
-  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les neuf routes", async () => {
+  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les onze routes", async () => {
     const answers: ApiResult<unknown>[] = [];
     const result = (): Promise<ApiResult<never>> => {
       const next = answers.shift();
@@ -126,6 +126,8 @@ describe("observeApi", () => {
       buyLevels: result,
       restoreStep: result,
       getMissions: result,
+      prestigePreview: result,
+      prestige: result,
     };
     const link = createLinkState();
     const seen = observeApi(api, link);
@@ -140,6 +142,8 @@ describe("observeApi", () => {
       () => seen.buyLevels(7, "carriere", action, "1"),
       () => seen.restoreStep(7, "carriere", action, 1),
       () => seen.getMissions(XUID),
+      () => seen.prestigePreview(7),
+      () => seen.prestige(7, action),
     ];
     for (const call of calls) {
       const failed: ApiResult<unknown> = { kind: "network", message: "coupé" };

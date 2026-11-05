@@ -27,7 +27,11 @@ import {
   parseEventsPage,
   parseJoinResponse,
   parseMissionState,
+  parsePrestigePreview,
   PATHS,
+  PRESTIGE_NEXT,
+  prestigePath,
+  prestigePreviewPath,
   REFUSAL_REASONS,
   RESTORE_STEP_MAX,
   RESTORE_STEP_MIN,
@@ -336,7 +340,7 @@ describe("accord avec api/silooo-core.openapi.yaml, routes de l'entreprise", () 
       .filter((mot) => mot !== "");
   }
 
-  it("les quatre chemins existent", () => {
+  it("les six chemins existent", () => {
     for (const chemin of Object.values(COMPANY_PATHS)) {
       assert.ok(yaml.includes(`\n  ${chemin}:`), `${chemin} absent de l'OpenAPI`);
     }
@@ -544,5 +548,140 @@ describe("accord avec api/silooo-core.openapi.yaml, missions", () => {
     assert.match(texte, /`payload\.action` vaut `mission`/);
     assert.match(texte, /`missionId`/);
     assert.match(texte, /`rewardLingots`/);
+  });
+});
+
+// ---------------------------------------------------------------- phase 4 : le prestige
+
+describe("le prestige : chemins et lecture", () => {
+  const apercu = {
+    allowed: true,
+    lingotsTotal: 1_200,
+    lingotsIfDoubled: 1_700,
+    shares: [
+      { xuid: "42", lingots: 700 },
+      { xuid: "9007199254740993123", lingots: 500 },
+    ],
+    next: "EPOQUE_2",
+  };
+
+  it("les chemins remplacent companyId", () => {
+    assert.equal(prestigePath(7), "/v1/companies/7/prestige");
+    assert.equal(prestigePreviewPath(7), "/v1/companies/7/prestige/preview");
+  });
+
+  it("un identifiant d'entreprise illisible lève une erreur : rien ne part au service", () => {
+    for (const id of [1.5, -1, Number.NaN]) {
+      assert.throws(() => prestigePath(id), RangeError);
+      assert.throws(() => prestigePreviewPath(id), RangeError);
+    }
+  });
+
+  it("parsePrestigePreview lit l'aperçu tel que le service le donne, les XUID restent des chaînes", () => {
+    const parsed = parsePrestigePreview(apercu);
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, apercu);
+  });
+
+  it("lingotsIfDoubled est facultatif : absent, il reste absent", () => {
+    const { lingotsIfDoubled: _omis, ...sans } = apercu;
+    const parsed = parsePrestigePreview(sans);
+    assert.ok(parsed.ok);
+    assert.equal("lingotsIfDoubled" in parsed.value, false);
+  });
+
+  it("pas permis : les zéros du service sont rendus tels quels", () => {
+    const parsed = parsePrestigePreview({ allowed: false, lingotsTotal: 0, lingotsIfDoubled: 0, shares: [], next: "ETOILE" });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, { allowed: false, lingotsTotal: 0, lingotsIfDoubled: 0, shares: [], next: "ETOILE" });
+  });
+
+  it("chaque valeur de « next » du contrat est lue", () => {
+    for (const next of PRESTIGE_NEXT) {
+      const parsed = parsePrestigePreview({ ...apercu, next });
+      assert.ok(parsed.ok, next);
+      assert.equal(parsed.value.next, next);
+    }
+  });
+
+  it("ignore les clés en plus, que le contrat pourra ajouter", () => {
+    const parsed = parsePrestigePreview({ ...apercu, saison: 4, shares: [{ xuid: "42", lingots: 3, nom: "Alex" }] });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value.shares, [{ xuid: "42", lingots: 3 }]);
+  });
+
+  it("nomme la clé fautive", () => {
+    const lire = (corps: unknown) => parsePrestigePreview(corps);
+    assert.deepEqual(lire(undefined), { ok: false, problem: "prestige : objet attendu" });
+    assert.deepEqual(lire([]), { ok: false, problem: "prestige : objet attendu" });
+    assert.deepEqual(lire({ ...apercu, allowed: "oui" }), { ok: false, problem: "prestige.allowed : booléen attendu" });
+    assert.deepEqual(lire({ ...apercu, lingotsTotal: "12" }), { ok: false, problem: "prestige.lingotsTotal : nombre attendu" });
+    assert.deepEqual(lire({ ...apercu, lingotsTotal: 1.5 }), { ok: false, problem: "prestige.lingotsTotal : entier attendu" });
+    assert.deepEqual(lire({ ...apercu, lingotsTotal: -1 }), { ok: false, problem: "prestige.lingotsTotal : 0 au moins attendu" });
+    assert.deepEqual(lire({ ...apercu, lingotsIfDoubled: -5 }), { ok: false, problem: "prestige.lingotsIfDoubled : 0 au moins attendu" });
+    assert.deepEqual(lire({ ...apercu, shares: undefined }), { ok: false, problem: "prestige.shares : tableau attendu" });
+    assert.deepEqual(lire({ ...apercu, shares: ["x"] }), { ok: false, problem: "prestige.shares[0] : objet attendu" });
+    assert.deepEqual(lire({ ...apercu, shares: [{ lingots: 1 }] }), { ok: false, problem: "prestige.shares[0].xuid : chaîne attendue" });
+    assert.deepEqual(lire({ ...apercu, shares: [{ xuid: "abc", lingots: 1 }] }), { ok: false, problem: "prestige.shares[0].xuid : XUID attendu" });
+    assert.deepEqual(lire({ ...apercu, shares: [{ xuid: "42" }] }), { ok: false, problem: "prestige.shares[0].lingots : nombre attendu" });
+    assert.deepEqual(lire({ ...apercu, next: "EPOQUE_9" }), {
+      ok: false,
+      problem: "prestige.next : une de EPOQUE_2, EPOQUE_3, EPOQUE_4, ETOILE attendue",
+    });
+  });
+
+  it("refuse les nombres qui ne sont pas des nombres", () => {
+    for (const valeur of [Number.NaN, Number.POSITIVE_INFINITY, null, undefined]) {
+      assert.equal(parsePrestigePreview({ ...apercu, lingotsTotal: valeur }).ok, false);
+    }
+  });
+});
+
+/** Le contrat est dans l'OpenAPI : si un chemin ou une clé obligatoire du prestige dérive, ces tests échouent. */
+describe("accord avec api/silooo-core.openapi.yaml, prestige", () => {
+  const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+
+  function blocOf(chemin: string): string {
+    const debut = yaml.indexOf(`\n  ${chemin}:`);
+    assert.notEqual(debut, -1, `${chemin} absent de l'OpenAPI`);
+    const fin = yaml.indexOf("\n  /v1/", debut + 1);
+    return yaml.slice(debut, fin === -1 ? undefined : fin);
+  }
+
+  it("prestigePreview est un GET, prestige un POST qui peut refuser en 403 et en 409", () => {
+    const apercu = blocOf(COMPANY_PATHS.prestigePreview);
+    assert.match(apercu, /\n {4}get:\n/);
+    assert.match(apercu, /operationId: prestigePreview/);
+    const prestige = blocOf(COMPANY_PATHS.prestige);
+    assert.match(prestige, /\n {4}post:\n/);
+    assert.match(prestige, /operationId: prestige\n/);
+    assert.match(prestige, /'403': \{ \$ref: '#\/components\/responses\/Refused' \}/);
+    assert.match(prestige, /'409': \{ \$ref: '#\/components\/responses\/Refused' \}/);
+    assert.match(prestige, /requestBodies\/Action/);
+  });
+
+  it("PrestigePreview : toutes les clés obligatoires sont lues et exigées", () => {
+    const debut = yaml.indexOf("    PrestigePreview:\n");
+    assert.notEqual(debut, -1);
+    const ouvre = yaml.indexOf("required: [", debut);
+    const ferme = yaml.indexOf("]", ouvre);
+    const requises = yaml
+      .slice(ouvre + "required: [".length, ferme)
+      .split(",")
+      .map((mot) => mot.trim());
+    assert.deepEqual(requises, ["allowed", "lingotsTotal", "shares", "next"]);
+    const modele: Record<string, unknown> = { allowed: true, lingotsTotal: 1, shares: [], next: "ETOILE" };
+    for (const cle of requises) {
+      const sans = { ...modele };
+      delete sans[cle];
+      assert.equal(parsePrestigePreview(sans).ok, false, `la lecture accepte un aperçu sans « ${cle} »`);
+    }
+  });
+
+  it("« next » prend les valeurs du contrat, ni plus ni moins", () => {
+    const debut = yaml.indexOf("    PrestigePreview:\n");
+    const ligne = yaml.slice(yaml.indexOf("next:", debut), yaml.indexOf("\n", yaml.indexOf("next:", debut)));
+    const valeurs = ligne.slice(ligne.indexOf("[") + 1, ligne.indexOf("]")).split(",").map((mot) => mot.trim());
+    assert.deepEqual([...PRESTIGE_NEXT], valeurs);
   });
 });

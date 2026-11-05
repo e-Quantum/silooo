@@ -14,6 +14,7 @@ import type {
   CompanyUpdated,
   JoinResponse,
   MissionState,
+  PrestigePreview,
   Xuid,
 } from "../src/protocol";
 import type { Clock } from "../src/runtime";
@@ -65,19 +66,23 @@ export function joinOf(store: PlayerStore): JoinResponse {
 
 // ---------------------------------------------------------------- l'API de l'entreprise
 
-export type Company = Pick<CoreApi, "getCompany" | "collect" | "buyLevels" | "restoreStep">;
+export type Company = Pick<CoreApi, "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview">;
 
 export type Call =
   | { readonly op: "getCompany"; readonly companyId: number }
   | { readonly op: "collect"; readonly companyId: number; readonly action: ActionBase }
   | { readonly op: "buyLevels"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly amount: BuyAmount }
-  | { readonly op: "restoreStep"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly step: number };
+  | { readonly op: "restoreStep"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly step: number }
+  | { readonly op: "prestige"; readonly companyId: number; readonly action: ActionBase }
+  | { readonly op: "prestigePreview"; readonly companyId: number };
 
 export interface Script {
   getCompany?: Array<ApiResult<CompanyState>>;
   collect?: Array<ApiResult<CollectResponse>>;
   buyLevels?: Array<ApiResult<CompanyUpdated>>;
   restoreStep?: Array<ApiResult<CompanyUpdated>>;
+  prestige?: Array<ApiResult<CompanyUpdated>>;
+  prestigePreview?: Array<ApiResult<PrestigePreview>>;
 }
 
 export interface FakeCompany extends Company {
@@ -109,6 +114,14 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     restoreStep(companyId, factoryId, action, step) {
       calls.push({ op: "restoreStep", companyId, factoryId, action, step });
       return next("restoreStep", script.restoreStep);
+    },
+    prestige(companyId, action) {
+      calls.push({ op: "prestige", companyId, action });
+      return next("prestige", script.prestige);
+    },
+    prestigePreview(companyId) {
+      calls.push({ op: "prestigePreview", companyId });
+      return next("prestigePreview", script.prestigePreview);
     },
   };
 }
