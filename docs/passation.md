@@ -96,6 +96,24 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - [ ] `resource-pack/` : JSON UI qui masque les préfixes `silooo:hud|` et `silooo:consigne|` du canal de titre et place les monnaies et la consigne en haut à gauche, glyphes des icônes de `design/icones/`, images d'Oooscar ; `start.sh` l'installe à côté du pack de comportement ; puis `titleChannel: true`
 - [ ] Test de bout en bout de la première heure sur le BDS de test (**après le déploiement**, donc après Kr)
 
+## Phase 4 : la progression
+
+Condition de sortie (plan) : prestige et Lingots, époques suivantes, ville et zones, incidents à réparer, carte et
+îles, gains hors ligne, entreprise partagée (PDG et associés), Carnet de trouvailles ; le simulateur en Kotlin
+rejoue le tableur. Ouverte le 5 novembre 2026 pour le côté service, pendant que la phase 3 finit son add-on et son
+pack de ressources (décision 28). Le marché (`listMarket`, `createListing`, `buyListing`) reste « pas fait » tant
+que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie ne circule entre joueurs).
+
+- [ ] silooo-core : `prestigePreview` et `prestige` (seuil de la course, Lingots par la racine cubique du moteur, partage selon `share_percent`, `prestige_history`, course suivante : époque, multiplicateur figé, étoiles après la dernière époque ; usines remises au départ de course)
+- [ ] silooo-core : simulateur Kotlin qui rejoue les treize cibles du tableur de bout en bout (achats, paliers, prestiges, étoiles) et fait échouer la CI quand un temps sort de sa fourchette
+- [ ] silooo-core : personnel (`getCandidates`, `hire`, `assignStaff`, `fireStaff`) : candidats du jour, raretés sans tirage payant, salaires comme sortie d'argent, chef d'équipe et plafond hors ligne
+- [ ] silooo-core : incidents (`resolveIncident`) et énergie (`stoppedNoPower`), avec leurs événements
+- [ ] silooo-core : ville (`buyZone`, `placeBuilding`, `upgradeBuilding`) : prix fixes en Lingots de `ville.zonesPrixLingots`, niveau de mairie, bonus des bâtiments seulement une fois chiffrés dans `definitions/`
+- [ ] silooo-core : entreprise partagée (`invite`, `setShares`) : PDG et associés, parts qui font 100, Lingots partagés au prestige
+- [ ] silooo-core : commandes du jour (`todayOrder`, `deliverOrder`) et Carnet de trouvailles, Lingots hors prestige de `lingotsHorsPrestige`
+- [ ] add-on : carte et îles (formulaire natif, une icône par île, « ????? » pour les usines à découvrir, téléportation), écran de prestige avant / après, écrans du personnel, de la ville et de l'entreprise partagée (textes **à valider par Kr**)
+- [ ] `definitions/` : les chiffres que la phase 4 révèle manquants (bonus des bâtiments, coût de la remise en état, salaires), ajoutés avec leurs schémas et le tableur, jamais dans le code
+
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
@@ -220,6 +238,10 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
     dernier `heartbeat`, hors ligne sinon) et remet la date même à gain nul. Le sous-agent avait d'abord payé le
     joueur connecté à l'efficacité hors ligne : corrigé avant fusion. `leave` déclare désormais le 409 dans le
     contrat. Règles détaillées dans `docs/economie.md`, à valider par Kr.
+28. **La phase 4 s'ouvre côté service pendant que la phase 3 finit son add-on.** Même raison que la décision 24 :
+    `core/` est libre, les routes de progression ne touchent ni `addon/` ni `resource-pack/`, et trois sessions
+    tiennent en parallèle. La phase 3 ne se ferme qu'avec ses cases d'add-on et de pack, puis le test de bout en
+    bout après Kr ; la phase 4 ne se ferme jamais avant elle. Le marché reste « pas fait » (question ouverte à Kr).
 
 ## À valider par Kr
 
