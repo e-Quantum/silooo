@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   consoleLogger,
+  createRequestIdGenerator,
   createStatusLog,
   createSystemScheduler,
   describeError,
   guard,
+  pause,
   prefixLogger,
   secondsToTicks,
+  systemClock,
 } from "../src/runtime";
-import { recordingLogger } from "./helpers";
+import { fakeScheduler, recordingLogger } from "./helpers";
 
 describe("secondsToTicks", () => {
   it("20 ticks par seconde, arrondi, au moins un tick", () => {
@@ -110,5 +113,87 @@ describe("journal", () => {
   it("describeError donne une ligne", () => {
     assert.equal(describeError(new TypeError("mauvais")), "TypeError: mauvais");
     assert.equal(describeError("texte"), "texte");
+  });
+});
+
+describe("createRequestIdGenerator", () => {
+  const FORME = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  it("rend un UUID version 7 bien formé", () => {
+    const next = createRequestIdGenerator({ now: () => 1_762_300_000_000, random: () => 0.5 });
+    assert.match(next(), FORME);
+  });
+
+  it("met l'heure en ms dans les 48 premiers bits", () => {
+    const ms = 1_762_300_000_123;
+    const id = createRequestIdGenerator({ now: () => ms, random: () => 0.25 })();
+    const hex = id.replaceAll("-", "").slice(0, 12);
+    assert.equal(Number.parseInt(hex, 16), ms);
+  });
+
+  it("deux appels dans la même milliseconde ne donnent jamais le même identifiant, même avec un hasard constant", () => {
+    const next = createRequestIdGenerator({ now: () => 5000, random: () => 0 });
+    const ids = new Set<string>();
+    for (let index = 0; index < 10_000; index += 1) ids.add(next());
+    assert.equal(ids.size, 10_000);
+  });
+
+  it("les identifiants croissent avec l'heure", () => {
+    let ms = 1_000_000;
+    const next = createRequestIdGenerator({ now: () => ms, random: () => 0.9 });
+    const first = next();
+    ms += 1;
+    const second = next();
+    assert.ok(first < second);
+  });
+
+  it("une horloge qui recule reste unique et croissante", () => {
+    let ms = 2_000_000;
+    const next = createRequestIdGenerator({ now: () => ms, random: () => 0.3 });
+    const first = next();
+    ms -= 500;
+    const second = next();
+    assert.notEqual(first, second);
+    assert.ok(first < second);
+    assert.match(second, FORME);
+  });
+
+  it("encaisse un hasard aux limites et une horloge illisible", () => {
+    for (const random of [() => 0, () => 0.9999999999, () => 1, () => Number.NaN, () => -1]) {
+      const next = createRequestIdGenerator({ now: () => Number.NaN, random });
+      assert.match(next(), FORME);
+    }
+  });
+
+  it("sans réglage, utilise l'horloge et le hasard du moteur", () => {
+    const next = createRequestIdGenerator();
+    const a = next();
+    const b = next();
+    assert.match(a, FORME);
+    assert.notEqual(a, b);
+  });
+});
+
+describe("systemClock", () => {
+  it("rend l'heure en millisecondes", () => {
+    const before = Date.now();
+    const now = systemClock.now();
+    assert.ok(now >= before && now <= Date.now());
+  });
+});
+
+describe("pause", () => {
+  it("se résout quand l'horloge du serveur écoule le délai demandé, pas avant", async () => {
+    const scheduler = fakeScheduler();
+    let reprise = false;
+    const attente = pause(scheduler, 0.5).then(() => {
+      reprise = true;
+    });
+    assert.deepEqual(scheduler.timeouts.map((t) => t.seconds), [0.5]);
+    await Promise.resolve();
+    assert.equal(reprise, false);
+    scheduler.runNextTimeout();
+    await attente;
+    assert.equal(reprise, true);
   });
 });

@@ -3,7 +3,7 @@
 
 import type { ApiResult, Header, HttpMethod, Transport, TransportResponse } from "../src/http";
 import type { Logger, Scheduler } from "../src/runtime";
-import type { EventsPage, GameEvent, JoinResponse } from "../src/protocol";
+import type { Balances, CompanyState, EventsPage, Factory, GameEvent, JoinResponse } from "../src/protocol";
 
 export interface RecordingLogger extends Logger {
   readonly infos: string[];
@@ -118,4 +118,24 @@ export function eventsPage(events: GameEvent[], cursor?: number): EventsPage {
 
 export function ok<T>(body: T, status = 200): ApiResult<T> {
   return { kind: "ok", status, body };
+}
+
+export function factory(overrides: Partial<Factory> = {}): Factory {
+  return {
+    factoryId: "carriere",
+    state: "ACTIVE",
+    level: 3,
+    ratePerHour: 7200,
+    nextCost: 150,
+    nextMilestone: 25,
+    ...overrides,
+  };
+}
+
+export function companyState(overrides: Partial<CompanyState> = {}): CompanyState {
+  return { ...joinResponse().state, ...overrides };
+}
+
+export function balances(overrides: Partial<Balances> = {}): Balances {
+  return { lingots: 0, gemmes: 0, jetons: 0, cles: 0, ...overrides };
 }
