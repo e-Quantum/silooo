@@ -8,10 +8,10 @@
 //
 // tools/anti_ia.py lit les chaînes de ce fichier comme celles de tout addon/src/**/*.ts.
 
-import type { FactoryId, IncidentKindId, MissionId } from "../generated/definitions";
-import type { BuyAmount, MemberRole, RefusalReason, StaffRarity, StaffRole } from "../protocol";
+import type { CityBuildingId, FactoryId, IncidentKindId, MissionId } from "../generated/definitions";
+import type { BuyAmount, CityBonusType, MemberRole, RefusalReason, StaffRarity, StaffRole } from "../protocol";
 import { COLOR, EXPRESSION_MARK, type Expression } from "./apparence";
-import { formatAmount } from "./nombres";
+import { formatAmount, formatCount } from "./nombres";
 import type { FactoryStatus } from "./usines";
 
 // ---------------------------------------------------------------- noms des usines
@@ -45,11 +45,16 @@ function isKnownFactory(id: string): id is FactoryId {
   return Object.prototype.hasOwnProperty.call(FACTORY_NAMES, id);
 }
 
+/** Un identifiant du service devenu un nom lisible : « usine-neuve » → « Usine neuve ». */
+function readableName(id: string): string {
+  const spaced = id.replaceAll("-", " ").trim();
+  return spaced === "" ? id : `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`;
+}
+
 /** Le nom d'une usine. Un identifiant que cet add-on ne connaît pas encore devient un nom lisible : « usine-neuve » → « Usine neuve ». */
 export function factoryName(id: string): string {
   if (isKnownFactory(id)) return FACTORY_NAMES[id];
-  const spaced = id.replaceAll("-", " ").trim();
-  return spaced === "" ? id : `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`;
+  return readableName(id);
 }
 
 // ---------------------------------------------------------------- les bulles d'Oooscar
@@ -244,7 +249,6 @@ export const MENU_TEXTES = {
   prestige: "Prestige",
   objectifs: "Objectifs",
   personnel: "Personnel",
-  amis: "Amis",
   /** Le mot d'une tuile verrouillée. */
   bientot: "Bientôt",
   retour: "Retour",
@@ -259,6 +263,8 @@ export const MENU_TEXTES = {
   },
   /** La tuile qui mène aux associés (ASSOCIES_TEXTES). */
   associes: "Associés",
+  /** La tuile qui mène à la ville (VILLE_TEXTES). */
+  ville: "Ville",
 } as const;
 
 export const USINES_TEXTES = {
@@ -643,6 +649,8 @@ export const CARTE_TEXTES = {
   titre: "CARTE",
   phrase: "Choisis une île pour t'y rendre.",
   ilePrincipale: "Île principale",
+  /** La ligne d'info de l'île principale tant que l'entreprise n'a pas sa première zone : ce qui la débloque. */
+  ilePrincipaleVerrouillee: "Achète la première zone.",
   /** La ligne d'une usine que l'entreprise n'a pas encore : son nom reste caché. */
   inconnue: "?????",
   /** La ligne d'info d'une usine de l'entreprise, d'après son état dans le service. */
@@ -764,3 +772,147 @@ export const ASSOCIES_TEXTES = {
     entreprisePleine: say("oups", "Cette entreprise est pleine."),
   },
 } as const;
+
+// ---------------------------------------------------------------- la ville
+
+/**
+ * Les noms des bâtiments du catalogue de definitions/ville.json (clé « id »). Les types générés ne gardent que les
+ * identifiants : cette table les recopie, et un test la compare au fichier de données pour qu'elle ne dérive pas.
+ */
+export const BATIMENT_NOMS: Readonly<Record<CityBuildingId, string>> = {
+  mairie: "Mairie",
+  route: "Route",
+  maison: "Maison",
+  immeuble: "Immeuble",
+  commerce: "Commerce",
+  garage: "Garage",
+};
+
+/** Les identifiants des bâtiments dans l'ordre du catalogue. */
+export const BATIMENT_IDS: readonly string[] = Object.keys(BATIMENT_NOMS);
+
+function isKnownBuilding(id: string): id is CityBuildingId {
+  return Object.prototype.hasOwnProperty.call(BATIMENT_NOMS, id);
+}
+
+/** Le nom d'un bâtiment. Un type que cet add-on ne connaît pas encore devient un nom lisible, comme une usine. */
+export function batimentName(id: string): string {
+  return isKnownBuilding(id) ? BATIMENT_NOMS[id] : readableName(id);
+}
+
+/** « 2 usines actives » ; « 1 usine active » au singulier. */
+function usinesActives(usines: string): string {
+  return usines === "1" ? "1 usine active" : `${usines} usines actives`;
+}
+
+export const VILLE_TEXTES = {
+  titre: "VILLE",
+  retour: "Retour",
+  /** La ligne d'info de la tuile du menu, et de l'île principale sur la carte. */
+  mairie: (niveau: string): string => `Mairie niveau ${niveau}`,
+  /** La tuile du menu : fermée tant que le service ne donne pas de ville, ouverte avant la première zone. */
+  tuile: {
+    verrouillee: (usines: string): string => `Il faut ${usinesActives(usines)}.`,
+    premiere: (usines: string): string => `Première zone : ${usinesActives(usines)}`,
+  },
+  zone: {
+    aucune: "Tu n'as pas encore de zone.",
+    titre: "Prochaine zone",
+    numero: (index: string): string => `Zone ${index}`,
+    prix: (prix: string): string => `${prix} Lingots`,
+    mairieRequise: (niveau: string): string => `Mairie niveau ${niveau} requise`,
+    usinesRequises: (usines: string): string => (usines === "1" ? "1 usine active requise" : `${usines} usines actives requises`),
+    acheter: (index: string): string => `Acheter la zone ${index}`,
+    toutes: "Toutes les zones sont à toi.",
+  },
+  /** Ce que les bâtiments donnent ensemble, d'après le service. */
+  bonus: {
+    titre: "Bonus",
+    aucun: "Aucun bonus pour l'instant.",
+    logement: (loges: string, places: string): string => `Personnel logé ${loges} sur ${places}`,
+    /** Le bonus d'un bâtiment, tel que le service le donne (mis en forme, jamais calculé) : la même ligne sur l'enseigne et dans les écrans. */
+    types: {
+      LOGEMENTS: (places: number): string => `Logements ${formatCount(places)}`,
+      PRODUCTION_DONAR: (pourcent: number): string => `Donar +${formatAmount(pourcent)} %`,
+      LIVRAISON_VITESSE: (pourcent: number): string => `Livraison +${formatAmount(pourcent)} %`,
+    },
+  },
+  batiments: {
+    bouton: "Bâtiments",
+    nombre: (nombre: string): string => (nombre === "1" ? "1 bâtiment" : `${nombre} bâtiments`),
+    vide: "Aucun bâtiment pour l'instant.",
+    ligne: (nom: string, niveau: string): string => `${nom} niveau ${niveau}`,
+  },
+  fiche: {
+    niveau: (niveau: string, maximum: string): string => `Niveau ${niveau} sur ${maximum}`,
+    suivant: (prix: string): string => `Niveau suivant : ${prix} Lingots`,
+    maximum: "Niveau maximum.",
+    ameliorer: "Améliorer",
+  },
+  /** L'enseigne d'un bâtiment sur l'île principale : son nom, son niveau, puis son bonus. */
+  enseigne: {
+    niveau: (niveau: string): string => `Niveau ${niveau}`,
+  },
+  construire: {
+    titre: "CONSTRUIRE",
+    bouton: "Construire",
+    phrase: "Choisis un bâtiment à poser.",
+    detail: (prix: string, bonus: string): string => `${prix} Lingots · ${bonus}`,
+    detailSansBonus: (prix: string): string => `${prix} Lingots`,
+  },
+  poser: {
+    titre: "POSER",
+    parcelle: (x: string, z: string): string => `Parcelle ${x}, ${z}`,
+    ailleurs: "Place-toi sur l'île principale.",
+    inconnue: "Je ne sais pas où tu te trouves.",
+    prix: (prix: string): string => `Prix ${prix} Lingots`,
+    /** Où est la porte d'un bâtiment posé avec cette rotation. */
+    porte: {
+      0: "Porte au sud",
+      90: "Porte à l'ouest",
+      180: "Porte au nord",
+      270: "Porte à l'est",
+    },
+    /** Le sens d'une route posée avec cette rotation. */
+    sens: {
+      0: "Sens nord-sud",
+      90: "Sens est-ouest",
+      180: "Sens nord-sud",
+      270: "Sens est-ouest",
+    },
+    poser: "Poser ici",
+    tourner: "Tourner",
+  },
+  bulles: {
+    zoneAchetee: say("joie", "Nouvelle zone achetée !"),
+    batimentPose: say("joie", "Bâtiment posé."),
+    batimentAmeliore: say("joie", "Bâtiment amélioré !"),
+    /** Le joueur appuie sur « Poser ici » ailleurs que sur l'île principale. */
+    pasSurLIle: say("oups", "Va sur l'île principale."),
+    /** La position du joueur n'est pas lisible (monde pas démarré). */
+    positionInconnue: say("oups", "Je ne te trouve pas."),
+    /** ZONE_VERROUILLEE en achetant la première zone : il manque des usines actives. */
+    premiereZone: say("oups", "Il te faut plus d'usines actives."),
+    /** ZONE_VERROUILLEE en achetant une autre zone, ou en améliorant un bâtiment : la mairie doit monter. */
+    mairieBasse: say("oups", "Monte d'abord la mairie."),
+    /** ZONE_VERROUILLEE en posant un bâtiment : la parcelle est dans une zone fermée, ou la mairie est trop basse. */
+    parcelleFermee: say("oups", "Zone fermée ou mairie trop basse."),
+    /** EMPLACEMENT_OCCUPE en posant un bâtiment. */
+    emplacementOccupe: say("oups", "Un bâtiment est déjà là."),
+    /** DEJA_POSSEDE en posant un bâtiment : l'entreprise en a déjà autant que le catalogue le permet. */
+    maximumAtteint: say("oups", "Maximum atteint pour ce bâtiment."),
+    /** DEJA_POSSEDE en achetant une zone que l'entreprise a déjà. */
+    zoneDejaPossedee: say("fier", "Cette zone est déjà à toi."),
+    /** DEJA_POSSEDE en améliorant un bâtiment déjà à son dernier niveau. */
+    niveauMax: say("fier", "Déjà au niveau maximum."),
+  },
+} as const;
+
+/**
+ * Le bonus d'un bâtiment écrit en une ligne (« Logements 2 », « Donar +0,5 % »), ou undefined quand il n'en donne pas
+ * (la mairie, une route). La valeur est celle du service, mise en forme : rien n'est calculé.
+ */
+export function bonusLine(type: CityBonusType | null | undefined, bonus: number | null | undefined): string | undefined {
+  if (type === null || type === undefined || bonus === null || bonus === undefined) return undefined;
+  return VILLE_TEXTES.bonus.types[type](bonus);
+}

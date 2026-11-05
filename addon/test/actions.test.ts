@@ -20,7 +20,7 @@ import {
 
 const BASE = { version: 1, donar: 100, ratePerHour: 3_600, factories: [factory({ level: 3 })] } as const;
 
-/** Les routes du personnel et de l'entreprise partagée, que les faux de ces tests n'attendent pas. */
+/** Les routes du personnel, de l'entreprise partagée et de la ville, que les faux de ces tests n'attendent pas. */
 const INUTILES = {
   getCandidates: () => Promise.reject(new Error("inutile")),
   hire: () => Promise.reject(new Error("inutile")),
@@ -30,6 +30,9 @@ const INUTILES = {
   invite: () => Promise.reject(new Error("inutile")),
   setShares: () => Promise.reject(new Error("inutile")),
   acceptInvite: () => Promise.reject(new Error("inutile")),
+  buyZone: () => Promise.reject(new Error("inutile")),
+  placeBuilding: () => Promise.reject(new Error("inutile")),
+  upgradeBuilding: () => Promise.reject(new Error("inutile")),
 };
 
 function setup(script: Script, state = BASE) {
@@ -731,6 +734,9 @@ describe("renvoyer un membre", () => {
       invite: () => Promise.reject(new Error("inutile")),
       setShares: () => Promise.reject(new Error("inutile")),
       acceptInvite: () => Promise.reject(new Error("inutile")),
+      buyZone: () => Promise.reject(new Error("inutile")),
+      placeBuilding: () => Promise.reject(new Error("inutile")),
+      upgradeBuilding: () => Promise.reject(new Error("inutile")),
       hire: () =>
         new Promise<ApiResult<CompanyUpdated>>((resolve) => {
           envois += 1;

@@ -24,6 +24,8 @@ export interface ArrivalWorld<P> {
   isOnline(player: P): boolean;
   /** Pose le joueur en `at`, tourné vers `facing`. */
   teleport(player: P, at: Pos, facing: Pos): void;
+  /** Où se tient le joueur dans le monde des joueurs, ou undefined quand on ne peut pas le dire (parti, autre dimension). */
+  locate(player: P): Pos | undefined;
 }
 
 export interface ArrivalSettings {

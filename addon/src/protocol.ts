@@ -119,6 +119,8 @@ export interface CompanyState {
   version: number;
   /** Les membres, le PDG d'abord puis les associés dans l'ordre d'arrivée. Facultatif au contrat : absent, les écrans le lisent comme vide. */
   members?: Member[];
+  /** La ville de l'entreprise (mairie, prochaine zone, bâtiments, bonus). Absente tant que le service ne la rend pas : les écrans la lisent comme « pas de ville ». */
+  city?: CityState;
 }
 
 export interface JoinResponse {
@@ -355,6 +357,7 @@ function readCompanyState(value: unknown, path: string): CompanyState {
   if (rec["members"] !== undefined) {
     state.members = list(rec["members"], `${path}.members`).map((item, i) => readCompanyMember(item, `${path}.members[${i}]`));
   }
+  if (rec["city"] !== undefined && rec["city"] !== null) state.city = readCity(rec["city"], `${path}.city`);
   return state;
 }
 
@@ -843,4 +846,178 @@ function readCompanyMember(value: unknown, path: string): Member {
   const sharePercent = whole(rec, "sharePercent", path, SHARE_MIN);
   if (sharePercent > SHARE_MAX) throw new ShapeError(`${path}.sharePercent : ${SHARE_MAX} au plus attendu`);
   return { xuid, name: str(rec, "name", path), role: oneOf(rec, "role", path, MEMBER_ROLES), sharePercent };
+}
+
+// ---------------------------------------------------------------- phase 4 : la ville
+
+/** Ce qu'un bâtiment donne (`CityBuilding.bonusType`) : des places de logement, des pourcents de production, des pourcents de vitesse de livraison. */
+export const CITY_BONUS_TYPES = ["LOGEMENTS", "PRODUCTION_DONAR", "LIVRAISON_VITESSE"] as const;
+
+export type CityBonusType = (typeof CITY_BONUS_TYPES)[number];
+
+/** Les quatre rotations d'un bâtiment, en degrés. */
+export const BUILDING_ROTATIONS = [0, 90, 180, 270] as const;
+
+export type BuildingRotation = (typeof BUILDING_ROTATIONS)[number];
+
+/** Les zones de la ville : de 1 à 16. */
+export const ZONE_MIN = 1;
+export const ZONE_MAX = 16;
+
+/** La prochaine zone à acheter (`CityState.nextZone`) : le prix et ce qu'elle demande, tels que le service les donne. */
+export interface CityNextZone {
+  zoneIndex: number;
+  priceLingots: number;
+  mairieLevelRequired: number;
+  /** Usines actives qu'il faut avoir ; zéro sauf pour la première zone. */
+  activeFactoriesRequired: number;
+}
+
+/** Ce que coûte le niveau suivant d'un bâtiment (`CityBuilding.nextLevel`). */
+export interface CityNextLevel {
+  priceLingots: number;
+  mairieLevelRequired: number;
+}
+
+/** Un bâtiment de la ville (`CityBuilding`). `x` et `z` sont le coin de sa parcelle, en blocs depuis le coin de l'île principale. */
+export interface CityBuilding {
+  buildingId: number;
+  buildingType: string;
+  level: number;
+  maxLevel: number;
+  zoneIndex: number;
+  x: number;
+  z: number;
+  rotation: BuildingRotation;
+  /** Nuls pour la mairie et les routes. */
+  bonusType?: CityBonusType | null;
+  bonus?: number | null;
+  /** Nul au dernier niveau. */
+  nextLevel?: CityNextLevel | null;
+}
+
+/** Ce que les bâtiments donnent ensemble (`CityBonuses`), plafonds appliqués par le service. */
+export interface CityBonuses {
+  housingPlaces: number;
+  housedStaff: number;
+  donarProductionPercent: number;
+  deliverySpeedPercent: number;
+}
+
+/** La ville de l'entreprise (`CityState`). Le service la calcule : l'add-on l'affiche. */
+export interface CityState {
+  mairieLevel: number;
+  /** Nulle quand toutes les zones sont à l'entreprise. Le contrat ne la marque pas obligatoire : absente, elle est lue comme nulle. */
+  nextZone: CityNextZone | null;
+  buildings: CityBuilding[];
+  bonuses: CityBonuses;
+}
+
+function readNextZone(value: unknown, path: string): CityNextZone {
+  const rec = record(value, path);
+  const zoneIndex = whole(rec, "zoneIndex", path, ZONE_MIN);
+  if (zoneIndex > ZONE_MAX) throw new ShapeError(`${path}.zoneIndex : ${ZONE_MAX} au plus attendu`);
+  return {
+    zoneIndex,
+    priceLingots: whole(rec, "priceLingots", path, 0),
+    mairieLevelRequired: whole(rec, "mairieLevelRequired", path, 1),
+    activeFactoriesRequired: whole(rec, "activeFactoriesRequired", path, 0),
+  };
+}
+
+function readCityBuilding(value: unknown, path: string): CityBuilding {
+  const rec = record(value, path);
+  const zoneIndex = whole(rec, "zoneIndex", path, ZONE_MIN);
+  if (zoneIndex > ZONE_MAX) throw new ShapeError(`${path}.zoneIndex : ${ZONE_MAX} au plus attendu`);
+  const rotation = num(rec, "rotation", path);
+  const found = BUILDING_ROTATIONS.find((candidate) => candidate === rotation);
+  if (found === undefined) throw new ShapeError(`${path}.rotation : une de ${BUILDING_ROTATIONS.join(", ")} attendue`);
+  const building: CityBuilding = {
+    buildingId: whole(rec, "buildingId", path, 0),
+    buildingType: str(rec, "buildingType", path),
+    level: whole(rec, "level", path, 1),
+    maxLevel: whole(rec, "maxLevel", path, 1),
+    zoneIndex,
+    x: whole(rec, "x", path, 0),
+    z: whole(rec, "z", path, 0),
+    rotation: found,
+  };
+  if (building.buildingType === "") throw new ShapeError(`${path}.buildingType : identifiant vide`);
+  if (rec["bonusType"] !== undefined) building.bonusType = rec["bonusType"] === null ? null : oneOf(rec, "bonusType", path, CITY_BONUS_TYPES);
+  if (rec["bonus"] !== undefined) building.bonus = rec["bonus"] === null ? null : num(rec, "bonus", path);
+  if (rec["nextLevel"] !== undefined) {
+    if (rec["nextLevel"] === null) building.nextLevel = null;
+    else {
+      const next = record(rec["nextLevel"], `${path}.nextLevel`);
+      building.nextLevel = {
+        priceLingots: whole(next, "priceLingots", `${path}.nextLevel`, 0),
+        mairieLevelRequired: whole(next, "mairieLevelRequired", `${path}.nextLevel`, 1),
+      };
+    }
+  }
+  return building;
+}
+
+function readCityBonuses(value: unknown, path: string): CityBonuses {
+  const rec = record(value, path);
+  return {
+    housingPlaces: whole(rec, "housingPlaces", path, 0),
+    housedStaff: whole(rec, "housedStaff", path, 0),
+    donarProductionPercent: num(rec, "donarProductionPercent", path),
+    deliverySpeedPercent: num(rec, "deliverySpeedPercent", path),
+  };
+}
+
+function readCity(value: unknown, path: string): CityState {
+  const rec = record(value, path);
+  const nextZone = rec["nextZone"];
+  return {
+    mairieLevel: whole(rec, "mairieLevel", path, 1),
+    nextZone: nextZone === undefined || nextZone === null ? null : readNextZone(nextZone, `${path}.nextZone`),
+    buildings: list(rec["buildings"], `${path}.buildings`).map((item, i) => readCityBuilding(item, `${path}.buildings[${i}]`)),
+    bonuses: readCityBonuses(rec["bonuses"], `${path}.bonuses`),
+  };
+}
+
+/** Gabarits des chemins de la ville. `{zoneIndex}` et `{buildingId}` sont remplacés par les fonctions ci-dessous. */
+export const CITY_PATHS = {
+  zone: "/v1/companies/{companyId}/city/zones/{zoneIndex}",
+  buildings: "/v1/companies/{companyId}/city/buildings",
+  building: "/v1/companies/{companyId}/city/buildings/{buildingId}",
+} as const;
+
+/** Le chemin de `buyZone`. `zoneIndex` va de 1 à 16 ; hors de ces bornes la fonction lève une erreur. */
+export function buyZonePath(companyId: number, zoneIndex: number): string {
+  if (!Number.isInteger(zoneIndex) || zoneIndex < ZONE_MIN || zoneIndex > ZONE_MAX) throw new RangeError(`zoneIndex invalide : ${zoneIndex}`);
+  return CITY_PATHS.zone.replace("{companyId}", companySegment(companyId)).replace("{zoneIndex}", String(zoneIndex));
+}
+
+/** Le chemin de `placeBuilding`. */
+export function placeBuildingPath(companyId: number): string {
+  return CITY_PATHS.buildings.replace("{companyId}", companySegment(companyId));
+}
+
+/** Le chemin de `upgradeBuilding`. `buildingId` est un entier du service (int64 dans le contrat). */
+export function upgradeBuildingPath(companyId: number, buildingId: number): string {
+  if (!Number.isSafeInteger(buildingId) || buildingId < 0) throw new RangeError(`buildingId invalide : ${buildingId}`);
+  return CITY_PATHS.building.replace("{companyId}", companySegment(companyId)).replace("{buildingId}", String(buildingId));
+}
+
+/** Longueur maximale de `buildingType` dans `placeBuilding` : 32 caractères. */
+export const BUILDING_TYPE_MAX = 32;
+
+/** Corps de `placeBuilding` : l'action, le type, la parcelle (son coin, en blocs depuis le coin de l'île principale) et la rotation. */
+export interface PlaceBuildingBody extends ActionBase {
+  buildingType: string;
+  x: number;
+  z: number;
+  rotation: BuildingRotation;
+}
+
+export function placeBuildingBody(action: ActionBase, buildingType: string, x: number, z: number, rotation: BuildingRotation): PlaceBuildingBody {
+  if (buildingType === "" || buildingType.length > BUILDING_TYPE_MAX) throw new RangeError(`buildingType invalide : ${buildingType}`);
+  if (!Number.isSafeInteger(x) || x < 0) throw new RangeError(`x invalide : ${x}`);
+  if (!Number.isSafeInteger(z) || z < 0) throw new RangeError(`z invalide : ${z}`);
+  if (!BUILDING_ROTATIONS.includes(rotation)) throw new RangeError(`rotation invalide : ${rotation}`);
+  return { requestId: action.requestId, actor: action.actor, buildingType, x, z, rotation };
 }

@@ -8,6 +8,7 @@ import { formatAmount } from "../src/ui/nombres";
 import {
   AGENCE_TEXTES,
   ASSOCIES_TEXTES,
+  BATIMENT_NOMS,
   BOUSSOLE_TEXTES,
   BULLES,
   CARTE_TEXTES,
@@ -28,6 +29,7 @@ import {
   REPARATION_TEXTES,
   SILO_TEXTES,
   USINES_TEXTES,
+  VILLE_TEXTES,
   eraName,
   factoryName,
   failureBubble,
@@ -65,6 +67,7 @@ function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
   }
   for (const [id, textes] of Object.entries(MISSION_TEXTES)) liste.push({ nom: `fin de ${id}`, bulle: textes.fin });
   for (const [cle, bulle] of Object.entries(ASSOCIES_TEXTES.bulles)) liste.push({ nom: `associés ${cle}`, bulle });
+  for (const [cle, bulle] of Object.entries(VILLE_TEXTES.bulles)) liste.push({ nom: `ville ${cle}`, bulle });
   // L'indice d'Oooscar à chaque étape du mini-jeu de réparation, pour chaque sorte et pour le mini-jeu général.
   for (const kind of [...INCIDENT_TEXTES_KINDS, null]) {
     repairSteps(kind).forEach((step, index) => liste.push({ nom: `réparation ${kind ?? "générale"} étape ${index + 1}`, bulle: step.erreur }));
@@ -188,6 +191,8 @@ const TOUS = [
   ...feuilles(PERSONNEL_TEXTES, "PERSONNEL_TEXTES"),
   ...feuilles(AGENCE_TEXTES, "AGENCE_TEXTES"),
   ...feuilles(ASSOCIES_TEXTES, "ASSOCIES_TEXTES"),
+  ...feuilles(VILLE_TEXTES, "VILLE_TEXTES"),
+  ...feuilles(BATIMENT_NOMS, "BATIMENT_NOMS"),
   ...feuilles(INCIDENT_TEXTES, "INCIDENT_TEXTES"),
   ...feuilles(REPARATION_TEXTES, "REPARATION_TEXTES"),
   ...Object.entries(MISSION_TEXTES).flatMap(([id, t]) => [
@@ -235,6 +240,9 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
       ASSOCIES_TEXTES.invitation.titre,
       ASSOCIES_TEXTES.choix.titre,
       ASSOCIES_TEXTES.formulaire.titre,
+      VILLE_TEXTES.titre,
+      VILLE_TEXTES.construire.titre,
+      VILLE_TEXTES.poser.titre,
     ]) {
       assert.match(titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
     }
