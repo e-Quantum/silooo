@@ -86,7 +86,7 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 | Étoile | `companies.stars`, `PrestigePreview.next` = `ETOILE` | Après la dernière époque, chaque prestige donne une étoile et un bonus permanent de production, sans fin. |
 | Mission | `player_missions` | Objectif court (quête quotidienne, mission de la mairie, remise en état). Les définitions des missions sont à écrire. |
 | Bingo | (à définir) | Carte d'objectifs renouvelée chaque semaine. Pas encore dans les contrats. |
-| Carnet de trouvailles | (à définir, phase 4 du plan) | Mentionné dans [plan-construction.md](plan-construction.md) ; aucun contrat encore. |
+| Carnet de trouvailles | `player_findings`, `getFindings`, `ANNONCE` avec `payload.action = "trouvaille"` | Les ressources du jeu que le joueur a vu sortir d'une de ses usines, une prime en Lingots chacune ; règle dans [economie.md](economie.md), à valider par Kr. |
 | Classement hebdomadaire | (calculé depuis `currency_ledger`) | Mesure les Lingots gagnés dans la semaine, pas la richesse totale. |
 
 ## Ville
@@ -112,7 +112,7 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 
 | Mot du jeu | Dans le code | Définition |
 | --- | --- | --- |
-| Commande mondiale | `world_orders`, `todayOrder`, événement `COMMANDE_TERMINEE` | Une commande par jour que tout le serveur livre ensemble. |
+| Commande mondiale | `world_orders`, `todayOrder`, événement `COMMANDE_TERMINEE` | Une commande par jour que tout le serveur livre ensemble ; la ressource suit le rang du jour, la prime est en Lingots ([economie.md](economie.md)). |
 | Livraison | `world_order_contributions`, `deliverOrder` | La part livrée par un joueur à la commande du jour. |
 | Commande client | (à définir) | Contrat de PNJ avec délai et prime, choisi sur un tableau quotidien. Pas encore dans les contrats. |
 | Marché | `market_listings`, `market_trades` | Échange de ressources entre joueurs, en Lingots, taxé. Sa forme reste à trancher par Kr, voir [vision.md](vision.md). |

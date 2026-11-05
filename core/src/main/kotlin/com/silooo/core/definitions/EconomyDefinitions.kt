@@ -19,6 +19,7 @@ data class EconomyDefinitions(
     @SerialName("horsLigne") val offline: OfflineDefinition,
     val prestige: PrestigeDefinition,
     @SerialName("lingotsHorsPrestige") val lingotsOutsidePrestige: LingotsOutsidePrestigeDefinition,
+    @SerialName("commandeDuJour") val dailyOrder: DailyOrderDefinition,
     @SerialName("ville") val city: CityDefinition,
     val notation: NotationDefinition,
 )
@@ -95,6 +96,19 @@ data class CourseStartDefinition(
 data class LingotsOutsidePrestigeDefinition(
     @SerialName("missionBienvenue") val welcomeMission: Long,
     @SerialName("moyenneParHeureDeJeu") val averagePerPlayHour: Double,
+    /** Les Lingots que la commande du jour verse à chaque joueur qui a livré, une fois, quand elle est terminée. */
+    @SerialName("commandeDuJour") val dailyOrder: Long,
+    /** Les Lingots de chaque trouvaille du Carnet, versés la première fois que le joueur la fait. */
+    @SerialName("trouvaille") val finding: Long,
+)
+
+/** La commande mondiale du jour (`/v1/orders/today`) : ce qu'il faut livrer et ce que ça coûte. La ressource du jour sort de usines.json. */
+@Serializable
+data class DailyOrderDefinition(
+    /** Les unités que tout le serveur doit livrer ensemble pour terminer la commande. */
+    @SerialName("objectifUnites") val targetUnits: Long,
+    /** Le prix d'une unité livrée, en minutes du revenu de l'entreprise qui la livre. */
+    @SerialName("minutesDeProductionParUnite") val minutesOfIncomePerUnit: Double,
 )
 
 @Serializable

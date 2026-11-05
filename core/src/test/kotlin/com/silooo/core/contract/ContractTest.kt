@@ -23,7 +23,9 @@ import com.silooo.core.events.EVENTS_DEFAULT_LIMIT
 import com.silooo.core.events.EVENTS_MAX_LIMIT
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.events.InMemoryEventStore
+import com.silooo.core.findings.InMemoryFindingStore
 import com.silooo.core.mission.InMemoryMissionStore
+import com.silooo.core.orders.InMemoryOrderStore
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.GAMERTAG_MAX_LENGTH
 import com.silooo.core.session.InMemorySessionStore
@@ -44,6 +46,8 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.lang.reflect.Modifier
 import java.net.URLEncoder
+import java.time.Clock
+import java.time.ZoneOffset
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -112,6 +116,9 @@ class ContractTest {
             eventStore = InMemoryEventStore(events),
             companyStore = InMemoryCompanyStore(sessions),
             missionStore = missions,
+            orderStore = InMemoryOrderStore(sessions),
+            ordersClock = Clock.fixed(sessions.now, ZoneOffset.UTC),
+            findingStore = InMemoryFindingStore(sessions),
         )
     }
 
@@ -141,12 +148,12 @@ class ContractTest {
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
     private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy) {
-        if (operationId == "getMissions") {
-            // Un joueur déjà inscrit, sans entreprise : les missions ne dépendent que de lui.
+        if (operationId == "getMissions" || operationId == "getFindings") {
+            // Un joueur déjà inscrit, sans entreprise : les missions et le Carnet ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
             return
         }
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige")
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "deliverOrder")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
@@ -162,6 +169,8 @@ class ContractTest {
                 sessions.companies[companyId] = sessions.companies.getValue(companyId).copy(donar = price)
             }
             "restoreStep" -> sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.EN_RUINE, 0, 0, null))
+            // De quoi payer la livraison minimale (une unité) quel que soit le prix que le moteur en demande.
+            "deliverOrder" -> sessions.companies[companyId] = sessions.companies.getValue(companyId).copy(donar = 1_000_000.0)
             // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
             "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
                 .copy(donarEarned = EconomyEngine(TestDefinitions.loaded).prestigeThreshold(1) * 4)
@@ -211,9 +220,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 30 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    @DisplayName("Le contrat compte 31 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
     fun thirtyOperations() {
-        assertEquals(30, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+        assertEquals(31, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {
@@ -402,6 +411,13 @@ class ContractTest {
                 "{}", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","amount":"2"}""",
                 """{"requestId":"$ID","actor":"$krXuid","amount":1}""", """{"requestId":"abc","actor":"$krXuid","amount":"1"}""",
             ),
+            "deliverOrder" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""", """{"actor":"$krXuid","quantity":1}""",
+                """{"requestId":"$ID","quantity":1}""", """{"requestId":"abc","actor":"$krXuid","quantity":1}""",
+                """{"requestId":"$ID","actor":"abc","quantity":1}""", """{"requestId":"$ID","actor":"$krXuid","quantity":0}""",
+                """{"requestId":"$ID","actor":"$krXuid","quantity":-1}""", """{"requestId":"$ID","actor":"$krXuid","quantity":1.5}""",
+                """{"requestId":"$ID","actor":"$krXuid","quantity":"un"}""",
+            ),
             "restoreStep" to listOf(
                 "{}", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","step":0}""",
                 """{"requestId":"$ID","actor":"$krXuid","step":5}""", """{"requestId":"$ID","actor":"$krXuid","step":"un"}""",
@@ -411,6 +427,8 @@ class ContractTest {
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
         // Un XUID mal formé, trop long, ou d'un joueur que le service ne connaît pas.
         val badMissionUrls = listOf("/v1/players/abc/missions", "/v1/players/-1/missions", "/v1/players/123456789012345678901/missions", "/v1/players/$krXuid/missions")
+        val badFindingUrls = listOf("/v1/players/abc/findings", "/v1/players/-1/findings", "/v1/players/123456789012345678901/findings", "/v1/players/$krXuid/findings")
+        val badOrderQueries = listOf("?xuid=abc", "?xuid=-1", "?xuid=123456789012345678901", "?xuid=")
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         return operations.filter { it.id in bad }.flatMap { op ->
@@ -423,6 +441,10 @@ class ContractTest {
             dynamicTest("prestigePreview : $url") { assertBadRequest(operations.single { it.id == "prestigePreview" }, "$url/prestige/preview", null) }
         } + badMissionUrls.map { url ->
             dynamicTest("getMissions : $url") { assertBadRequest(operations.single { it.id == "getMissions" }, url, null) }
+        } + badFindingUrls.map { url ->
+            dynamicTest("getFindings : $url") { assertBadRequest(operations.single { it.id == "getFindings" }, url, null) }
+        } + badOrderQueries.map { query ->
+            dynamicTest("todayOrder : $query") { assertBadRequest(operations.single { it.id == "todayOrder" }, "/v1/orders/today$query", null) }
         } + queries.map { query ->
             dynamicTest("pollEvents : $query") { assertBadRequest(operations.single { it.id == "pollEvents" }, "/v1/events$query", null) }
         }
@@ -618,6 +640,7 @@ class ContractTest {
             "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
+            "todayOrder" to 200, "deliverOrder" to 200, "getFindings" to 200,
         )
 
         /**

@@ -5,7 +5,7 @@
   "description": "Forme de definitions/economie.json. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "niveaux", "horsLigne", "prestige", "lingotsHorsPrestige", "ville", "notation"],
+  "required": ["version", "niveaux", "horsLigne", "prestige", "lingotsHorsPrestige", "commandeDuJour", "ville", "notation"],
   "properties": {
     "version": { "type": "integer", "minimum": 1 },
     "niveaux": {
@@ -96,10 +96,21 @@
     "lingotsHorsPrestige": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["missionBienvenue", "moyenneParHeureDeJeu"],
+      "required": ["missionBienvenue", "moyenneParHeureDeJeu", "commandeDuJour", "trouvaille"],
       "properties": {
         "missionBienvenue": { "type": "integer", "minimum": 0 },
-        "moyenneParHeureDeJeu": { "type": "number", "minimum": 0 }
+        "moyenneParHeureDeJeu": { "type": "number", "minimum": 0 },
+        "commandeDuJour": { "type": "integer", "minimum": 0 },
+        "trouvaille": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "commandeDuJour": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objectifUnites", "minutesDeProductionParUnite"],
+      "properties": {
+        "objectifUnites": { "type": "integer", "minimum": 1 },
+        "minutesDeProductionParUnite": { "type": "number", "exclusiveMinimum": 0 }
       }
     },
     "ville": {

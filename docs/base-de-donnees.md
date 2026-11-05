@@ -29,6 +29,7 @@ socle. Ce fichier les regroupe par domaine et rappelle les règles ; les colonne
 | Prestige | `prestige_history` | Chaque prestige, son seuil, ses Donar gagnés, ses Lingots et sa durée |
 | Ville | `city_zones`, `city_buildings`, `company_vehicles`, `city_votes` | Zones achetées et par qui, bâtiments posés, véhicules, votes des plus belles villes |
 | Commandes | `player_missions`, `world_orders`, `world_order_contributions` | Missions, commande mondiale du jour et part de chacun |
+| Carnet | `player_findings` | Les ressources que chaque joueur a trouvées, une ligne chacune (migration [V3__carnet.sql](../core/src/main/resources/db/migration/V3__carnet.sql)) |
 | Marché | `market_listings`, `market_trades` | Annonces et ventes, avec la taxe détruite |
 | Saison et social | `season_pass`, `season_claims`, `server_votes`, `friends` | Pass et paliers réclamés, votes pour le serveur, amis |
 | Événements | `game_events` | Ce que le service a à dire au jeu, avec un identifiant croissant |

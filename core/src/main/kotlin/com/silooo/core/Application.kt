@@ -21,9 +21,15 @@ import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.EventStore
 import com.silooo.core.events.JdbcEventStore
 import com.silooo.core.events.eventsRoutes
+import com.silooo.core.findings.FindingStore
+import com.silooo.core.findings.JdbcFindingStore
+import com.silooo.core.findings.findingRoutes
 import com.silooo.core.mission.JdbcMissionStore
 import com.silooo.core.mission.MissionStore
 import com.silooo.core.mission.missionRoutes
+import com.silooo.core.orders.JdbcOrderStore
+import com.silooo.core.orders.OrderStore
+import com.silooo.core.orders.orderRoutes
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.server.serverRoutes
 import com.silooo.core.session.CompanyBootstrap
@@ -42,6 +48,7 @@ import io.ktor.server.application.log
 import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import java.time.Clock
 import java.time.Duration
 
 /**
@@ -74,6 +81,12 @@ class Dependencies(
     val companyStore: CompanyStore = JdbcCompanyStore(),
     /** Les accès SQL des missions (`player_missions`), de leur récompense en Lingots et de leur événement. */
     val missionStore: MissionStore = JdbcMissionStore(),
+    /** Les accès SQL de la commande mondiale du jour (`world_orders`, `world_order_contributions`), de sa prime et de ses événements. */
+    val orderStore: OrderStore = JdbcOrderStore(),
+    /** L'horloge qui donne le jour de la commande mondiale (date UTC) ; les tests la remplacent par une horloge qu'ils avancent. */
+    val ordersClock: Clock = Clock.systemUTC(),
+    /** Les accès SQL du Carnet de trouvailles (`player_findings`), de leur prime en Lingots et de leur événement. */
+    val findingStore: FindingStore = JdbcFindingStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
     val apiRequestRetention: Duration? = null,
 )
@@ -111,6 +124,8 @@ fun Application.siloooModule(dependencies: Dependencies) {
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
             missionRoutes(dependencies)
+            orderRoutes(dependencies)
+            findingRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }
