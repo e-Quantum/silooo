@@ -48,6 +48,7 @@ Dernière mise à jour : 5 novembre 2026, début de la phase 0 (session de direc
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI
 - [ ] Relire la section « Décisions prises sans Kr » et dire ce qui ne va pas
+- [ ] Dans l'application Claude, ouvrir les deux sessions « Phase 0 : outillage » et « Phase 0 : recettes » restées en attente de « Trust repository » et les fermer (leur travail a été fait par la direction) ; au prochain lancement d'une session PC en worktree, cliquer « Trust repository » une fois
 
 ## Décisions prises sans Kr
 
