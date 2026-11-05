@@ -31,7 +31,7 @@
           "minimum": 1
         },
         "demiCote": {
-          "description": "Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins le rayon d'une plateforme.",
+          "description": "Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins plateforme.rayonMax. Hors de l'île principale aussi à la plus grande taille : demiCote moins rayonMax dépasse ilePrincipaleDemiCote.",
           "type": "integer",
           "minimum": 1
         }
@@ -41,9 +41,10 @@
       "description": "Le sol d'une mini-île : un disque, en couches de plus en plus étroites vers le bas.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["rayon", "couches"],
+      "required": ["rayon", "rayonMax", "couches"],
       "properties": {
         "rayon": { "description": "Rayon en blocs de la couche du dessus.", "type": "integer", "minimum": 3 },
+        "rayonMax": { "description": "Rayon en blocs de la plus grande taille d'île d'usine (décidé le 5 nov. 2026 : les îles grandissent). L'anneau et la case se vérifient avec lui, pour qu'une île ne touche jamais l'île principale, sa voisine ni la case d'à côté, même à sa plus grande taille. Au moins rayon.", "type": "integer", "minimum": 3 },
         "couches": {
           "description": "De haut en bas. La première couche est la face du dessus, à l'altitude « hauteur ».",
           "type": "array",

@@ -36,8 +36,8 @@ import { cityBuilding, cityState, emptyCity, house } from "./ville-helpers";
 
 type Travel = NonNullable<MenuDeps<typeof PLAYER>["travelCity"]>;
 
-/** Le corner de l'île principale d'une entreprise dont l'archipel est à (0, 0) : 0 + 300 - 256, soit 44 (definitions/iles.json). */
-const CORNER = 44;
+/** Le corner de l'île principale d'une entreprise dont l'archipel est à (0, 0) : 0 + 352 - 256, soit 96 (definitions/iles.json). */
+const CORNER = 96;
 
 /** Une position sur la parcelle (x, z) de l'île principale, vue du monde. */
 const onParcel = (x: number, z: number): Pos => ({ x: CORNER + x + 5, y: 102, z: CORNER + z + 3 });

@@ -323,13 +323,15 @@ export type IlesDefinitions = {
   readonly anneau: {
     /** Demi-côté en blocs de l'île principale une fois débloquée (512 × 512, donc 256), autour du même centre : les mini-îles doivent rester en dehors. */
     readonly ilePrincipaleDemiCote: number;
-    /** Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins le rayon d'une plateforme. */
+    /** Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins plateforme.rayonMax. Hors de l'île principale aussi à la plus grande taille : demiCote moins rayonMax dépasse ilePrincipaleDemiCote. */
     readonly demiCote: number;
   };
   /** Le sol d'une mini-île : un disque, en couches de plus en plus étroites vers le bas. */
   readonly plateforme: {
     /** Rayon en blocs de la couche du dessus. */
     readonly rayon: number;
+    /** Rayon en blocs de la plus grande taille d'île d'usine (décidé le 5 nov. 2026 : les îles grandissent). L'anneau et la case se vérifient avec lui, pour qu'une île ne touche jamais l'île principale, sa voisine ni la case d'à côté, même à sa plus grande taille. Au moins rayon. */
+    readonly rayonMax: number;
     /** De haut en bas. La première couche est la face du dessus, à l'altitude « hauteur ». */
     readonly couches: readonly {
       readonly materiau: "herbe" | "terre" | "pierre";

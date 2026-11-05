@@ -32,15 +32,18 @@ export function verifierIles(defs: IlesDefinitions, tailleDeLaCase: number): str
     if ((rayons[i] ?? 0) > (rayons[i - 1] ?? 0)) problemes.push(`la couche ${i + 1} est plus large que la couche ${i}`);
   }
 
-  // L'anneau tient dans la case, hors de l'île principale.
+  // L'anneau tient dans la case, hors de l'île principale, avec les îles à leur plus grande taille (rayonMax, décidé le
+  // 5 nov. 2026 : les îles d'usine grandissent).
   const moitie = tailleDeLaCase / 2;
-  if (anneau.demiCote - plateforme.rayon <= anneau.ilePrincipaleDemiCote) {
-    problemes.push("les mini-îles touchent l'île principale : demiCote moins le rayon doit dépasser ilePrincipaleDemiCote");
+  if (plateforme.rayonMax < plateforme.rayon) problemes.push("rayonMax est plus petit que le rayon de départ");
+  const portee = Math.max(plateforme.rayon, plateforme.rayonMax);
+  if (anneau.demiCote - portee <= anneau.ilePrincipaleDemiCote) {
+    problemes.push("les mini-îles touchent l'île principale : demiCote moins rayonMax doit dépasser ilePrincipaleDemiCote");
   }
-  if (defs.centreDansLaCase.x + anneau.demiCote + plateforme.rayon >= tailleDeLaCase ||
-    defs.centreDansLaCase.x - anneau.demiCote - plateforme.rayon < 0 ||
-    defs.centreDansLaCase.z + anneau.demiCote + plateforme.rayon >= tailleDeLaCase ||
-    defs.centreDansLaCase.z - anneau.demiCote - plateforme.rayon < 0) {
+  if (defs.centreDansLaCase.x + anneau.demiCote + portee >= tailleDeLaCase ||
+    defs.centreDansLaCase.x - anneau.demiCote - portee < 0 ||
+    defs.centreDansLaCase.z + anneau.demiCote + portee >= tailleDeLaCase ||
+    defs.centreDansLaCase.z - anneau.demiCote - portee < 0) {
     problemes.push(`l'anneau sort de la case de ${tailleDeLaCase} blocs`);
   }
   if (defs.centreDansLaCase.x !== moitie || defs.centreDansLaCase.z !== moitie) {
@@ -60,7 +63,7 @@ export function verifierIles(defs: IlesDefinitions, tailleDeLaCase: number): str
       const a = centres[i];
       const b = centres[j];
       if (a === undefined || b === undefined) continue;
-      if (Math.hypot(a.x - b.x, a.z - b.z) < 2 * plateforme.rayon + 4) {
+      if (Math.hypot(a.x - b.x, a.z - b.z) < 2 * portee + 4) {
         problemes.push(`les mini-îles ${a.id} et ${b.id} sont trop proches`);
       }
     }

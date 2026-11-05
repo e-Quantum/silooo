@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import type { IlesDefinitions } from "../src/generated/definitions";
 import {
@@ -21,6 +23,8 @@ import {
 import { ILES } from "../src/monde/definitions";
 
 const ORIGINE = { x: 1200, z: -600 };
+/** Le côté d'une case d'archipel, lu dans definitions/monde.json. */
+const TAILLE_DE_LA_CASE = (JSON.parse(readFileSync(resolve("..", "definitions", "monde.json"), "utf8")) as { archipel: { ecartEntreCases: number } }).archipel.ecartEntreCases;
 
 function usine(id: string): NonNullable<ReturnType<typeof usineIle>> {
   const trouvee = usineIle(ILES, id);
@@ -30,11 +34,11 @@ function usine(id: string): NonNullable<ReturnType<typeof usineIle>> {
 
 describe("centres", () => {
   it("le centre de l'île principale est au milieu de la case", () => {
-    assert.deepEqual(mainCenter(ORIGINE, ILES), { x: 1500, z: -300 });
+    assert.deepEqual(mainCenter(ORIGINE, ILES), { x: 1552, z: -248 });
   });
 
   it("la Carrière (angle 0) est à l'est de l'île principale, sur le carré de l'anneau", () => {
-    assert.deepEqual(islandCenter(ORIGINE, usine("carriere"), ILES), { x: 1500 + 280, z: -300 });
+    assert.deepEqual(islandCenter(ORIGINE, usine("carriere"), ILES), { x: 1552 + 300, z: -248 });
   });
 
   it("un angle de 90° donne le sud, 180° l'ouest, 270° le nord", () => {
@@ -42,24 +46,24 @@ describe("centres", () => {
     const sud = islandCenter(ORIGINE, { angle: 90 }, ILES);
     const ouest = islandCenter(ORIGINE, { angle: 180 }, ILES);
     const nord = islandCenter(ORIGINE, { angle: 270 }, ILES);
-    assert.deepEqual(sud, { x: centre.x, z: centre.z + 280 });
-    assert.deepEqual(ouest, { x: centre.x - 280, z: centre.z });
-    assert.deepEqual(nord, { x: centre.x, z: centre.z - 280 });
+    assert.deepEqual(sud, { x: centre.x, z: centre.z + 300 });
+    assert.deepEqual(ouest, { x: centre.x - 300, z: centre.z });
+    assert.deepEqual(nord, { x: centre.x, z: centre.z - 300 });
   });
 
   it("un angle de 45° tombe sur le coin du carré", () => {
     const centre = mainCenter(ORIGINE, ILES);
-    assert.deepEqual(islandCenter(ORIGINE, { angle: 45 }, ILES), { x: centre.x + 280, z: centre.z + 280 });
+    assert.deepEqual(islandCenter(ORIGINE, { angle: 45 }, ILES), { x: centre.x + 300, z: centre.z + 300 });
   });
 
-  it("toutes les mini-îles sont à la distance de l'anneau (au bloc près) et dans la case", () => {
+  it("toutes les mini-îles sont à la distance de l'anneau (au bloc près) et dans la case, même à leur plus grande taille", () => {
     const centre = mainCenter(ORIGINE, ILES);
     for (const u of ILES.usines) {
       const c = islandCenter(ORIGINE, u, ILES);
       const chebyshev = Math.max(Math.abs(c.x - centre.x), Math.abs(c.z - centre.z));
       assert.ok(Math.abs(chebyshev - ILES.anneau.demiCote) <= 1, `${u.id} : ${chebyshev}`);
-      assert.ok(c.x - ORIGINE.x - ILES.plateforme.rayon >= 0 && c.x - ORIGINE.x + ILES.plateforme.rayon < 600, u.id);
-      assert.ok(c.z - ORIGINE.z - ILES.plateforme.rayon >= 0 && c.z - ORIGINE.z + ILES.plateforme.rayon < 600, u.id);
+      assert.ok(c.x - ORIGINE.x - ILES.plateforme.rayonMax >= 0 && c.x - ORIGINE.x + ILES.plateforme.rayonMax < TAILLE_DE_LA_CASE, u.id);
+      assert.ok(c.z - ORIGINE.z - ILES.plateforme.rayonMax >= 0 && c.z - ORIGINE.z + ILES.plateforme.rayonMax < TAILLE_DE_LA_CASE, u.id);
     }
   });
 

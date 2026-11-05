@@ -92,7 +92,7 @@ Chaque joueur possède son archipel privé : une île principale immense à déb
 
 &#91;embedded content: archipel d’un joueur · exemple en cours de partie\]
 
-Le joueur démarre sur l'île de sa Carrière, l'île principale entièrement verrouillée. Chaque usine possédée reçoit un pont vers l'île principale dès que celle-ci est débloquée. La première zone s'achète après la 2e usine. Complète, l'île principale fait 32 × 32 chunks (512 × 512 blocs), découpée en zones que la mairie débloque niveau par niveau.
+Le joueur démarre sur l'île de sa Carrière, l'île principale entièrement verrouillée. Les îles d'usine forment un réseau (décidé le 5 nov. 2026) : sur l'anneau autour de l'île principale, les usines d'une même chaîne sont voisines, et une route de ponts relie chaque île d'usine possédée à ses voisines. Dès que l'île principale est débloquée, chaque île d'usine reçoit aussi un pont vers elle, par où passent les produits finis. La première zone s'achète après la 2e usine. Complète, l'île principale fait 32 × 32 chunks (512 × 512 blocs), découpée en zones que la mairie débloque niveau par niveau.
 
 ## La carte et le déblocage d'une usine
 
@@ -136,13 +136,15 @@ Le **niveau d'entreprise** est la somme des niveaux de toutes les usines du joue
 
 **Recrutement** : une agence d'emploi propose chaque jour 5 candidats (une nouvelle liste s'achète en Donar), avec 75 % de communs, 20 % de rares et 5 % de légendaires ; une bonne réputation d'entreprise améliore ces chances. Le joueur choisit qui embaucher. Un salarié ne part jamais de lui-même : seulement s'il est renvoyé. Un salarié gagne de l'expérience en travaillant et peut être promu chef d'équipe.
 
-**Chaînes de production** : les usines s'alimentent entre elles (par exemple minerai, puis barres de fer à la Fonderie, puis produits finis). Les marchandises voyagent de façon visible : camions sur les ponts, bateaux et avions cargo entre les îles, à acheter et à améliorer. Une chaîne mal alimentée ralentit, ce qui donne au joueur de vraies décisions de logistique.
+**Chaînes de production** : les usines s'alimentent entre elles (par exemple minerai, puis barres de fer à la Fonderie, puis produits finis). Les marchandises voyagent de façon visible : camions sur les ponts, bateaux et avions cargo entre les îles, à acheter et à améliorer. Les matières passent d'usine en usine le long du réseau ; seul le produit fini va au Silo (décidé le 5 nov. 2026). Le stock reste virtuel : le service compte la production, les véhicules la montrent, près du joueur seulement. Une chaîne mal alimentée ralentit, ce qui donne au joueur de vraies décisions de logistique.
 
 **Point de vigilance** : les chaînes profondes sont la partie la plus longue à développer et à équilibrer. Au lancement, une seule chaîne complète ; les autres arrivent en mises à jour.
 
 ## Époques et chaînes de production
 
 Quatre époques, une par prestige : chacune change l'apparence des usines, les véhicules de la logistique, ajoute une ou deux usines et de nouveaux bâtiments pour la ville. 12 à 15 usines à terme, environ 3 à 4 par époque. Après la 4e époque, chaque prestige ajoute une étoile et un petit bonus permanent, sans fin, en attendant les nouveautés.
+
+**Passer à l'époque suivante** (décidé le 5 nov. 2026) : le prestige débloque l'époque ; chaque usine y entre ensuite par sa propre remise en état, qui la reconstruit dans le style de la nouvelle époque. Pas de prix en plus à équilibrer : la remise en état et la modernisation sont un seul moment, avec la même cinématique de chantier. Le style d'une époque se décline par chaîne : la chaîne du fer, celle du bois et l'alimentaire n'ont pas la même allure à la même époque.
 
 | Époque | Usines (style) | Logistique | Ville |
 | --- | --- | --- | --- |
@@ -172,6 +174,8 @@ Scierie et Ferme existent dès le lancement en production simple ; leurs chaîne
 **Les boss du week-end : des catastrophes industrielles** (machine folle, golem de scories, tempête sur l'archipel), avec une variante par époque. Tous les joueurs les affrontent ensemble ; la récompense est un cosmétique ou un bonus temporaire pour tout le serveur, jamais une ressource rare qui pèserait sur l'économie.
 
 **Les incidents d'usine** (décidé le 4 nov. 2026) : de temps en temps, une usine a un petit incident (début d'incendie, machine en panne, courroie cassée). Elle ralentit et une icône apparaît sur la carte ; un mini-jeu d'une trentaine de secondes (éteindre le feu, réparer la machine) la relance et donne une petite récompense. Jamais de perte, et aucun incident pendant que le joueur est hors ligne : c'est une animation qui donne envie de passer voir ses usines, pas une punition.
+
+**Les pannes, précisées le 5 nov. 2026** : un incident peut ralentir l'usine ou l'arrêter. Le stock produit avant l'incident reste bloqué et revient entier à la réparation : jamais de perte. Une usine arrêtée ralentit les usines qui dépendent d'elle dans le réseau, faute d'entrées, sans autre pénalité. Toujours aucun incident hors ligne. La réparation se fait selon le scénario de la panne : mini-jeu, pièce de rechange à apporter ou simple interaction ; un technicien embauché répare aussi, plus lentement, sans le joueur. Les sortes de pannes, leurs effets et le technicien sont à écrire dans `definitions/incidents.json` et `definitions/personnel.json`, puis à équilibrer.
 
 **Salariés légendaires** : production plus élevée, apparence unique et nom propre, de quoi en faire des personnages que les joueurs reconnaissent et montrent.
 
@@ -236,7 +240,8 @@ Les déplacements évoluent avec l'île principale : téléportation par la cart
 | Moment | Moyen | Usage |
 | --- | --- | --- |
 | Dès la première usine, toujours | Téléportation depuis la carte | Aller d'une usine à l'autre |
-| Île principale débloquée | Ponts | Relient l'île principale à chaque île d'usine possédée |
+| Dès la deuxième usine voisine | Ponts du réseau | Relient chaque île d'usine à ses voisines de chaîne sur l'anneau (décidé le 5 nov. 2026) |
+| Île principale débloquée | Ponts vers la ville | Relient l'île principale à chaque île d'usine possédée |
 | Île principale débloquée | Avion personnel | Vol libre entre toutes les îles de l'archipel |
 | Sur l'île principale | Véhicules (voiturette, quad…) | Traverser une île immense sans s'ennuyer |
 
@@ -252,7 +257,7 @@ L'île principale devient peu à peu la ville du joueur : il débloque des zones
 
 **Zones débloquées par la mairie** : l'île principale est découpée en 16 zones de 8 × 8 chunks. Chaque niveau de mairie débloque la zone suivante, achetée en Lingots à un prix fixe connu à l'avance ; la première arrive vers 1 heure de jeu, payée par la mission de bienvenue de la mairie. Le prix fixe rend l'objectif lisible (« plus que 15 Lingots pour la zone 3 ») et la mairie devient le fil rouge de la ville. Prix proposés : de 5 à 235 Lingots par zone, 1 400 au total. Le joueur type, qui dépense la moitié de ses Lingots en ville, a 4 zones au 1er prestige, 7 au 3e, et termine la ville vers 500 heures de jeu, soit environ un an à 1 h 30 par jour (rythme validé le 4 nov. 2026).
 
-**Le Silo** (décidé le 4 nov. 2026) : bâtiment central de l'île principale, posé dès le départ. Toutes les marchandises des usines y arrivent avant d'être vendues : camions, bateaux et avions cargo convergent vers lui, ce qui rend la logistique visible. Il s'améliore par niveaux (capacité, vitesse de vente) et grandit à l'écran à chaque niveau. C'est lui qui donne son sens au nom du jeu, et Oooscar, la mascotte, est un petit silo rigolo et maladroit qui accompagne le joueur : il guide le tutoriel, présente les missions et fête chaque réussite (un peu trop fort). Il parle par bulles de texte très courtes, une phrase de 6 mots au plus. Il sert aussi de visage du jeu dans les vidéos TikTok et sur le Discord.
+**Le Silo** (décidé le 4 nov. 2026) : bâtiment central de l'île principale, posé dès le départ. Les produits finis des usines y arrivent avant d'être vendus (les matières, elles, restent dans le réseau des usines, décidé le 5 nov. 2026) : camions, bateaux et avions cargo convergent vers lui, ce qui rend la logistique visible. Il s'améliore par niveaux (capacité, vitesse de vente) et grandit à l'écran à chaque niveau. C'est lui qui donne son sens au nom du jeu, et Oooscar, la mascotte, est un petit silo rigolo et maladroit qui accompagne le joueur : il guide le tutoriel, présente les missions et fête chaque réussite (un peu trop fort). Il parle par bulles de texte très courtes, une phrase de 6 mots au plus. Il sert aussi de visage du jeu dans les vidéos TikTok et sur le Discord.
 
 **L'outil de construction** : un mode construction ouvert depuis le menu. Le joueur choisit un bâtiment dans un catalogue, voit un aperçu fantôme, le tourne, le pose sur une parcelle et confirme ; les routes se tracent d'un point à un autre. Les bâtiments sont des modèles prêts, améliorables par niveaux ; autour et à l'intérieur, la décoration est libre, bloc par bloc, avec en plus un catalogue de meubles prêts.
 
@@ -286,7 +291,7 @@ Cette section décrit le contenu cible ; ce qui est présent au lancement est d�
 
 **Point de départ** : le joueur arrive sur l'île de sa Carrière, déjà en marche, avec un coffre de vente et un PNJ guide. Rien à construire avant de jouer.
 
-**Prestige** : quand l'entreprise atteint le dernier palier, le joueur peut revendre ses usines (ville, maison et véhicules restent) : les usines repartent à zéro et l'entreprise passe à l'époque suivante, contre des Lingots : le Donar accumulé pendant la course se convertit en Lingots, qui augmentent la production de Donar tant qu'on les garde (voir Économie à deux couches). Les Lingots se dépensent aussi dans la boutique de prestige : décorations, bâtiments rares, skins d'usines animées, et un salarié légendaire garanti.
+**Prestige** : quand l'entreprise atteint le dernier palier, le joueur peut revendre ses usines (ville, maison et véhicules restent) : les usines repartent à zéro, chacune repasse en chantier dans le style de l'époque suivante (voir « Passer à l'époque suivante »), et l'entreprise passe à l'époque suivante, contre des Lingots : le Donar accumulé pendant la course se convertit en Lingots, qui augmentent la production de Donar tant qu'on les garde (voir Économie à deux couches). Les Lingots se dépensent aussi dans la boutique de prestige : décorations, bâtiments rares, skins d'usines animées, et un salarié légendaire garanti.
 
 **Objectifs courts**
 
@@ -298,9 +303,49 @@ Cette section décrit le contenu cible ; ce qui est présent au lancement est d�
 - Commande mondiale quotidienne : tout le serveur livre ensemble une commande ; chaque participant reçoit des jetons, échangés contre clés et cosmétiques.
 - Concours de villes sur un thème, avec vote des joueurs, et un boss PvE commun chaque week-end.
 
-**Animations** : salariés au travail, machines qui tournent et s'allument, coffre de vente qui avale les objets, effet de prestige visible par toute l'île, pets qui suivent le joueur.
+**Animations** : salariés au travail, machines qui tournent et s'allument, coffre de vente qui avale les objets, effet de prestige visible par toute l'île, pets qui suivent le joueur. Le détail, les règles et ce qui entre au lancement sont dans « Builds, animations et cinématiques ».
 
 **Social** : entreprise partagée jusqu'à 4 associés (le PDG décide ventes, reventes et prestige : une seule course commune pour toute l'entreprise, et les Lingots du prestige sont partagés selon la part que le PDG attribue à chacun ; les associés gèrent au quotidien), visite publique des villes avec vote des plus belles, classement hebdomadaire de la progression de la semaine (pas de la richesse totale).
+
+## Builds, animations et cinématiques
+
+Décidé avec Kr le 5 nov. 2026. Silooo se joue en regardant son archipel travailler : chaque bâtiment est un build soigné, et presque tout ce qui s'y passe a son animation. Cette section fixe les règles et ce qui entre au lancement ; les chiffres (tailles, seuils, budgets d'entités) vivent dans `definitions/`.
+
+**Le style** : cartoon chaleureux, dans l'esprit d'Oooscar, en blocs. Chaque époque a son style, décliné par chaîne. Aucun rendu générique : chaque build passe la règle de l'avant / après de [anti-ia.md](anti-ia.md).
+
+**Les builds** : chaque usine existe en structures préfabriquées (`.mcstructure`), une par époque et par taille d'île, plus sa ruine. Une structure porte des points d'ancrage : où poser l'entité décor, la fumée, les ouvriers, l'enseigne. Le code pose la plateforme et choisit la structure ; il ne dessine plus le bâtiment bloc par bloc.
+
+**Les îles qui grandissent** : trois tailles d'île d'usine, de plus en plus larges avec la progression de l'usine (le plus grand rayon est `plateforme.rayonMax` dans `definitions/iles.json`, les seuils restent à écrire). La carte est dimensionnée dès maintenant pour la plus grande taille : une île ne touche jamais l'île principale, sa voisine ni l'archipel d'à côté.
+
+**La cinématique de chantier** : une trentaine de secondes, à la remise en état d'une usine et donc à chaque changement d'époque. Ouvriers, grues et camions arrivent par les ponts et montent le bâtiment ; Oooscar commente en bulles, avec un petit babillage sonore. La caméra est prise pour tous les joueurs présents sur l'île ; la cinématique se passe (accroupi une seconde, comme celle d'arrivée), mais ne se rejoue pas. Les plans sont communs, les détails propres à chaque usine. Au prestige, une cérémonie de vente joue avant que l'archipel reparte dans la nouvelle époque.
+
+**Les animations d'un bâtiment** : elles se déclenchent par la production continue, une amélioration, un événement (panne, record, visite) ou une interaction du joueur. Chaque bâtiment a sa fiche : quelles animations, sur quel déclencheur, avec quelle règle. Les règles ne sont pas communes à tous les bâtiments.
+
+**Les salariés** : de 3 à 100 par usine dans les chiffres, une dizaine visibles au plus. Leur tenue se lit en calques : la chaîne (casque de mineur, tablier, blouse), l'époque, la rareté et le grade (chef, directeur).
+
+**Les événements animés** : au lancement, la visite d'inspecteur et le record de production. L'inspecteur donne un bonus ou rien, jamais de malus. La commande du jour existe déjà ; la fête d'entreprise vient en saison 1.
+
+**Le son** : un thème musical Silooo, décliné par chaîne avec d'autres instruments, plus les bruits de chantier et le babillage d'Oooscar.
+
+**Les textures** : un pack « vanilla+ » cartoon en 16 × 16, formes et couleurs reconnaissables. Au lancement, la palette réellement utilisée par les builds et les blocs custom (machines, tapis) ; la refonte complète des textures vient plus tard, parce que chaque mise à jour de Bedrock ajoute des blocs à entretenir.
+
+**Les règles de performance**
+
+- Le service décide, l'animation affiche. Aucune production, aucun stock ne dépend d'une animation : un chunk déchargé ne change rien à l'économie.
+- Rien ne s'anime sur une île vide de joueurs.
+- Une entité décor par bâtiment, sans intelligence ni physique : ses os portent les ouvriers, la grue et les machines, et les animations tournent chez le joueur. Les camions sont portés de la même façon par une entité par pont, près du joueur seulement.
+- Le budget d'entités visibles par île se fixe d'après la mesure sur console, Switch comprise, pas d'après le serveur.
+- Le serveur de l'ouverture sera un nouveau VPS, choisi d'après la mesure faite sur l'usine pilote. Le critère est la vitesse d'un cœur de processeur : l'essentiel du monde de BDS tourne sur un seul fil.
+
+**La fabrication** : Claude produit les builds (script vers `.mcstructure`), les modèles et animations Blockbench (`.geo.json`, `.animation.json`) et des rendus Blender pour itérer ; il vérifie ensuite dans Minecraft, sur le PC Windows de Kr branché au serveur Bedrock de test, et envoie les captures. Kr valide. La Carrière sert de pilote complet (ses époques, ses tailles, son entité décor, sa cinématique, la capture sur console et la mesure) avant toute autre usine.
+
+**Les paliers**
+
+| Palier | Contenu |
+| --- | --- |
+| Lancement | Chaîne du fer (Carrière, Mine profonde, Fonderie, Atelier d'outils) en époques 1 et 2, chaque taille d'île ; cinématique de chantier ; entité décor par bâtiment ; camions près du joueur ; palette retexturée ; visite d'inspecteur et record de production. Scierie, Ferme et la ville du lancement en builds soignés, sans cinématique propre. L'époque 3 livrée dans le premier mois. |
+| Saison 1 | Les autres chaînes, la fête d'entreprise, une cérémonie de prestige plus riche, les tenues par rareté |
+| Plus tard | L'époque 4, la refonte complète des textures, les animations de la ville bâtiment par bâtiment |
 
 ## Interface et onboarding console
 
@@ -543,12 +588,13 @@ Pas de date imposée : chaque étape démarre quand la précédente est prête. 
 | --- | --- | --- |
 | Usines | Chaîne du fer complète (Carrière, Mine profonde, Fonderie, Atelier d'outils) + Scierie et Ferme en production simple | Chaînes du bois et alimentaire, Élevage, Cristallerie, usines des époques suivantes |
 | Personnel | Agence d'emploi, 3 raretés, chefs d'équipe, directeurs | Raretés supplémentaires, salariés légendaires nommés |
-| Époques | Artisanale et vapeur (1er prestige) | Moderne, futuriste, puis étoiles sans fin |
+| Époques | Artisanale et vapeur (1er prestige) ; moderne livrée dans le premier mois | Futuriste, puis étoiles sans fin |
 | Ville | Zone 1 : mairie, maison du joueur, logements, routes, un commerce ; préfabriqués + décoration libre | Zones suivantes, banque, garages, véhicules, civils |
 | Déplacements | TP par la carte, ponts | Avion perso, véhicules |
 | Économie | Coffre de vente, commandes PNJ quotidiennes, plafond hors ligne de 8 h | Marché entre joueurs taxé (une fois l'économie observée), prêts |
 | Social | Hub minimal, entreprise à 4, visites, classement hebdomadaire | Concours de villes, alliances |
-| Événements | Commandes mondiales | Boss du week-end |
+| Événements | Commandes mondiales, visite d'inspecteur, record de production | Fête d'entreprise, boss du week-end |
+| Visuels | Builds et cinématique de chantier de la chaîne du fer, îles qui grandissent, palette retexturée (« Builds, animations et cinématiques ») | Autres chaînes, refonte complète des textures |
 | Boutique | Cosmétiques, un grade, boosts collectifs | Pass de saison, autres grades, abonnement |
 
 Le marché entre joueurs arrive après le lancement à dessein : il faut d'abord observer l'économie quelques semaines avant d'ouvrir les échanges.

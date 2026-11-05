@@ -1,6 +1,8 @@
 // Le plan de blocs d'une mini-île, rejoué sur un faux monde : ce qu'on y voit après la pose, état par état.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { ILES } from "../src/monde/definitions";
 import { applyOp } from "../src/monde/constructeur";
@@ -13,6 +15,8 @@ import { fakeWorld, type FakeWorld } from "./monde-helpers";
 const ORIGINE: Xz = { x: 1200, z: -600 };
 const ETATS: FactoryState[] = ["EN_RUINE", "REMISE_EN_ETAT", "ACTIVE"];
 const M = ILES.materiaux;
+/** Le côté d'une case d'archipel, lu dans definitions/monde.json. */
+const TAILLE_DE_LA_CASE = (JSON.parse(readFileSync(resolve("..", "definitions", "monde.json"), "utf8")) as { archipel: { ecartEntreCases: number } }).archipel.ecartEntreCases;
 
 function usine(id: string): NonNullable<ReturnType<typeof usineIle>> {
   const trouvee = usineIle(ILES, id);
@@ -102,8 +106,8 @@ describe("la plateforme", () => {
   it("tient dans la case de l'entreprise, pour chaque usine", () => {
     for (const u of ILES.usines) {
       const { box } = planIsland(ILES, u, ORIGINE, "ACTIVE");
-      assert.ok(box.from.x >= ORIGINE.x && box.to.x < ORIGINE.x + 600, u.id);
-      assert.ok(box.from.z >= ORIGINE.z && box.to.z < ORIGINE.z + 600, u.id);
+      assert.ok(box.from.x >= ORIGINE.x && box.to.x < ORIGINE.x + TAILLE_DE_LA_CASE, u.id);
+      assert.ok(box.from.z >= ORIGINE.z && box.to.z < ORIGINE.z + TAILLE_DE_LA_CASE, u.id);
     }
   });
 

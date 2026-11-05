@@ -12,6 +12,7 @@
   },
   "plateforme": {
     "rayon": 7,
+    "rayonMax": 7,
     "couches": [
       {
         "materiau": "herbe",

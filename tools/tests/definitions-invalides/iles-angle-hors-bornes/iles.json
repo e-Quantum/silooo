@@ -6,6 +6,7 @@
   "anneau": { "ilePrincipaleDemiCote": 256, "demiCote": 280 },
   "plateforme": {
     "rayon": 7,
+    "rayonMax": 7,
     "couches": [
       { "materiau": "herbe", "retrait": 0 },
       { "materiau": "terre", "retrait": 1 },

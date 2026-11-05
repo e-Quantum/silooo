@@ -32,8 +32,14 @@ import { cityBuilding, cityState, emptyCity, house } from "./ville-helpers";
 
 const ORIGINE: Xz = { x: 0, z: 0 };
 const AUTRE_ORIGINE: Xz = { x: 600, z: 0 };
-/** Le coin de l'île principale pour l'origine (0, 0) : 300 − 256. */
-const COIN = 44;
+/** Le coin de l'île principale pour l'origine (0, 0) : centreDansLaCase − ilePrincipaleDemiCote, 352 − 256. */
+const COIN = 96;
+// Les tests des préfabriqués écrivent leurs coordonnées du monde en dur, pour un coin d'île principale en (44, 44) :
+// ils posent sur une archipel d'origine (-52, -52), et sa voisine 600 blocs plus à l'est.
+const ORIGINE_PREFAB: Xz = { x: -52, z: -52 };
+const AUTRE_ORIGINE_PREFAB: Xz = { x: 548, z: -52 };
+/** Le coin de l'île principale pour ORIGINE_PREFAB. */
+const COIN_PREFAB = 44;
 const ROTATIONS: readonly BuildingRotation[] = [0, 90, 180, 270];
 
 const M = ILES.materiaux;
@@ -47,7 +53,7 @@ async function replay(world: FakeWorld, segments: readonly Segment[]): Promise<v
   }
 }
 
-async function built(building: CityBuilding, origin: Xz = ORIGINE, world: FakeWorld = fakeWorld()): Promise<FakeWorld> {
+async function built(building: CityBuilding, origin: Xz = ORIGINE_PREFAB, world: FakeWorld = fakeWorld()): Promise<FakeWorld> {
   await replay(world, buildingSegments(ILES, VILLE, origin, building));
   return world;
 }
@@ -340,8 +346,8 @@ describe("les bâtiments à quatre murs", () => {
       for (const rotation of ROTATIONS) {
         for (const level of [1, 2, 5, 16]) {
           const building = cityBuilding({ buildingId: 6, buildingType, level, maxLevel: 16, x: 304, z: 96, rotation });
-          const parcel = { x: COIN + 304, z: COIN + 96 };
-          const segments = buildingSegments(ILES, VILLE, ORIGINE, building);
+          const parcel = { x: COIN_PREFAB + 304, z: COIN_PREFAB + 96 };
+          const segments = buildingSegments(ILES, VILLE, ORIGINE_PREFAB, building);
           assert.equal(segments.length, 1);
           for (const segment of segments) {
             assert.ok(segment.box.from.x >= parcel.x && segment.box.to.x <= parcel.x + 15, `${buildingType} ${rotation} x`);
@@ -357,7 +363,7 @@ describe("les bâtiments à quatre murs", () => {
 
   it("refaire un bâtiment sur sa parcelle efface l'ancien : même résultat qu'une pose sur un sol vide", async () => {
     const world = await built(house({ level: 1, rotation: 0 }));
-    await built(house({ level: 3, rotation: 90 }), ORIGINE, world);
+    await built(house({ level: 3, rotation: 90 }), ORIGINE_PREFAB, world);
     const fresh = await built(house({ level: 3, rotation: 90 }));
     assert.deepEqual(world.snapshot(), fresh.snapshot());
     assert.deepEqual([...world.texts.entries()], [...fresh.texts.entries()]);
@@ -365,7 +371,7 @@ describe("les bâtiments à quatre murs", () => {
 
   it("la mairie améliorée recouvre l'ancienne : plus d'ancienne lanterne ni d'ancienne enseigne", async () => {
     const world = await built(cityBuilding({ level: 1 }));
-    await built(cityBuilding({ level: 5 }), ORIGINE, world);
+    await built(cityBuilding({ level: 5 }), ORIGINE_PREFAB, world);
     const fresh = await built(cityBuilding({ level: 5 }));
     assert.deepEqual(world.snapshot(), fresh.snapshot());
     assert.equal(world.count(M.lumiere), 1);
@@ -418,7 +424,7 @@ describe("la route", () => {
   });
 
   it("ne sort pas de sa parcelle, même au plus large", async () => {
-    const [segment] = buildingSegments(ILES, VILLE, ORIGINE, road(4));
+    const [segment] = buildingSegments(ILES, VILLE, ORIGINE_PREFAB, road(4));
     assert.ok(segment !== undefined);
     assert.ok(segment.box.from.x >= 252 && segment.box.to.x <= 267);
     assert.ok(segment.box.from.z >= 236 && segment.box.to.z <= 251);
@@ -445,7 +451,7 @@ describe("où se tenir devant la porte", () => {
       270: { position: { x: 250.5, y: surfaceY(ILES), z: 243.5 }, facing: { x: 248.5, y: surfaceY(ILES) + 1.6, z: 243.5 } },
     };
     for (const rotation of ROTATIONS) {
-      assert.deepEqual(doorArrival(ORIGINE, ILES, VILLE, { ...hall, rotation }), expected[rotation], `rotation ${rotation}`);
+      assert.deepEqual(doorArrival(ORIGINE_PREFAB, ILES, VILLE, { ...hall, rotation }), expected[rotation], `rotation ${rotation}`);
     }
   });
 
@@ -453,10 +459,10 @@ describe("où se tenir devant la porte", () => {
     for (const rotation of ROTATIONS) {
       for (const building of [cityBuilding({ rotation }), house({ rotation })]) {
         const world = await built(building);
-        const { position, facing } = doorArrival(ORIGINE, ILES, VILLE, building);
+        const { position, facing } = doorArrival(ORIGINE_PREFAB, ILES, VILLE, building);
         const x = Math.floor(position.x);
         const z = Math.floor(position.z);
-        const parcel = { x: COIN + building.x, z: COIN + building.z };
+        const parcel = { x: COIN_PREFAB + building.x, z: COIN_PREFAB + building.z };
         assert.ok(x >= parcel.x && x <= parcel.x + 15 && z >= parcel.z && z <= parcel.z + 15, "sur la parcelle");
         assert.equal(world.blockAt(x, surfaceY(ILES), z), undefined, "pieds libres");
         assert.equal(world.blockAt(x, surfaceY(ILES) + 1, z), undefined, "tête libre");
@@ -466,7 +472,7 @@ describe("où se tenir devant la porte", () => {
   });
 
   it("suit l'origine de l'archipel", () => {
-    const sud = doorArrival(AUTRE_ORIGINE, ILES, VILLE, cityBuilding());
+    const sud = doorArrival(AUTRE_ORIGINE_PREFAB, ILES, VILLE, cityBuilding());
     assert.equal(sud.position.x, 600 + 243.5);
   });
 });
@@ -587,7 +593,7 @@ describe("poser la ville", () => {
     assert.equal(b.monde.maxOpenAreas, 1);
     assert.equal(b.monde.areas.length, 5);
     assert.equal(b.monde.count(M.herbe), 128 * 128);
-    assert.equal(b.monde.texts.get("243,103,249"), "Mairie\nNiveau 1");
+    assert.equal(b.monde.texts.get(`${COIN + 199},103,${COIN + 205}`), "Mairie\nNiveau 1");
     const zone = b.log.infos.findIndex((line) => line.startsWith("zone 7/1 posée"));
     const mairie = b.log.infos.findIndex((line) => line.startsWith("bâtiment 7/1 posé"));
     assert.ok(zone >= 0 && mairie > zone, b.log.infos.join(" | "));
@@ -636,7 +642,7 @@ describe("poser la ville", () => {
     await b.temps.advance(10);
     assert.equal(b.monde.areas.length, areas + 1);
     assert.equal(marksOf(b)["ville:b:1"], "mairie:2:192,192:0@0,0");
-    assert.equal(b.monde.texts.get("243,103,249"), "Mairie\nNiveau 2");
+    assert.equal(b.monde.texts.get(`${COIN + 199},103,${COIN + 205}`), "Mairie\nNiveau 2");
     assert.equal(b.log.infos.filter((line) => line.startsWith("zone 7/1 posée")).length, 1);
     assert.equal(b.log.infos.filter((line) => line.startsWith("bâtiment 7/1 posé")).length, 2);
   });
@@ -738,7 +744,7 @@ describe("la ville face aux échecs", () => {
     b.constructeur.syncCity(7, AUTRE_ORIGINE, withNext(2, [{ ...inconnu, level: 2 }]));
     await b.temps.advance(10);
     assert.equal(b.log.warns.filter((line) => line.includes("entrepot")).length, 1);
-    assert.equal(b.monde.blockAt(240, 101, 243), M.planches);
+    assert.equal(b.monde.blockAt(COIN + 196, 101, COIN + 199), M.planches);
   });
 });
 
@@ -790,10 +796,10 @@ describe("attendre un bâtiment", () => {
     });
     await b.temps.advance(1);
     assert.equal(answer, undefined, "l'ancienne mairie est encore là");
-    assert.equal(b.monde.texts.get("243,103,249"), "Mairie\nNiveau 1");
+    assert.equal(b.monde.texts.get(`${COIN + 199},103,${COIN + 205}`), "Mairie\nNiveau 1");
     await b.temps.advance(5);
     assert.equal(answer, true);
-    assert.equal(b.monde.texts.get("243,103,249"), "Mairie\nNiveau 2");
+    assert.equal(b.monde.texts.get(`${COIN + 199},103,${COIN + 205}`), "Mairie\nNiveau 2");
   });
 });
 

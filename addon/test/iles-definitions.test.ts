@@ -25,7 +25,7 @@ interface Mutable {
   hauteur: number;
   centreDansLaCase: { x: number; z: number };
   anneau: { ilePrincipaleDemiCote: number; demiCote: number };
-  plateforme: { rayon: number; couches: Array<{ materiau: string; retrait: number }> };
+  plateforme: { rayon: number; rayonMax: number; couches: Array<{ materiau: string; retrait: number }> };
   apparition: { usine: string; distance: number; oooscar: { avant: number; droite: number } };
   usines: Array<{ id: string; angle: number; murs: string; largeur: number; profondeur: number; hauteur: number }>;
   cinematique: { plans: Array<{ duree: number }> };
@@ -68,9 +68,9 @@ describe("definitions/iles.json", () => {
     );
   });
 
-  it("garde les mini-îles dans la case de 600 blocs de chaque entreprise", () => {
+  it("garde les mini-îles dans la case de chaque entreprise (monde.json), même à leur plus grande taille", () => {
     const { x, z } = ILES.centreDansLaCase;
-    const reach = ILES.anneau.demiCote + ILES.plateforme.rayon;
+    const reach = ILES.anneau.demiCote + ILES.plateforme.rayonMax;
     assert.ok(x - reach >= 0 && x + reach < TAILLE_DE_LA_CASE);
     assert.ok(z - reach >= 0 && z + reach < TAILLE_DE_LA_CASE);
   });
@@ -95,12 +95,25 @@ describe("verifierIles attrape ses cas", () => {
   });
 
   it("un anneau qui touche l'île principale ou qui sort de la case", () => {
-    assert.match(problemesDe(variante((d) => void (d.anneau.demiCote = 262))), /touchent l'île principale/);
-    assert.match(problemesDe(variante((d) => void (d.anneau.demiCote = 295))), /sort de la case/);
+    assert.match(problemesDe(variante((d) => void (d.anneau.demiCote = 270))), /touchent l'île principale/);
+    assert.match(problemesDe(variante((d) => void (d.anneau.demiCote = 335))), /sort de la case/);
+  });
+
+  it("une île qui, à sa plus grande taille, toucherait l'île principale ou sortirait de la case", () => {
+    assert.match(problemesDe(variante((d) => void (d.plateforme.rayonMax = 44))), /touchent l'île principale/);
+    assert.match(problemesDe(variante((d) => {
+      d.anneau.demiCote = 320;
+      d.plateforme.rayonMax = 34;
+    })), /sort de la case/);
+    assert.equal(problemesDe(variante((d) => void (d.anneau.demiCote = 320))), "", "au rayon de départ, le même anneau tient");
+  });
+
+  it("une plus grande taille plus petite que la taille de départ", () => {
+    assert.match(problemesDe(variante((d) => void (d.plateforme.rayonMax = 6))), /rayonMax est plus petit/);
   });
 
   it("un centre d'île principale qui n'est pas au milieu de la case", () => {
-    assert.match(problemesDe(variante((d) => void (d.centreDansLaCase = { x: 280, z: 300 }))), /pas au milieu/);
+    assert.match(problemesDe(variante((d) => void (d.centreDansLaCase = { x: 330, z: 352 }))), /pas au milieu/);
   });
 
   it("deux mini-îles trop proches", () => {
