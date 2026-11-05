@@ -216,6 +216,9 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   identifiants et n'annonce plus rien (décision 47)
 - [ ] Jeter les branches `claude/phase5-*`, `claude/phase0-*`, `claude/phase1-*`, `claude/phase2-*` sur `origin`
   (toutes fusionnées ; la direction du jeu ne supprime jamais une branche distante) et les deux stashs du poste
+- [ ] Un fichier `bedrock-server-1.26.62.1.zip` non suivi est apparu à la racine du dépôt le 5 novembre vers 19 h 45
+  (posé par Kr ?) : la direction ne l'a ni ajouté ni déplacé ; `.gitignore` ne l'ignore pas. Dire où il va
+  (`docs/deploiement.md`, décision 26) ou l'ignorer
 
 ## Décisions prises sans Kr
 
@@ -1134,3 +1137,7 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   - État du dépôt : `main` = `origin/main` = 3127ae5 (9f5376a, puis la fusion d'`origin/main` à 07e2eef, direction du site, vérificateur vert à 19 h 40), arbre propre hors `.agents/` et `.codex/` (ligne de Kr) ; les
     branches `claude/phase5-*` restent sur `origin`, fusionnées (ligne de Kr). CI : `gh run list --branch main --limit 3`.
   - Vérifier : `git log --oneline -6 origin/main`, `git status --short`.
+- **5 novembre 2026, 19 h 51 : direction, CI de `main` verte à 7ffc571 (cinq jobs, 19 h 50) ; un zip de BDS non suivi.** Le
+  bilan final est poussé et vert. Un fichier `bedrock-server-1.26.62.1.zip` non suivi est apparu à la racine du
+  dépôt après le bilan : jamais à ajouter au dépôt (ligne de Kr). Fin de la session de direction : aucune session
+  lancée, aucun worktree, `main` = `origin/main`. Vérifier : `gh run list --branch main --limit 2`.
