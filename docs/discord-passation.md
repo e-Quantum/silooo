@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 19 h 34, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 20 h 22, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -73,6 +73,17 @@ est recopiée sous l'étape qu'elle touche.
   `PlanApplier`, `PlanReport.categoryIds`), `ChannelSpec.memberViewers`, `ChannelMessage`, `DiscordServer.deleteChannel`,
   `history`, `moveToVoice`, `voiceMembers` et `memberName`, `MessagePosted.parentChannelId`. Le code JDA correspondant
   compile mais ne se teste que sur le serveur de test. Jamais vu sur un vrai serveur.
+- L'AutoMod, `#bienvenue`, les quatre tableaux et les deux petits jeux sont écrits et branchés dans `BotFeatures` :
+  `Automod.kt` (quatre règles posées par l'API à chaque démarrage, listes dans `core/src/main/resources/discord/automod.json`),
+  `Bienvenue.kt` (la carte de `#bienvenue` et l'icône du serveur), `Reactions.kt`, `Highlights.kt` et `Help.kt` (top
+  réactions, meilleurs moments, Aide du mois, avec `ReactionStore`, `HighlightStore` et `HelpStore`), `Chantier.kt` (le
+  chantier en direct), `Counting.kt`, `Elevator.kt` et `Records.kt` (comptage, monte-charge, records au Panthéon, avec
+  `GameStore`), `Boards.kt` (`LiveMessage`, le message à clé que le bot modifie en place). Les chiffres sont dans le bloc
+  `bienvenue` et les blocs existants de `definitions/discord.json` ; les tables sont celles de V10. Le socle grandit de
+  neuf méthodes (décision 47). La suite `com.silooo.core.discord.*` est verte (40 classes de tests). Les images de D1
+  (`bienvenue-jour.png`, `bienvenue-nuit.png`, `icone-serveur.png`, les étages du monte-charge) et les emojis `:donar:` et
+  `:prestige:` manquent encore : le bot s'en passe et le dit au journal. Jamais vus sur un vrai serveur.
+- Tâche suivante : le rapport du lundi dans `#journal-du-bot`, puis la passation et la fusion sur main ; ensuite D3.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
@@ -175,11 +186,14 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   giveaways (lot gardé sur l'identifiant Discord, crédité à la liaison prouvée) et leur règlement en brouillon
   (`docs/discord-reglement-giveaways.md`) ; écrit avec ses tests sur le faux Discord et sur MariaDB (CI), pas encore vu sur
   un vrai serveur ; le crédit en jeu des lots attend une route du contrat (décision 44, D5)
-- [ ] L'AutoMod posé par l'API (la liste du filtre, le spam de mentions, les liens), l'icône et l'image d'accueil de
-  `#👋・bienvenue` posées par le bot
-- [ ] Les tableaux du QG : top réactions de la semaine, meilleurs moments, Aide du mois, le chantier en direct, avec
-  `#🏛️・panthéon` et `#⭐・meilleurs-moments`
-- [ ] Les petits jeux de la catégorie ANIMATION : `#🔢・comptage` et `#🛗・monte-charge`, records au Panthéon
+- [x] L'AutoMod posé par l'API (la liste du filtre, le spam de mentions, les liens), l'icône et l'image d'accueil de
+  `#👋・bienvenue` posées par le bot ; écrit avec ses tests sur le faux Discord, pas encore vu sur un vrai serveur, les images
+  attendent D1
+- [x] Les tableaux du QG : top réactions de la semaine, meilleurs moments, Aide du mois, le chantier en direct, avec
+  `#🏛️・panthéon` et `#⭐・meilleurs-moments` ; écrit avec ses tests sur le faux Discord et sur MariaDB (CI), pas encore vu sur
+  un vrai serveur
+- [x] Les petits jeux de la catégorie ANIMATION : `#🔢・comptage` et `#🛗・monte-charge`, records au Panthéon ; écrit avec ses
+  tests sur le faux Discord et sur MariaDB (CI), pas encore vu sur un vrai serveur
 - [ ] Le rapport du lundi dans `#📒・journal-du-bot` : arrivées, accueil terminé, comptes reliés sous 7 jours, membres
   revenus après 7 jours, messages par jour, d'où viennent les arrivants, messages privés échoués, signalements
 - [ ] Une arrivée rejouée de bout en bout sur le serveur de test, captures dans `docs/references/discord/captures/`
@@ -277,6 +291,8 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
    rien n'est crédité), gardé sur l'identifiant Discord du gagnant. Le crédit en jeu (Gemmes, Lingots, cosmétique, une seule
    fois, au compte relié par la liaison prouvée) demande une route du contrat ; la session Discord la proposera par la
    recette `silooo-route` quand la direction du jeu dit où elle la veut. Rien ne s'annonce comme crédité avant.
+10. **Le titre « Aide du mois » en jeu.** Il revient au premier de la ligne « Aide du mois passé » du journal du bot, le
+   premier de chaque mois. Le poser en jeu demande une route du contrat, comme le crédit des lots (point 9).
 
 ## Pour la direction du site
 
@@ -289,6 +305,8 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
    `docs/discord-reglement-giveaways.md`, à valider par Kr avant publication.
 4. Une page « Mises à jour » du site devient une carte dans `#🆕・patch-notes` ; un champ de la page dira si elle passe
    aussi dans `#📢・annonces`.
+5. `/annonce` ne peut pas publier dans les Actus du site : ce sont des fichiers Markdown du classpath, pas un registre où
+   écrire (décision 31 maintenue). Le chantier en direct de `#coulisses` lit ces mêmes fichiers (`Actus.chantier`).
 
 ## À faire par Kr
 
@@ -327,6 +345,15 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 - [ ] Relire `docs/discord-reglement-giveaways.md` et le donner à la session du site pour publication.
 - [ ] Choisir les paliers de prestige qui donnent un rôle, et trancher les rôles liés de Discord (option, ou rien)
 - [ ] Retirer les récompenses par invitation de SileneMC (`#🎁・inviter`), interdites par Discord (critique, point 14)
+- [ ] Donner au bot, en plus des droits déjà listés, « Gérer le serveur » (l'AutoMod et l'icône), « Gérer les messages »
+  (supprimer dans `#comptage`, épingler dans `#coulisses`) et « Ajouter des réactions » (le `:donar:` du comptage) ; sans
+  « Gérer le serveur », le bot le dit au journal et continue
+- [ ] Compléter la liste des mots refusés dans `core/src/main/resources/discord/automod.json` (46 mots de départ) ; le
+  filtre du tchat relié de D4 lira le même fichier
+- [ ] Poser les emojis de serveur `:donar:` et `:prestige:` (D1) : sans `:donar:`, le comptage ne réagit pas ; sans
+  `:prestige:`, aucun meilleur moment ne part
+- [ ] Après le premier démarrage, relire les quatre règles « Oooscar » dans les réglages du serveur (Discord limite à six les
+  règles à mots-clés) ; puis dire si Discord a refusé l'icône, l'épinglage dans `#coulisses` ou l'ajout des réactions
 - [ ] Plus tard, aux boosts : le badge SILO à 3 boosts, la bannière en arrière-plan d'invitation à 2, en haut des
   salons à 7, animée à 14
 
@@ -464,6 +491,53 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     migration le ferait, plus tard, si Kr le veut. En attendant, `etape` lève seulement la limite d'un par mois au lancement.
 46. **Pas d'événement du calendrier Discord pour l'instant.** Le giveaway n'est que sa carte dans `#🎁・giveaways` ; l'événement
     planifié viendra si Kr le veut.
+47. **Le socle grandit du minimum.** `DiscordServer` reçoit neuf méthodes, chacune au service d'une fonction de cette
+    étape : `pin`, `react` (faux si le serveur n'a pas l'emoji), `deleteMessage` (un message déjà parti ne gêne pas),
+    `message` (null s'il n'existe plus), `messageLink`, `hasIcon`, `setIcon`, `automodRules` et `setAutomodRule`.
+    `ChannelMessage` gagne `bot`, `ReactionAdded` gagne `isBot`.
+48. **L'AutoMod : quatre règles du bot, remplacées à chaque démarrage.** Elles se retrouvent par leur nom (« Oooscar : mots
+    refusés », « Oooscar : demandes de contact », « Oooscar : spam de mentions », « Oooscar : liens »), sont posées ou
+    remplacées à chaque démarrage, alertent dans `#signalements` et exemptent le staff et la modération, les créateurs aussi
+    pour les liens. La liste vit dans `core/src/main/resources/discord/automod.json` : 46 mots de départ à compléter par Kr,
+    les motifs des demandes de contact, une limite de 5 mentions, les liens autorisés (silooo.com, discord.com/channels,
+    discord.gg). Le même fichier servira au filtre du tchat relié de D4 (`AutomodRules.load()`). Un refus de Discord (le droit
+    « Gérer le serveur » absent) fait une ligne au journal, le bot continue.
+49. **`#bienvenue` : une carte vivante, avec son image.** Une carte du bot, retrouvée par la clé `bienvenue`. L'image de jour
+    sert entre `bienvenue.jourHeure` (7) et `bienvenue.nuitHeure` (22) de `definitions/discord.json` (nouveau bloc, schéma et
+    types de l'add-on régénérés), l'image de nuit sinon, dès que D1 fournit `discord/bienvenue-jour.png` et
+    `discord/bienvenue-nuit.png` sur le classpath ; sans elles, la carte part sans image et une ligne du journal le dit. Deux
+    boutons : « Relier mon compte » répond une attente jusqu'à D3, « Mes rappels » est déjà géré par l'accueil guidé, sans
+    double réponse.
+50. **L'icône du serveur ne passe jamais devant celle de Kr.** `discord/icone-serveur.png` (D1) n'est posée au démarrage que si
+    le serveur n'a pas d'icône : une icône posée à la main n'est jamais écrasée.
+51. **Le top réactions compte une réaction par message et par membre.** La marque est gardée dans `discord_reaction_marks`,
+    les bots sont exclus, seuls comptent les salons de `reactions.salons`, la semaine court du lundi minuit (Paris). Le
+    tableau `pantheon-reactions` est rafraîchi toutes les 60 secondes quand il change ; au lundi, le classement de la semaine
+    passée va au journal et les marques sont purgées. Une réaction dans un sujet de forum ne compte que si le bot a vu passer
+    le sujet depuis son démarrage : l'événement ne porte pas le forum parent.
+52. **Les meilleurs moments sont recopiés une fois, sans ping.** Au seuil de `meilleursMoments.seuil` réactions `:prestige:`,
+    celles de l'auteur exclues, dans les seuls salons que le plan montre à tous (jamais un ticket ni un salon du staff) ; les
+    messages du bot sont ignorés. Le message est recopié une seule fois (`discord_highlights`), sans mention, avec le lien du
+    message.
+53. **L'Aide du mois : un bouton « Résolu par » dans chaque sujet neuf.** Le bot le pose dans chaque nouveau sujet de `#aide` ;
+    l'auteur du sujet ou le staff choisit dans un menu des participants (hors bots, hors auteur). Un seul choix par sujet
+    (`discord_help_marks`). Le tableau `pantheon-aide` montre dix lignes ; au premier du mois, le classement du mois passé va
+    au journal.
+54. **Le chantier en direct lit les Actus du site.** Les étapes viennent des Actus du classpath (`Actus.chantier`), les mêmes
+    que la page d'attente du site. La carte `chantier` vit dans `#coulisses` et est épinglée à la première publication ; ses
+    liens sont préfixés par l'adresse du site (`config.siteUrl`, passée à `BotFeatures.build`).
+55. **Le comptage garde l'état et les records en base.** Des nombres seuls (un autre message est supprimé), `:donar:` sur le
+    bon nombre, un record battu écrit en base ; une chaîne cassée est dite sans ping, avec le record ; à 0, un mauvais nombre ne
+    casse rien. L'état (`discord_games`) et les records (`discord_records`) survivent au redémarrage.
+56. **Le monte-charge attend en mémoire.** Une carte `monte-charge` avec le bouton « +1 étage » ; l'attente de
+    `monteCharge.attenteMinutes` par membre est tenue en mémoire (perdue au redémarrage, sans gravité) ; le staff fait
+    redescendre le monte-charge. Les images `discord/monte-charge/<étage>.png` viennent dès que D1 les fournit.
+57. **Les records au Panthéon sont lissés.** `pantheon-records` n'est modifié qu'une fois par 60 secondes au plus, les
+    modifications suivantes sont différées : Discord limite les modifications par salon.
+58. **Les messages vivants sont des cartes.** `#bienvenue`, le monte-charge et le Panthéon sont posés en carte à barre ciel
+    (`card = true`), retrouvés par leur clé dans `discord_bot_messages` et modifiés en place, repostés seulement s'ils ont
+    disparu (`LiveMessage`, `Boards.kt`) ; les tableaux de la semaine et du mois et le chantier suivent la même forme. Les
+    giveaways restent en message classique (décision 42).
 
 ## À valider par Kr
 
@@ -474,7 +548,8 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   compte chaque minute, nuit de 22 h à 7 h), l'XP (15 à 25 points, une fois par minute, niveau n à 100 × n + 50 × n ×
   (n - 1) / 2 points, rôles aux niveaux 5, 10, 20, 30, dix au classement), le top réactions à dix, les meilleurs
   moments à 5 `:prestige:`, le monte-charge toutes les 5 minutes, le rapport du lundi à 9 h, trois rappels par jour, les
-  inscriptions relues chaque minute pour les admissions (`admissions.relectureSecondes`, 60).
+  inscriptions relues chaque minute pour les admissions (`admissions.relectureSecondes`, 60), l'image de `#bienvenue` de jour de 7 h à
+  22 h (`bienvenue`), le monte-charge et la limite de cinq mentions de l'AutoMod.
 - Les lignes du compte rendu d'Oooscar dans `#📒・journal-du-bot` (`PlanReport.text`, D0) : « Plan du serveur, phase
   attente. », « J'ai créé N rôles, N catégories et N salons. », « Je ne supprime jamais rien. », « Il manque… » à blanc ;
   et pour l'accueil guidé (D2) : « J'ai posé l'accueil guidé : 2 question(s), 9 réponse(s), N salon(s) par défaut dont
@@ -605,6 +680,55 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     de 2 000 caractères.
 - Le règlement des giveaways, en brouillon : `docs/discord-reglement-giveaways.md`, à publier par la session du site une
   fois validé.
+- L'AutoMod (`Automod.kt`, `AutomodTexts`, `automod.json`, D2) : la liste de départ des mots refusés, les motifs des demandes
+  de contact, la limite de cinq mentions et les liens autorisés. Discord montre ses propres mots aux membres quand une règle
+  bloque un message ; seul le journal lit ceux du bot : « AutoMod : 4 règles posées. », « AutoMod : 3 sur 4 règles posées. »
+  puis « - <raison> » (voir « Le journal du bot, pour ces fonctions »).
+- `#bienvenue` (`Bienvenue.kt`, `BienvenueTexts`, D2). `<#discussion>` est la mention du salon.
+  - La carte : « Bienvenue au QG de Silooo. Le jeu se construit sous tes yeux : les coulisses, les sondages et les giveaways
+    sont ouverts, le reste arrive avec la bêta. Relie ton compte pour jouer depuis Discord, règle tes rappels, et dis bonjour
+    dans <#discussion>. »
+  - Les boutons : « Relier mon compte », « Mes rappels ».
+  - La réponse du premier : « La liaison arrive avec la bêta : tu relieras ton compte ici, ou avec la commande lier. »
+- Le top réactions (`Reactions.kt`, `ReactionTexts`, D2). `<@id>` est la mention du membre.
+  - Le tableau : « Top réactions de la semaine : » puis « 1. <@id>, 42 réactions » (« 1. <@id>, 1 réaction » au singulier).
+  - Vide : « Personne n'a encore réagi cette semaine. »
+- Les meilleurs moments (`Highlights.kt`, `HighlightTexts`, D2) : « <@auteur> dans <#salon> : », puis le texte cité par « > »,
+  puis le lien du message ; un texte coupé finit par « (suite) ».
+- L'Aide du mois (`Help.kt`, `HelpTexts`, D2). `<@id>` est la mention du membre.
+  - Sous chaque sujet neuf de `#aide` : « Quand ta question est réglée, appuie sur le bouton pour dire qui t'a aidé. » et le
+    bouton « Résolu par ».
+  - Le menu : « Choisis le membre qui a résolu ce sujet. », avec le sélecteur « Choisis un membre ».
+  - Les refus, au clic seul : « Seul l'auteur du sujet ou le staff peut dire qui l'a résolu. », « Ce sujet est déjà résolu. »,
+    « Personne d'autre n'a encore écrit dans ce sujet. », « Ce sujet ne peut pas être relu pour l'instant. »
+  - Les réponses : « C'est noté. » au clic, et dans le sujet « Résolu par <@id>. »
+  - Le tableau : « Aide du mois : » puis « 1. <@id>, 3 réponses retenues » (« 1 réponse retenue » au singulier) ; vide :
+    « Personne n'a encore résolu de sujet ce mois-ci. »
+- Le chantier en direct (`Chantier.kt`, `ChantierTexts`, D2) : le titre « Le chantier en direct », les trois rubriques « Faites »,
+  « En cours » et « À venir », et des lignes « titre » ou « titre : https://silooo.com/actus/x/ » (le lien quand l'étape en a un).
+- Le comptage (`Counting.kt`, `CountingTexts`, D2). `<@id>` est la mention du membre, `<@x>` celle du détenteur du record.
+  - La chaîne cassée : « <@id> a cassé la chaîne à 57 : il fallait 58. Le record est 120, par <@x>. On repart de 1. »
+  - Deux fois de suite : « <@id> a joué deux fois de suite : la chaîne s'arrête à 57. Le record est 120, par <@x>. On repart de 1. »
+  - Sans record, la phrase du record devient : « Pas encore de record. »
+  - La chaîne pas encore commencée : « <@id> a écrit 5 : la chaîne commence à 1. »
+- Le monte-charge (`Elevator.kt`, `ElevatorTexts`, D2). `<@id>` est la mention du membre, `<@x>` celle du détenteur du record.
+  - La carte au rez-de-chaussée : « Le monte-charge est au rez-de-chaussée. Appuie pour monter d'un étage. »
+  - La carte en cours : « Le monte-charge est à l'étage 37. Dernier à appuyer : <@id>. Record : étage 120, par <@x>. »
+  - Le bouton : « +1 étage ».
+  - Le staff qui fait redescendre : la carte devient « Le staff fait redescendre le monte-charge. Record : étage 120, par <@x>. »
+    et le staff seul lit « Le monte-charge est redescendu. »
+  - L'attente, au membre seul : « Tu as appuyé il y a 2 minutes. Le monte-charge accepte un étage toutes les 5 minutes par
+    membre. » ; aussi « moins d'une minute » pour le délai écoulé et « chaque minute » pour l'attente d'une minute.
+- Le Panthéon (`Records.kt`, `RecordTexts`, D2) : le titre « Les records des petits jeux », puis « Comptage : 120, par <@id>, le
+  5 novembre 2026. » et « Monte-charge : étage 37, par <@id>, le 5 novembre 2026. » ; sans record : « Aucun record pour
+  l'instant. »
+- Le journal du bot, pour ces fonctions (D2) : « AutoMod : 4 règles posées. » ou « AutoMod : 3 sur 4 règles posées. » puis
+  « - <raison> » ; « Image d'accueil absente : elle arrive avec D1. » ; « Icône du serveur posée. » ; « L'icône du serveur
+  n'a pas pu être posée : <raison>. » (« Discord a refusé » quand il n'en dit pas) ; « Top réactions de la semaine passée : »
+  puis le classement, ou « Personne n'a réagi. » ; « Meilleur moment : le message de <@a> dans <#c> est recopié. <lien> » ;
+  « Aide du mois passé : » puis le classement, ou « Personne n'a résolu de sujet. » ; « Comptage : la chaîne s'arrête à 57,
+  cassée par <@id>. » ; « <@id> a fait redescendre le monte-charge de l'étage 37, le 5 novembre 2026 à 18 h 10. » ; « Le
+  chantier en direct n'a pas pu être épinglé dans les coulisses. »
 - Le format « Gamertag · P3 », les lignes d'Oooscar et les textes des rappels : écrits à D3, listés ici au fur et à
   mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
@@ -706,3 +830,17 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   contre un vrai Discord, rien n'est encore commité et `tools/verifier.sh` n'a pas encore tourné. Restent : le crédit en
   jeu des lots (route du contrat, décision 44), le marquage de `etape` en base (45) et le calendrier Discord (46). Suite :
   vérificateur, fusion sur `main`, puis l'AutoMod, les tableaux et les petits jeux.
+- 5 novembre 2026, 19 h 47 à 20 h 22 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  L'AutoMod, `#bienvenue`, les quatre tableaux, le comptage et le monte-charge. Le socle élargi par la session (décision 47),
+  puis trois agents Sonnet en parallèle sur des fichiers disjoints (l'AutoMod et `#bienvenue` ; les quatre tableaux ; le comptage,
+  le monte-charge et les records), relus par la session. Deux retouches de revue : l'icône du serveur n'écrase jamais celle de Kr
+  (décision 50), les records au Panthéon sont lissés à une modification par 60 secondes (décision 57). Écrit : `Automod.kt`
+  (`AutomodRules`, `AutomodFeature`, `automod.json`), `Bienvenue.kt`, `Boards.kt` (`LiveMessage`), `Reactions.kt` (`ReactionStore`),
+  `Highlights.kt` (`HighlightStore`), `Help.kt` (`HelpStore`), `Chantier.kt`, `Counting.kt`, `Elevator.kt`, `Records.kt`,
+  `GameStore.kt`, le bloc `bienvenue` de `definitions/discord.json` avec son schéma et les types de l'add-on régénérés, tout
+  branché dans `BotFeatures` (le paramètre `siteUrl`). Suite Discord verte : `AutomodTest` 14, `BienvenueTest` 21, `ReactionTest`
+  13, `HighlightTest` 12, `HelpTest` 19, `ChantierTest` 9, `CountingTest` 20, `ElevatorTest` 23, `RecordsTest` 12 ;
+  `ReactionSqlTest`, `HighlightSqlTest`, `HelpSqlTest` et `GameSqlTest` (MariaDB) sautés sans Docker, la CI les joue. Fusion de
+  `origin/main` (970305d), vérificateur lancé. Les décisions 47 à 58 et les textes à valider sont ci-dessus ; `core/README.md` à
+  jour. Rien n'a tourné contre un vrai Discord. Suite : le rapport du lundi dans `#journal-du-bot`, puis la passation et la fusion
+  sur main.

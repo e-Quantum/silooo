@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "commentaire": "Les chiffres du Discord de Silooo (docs/discord.md), tenus par le bot Oooscar : l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours et les admissions. Valeurs de départ, à valider par Kr. Les heures sont dans le fuseau donné. Un niveau d'XP n se gagne à niveauBase × n + niveauCroissance × n × (n - 1) / 2 points. Les salons et les rôles sont cités par leur identifiant dans le plan du serveur (core/src/main/resources/discord/plan-serveur.json).",
+  "commentaire": "Les chiffres du Discord de Silooo (docs/discord.md), tenus par le bot Oooscar : l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Valeurs de départ, à valider par Kr. Les heures sont dans le fuseau donné. Un niveau d'XP n se gagne à niveauBase × n + niveauCroissance × n × (n - 1) / 2 points. Les salons et les rôles sont cités par leur identifiant dans le plan du serveur (core/src/main/resources/discord/plan-serveur.json).",
   "fuseau": "Europe/Paris",
   "accueil": {
     "bonjourSecondes": { "console": 10, "telephone": 7, "pc": 5 },
@@ -69,5 +69,9 @@
   },
   "admissions": {
     "relectureSecondes": 60
+  },
+  "bienvenue": {
+    "jourHeure": 7,
+    "nuitHeure": 22
   }
 }

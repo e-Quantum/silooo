@@ -40,6 +40,7 @@ data class DiscordDefinitions(
     @SerialName("concours") val contests: ContestRules,
     @SerialName("aides") val helpers: HelperRules,
     @SerialName("admissions") val admissions: AdmissionRules,
+    @SerialName("bienvenue") val banner: BannerRules,
 ) {
     /** Le fuseau des heures du fichier. */
     val zone: ZoneId get() = ZoneId.of(timeZone)
@@ -244,4 +245,11 @@ data class HelperRules(@SerialName("candidaturesDesMembres") val applicationsFro
 data class AdmissionRules(
     /** Toutes ces secondes, le bot cherche les inscriptions sans carte. */
     @SerialName("relectureSecondes") val refreshSeconds: Int,
+)
+
+/** L'image du message de `#bienvenue` : celle du jour de [dayHour] à [nightHour], celle de la nuit le reste du temps. */
+@Serializable
+data class BannerRules(
+    @SerialName("jourHeure") val dayHour: Int,
+    @SerialName("nuitHeure") val nightHour: Int,
 )

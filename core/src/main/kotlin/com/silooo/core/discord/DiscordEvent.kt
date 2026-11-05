@@ -38,8 +38,14 @@ sealed interface DiscordEvent {
     /** Un message supprimé, quel qu'en soit l'auteur : Discord ne dit plus rien de lui. */
     data class MessageRemoved(val channelId: String, val messageId: String) : DiscordEvent
 
-    /** [emoji] : le caractère d'un emoji de Discord, ou le nom d'un emoji du serveur. */
-    data class ReactionAdded(val channelId: String, val messageId: String, val userId: String, val emoji: String) : DiscordEvent
+    /** [emoji] : le caractère d'un emoji de Discord, ou le nom d'un emoji du serveur. [isBot] : le membre qui réagit est un bot. */
+    data class ReactionAdded(
+        val channelId: String,
+        val messageId: String,
+        val userId: String,
+        val emoji: String,
+        val isBot: Boolean = false,
+    ) : DiscordEvent
 
     data class ReactionRemoved(val channelId: String, val messageId: String, val userId: String, val emoji: String) : DiscordEvent
 

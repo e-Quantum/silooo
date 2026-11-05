@@ -79,6 +79,21 @@ interface DiscordServer {
     /** Le nom que le serveur affiche pour [userId] (son surnom, sinon son nom) ; `null` s'il n'est plus là. */
     suspend fun memberName(userId: String): String?
 
+    /** Épingle le message [messageId] du salon [channelId]. */
+    suspend fun pin(channelId: String, messageId: String)
+
+    /** Pose l'emoji du serveur [emojiName] sur le message ; `false` si le serveur n'a pas cet emoji. */
+    suspend fun react(channelId: String, messageId: String, emojiName: String): Boolean
+
+    /** Supprime le message [messageId] du salon [channelId] ; un message déjà parti ne gêne pas. */
+    suspend fun deleteMessage(channelId: String, messageId: String)
+
+    /** Le message [messageId] du salon [channelId] ; `null` s'il n'existe plus. */
+    suspend fun message(channelId: String, messageId: String): ChannelMessage?
+
+    /** Le lien que Discord ouvre sur le message [messageId] du salon [channelId]. */
+    fun messageLink(channelId: String, messageId: String): String
+
     /** Pose les commandes du bot sur le serveur, à la place des précédentes. */
     suspend fun installCommands(commands: List<CommandSpec>)
 
@@ -87,6 +102,45 @@ interface DiscordServer {
 
     /** Remplace l'accueil guidé par [state] et rend ce que Discord a gardé, ses identifiants compris. */
     suspend fun setOnboarding(state: OnboardingState): OnboardingState
+
+    /** Les noms des règles AutoMod posées sur le serveur, celles du bot et celles de Kr. Droit manquant : [DiscordRefusal]. */
+    suspend fun automodRules(): List<String>
+
+    /**
+     * Pose [rule] sur le serveur : crée la règle, ou remplace celle qui porte le même nom. Elle bloque le message et
+     * alerte dans [AutomodRule.alertChannelId] s'il y en a un. Le droit « Gérer le serveur » manque, ou Discord refuse
+     * la règle : [DiscordRefusal].
+     */
+    suspend fun setAutomodRule(rule: AutomodRule)
+
+    /** Remplace l'icône du serveur par [image] (png ou gif). Droit manquant, image refusée : [DiscordRefusal]. */
+    suspend fun setIcon(image: ImageFile)
+
+    /** Le serveur a déjà une icône, posée par le bot ou à la main. */
+    suspend fun hasIcon(): Boolean
+}
+
+/**
+ * Une règle AutoMod posée par le bot ; le nom sert de clé : une règle du même nom est remplacée. [alertChannelId] :
+ * le salon où Discord alerte le staff, `null` sans alerte. [exemptRoleIds] : les rôles que la règle ne touche pas.
+ */
+data class AutomodRule(
+    val name: String,
+    val trigger: AutomodTrigger,
+    val alertChannelId: String?,
+    val exemptRoleIds: Set<String>,
+)
+
+/** Ce qui déclenche une règle AutoMod. */
+sealed interface AutomodTrigger {
+    /** Des mots, avec les jokers de Discord ; [allowed] : ce qui ne déclenche jamais la règle. */
+    data class Keywords(val words: List<String>, val allowed: List<String>) : AutomodTrigger
+
+    /** Des expressions régulières (la syntaxe de Discord, sans retour arrière) ; [allowed] : comme pour [Keywords]. */
+    data class Patterns(val regexes: List<String>, val allowed: List<String>) : AutomodTrigger
+
+    /** Un message qui mentionne [limit] membres ou plus. */
+    data class MentionSpam(val limit: Int) : AutomodTrigger
 }
 
 /** Discord a refusé quelque chose que le bot sait expliquer ; le message ne contient jamais le jeton. */
@@ -141,4 +195,4 @@ data class ChannelSpec(
 )
 
 /** Un message d'un salon tel que le bot le relit ; [text] porte les pièces jointes réduites à leur nom entre crochets. */
-data class ChannelMessage(val authorId: String, val authorName: String, val text: String, val at: Instant)
+data class ChannelMessage(val authorId: String, val authorName: String, val text: String, val at: Instant, val bot: Boolean = false)

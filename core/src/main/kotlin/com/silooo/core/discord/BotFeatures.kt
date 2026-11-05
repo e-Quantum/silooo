@@ -1,5 +1,6 @@
 package com.silooo.core.discord
 
+import com.silooo.core.Config
 import com.silooo.core.db.Database
 import com.silooo.core.registration.JdbcSiteRegistrationStore
 import java.nio.file.Path
@@ -7,13 +8,22 @@ import java.nio.file.Path
 /**
  * Les fonctions du bot Oooscar, assemblées pour la production : construites sur le fil du bot une fois le plan
  * appliqué, avec les chiffres de `definitions/discord.json` lus à ce moment (un fichier abîmé arrête le bot, pas le
- * jeu). [onlineCount] : les joueurs en jeu, pour le vocal « N en ligne ».
+ * jeu). [onlineCount] : les joueurs en jeu, pour le vocal « N en ligne ». [siteUrl] : l'adresse du site, pour les
+ * liens que le bot écrit (le chantier en direct).
  */
 object BotFeatures {
-    fun build(definitionsDir: Path, database: Database, onlineCount: () -> Int): (BotContext) -> List<Feature> = { context ->
+    fun build(
+        definitionsDir: Path,
+        database: Database,
+        siteUrl: String = Config.DEFAULT_SITE_URL,
+        onlineCount: () -> Int,
+    ): (BotContext) -> List<Feature> = { context ->
         val definitions = DiscordDefinitions.loadChecked(definitionsDir, ServerPlan.fromClasspath())
         val members = JdbcMemberStore(database)
         val journal = BotJournal(context)
+        val messages = JdbcBotMessageStore(database)
+        val games = JdbcGameStore(database)
+        val records = RecordsBoard(context, games, messages, definitions.zone)
         listOf(
             WelcomeFeature(context, definitions.welcome, members),
             StatusFeature(context, definitions.status),
@@ -23,8 +33,16 @@ object BotFeatures {
             AnnounceFeature(context, journal),
             XpFeature(context, definitions.xp, definitions.report, definitions.zone, JdbcXpStore(database)),
             GiveawayFeature(context, definitions.giveaways, definitions.zone, JdbcGiveawayStore(database), journal),
-            TicketFeature(context, JdbcTicketStore(database), JdbcBotMessageStore(database), journal, definitions.zone),
+            TicketFeature(context, JdbcTicketStore(database), messages, journal, definitions.zone),
             VoiceRoomFeature(context),
+            AutomodFeature(context, journal),
+            BienvenueFeature(context, definitions.banner, definitions.zone, messages, journal),
+            ReactionFeature(context, definitions.reactions, definitions.zone, JdbcReactionStore(database), messages, journal),
+            HighlightFeature(context, definitions.highlights, JdbcHighlightStore(database), journal),
+            HelpFeature(context, definitions.zone, JdbcHelpStore(database), messages, journal),
+            ChantierFeature(context, messages, journal, siteUrl),
+            CountingFeature(context, games, records, journal),
+            ElevatorFeature(context, definitions.elevator, definitions.zone, games, messages, records, journal),
         )
     }
 }

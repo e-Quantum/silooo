@@ -74,7 +74,8 @@ internal class JdaEvents(
 
     override fun onMessageReactionAdd(event: MessageReactionAddEvent) {
         if (!event.isFromGuild || event.guild.idLong != guildId) return
-        offer(DiscordEvent.ReactionAdded(event.channel.id, event.messageId, event.userId, event.emoji.name))
+        val reactor = event.user ?: event.member?.user
+        offer(DiscordEvent.ReactionAdded(event.channel.id, event.messageId, event.userId, event.emoji.name, reactor?.isBot ?: false))
     }
 
     override fun onMessageReactionRemove(event: MessageReactionRemoveEvent) {

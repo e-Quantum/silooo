@@ -1,5 +1,7 @@
 package com.silooo.core.discord.jda
 
+import com.silooo.core.discord.AutomodRule
+import com.silooo.core.discord.AutomodTrigger
 import com.silooo.core.discord.BotConfig
 import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.CategorySpec
@@ -14,6 +16,7 @@ import com.silooo.core.discord.DiscordServer
 import com.silooo.core.discord.ExistingCategory
 import com.silooo.core.discord.ExistingChannel
 import com.silooo.core.discord.ExistingRole
+import com.silooo.core.discord.ImageFile
 import com.silooo.core.discord.OnboardingState
 import com.silooo.core.discord.RoleSpec
 import com.silooo.core.discord.ServerSnapshot
@@ -26,8 +29,12 @@ import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.Activity
 import net.dv8tion.jda.api.entities.Guild
+import net.dv8tion.jda.api.entities.Icon
 import net.dv8tion.jda.api.entities.Role
 import net.dv8tion.jda.api.entities.UserSnowflake
+import net.dv8tion.jda.api.entities.automod.AutoModResponse
+import net.dv8tion.jda.api.entities.automod.build.AutoModRuleData
+import net.dv8tion.jda.api.entities.automod.build.TriggerConfig
 import net.dv8tion.jda.api.entities.channel.ChannelType
 import net.dv8tion.jda.api.entities.channel.attribute.ICategorizableChannel
 import net.dv8tion.jda.api.entities.channel.concrete.ForumChannel
@@ -38,6 +45,7 @@ import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel
 import net.dv8tion.jda.api.exceptions.ErrorResponseException
 import net.dv8tion.jda.api.exceptions.InsufficientPermissionException
+import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.requests.ErrorResponse
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.requests.restaction.ChannelAction
@@ -231,20 +239,71 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
     override suspend fun history(channelId: String, limit: Int): List<ChannelMessage> {
         try {
             val newestFirst = messageChannel(channelId).iterableHistory.takeAsync(limit).await()
-            return newestFirst.reversed().map { message ->
-                val names = message.attachments.map { "[" + it.fileName + "]" }
-                ChannelMessage(
-                    authorId = message.author.id,
-                    authorName = message.member?.effectiveName ?: message.author.effectiveName,
-                    text = (listOf(message.contentRaw) + names).filter { it.isNotBlank() }.joinToString(" "),
-                    at = message.timeCreated.toInstant(),
-                )
-            }
+            return newestFirst.reversed().map { channelMessage(it) }
         } catch (e: ErrorResponseException) {
             throw DiscordRefusal("Discord refuse de lire le salon " + channelId + " : " + e.meaning)
         } catch (e: InsufficientPermissionException) {
             throw DiscordRefusal("le bot n'a pas le droit de lire le salon " + channelId)
         }
+    }
+
+    override suspend fun pin(channelId: String, messageId: String) {
+        try {
+            messageChannel(channelId).pinMessageById(messageId).submit().await()
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse d'épingler le message " + messageId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit d'épingler dans le salon " + channelId)
+        }
+    }
+
+    override suspend fun react(channelId: String, messageId: String, emojiName: String): Boolean {
+        val emoji = guild.getEmojisByName(emojiName, true).firstOrNull() ?: return false
+        try {
+            messageChannel(channelId).addReactionById(messageId, emoji).submit().await()
+            return true
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse la réaction " + emojiName + " sur le message " + messageId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de réagir dans le salon " + channelId)
+        }
+    }
+
+    override suspend fun deleteMessage(channelId: String, messageId: String) {
+        try {
+            messageChannel(channelId).deleteMessageById(messageId).submit().await()
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_MESSAGE) return
+            throw DiscordRefusal("Discord refuse de supprimer le message " + messageId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de supprimer dans le salon " + channelId)
+        }
+    }
+
+    override suspend fun message(channelId: String, messageId: String): ChannelMessage? {
+        try {
+            return channelMessage(messageChannel(channelId).retrieveMessageById(messageId).submit().await())
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_MESSAGE) return null
+            throw DiscordRefusal("Discord refuse de lire le message " + messageId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de lire le salon " + channelId)
+        }
+    }
+
+    override fun messageLink(channelId: String, messageId: String): String =
+        "https://discord.com/channels/" + guild.id + "/" + channelId + "/" + messageId
+
+    /** Ce que le bot garde d'un message lu : qui, quoi (le texte et les noms des fichiers joints), quand. */
+    private fun channelMessage(message: Message): ChannelMessage {
+        val names = message.attachments.map { "[" + it.fileName + "]" }
+        return ChannelMessage(
+            authorId = message.author.id,
+            authorName = message.member?.effectiveName ?: message.author.effectiveName,
+            text = (listOf(message.contentRaw) + names).filter { it.isNotBlank() }.joinToString(" "),
+            at = message.timeCreated.toInstant(),
+            bot = message.author.isBot,
+        )
     }
 
     override suspend fun moveToVoice(userId: String, channelId: String) {
@@ -279,6 +338,57 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
     override suspend fun onboarding(): OnboardingState = rest.onboarding(guild.id)
 
     override suspend fun setOnboarding(state: OnboardingState): OnboardingState = rest.setOnboarding(guild.id, state)
+
+    override suspend fun automodRules(): List<String> =
+        refusing("lire les règles AutoMod") { guild.retrieveAutoModRules().submit().await().map { it.name } }
+
+    override suspend fun setAutomodRule(rule: AutomodRule) {
+        val trigger = triggerOf(rule.trigger)
+        val responses = buildList {
+            add(AutoModResponse.blockMessage())
+            rule.alertChannelId?.let { add(AutoModResponse.sendAlert(messageChannel(it))) }
+        }
+        val exempt = rule.exemptRoleIds.map { role(it) }
+        refusing("poser la règle AutoMod « " + rule.name + " »") {
+            val known = guild.retrieveAutoModRules().submit().await().firstOrNull { it.name == rule.name }
+            if (known == null) {
+                guild.createAutoModRule(
+                    AutoModRuleData.onMessage(rule.name, trigger).putResponses(responses).setExemptRoles(exempt).setEnabled(true),
+                ).submit().await()
+            } else {
+                guild.modifyAutoModRuleById(known.id)
+                    .setTriggerConfig(trigger)
+                    .setResponses(responses)
+                    .setExemptRoles(exempt)
+                    .setEnabled(true)
+                    .submit().await()
+            }
+        }
+    }
+
+    override suspend fun setIcon(image: ImageFile) {
+        refusing("changer l'icône du serveur") { guild.manager.setIcon(Icon.from(image.bytes)).submit().await() }
+    }
+
+    override suspend fun hasIcon(): Boolean = guild.iconId != null
+
+    private fun triggerOf(trigger: AutomodTrigger): TriggerConfig = when (trigger) {
+        is AutomodTrigger.Keywords -> TriggerConfig.keywordFilter(trigger.words).addAllowList(trigger.allowed)
+        is AutomodTrigger.Patterns -> TriggerConfig.patternFilter(trigger.regexes).addAllowList(trigger.allowed)
+        is AutomodTrigger.MentionSpam -> TriggerConfig.mentionSpam(trigger.limit)
+    }
+
+    /** Un geste qui demande « Gérer le serveur » : tout refus de Discord ou de JDA devient un [DiscordRefusal]. */
+    private suspend fun <T> refusing(what: String, action: suspend () -> T): T =
+        try {
+            action()
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse de " + what + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de " + what + " : il lui faut « Gérer le serveur »")
+        } catch (e: IllegalArgumentException) {
+            throw DiscordRefusal("impossible de " + what + " : " + e.message)
+        }
 
     private fun messageChannel(channelId: String): GuildMessageChannel =
         guild.getChannelById(GuildMessageChannel::class.java, channelId)

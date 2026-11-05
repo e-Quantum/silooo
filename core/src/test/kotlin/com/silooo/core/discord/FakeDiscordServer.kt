@@ -60,12 +60,41 @@ class FakeDiscordServer(
     /** Le nom affiché de chaque membre ; un membre absent de la table n'est plus sur le serveur. */
     val names = mutableMapOf<String, String>()
 
+    /** Les messages épinglés : (salon, message), dans l'ordre. */
+    val pinned = mutableListOf<Pair<String, String>>()
+
+    /** Les emoji que le serveur possède ; `react` répond faux pour les autres. */
+    val emojis = mutableSetOf<String>()
+
+    /** Les réactions posées par le bot : (salon, message) vers les emoji, dans l'ordre. */
+    val reactions = mutableMapOf<Pair<String, String>, MutableList<String>>()
+
+    /** Les messages supprimés : (salon, message), dans l'ordre. */
+    val deletedMessages = mutableListOf<Pair<String, String>>()
+
+    /** Les messages des membres que `message` sait lire, par (salon, message) ; un message supprimé en sort. */
+    val messagesById = mutableMapOf<Pair<String, String>, ChannelMessage>()
+
     /** L'accueil guidé tel que le faux Discord le garde ; [onboardingWrites] : chaque envoi, dans l'ordre. */
     var onboarding: OnboardingState = OnboardingState.NONE
     val onboardingWrites = mutableListOf<OnboardingState>()
 
     /** Le refus que le faux Discord oppose à l'accueil guidé, ou rien. */
     var refusedOnboarding: String? = null
+
+    /** Les noms des règles AutoMod posées sur le faux serveur ; [automodWrites] : chaque règle reçue, dans l'ordre. */
+    val automodRules = mutableListOf<String>()
+    val automodWrites = mutableListOf<AutomodRule>()
+
+    /** Le refus que le faux Discord oppose à l'AutoMod (droit « Gérer le serveur » absent), ou rien. */
+    var refusedAutomod: String? = null
+
+    /** Les icônes reçues du bot, dans l'ordre ; [refusedIcon] : le refus que le faux Discord leur oppose, ou rien. */
+    val icons = mutableListOf<ImageFile>()
+    var refusedIcon: String? = null
+
+    /** Le serveur a une icône : posée à la main par le test, ou par `setIcon`. */
+    var iconPresent = false
     private var nextSnowflake = 100_000_000_000_000_000L
 
     data class Posted(val channelId: String, val messageId: String, val message: BotMessage)
@@ -194,6 +223,27 @@ class FakeDiscordServer(
 
     override suspend fun memberName(userId: String): String? = names[userId]
 
+    override suspend fun pin(channelId: String, messageId: String) {
+        pinned += channelId to messageId
+    }
+
+    override suspend fun react(channelId: String, messageId: String, emojiName: String): Boolean {
+        if (emojiName !in emojis) return false
+        reactions.getOrPut(channelId to messageId) { mutableListOf() } += emojiName
+        return true
+    }
+
+    override suspend fun deleteMessage(channelId: String, messageId: String) {
+        deletedMessages += channelId to messageId
+        messagesById.remove(channelId to messageId)
+    }
+
+    override suspend fun message(channelId: String, messageId: String): ChannelMessage? =
+        messagesById[channelId to messageId]
+
+    override fun messageLink(channelId: String, messageId: String): String =
+        "https://discord.com/channels/test/" + channelId + "/" + messageId
+
     override suspend fun installCommands(commands: List<CommandSpec>) {
         this.commands = commands
         commandInstalls++
@@ -211,6 +261,25 @@ class FakeDiscordServer(
         )
         return onboarding
     }
+
+    override suspend fun automodRules(): List<String> {
+        refusedAutomod?.let { throw DiscordRefusal(it) }
+        return automodRules.toList()
+    }
+
+    override suspend fun setAutomodRule(rule: AutomodRule) {
+        refusedAutomod?.let { throw DiscordRefusal(it) }
+        automodWrites += rule
+        if (rule.name !in automodRules) automodRules += rule.name
+    }
+
+    override suspend fun setIcon(image: ImageFile) {
+        refusedIcon?.let { throw DiscordRefusal(it) }
+        icons += image
+        iconPresent = true
+    }
+
+    override suspend fun hasIcon(): Boolean = iconPresent
 
     /** Discord remplace un numéro provisoire par un vrai identifiant (17 chiffres et plus) ; un identifiant connu reste. */
     private fun snowflake(id: String): String = if (id.length >= 17) id else (nextSnowflake++).toString()

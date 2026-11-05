@@ -1026,6 +1026,50 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   par une route du contrat. Limites connues : un giveaway `etape` compte dans le mois (aucune colonne ne le distingue) ; après un
   redémarrage entre le tirage et les messages, le gagnant et le lot restent en base mais les messages ne sont pas refaits ; pas
   d'événement du calendrier Discord. Le règlement est en brouillon dans `docs/discord-reglement-giveaways.md`.
+- **Le socle de ces fonctions.** `DiscordServer` gagne `pin`, `react` (faux si le serveur n'a pas l'emoji), `deleteMessage` (un
+  message déjà parti ne gêne pas), `message` (`null` s'il n'existe plus), `messageLink`, `hasIcon`, `setIcon`, `automodRules` et
+  `setAutomodRule` ; `ChannelMessage.bot` et `ReactionAdded.isBot` disent qui est un bot. `LiveMessage` (`Boards.kt`) retrouve par
+  sa clé un message vivant du bot (`discord_bot_messages`), le modifie sur place et ne le reposte que s'il a disparu.
+  `BotFeatures.build(definitionsDir, database, siteUrl, onlineCount)` reçoit l'adresse du site (`siteUrl`, `config.siteUrl` dans
+  `Main.kt`) pour les liens que le bot écrit.
+- **L'AutoMod.** `AutomodFeature` pose à chaque démarrage quatre règles de Discord, retrouvées par leur nom (« Oooscar : mots
+  refusés », « Oooscar : demandes de contact », « Oooscar : spam de mentions », « Oooscar : liens ») : elles bloquent le message
+  avant qu'il paraisse, alertent dans `#signalements` et exemptent le staff et la modération, les créateurs aussi pour les liens.
+  Les listes sont la ressource `discord/automod.json` (`AutomodRules.load()` ; le filtre du tchat relié de D4 la relira). Sans le
+  droit « Gérer le serveur », Discord refuse : une ligne au journal du bot, et le bot continue.
+- **`#bienvenue` et l'icône.** `BienvenueFeature` retrouve la carte du bot (clé `bienvenue`) et la modifie sur place : l'image de
+  jour entre `bienvenue.jourHeure` et `bienvenue.nuitHeure` (bloc `bienvenue` de `definitions/discord.json`), celle de nuit sinon,
+  lues dans `discord/bienvenue-jour.png` et `discord/bienvenue-nuit.png` (fournies par D1 ; sans elles, la carte part sans image et
+  le journal le dit). Deux boutons : « Relier mon compte » (une attente jusqu'à D3) et « Mes rappels » (que `WelcomeFeature`
+  traite déjà). L'icône du serveur (`discord/icone-serveur.png`, D1) n'est posée que si le serveur n'en a pas.
+- **Le top réactions.** `ReactionFeature` compte une réaction par message et par membre, bots exclus, dans les salons de
+  `reactions.salons` (`ReactionStore`, `JdbcReactionStore` sur `discord_reaction_marks`, V10). Le tableau `pantheon-reactions`
+  de `#panthéon` est modifié toutes les 60 secondes au plus, seulement s'il change. Le lundi à minuit (Paris), le classement de la
+  semaine passée va au journal et les marques sont purgées. Un sujet de forum ne compte que si le bot l'a vu passer depuis son
+  démarrage (l'événement ne porte pas le forum parent).
+- **Les meilleurs moments.** `HighlightFeature` recopie un message dans `#meilleurs-moments`, une seule fois (`HighlightStore`,
+  `JdbcHighlightStore` sur `discord_highlights`), quand il reçoit `meilleursMoments.seuil` réactions `:prestige:` hors celles de
+  l'auteur, dans les seuls salons que le plan montre à tous (jamais un ticket ni un salon du staff). Les messages du bot sont
+  ignorés ; la copie ne mentionne personne et porte le lien du message.
+- **L'Aide du mois.** `HelpFeature` pose dans chaque sujet neuf de `#aide` un message avec le bouton « Résolu par » : l'auteur du
+  sujet ou le staff choisit dans un menu des participants (bots et auteur exclus), un seul choix par sujet, et le membre nommé est
+  mentionné dans le sujet. `HelpStore` (`JdbcHelpStore` sur `discord_help_marks`) compte les réponses retenues du mois ; le tableau
+  `pantheon-aide` montre dix lignes et, au premier du mois, le classement du mois passé va au journal. Le titre en jeu est l'affaire
+  de la direction du jeu (`docs/discord-passation.md`, « Pour la direction du jeu », 10).
+- **Le chantier en direct.** `ChantierFeature` poste dans `#coulisses` la carte `chantier` (faites, en cours, à venir), tirée des
+  Actus du classpath (`Actus.chantier`, les mêmes que la page d'attente du site), l'épingle à sa première publication et la modifie
+  sur place ; ses liens sont préfixés par `siteUrl`.
+- **Le comptage.** `CountingFeature` : `#comptage` n'accepte que des nombres (un autre message est supprimé), chacun écrit le
+  suivant et jamais deux fois de suite. Le bon nombre reçoit `:donar:` et un record battu est écrit ; une chaîne cassée est dite
+  sans mention, avec le record, et on repart de 1. L'état (`discord_games`) et les records (`discord_records`) sont en base
+  (`GameStore`, `JdbcGameStore`) : ils survivent au redémarrage.
+- **Le monte-charge.** `ElevatorFeature` tient la carte `monte-charge` de `#monte-charge` et son bouton « +1 étage » : un étage par
+  membre toutes les `monteCharge.attenteMinutes` minutes (l'attente est en mémoire, un redémarrage la vide), et le staff ou la
+  modération qui appuie fait redescendre. L'étage vit dans `discord_games` ; l'image de l'étage est `discord/monte-charge/<étage>.png`
+  quand D1 la fournit.
+- **Le Panthéon des records.** `RecordsBoard` tient la carte `pantheon-records` de `#panthéon` : le record du comptage et celui du
+  monte-charge. Discord limitant les modifications par salon, elle n'est modifiée qu'une fois par 60 secondes ; les suivantes sont
+  différées.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
   sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
   (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
@@ -1060,6 +1104,10 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   manqué), `discord/GiveawayTest` (dix-huit cas : le lancement et ses refus, un par mois, `etape`, Participer, le tirage, le gagnant et le
   lot écrits avant les messages, la reprise sans second tirage, personne n'a participé), avec `discord/TicketSqlTest`,
   `discord/BotMessageSqlTest`, `discord/XpSqlTest` et `discord/GiveawaySqlTest` (MariaDB, CI, ignorés sans Docker : les lignes de
-  chaque magasin), `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
+  chaque magasin), `discord/AutomodTest` (14 cas), `discord/BienvenueTest` (21), `discord/ReactionTest` (13),
+  `discord/HighlightTest` (12), `discord/HelpTest` (19), `discord/ChantierTest` (9), `discord/CountingTest` (20),
+  `discord/ElevatorTest` (23) et `discord/RecordsTest` (12) sur le faux Discord, avec `discord/ReactionSqlTest`,
+  `discord/HighlightSqlTest`, `discord/HelpSqlTest` et `discord/GameSqlTest` (MariaDB, CI, ignorés sans Docker),
+  `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
   `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).

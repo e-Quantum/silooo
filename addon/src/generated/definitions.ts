@@ -106,7 +106,7 @@ export type BoutiquePourcentage = number;
 
 // ---- discord.json
 
-/** Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours et les admissions. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+/** Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
 export type DiscordDefinitions = {
   readonly version: number;
   readonly commentaire: string;
@@ -230,6 +230,13 @@ export type DiscordDefinitions = {
   readonly admissions: {
     /** Toutes ces secondes, le bot cherche les inscriptions sans carte et en poste une par inscription. */
     readonly relectureSecondes: number;
+  };
+  /** L'image du message de #bienvenue : celle du jour entre jourHeure et nuitHeure, celle de la nuit le reste du temps, aux heures du fuseau du fichier. */
+  readonly bienvenue: {
+    /** L'heure où l'image d'accueil passe au jour. */
+    readonly jourHeure: DiscordHeure;
+    /** L'heure où l'image d'accueil passe à la nuit. */
+    readonly nuitHeure: DiscordHeure;
   };
 };
 

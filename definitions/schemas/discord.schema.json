@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://silooo.com/schemas/discord.schema.json",
   "title": "Le Discord de Silooo, tenu par le bot Oooscar",
-  "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours et les admissions. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions"],
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue"],
   "$defs": {
     "identifiantDuPlan": {
       "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
@@ -345,6 +345,22 @@
           "type": "integer",
           "minimum": 15,
           "maximum": 3600
+        }
+      }
+    },
+    "bienvenue": {
+      "description": "L'image du message de #bienvenue : celle du jour entre jourHeure et nuitHeure, celle de la nuit le reste du temps, aux heures du fuseau du fichier.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jourHeure", "nuitHeure"],
+      "properties": {
+        "jourHeure": {
+          "description": "L'heure où l'image d'accueil passe au jour.",
+          "$ref": "#/$defs/heure"
+        },
+        "nuitHeure": {
+          "description": "L'heure où l'image d'accueil passe à la nuit.",
+          "$ref": "#/$defs/heure"
         }
       }
     }
