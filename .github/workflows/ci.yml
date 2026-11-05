@@ -38,8 +38,6 @@ jobs:
       # gradle-wrapper.jar est un binaire versionné : on contrôle sa somme contre celles de Gradle.
       - uses: gradle/actions/wrapper-validation@v4
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          build-root-directory: core
       - name: Vérifier le dépôt
         run: bash tools/verifier.sh
 
