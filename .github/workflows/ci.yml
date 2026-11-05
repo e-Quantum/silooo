@@ -79,6 +79,115 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Les fichiers de deploy/ qui ne passent pas par une image : les scripts shell (ShellCheck, installé sur le runner)
+  # et le compose, lu par Docker Compose lui-même avec un fichier d'environnement factice. Le compose se lance comme
+  # le fait deploy/scripts/deploy.sh : projet silooo, dossier de projet là où est le fichier d'environnement.
+  # Les tests de ces fichiers (tools/tests/deploy-*) tournent déjà dans le job verifier.
+  deploy-fichiers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck sur les scripts de deploy/ et leurs tests
+        run: |
+          set -euo pipefail
+          shellcheck --version
+          mapfile -t scripts < <(find deploy -name '*.sh' | sort)
+          echo "${#scripts[@]} script(s) dans deploy/ :"
+          printf '  %s\n' "${scripts[@]}"
+          # .shellcheckrc (racine du dépôt) : external-sources et source-path=SCRIPTDIR, pour suivre commun.sh.
+          shellcheck "${scripts[@]}" tools/tests/deploy-start.sh tools/tests/deploy-deploy.sh
+      - name: Valider deploy/compose.yml avec un fichier d'environnement factice
+        run: |
+          set -euo pipefail
+          dossier="$(mktemp -d)"
+          # Valeurs fausses, écrites dans un dossier jetable : le compose les exige (${VAR:?}) mais rien n'en sort.
+          cat > "$dossier/.env" <<'FIN'
+          SILOOO_DB_URL=jdbc:mariadb://mariadb:3306/silooo
+          SILOOO_DB_USER=silooo
+          SILOOO_DB_PASSWORD=mot-de-passe-factice-de-la-ci
+          SILOOO_API_KEY=cle-factice-de-la-ci
+          BDS_PUBLIC_IP=203.0.113.10
+          FIN
+          docker compose version
+          SILOOO_TAG=ci docker compose -p silooo --project-directory "$dossier" -f deploy/compose.yml config -q
+          echo "deploy/compose.yml : valide."
+
+  # L'image de silooo-bds (deploy/bds/Dockerfile) : le serveur Bedrock officiel et l'add-on. Même logique que le job
+  # image ci-dessus : contexte à la racine, construite à chaque poussée, poussée sur main seulement.
+  # C'est ici que le zip de BDS est téléchargé et que sa somme SHA-256 est contrôlée contre deploy/bds/bds.sha256 :
+  # le journal de la construction écrit le MD5 et le SHA-256 du zip avant le contrôle.
+  image-bds:
+    needs: [verifier, deploy-fichiers]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/e-quantum/silooo-bds
+      PUBLIER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      BUILDKIT_PROGRESS: plain
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Construire l'image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/bds/Dockerfile
+          load: true
+          tags: silooo-bds:ci
+          cache-from: type=gha,scope=bds
+          cache-to: type=gha,mode=max,scope=bds
+      - name: Contrôler l'image (taille, utilisateur, bibliothèques, rendu de la configuration)
+        run: |
+          set -euo pipefail
+          docker image ls silooo-bds:ci
+          taille="$(docker image inspect silooo-bds:ci --format '{{.Size}}')"
+          echo "Taille de l'image : $((taille / 1024 / 1024)) Mo"
+          docker run --rm --entrypoint sh silooo-bds:ci -c 'set -e; id; test "$(id -u)" = 10001; ls -l /opt/bds/bedrock_server; ls -l /opt/bds/behavior_packs/silooo'
+          # Les bibliothèques dont bedrock_server a besoin sont dans l'image (rien ne doit manquer).
+          manquantes="$(docker run --rm --entrypoint sh silooo-bds:ci -c 'cd /opt/bds && LD_LIBRARY_PATH=. ldd ./bedrock_server | grep "not found" || true')"
+          if [ -n "$manquantes" ]; then echo "::error::Bibliothèques manquantes : $manquantes"; exit 1; fi
+          echo "ldd : aucune bibliothèque manquante."
+          # start.sh rend la configuration dans un dossier jetable, sans lancer le serveur.
+          docker run --rm --entrypoint sh silooo-bds:ci -c '/opt/silooo/start.sh --rendre-seulement /tmp/rendu && cat /tmp/rendu/server.properties'
+      - name: Démarrer le serveur dix secondes puis l'arrêter (information, ne bloque pas)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          # -it comme stdin_open et tty du compose : la console de BDS lit l'entrée standard.
+          docker run -dit --name bds-essai -e BDS_PUBLIC_IP=203.0.113.10 silooo-bds:ci
+          sleep 45
+          echo "--- journal après 45 s"
+          docker logs bds-essai 2>&1 | tail -n 40
+          echo "--- arrêt par SIGINT (le signal du compose)"
+          debut=$SECONDS
+          docker kill --signal=SIGINT bds-essai
+          docker wait bds-essai
+          echo "arrêté en $((SECONDS - debut)) s"
+          docker logs bds-essai 2>&1 | tail -n 15
+      - name: Se connecter au registre GitHub
+        if: env.PUBLIER == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pousser l'image (sur main seulement)
+        if: env.PUBLIER == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/bds/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:main
+          cache-from: type=gha,scope=bds
+          cache-to: type=gha,mode=max,scope=bds
+
   # La migration V1 rejouée sur la même version de MariaDB que la production (12.3.3 sur SileneMC).
   # Les tests Testcontainers de core/ (job verifier) rejouent aussi les migrations avec Flyway ; ceci
   # reste le contrôle du fichier SQL brut, avec le client mariadb, sans Gradle.

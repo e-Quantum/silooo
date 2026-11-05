@@ -2,6 +2,9 @@
 .env.*
 *.key
 *.pem
+# deploy/ : le tag déployé (retour arrière) et les sauvegardes prises avant chaque déploiement
+deploy/.tag-courant
+sauvegardes/
 build/
 .gradle/
 out/

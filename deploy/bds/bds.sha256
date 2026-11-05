@@ -1,0 +1,14 @@
+# Somme SHA-256 du zip de BDS que le Dockerfile télécharge. Lue par « sha256sum --check » : les lignes qui
+# commencent par # sont ignorées, la dernière ligne a la forme « somme  nom du fichier » (deux espaces).
+#
+# Fichier  : bedrock-server-1.26.62.1.zip
+# Source   : https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-1.26.62.1.zip
+#            (le lien que donne https://net-secondary.web.minecraft-services.net/api/v1.0/download/links)
+# MD5      : 4a23794a882b008d3f0a5fde8b338f55, l'en-tête Content-MD5 annoncé par minecraft.net. Le Dockerfile
+#            écrit md5sum et sha256sum dans le journal de construction : la CI les montre, on compare.
+# SHA-256  : calculée à la première construction réussie de l'image, pas avant. Tant que la ligne ci-dessous
+#            ne contient que des zéros, la construction s'arrête sur la comparaison, volontairement.
+#
+# Pour changer de version de BDS (docs/bedrock.md, « La procédure de mise à jour ») : nouveau numéro dans
+# ARG BDS_VERSION du Dockerfile, nouveau nom de fichier ici, nouvelle somme, dans le même commit.
+0000000000000000000000000000000000000000000000000000000000000000  bedrock-server-1.26.62.1.zip
