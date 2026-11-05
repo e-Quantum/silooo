@@ -30,6 +30,13 @@ class InMemorySiteRegistrationStore : SiteRegistrationStore {
         if (admit) row.admitted = true
         return LinkOutcome.LINKED
     }
+
+    override fun admit(connection: Connection, key: String): Boolean {
+        val row = rows[key] ?: return false
+        if (row.admitted) return false
+        row.admitted = true
+        return true
+    }
 }
 
 /** Le faux fournisseur de « Relier Discord » : il rend l'identifiant qu'on lui a donné, ou échoue. */
