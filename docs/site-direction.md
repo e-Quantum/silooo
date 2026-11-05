@@ -1,110 +1,122 @@
-# Direction du site : piloter le chantier de silooo.com en autonomie
+# Direction du site : construire silooo.com en autonomie, en local
 
-Ce fichier s'adresse à la session de direction du site, lancée par Kr. Elle est la sœur de la session de
-direction du jeu ([direction.md](direction.md)) et suit les mêmes règles, mais son chantier est à part : le
-site public `silooo.com`, décrit dans [site.md](site.md). Elle ne code pas tout elle-même : elle découpe le
-chantier en étapes, les confie à une session de travail à la fois, vérifie, fusionne et tient son journal
-dans [site-passation.md](site-passation.md).
+Ce fichier s'adresse à la session de direction du site, lancée par Kr dans Claude Code sur son PC Windows, dans
+le dossier `silooo-site` (un worktree du dépôt `silooo`). Une autre session, la direction du jeu, construit le jeu
+en même temps depuis le dossier `silooo` ; une troisième, la direction du Discord, tient le bot et le serveur
+Discord. Lis « Cohabiter avec les autres directions » avant de toucher à quoi que ce soit.
 
-## Ce qui est à elle, et ce qui ne l'est pas
+Tu ne codes pas tout toi-même : tu découpes les corrections en tâches, tu les confies à une session ou à un
+sous-agent à la fois, tu relis, tu vérifies, tu fusionnes et tu tiens `docs/site-passation.md`.
 
-- À elle (décision 37 de Kr, [passation.md](passation.md)) : le code du site, `core/src/main/kotlin/com/silooo/core/site/`
-  et `core/src/main/resources/site/`, avec ses tests ; `docs/site.md`, `docs/site-passation.md`, ce fichier,
-  l'ADR du site ([0006](adr/0006-site-silooo-com.md)) ; une fois, des lignes dans `docs/README.md` et
-  `CLAUDE.md` ; et les quelques lignes que le site demande aux fichiers partagés de `core/` (`Application.kt`,
-  `Config.kt`, `libs.versions.toml`, `core/README.md`) et à `tools/anti_ia.py`, en les gardant courtes pour que
-  les tranches du jeu fusionnent sans conflit.
-- Pas à elle : `docs/passation.md` et `docs/direction.md` restent à la direction du jeu. Elle n'y écrit
-  jamais ; ce qu'elle a à dire au jeu passe par la section « Pour la direction du jeu » de
-  `docs/site-passation.md`, que la direction du jeu lit à chaque bilan et à laquelle elle répond dans son
-  journal. Ni `deploy/`, ni `api/`, ni `addon/` : une route du contrat ou un écran que le site rend nécessaire
-  (le refus des non-admis dans `join`, un titre de joueur) se demande dans cette section, le jeu les fait.
-- Elle ne déploie pas : la direction du jeu déploie silooo-core, site compris, quand ce fichier dit « Prêt à
-  mettre en ligne » dans `docs/site-passation.md` et que Kr a fait sa part. Elle ne crée aucun compte externe, et
-  ne passe jamais `SILOOO_SITE_MODE` à `ouvert` hors de son poste : ni dans un fichier du dépôt, ni dans la CI, ni
-  dans un déploiement. L'ouverture du site est un geste de Kr (phase 7 du plan).
-- Kr tient la direction du site dans le worktree `silooo-site` de son PC ; ses fichiers de cadrage, tant qu'ils ne
-  sont pas poussés, ne sont lus par personne d'autre. Une direction du site lancée dans le cloud repart de ce
-  qui est sur `main`, et demande à Kr de pousser le reste.
+- Quoi construire : `docs/site.md` (le kit de Kr, complété par l'état réel de `main`).
+- Ce qui s'écarte du kit, avec un verdict par ligne : `docs/site-revision.md`.
+- Où on en est : `docs/site-passation.md` (la file d'attente des corrections, « À faire par Kr », le journal).
+- Le plan, pour comprendre les choix : https://claude.ai/artifact/Ectn9eoy3zApd2sNDaCEQ2 ; le cadrage :
+  https://claude.ai/artifact/YcKNUkvduWwP1QUqqxxFHo.
+- Les maquettes, le prototype d'Oooscar et les captures de la révision, lisibles hors ligne : `docs/references/site/`.
+- Le kit d'origine, intact : `docs/references/site-kit/`.
 
-## Le premier tour : la mise en place
+## Le deuxième passage
 
-1. `git fetch origin`, lis `CLAUDE.md`, ce fichier, [site.md](site.md) et [site-passation.md](site-passation.md).
-2. Si `site-passation.md` manque, écris-le : l'état, les étapes S0 à S5 avec leurs cases, « À faire par Kr »,
-   « Décisions prises sans Kr », « À valider par Kr », le journal. Si `site.md` n'est pas sur `main`, reprends-le
-   de la branche qui le porte et mets-le à jour.
-3. Écris ou relis l'ADR du site. Un numéro d'ADR se prend dans l'index de `docs/adr/README.md` et s'annonce dans
-   `site-passation.md` (la direction du site n'écrit pas dans `passation.md` : l'index de l'ADR, mis à jour dans
-   le même commit, est le verrou).
-4. Lance la vérification sur `main` pour connaître l'état de départ, puis commite la mise en place et pousse.
+La première direction du site, dans le cloud, a livré six étapes S0 à S5 sur `main` sans lire le kit. Le deuxième
+passage, le 5 novembre 2026, a mis le kit à l'abri, suspendu la mise en ligne, rendu le site en local, capturé
+chaque page à 360 et 1 280 px, écrit `docs/site-revision.md` et réaligné `docs/site.md`, ce fichier et
+`docs/site-passation.md`. Ce qui reste est la boucle ci-dessous, ligne par ligne de la révision.
 
 ## La boucle
 
-1. `git fetch origin` puis lis `site-passation.md` : la première étape dont une case n'est pas cochée est la
-   suivante. Les étapes se font dans l'ordre, S0 puis S1 et ainsi de suite.
-2. Lance **une seule session de travail** pour l'étape, avec un prompt autonome : la tâche case par case, les
-   fichiers à lire, le critère de fin (« `tools/verifier.sh` vert, les deux modes du site testés »), la
-   branche `claude/site-sN` à pousser, le rappel de lire `CLAUDE.md`, et les interdits de ce fichier. La
-   session ne touche ni `docs/site-passation.md`, ni `docs/passation.md`, ni `CLAUDE.md` : elle rend compte
-   dans son message final. Elle sait que des tranches du jeu travaillent dans `core/` en même temps : elle
-   reste dans `site/` et ne réécrit pas un fichier partagé, elle y ajoute des lignes.
-3. Pendant qu'elle tourne, fais toi-même les tâches de coordination : relire les textes, préparer la liste des
-   « à valider par Kr », tenir le journal, préparer le prompt suivant.
-4. Quand la branche arrive : relis le diff en entier, lance `tools/verifier.sh` dessus, puis fusionne sur `main`
-   en avance rapide (rebase si `main` a bougé) et pousse. Coche les cases, ajoute trois lignes au journal.
-   Une branche dont la vérification échoue ne se fusionne pas : relance la session avec le journal de l'échec,
-   ou reprends la correction toi-même.
-5. Recommence. Toutes les 2 heures environ, écris un bilan dans `site-passation.md`, commite et pousse.
+1. `git fetch origin`, rebase ton dossier sur `origin/main`. Lis `docs/site-passation.md` (les cases de « Les écarts
+   à corriger » sont ta file d'attente, dans l'ordre), `docs/passation.md` en lecture seule (l'état du jeu, ses
+   décisions, ce qui a changé dans le contrat ou `definitions/`) et « Pour la direction du site » de
+   `docs/discord-passation.md`.
+2. Choisis la branche suivante. Une branche tient en moins de deux heures de travail, touche des fichiers précis et a
+   un critère de fin vérifiable (« le test `SiteAttenteTest` passe », « `verifier_site.mjs` ne trouve aucun
+   débordement », « la capture de `/rejoindre/` à 360 px ressemble à la maquette »).
+3. **Une seule session de travail à la fois.** Lance-la avec un prompt autonome : les lignes `R` de la révision à
+   corriger, les sections de `docs/site.md` à lire, les maquettes concernées dans `docs/references/site/maquettes/`,
+   le critère de fin, la branche `claude/site-<sujet>`, et le rappel de lire `CLAUDE.md` et la section « Cohabiter »
+   de ce fichier. Pour tout ce qui se voit (pages, styles, animations), la session charge le savoir-faire
+   `ui-ux-production` avant d'écrire, et `silooo-ecran` pour un texte vu par les joueurs.
+4. Pendant qu'elle tourne, fais toi-même les petites tâches : docs, ADR, cases, relectures de textes.
+5. Quand la branche arrive : relis le diff (aucun texte de joueur sans les règles anti-slop, aucun chiffre du jeu
+   hors de `definitions/`, aucun test affaibli), rends les pages et relis les captures, `tools/verifier.sh` (Docker
+   Desktop lancé pour les tests SQL), rebase sur `origin/main`, fusion en avance rapide, poussée. Passe les lignes de
+   la révision à « corrigé », coche la case, trois lignes au journal.
+6. Recommence. Toutes les 30 minutes environ : `main` est-il vert, la session avance-t-elle ? Relance une session
+   bloquée avec un prompt plus précis, ou reprends la tâche toi-même.
 
-## Où lancer une session de travail
+Pousser `main` depuis le worktree : la branche `main` locale est extraite dans `../silooo`, le worktree ne peut pas
+l'avancer. Après le rebase et la vérification verte : `git merge-base --is-ancestor origin/main HEAD`, puis
+`git push origin claude/site-<sujet>:main`. La direction du jeu fusionne `origin/main` de son côté.
 
-Même tableau que [direction.md](direction.md), section « Où lancer une session ». Depuis une session cloud, une
-session de travail est un sous-agent dans son propre worktree git, sur sa branche `claude/site-sN`
-(`docs/passation.md`, décision 3). Une à la fois : le quota est celui de Kr, et le site n'a pas de tranches
-indépendantes assez larges pour en occuper trois.
+## Où lancer une session
 
-## Les règles propres au site
+| Où | Comment | Pour quoi |
+| --- | --- | --- |
+| Sous-agent | Un sous-agent dans son propre worktree, branche `claude/site-<sujet>`, prompt complet | Le cas normal en local |
+| PC | `git worktree add ../silooo-site-wt/<sujet> -b claude/site-<sujet> origin/main`, puis dans ce dossier `claude -p --permission-mode auto "<prompt>"` | Une tâche longue que la direction suit de loin |
+| Application Claude, cloud | Seulement sur un tour de Kr : l'application refuse une session cloud lancée depuis un événement | Quand Kr est là et le demande |
 
-- Le site affiche, il ne décide rien. Les chiffres (prix des packs, grades, usines, nombre d'associés) viennent
-  des définitions que le service a chargées, jamais recopiés dans un contenu. Les données vivantes (joueurs en
-  ligne, classements, fiches) se lisent dans la base par les accès du service, avec un cache ; le site n'écrit
-  que ce que l'[ADR 0006](adr/0006-site-silooo-com.md) lui permet (livraisons PayNow, inscriptions).
-- Le site écoute sur son propre port (`SILOOO_SITE_PORT`), jamais sur celui de `/v1` : l'API reste hors
-  d'Internet.
-- Deux modes, lus dans `SILOOO_SITE_MODE` : `attente` (défaut partout : la page d'attente, les mentions,
-  l'inscription des pionniers) et `ouvert` (le site entier). Le mode `ouvert` ne sert qu'à relire le site sur le
-  poste de la direction ou dans les tests.
-- Chaque texte est un texte vu par les joueurs : il passe `tools/anti_ia.py` (`site/` est dans sa liste) et reste
-  marqué « à valider par Kr » dans `site-passation.md` tant que Kr ne l'a pas lu ([anti-ia.md](anti-ia.md)).
-- Rien de ce que [vision.md](vision.md) interdit n'apparaît sur le site : ni hasard payant, ni monnaie
-  échangeable, ni Lingots, zones ou places de classement à vendre. Pas de traceur, pas de cookie, pas d'hôte tiers.
-- Le design est Silooo Atelier ([design/README.md](../design/README.md)) : mêmes jetons, mêmes textures,
-  mêmes mots. Un écran qui ressemble à un tableau de bord SaaS n'est pas dans Silooo.
-- Une page qui montre des données du jeu ne montre que ce qu'un joueur voit déjà en jeu : gamertag, nom
-  d'entreprise, époque, étoiles, Lingots gagnés dans la semaine ; jamais de XUID, jamais de solde, jamais une
-  adresse de courriel ni un identifiant Discord. Une table nouvelle passe par une migration, dont le numéro se
-  prend à la fusion (décision 37, point 5).
-- Les cases qui demandent Kr (DNS, bloc Caddy, identité légale des mentions, adresse de la boutique, sites de
-  vote, application Discord, secret du webhook, ouverture) vont dans « À faire par Kr » de `site-passation.md`,
-  et le chantier continue sans elles.
+Pas de session sur le VPS, pas de commande sur le VPS. Un seul Gradle à la fois sur le PC aussi : la direction ne
+lance pas `tools/verifier.sh` pendant qu'une session de travail construit.
+
+## Cohabiter avec les autres directions
+
+Les directions fusionnent sur le même `main`. Elles ne se parlent pas : chacune lit le fichier de l'autre.
+
+| Zone | Toi |
+| --- | --- |
+| `docs/site*.md`, `docs/references/site/`, `docs/references/site-kit/`, `core/src/main/kotlin/com/silooo/core/site/`, `core/src/main/kotlin/com/silooo/core/sitedata/`, `core/src/main/resources/site/`, leurs tests, `tools/verifier_site.mjs` | Tu écris |
+| `docs/passation.md`, `docs/direction.md`, `docs/discord*.md`, `core/.../discord/` | Tu lis, tu n'écris jamais ; tu demandes par « Pour la direction du jeu » ou « Pour la direction du Discord » de `docs/site-passation.md` |
+| `CLAUDE.md`, `docs/README.md` | Seulement pour la ligne qui mène à tes fichiers |
+| `addon/` | Seulement l'écran « Relier Discord », annoncé avant dans « Pour la direction du jeu » |
+| `resource-pack/`, `deploy/`, le reste de `core/` | Tu ne touches pas, sauf la liste suivante |
+| Partagés : `Application.kt` (`Dependencies` et une ligne `siteRoutes`), `Config.kt`, `Main.kt`, l'OpenAPI et son test de contrat, `definitions/` et ses schémas, `session/` (le refus en mode `beta` et le Pionnier), `core/build.gradle.kts`, `libs.versions.toml`, `core/README.md` | Tu écris le minimum, annoncé avant dans « Pour la direction du jeu » |
+
+- **Numéros de migration et d'ADR** : pris au moment de la fusion. Après le rebase, si le numéro est pris sur
+  `main`, renomme ta migration ou ton ADR au suivant libre. Une migration déjà sur `main` ne change jamais (V7 reste).
+- **Poussée refusée** parce qu'une autre direction vient de fusionner : `git fetch`, rebase, `tools/verifier.sh`,
+  nouvelle poussée. Jamais de force-push.
+- **Un changement du jeu casse le site** (contrat, `definitions/`, `join`) : adapte le site. Ne défais jamais le
+  travail d'une autre direction ; si tu as besoin qu'elle change quelque chose, écris-le dans sa section.
+- **Votes, crédit des Gemmes, Pionnier en jeu, déploiement** : c'est le jeu (`docs/site.md`, « Les votes » et
+  « L'achat de Gemmes »). En attendant, le site travaille derrière des interfaces Kotlin avec des données simulées.
+- **Le Discord** : la liaison Discord ne prouve pas le gamertag (la preuve vient du jeu), la case « Rejoindre aussi
+  le Discord » et les textes que le site publie pour le Discord passent par « Pour la direction du site » de
+  `docs/discord-passation.md` (décision 43 de `docs/passation.md`).
+
+## Comptes externes, secrets, mise en ligne
+
+- Tu ne crées aucun compte ni aucune application : Discord, Azure, PayNow, Hubyy, sites de vote. Tu codes contre
+  leur documentation publique (lis-la sur le web, cite-la dans le code) et tu testes avec des fournisseurs simulés.
+- Les identifiants arrivent par variables d'environnement, posées par Kr. Tu ne lis jamais un fichier d'environnement.
+- **Tu ne déploies pas.** Quand une sortie est prête (la page d'attente, la bêta, la vitrine), écris-le dans « Prêt
+  à mettre en ligne » de `docs/site-passation.md`, avec ce que Kr doit avoir fait avant. La direction du jeu déploie
+  `main`. Tant que la révision n'est pas finie, la section dit « Suspendu ».
+- Jamais `SILOOO_SITE_MODE=ouvert` ailleurs qu'en local, jamais de paiement réel.
+
+## Les textes
+
+Tout texte vu par les joueurs suit `design/README.md`, « Écrire sans slop », et `docs/anti-ia.md`. Il entre dans
+« À valider par Kr » de `docs/site-passation.md`. Les bulles d'Oooscar font 6 mots au plus. Les textes des
+maquettes remplacent ceux de `main` là où une maquette existe. Les textes légaux sont des brouillons, marqués comme
+tels sur la page.
 
 ## Quand t'arrêter
 
-- Tu enchaînes S0 à S5 dans l'ordre, une session à la fois. Une étape est finie quand toutes ses cases sont
-  cochées sur `main`, sauf celles notées « À faire par Kr ».
-- Toutes les 2 heures environ, et avant de t'arrêter, un bilan dans `site-passation.md` : ce qui est fait, ce
-  qui reste, les décisions prises seule, la liste « À faire par Kr », les textes « à valider par Kr ».
-- Condition de fin : S0 à S5 cochées dans `site-passation.md` sur `main`, sauf les cases de Kr ; le dernier
-  bilan poussé ; `main` vert ; `git status` propre ; aucune session lancée encore en cours.
-- « Prêt à mettre en ligne » s'écrit dans `site-passation.md` quand S0 à S5 sont sur `main`, que la liste de Kr
-  pour la mise en ligne (DNS, bloc Caddy, mentions, mode) est écrite, et que `main` est vert : la direction du jeu
-  déploie alors, pas la direction du site.
+- Tu suis l'ordre des branches de `docs/site-revision.md`. Au début de chaque branche, relis ses lignes et les
+  sections de `docs/site.md` qu'elles citent ; ajoute à la passation les cases qui manquent.
+- Une ligne qui demande Kr : note-la dans « À faire par Kr », corrige tout ce qui ne dépend pas de lui, et continue.
+  Une question ouverte se tranche avec la recommandation de la révision, notée dans « Décisions prises sans Kr ».
+- Toutes les 2 heures environ, et avant de t'arrêter, écris un bilan dans `docs/site-passation.md` (fait, reste,
+  décisions prises seul, textes à valider, « À faire par Kr »), commite et pousse.
+- **Condition de fin** : chaque ligne de `docs/site-revision.md` est « gardé » ou « corrigé », sauf ce qui attend
+  Kr ; « Prêt à mettre en ligne » est réécrit ; `main` est vert ; le dernier bilan est poussé ; `git status` est
+  propre ; aucune session ni aucun sous-agent que tu as lancé ne tourne encore.
 
 ## Ce que tu ne fais jamais
 
-Les interdits de `CLAUDE.md` et de [direction.md](direction.md) s'appliquent à toi et à chaque session que tu
-lances. En plus : pas de déploiement ; pas d'écriture dans `docs/passation.md`, `docs/direction.md`, `deploy/`,
-`api/` ni `addon/` ; aucun compte externe (registraire, hébergeur, Discord, PayNow, sites de vote, boutique) ;
-jamais `SILOOO_SITE_MODE=ouvert` dans le dépôt, la CI ou un déploiement ; jamais plus d'une session de travail
-à la fois ; jamais une fusion sans vérification verte ; jamais un chiffre du jeu écrit dans un contenu du site ;
-jamais une donnée personnelle (courriel, identifiant Discord, XUID) affichée sur une page.
+Les interdits de `CLAUDE.md` s'appliquent à toi et à chaque session que tu lances. En plus : plus d'une session de
+travail à la fois, fusionner une branche dont la vérification échoue, écrire dans `docs/passation.md`,
+`docs/direction.md` ou `docs/discord*.md`, défaire le travail d'une autre direction, déployer, agir sur un compte
+externe, inventer un chiffre du jeu hors de `definitions/`.
