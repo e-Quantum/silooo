@@ -239,6 +239,11 @@ relit S0 à S5 contre le kit de Kr (section « Suspendu : révision en cours »)
 possible : le site y reste en `attente`, sans bloc Caddy ni variable posée. Ne demandez pas à Kr le DNS, le bloc Caddy
 ni les variables du site tant que cette passation ne dit pas de nouveau « Prêt à mettre en ligne ».
 
+**Le kit de Kr est sur `main`** : `docs/references/site-kit/` (ses trois `site*.md`) et `docs/references/site/` (maquettes,
+prototype d'Oooscar). Votre dossier `silooo` garde une copie non suivie de `docs/references/site/`, identique octet pour
+octet : supprimez-la avant de fusionner `origin/main`, sinon git refuse d'écraser des fichiers non suivis. Le point 1
+ci-dessous est donc réglé.
+
 1. **Les fichiers de Kr.** Vous voyez `docs/site-direction.md`, `docs/site-passation.md` et `docs/references/site/`
    non suivis dans votre dossier. La direction du site du cloud ne les a pas. Si vous pouvez les lire sans les
    ajouter à votre index, copiez leur texte tel quel dans votre journal, ou dites à Kr de les pousser (branche
