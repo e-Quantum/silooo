@@ -84,7 +84,7 @@ class SessionService(
         // Relu après l'encaissement : la version et le Donar ont pu changer.
         val company = store.loadCompany(connection, membership.companyId)
         val factories = store.loadFactories(connection, company.id)
-        val figures = economy.forCompany(company, factories)
+        val figures = economy.forCompany(connection, company, factories)
         val profile = store.loadProfile(connection, xuid)
 
         return JoinResponse(

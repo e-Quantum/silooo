@@ -52,7 +52,7 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
         val id = nextCompanyId++
         companies[id] = CompanyRecord(
             id = id, name = name, era = 1, stars = 0, courseNumber = 1, donar = 0.0, donarEarned = 0.0,
-            courseStartedAt = now, lastCollectAt = now, mairieLevel = 1, siloLevel = 1, offlineCapHours = 8.0,
+            courseStartedAt = now, lastCollectAt = now, mairieLevel = 1, siloLevel = 1, offlineCapHours = bootstrap.startingOfflineCapHours(),
             reputation = 0, version = 0,
         )
         factories[id] = bootstrap.startingFactories()
@@ -72,6 +72,9 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
     override fun loadBalances(connection: Connection, xuid: Xuid): Balances = balances.getValue(xuid)
 
     override fun loadProfile(connection: Connection, xuid: Xuid): PlayerProfile = profiles[xuid] ?: PlayerProfile(null, null)
+
+    override fun loadMemberLingots(connection: Connection, companyId: Long): List<Long> =
+        members.filterValues { it.companyId == companyId }.keys.map { balances[it]?.lingots ?: 0L }
 
     override fun markLeft(connection: Connection, xuid: Xuid): Boolean {
         leaves += xuid
@@ -94,6 +97,7 @@ val TEST_STARTING_FACTORY = StartingFactory("usine-de-test", FactoryState.ACTIVE
 /** Un [CompanyBootstrap] de test : une seule usine fictive. */
 object TestBootstrap : CompanyBootstrap {
     override fun startingFactories(): List<StartingFactory> = listOf(TEST_STARTING_FACTORY)
+    override fun startingOfflineCapHours(): Double = 8.0
     override fun slotOrigin(slotIndex: Int): SlotOrigin = SlotOrigin(slotIndex, 0)
 }
 
@@ -102,7 +106,7 @@ class TestEconomy : EconomyFigures {
     val settled = mutableListOf<Pair<Long, Instant?>>()
     var offline = 0.0
 
-    override fun forCompany(company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = CompanyFigures(
+    override fun forCompany(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = CompanyFigures(
         ratePerHour = 11.0,
         multiplier = 22.0,
         threshold = 33.0,

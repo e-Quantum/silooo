@@ -27,7 +27,8 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 ```
 
 - Les tests de logique (API, configuration, `join`, idempotence, contrat) tournent **sans base ni Docker** :
-  les faux en mémoire (`PassThroughDatabase`, `InMemorySessionStore`, `InMemoryApiRequestStore`…) remplacent la base.
+  les faux en mémoire (`PassThroughDatabase`, `InMemorySessionStore`, `InMemoryApiRequestStore`…) remplacent la base, et
+  `RecordingConnection` note les écritures JDBC d'une fonction (le SQL exact d'un `UPDATE`) sans la jouer.
 - Les tests SQL (`*SqlTest` et `MigrationTest`) lancent un conteneur `mariadb:12.3.3` avec Testcontainers
   (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
   (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
@@ -45,7 +46,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DB_USER` | Compte de la base | oui |
 | `SILOOO_DB_PASSWORD` | Mot de passe de la base | oui |
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
-| `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
+| `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
@@ -99,10 +100,10 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
-| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique) : classes typées et `DefinitionsLoader` |
-| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), à brancher sur `join` par `EconomyFigures` et `CompanyBootstrap` |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde) : classes typées et `DefinitionsLoader` |
+| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`) et ses deux branchements sur `join` : `EngineFigures` (implémente `EconomyFigures`) et `DefinitionsBootstrap` (implémente `CompanyBootstrap`) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock |
-| `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`) |
+| `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -134,11 +135,33 @@ après une lecture simple doit faire de même (`isTransientConflict()`, dans `db
 
 ## Les chiffres que le moteur remplit
 
-`join` rend des chiffres qu'il ne calcule pas (revenu par heure, multiplicateur, seuil, prix du prochain niveau,
-palier, Donar hors ligne) : ils viennent de l'interface `EconomyFigures`. Par défaut c'est `NotYetComputed`, qui
-rend zéro partout. À la création d'une entreprise, `CompanyBootstrap` donne les usines de départ et où poser la
-case d'archipel suivante ; par défaut `EmptyBootstrap` (aucune usine, case N en (N, 0)). Le moteur d'économie
-branche les vraies : `Dependencies(economyFigures = ..., companyBootstrap = ...)`.
+`join` rend des chiffres qu'il ne calcule pas lui-même (revenu par heure, multiplicateur, seuil, prix du prochain
+niveau, palier, Donar hors ligne) : ils viennent de l'interface `EconomyFigures`, qu'`economy/EngineFigures`
+implémente avec le `EconomyEngine`. Il n'existe pas de version « tout à zéro » : un état sans production n'est pas
+un état de jeu. À la création d'une entreprise, `CompanyBootstrap` donne les usines de départ, le plafond hors ligne
+de départ et la place de la case d'archipel ; `economy/DefinitionsBootstrap` les tire de `definitions/`
+(`prestige.departDeCourse`, `horsLigne.plafondHeures`, `monde.json`). `Dependencies` branche les deux par défaut ;
+un test passe les siens (`economyFigures = ...`, `companyBootstrap = ...`), et `EngineFigures` prend une horloge
+en paramètre pour qu'un test avance le temps sans attendre.
+
+- **Multiplicateur** : la moyenne des Lingots détenus par les membres (`player_balances` ; un membre sans ligne
+  compte pour zéro) et les étoiles de l'entreprise.
+- **Revenu** : seules les usines `ACTIVE` produisent. Une usine de la base que `usines.json` ne connaît plus est
+  ignorée, avec un avertissement dans le journal, au lieu de faire tomber `join`.
+- **Hors ligne** : l'absence se compte depuis `companies.last_collect_at`, le dernier calcul de production de
+  l'entreprise, et non depuis le départ du joueur (`players.last_seen_at`) : deux associés qui se relaient
+  se feraient payer la même heure deux fois. Le plafond est la colonne `companies.offline_cap_hours`, que les
+  améliorations étendent ; la création de l'entreprise la remplit avec `horsLigne.plafondHeures`, pour que
+  `definitions/` reste la seule source du chiffre. L'écriture passe par `updateCompany` (Donar, Donar gagnés,
+  `last_collect_at`) dans la transaction de `join` : si l'`UPDATE` perd contre un autre associé, `join` recommence
+  et ne paie pas deux fois. Rien n'est écrit quand le gain est nul.
+- **Seuil** : la liste de `prestige.seuils`, puis, au-delà de la dernière course, le dernier seuil fois
+  `prestige.facteurSeuilSuivant`, plafonné à `Double.MAX_VALUE` pour que l'état reste toujours calculable.
+- **Grille des îles** : la case N est dans la colonne `N % casesParRangee` et la rangée `N / casesParRangee` de
+  `monde.json`, à `ecartEntreCases` blocs de sa voisine, à partir de `origine`.
+
+`prestige.facteurSeuilSuivant` et les trois valeurs de `monde.json` sont **à valider par Kr**
+([economie.md](../docs/economie.md), historique des réglages).
 
 Le nom d'entreprise donné au premier passage est provisoire : « Entreprise de <gamertag> », avec un numéro si le
 nom est pris. À valider par Kr (texte vu par les joueurs).
@@ -148,9 +171,6 @@ nom est pris. À valider par Kr (texte vu par les joueurs).
 Chaque route suit la recette [`silooo-route`](../.claude/skills/silooo-route/SKILL.md) : contrat,
 test de contrat, puis code.
 
-- Brancher le moteur sur `join` : une implémentation d'`EconomyFigures` (revenu, multiplicateur, seuil,
-  hors ligne, prix et palier par usine) et de `CompanyBootstrap` (la Carrière de départ, l'écart entre
-  les îles pour `slotOrigin`), passées à `Dependencies`.
 - Les routes d'économie (`companies/{companyId}` : `getCompany`, `collect`, `buyLevels`, `restoreStep` et les
   suivantes), qui se servent du moteur et des quatre aides ci-dessus.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).

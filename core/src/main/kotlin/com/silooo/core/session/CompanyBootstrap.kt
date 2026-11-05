@@ -17,27 +17,24 @@ data class SlotOrigin(val x: Int, val z: Int)
  * Tout ce que la création d'une entreprise tire de `definitions/`. Le code des routes de session ne lit pas
  * `definitions/` et n'écrit aucun identifiant ni chiffre d'usine : il demande ici.
  *
- * La direction branche l'implémentation qui lit les définitions (usines possédées au départ, écart entre
- * les îles de la grille) et se passe à `Dependencies(companyBootstrap = ...)`. D'ici là, [EmptyBootstrap].
+ * L'implémentation du service est `com.silooo.core.economy.DefinitionsBootstrap` (usines possédées au départ,
+ * plafond hors ligne de départ, grille des îles de `monde.json`) ; les tests passent la leur à
+ * `Dependencies(companyBootstrap = ...)`.
  */
 interface CompanyBootstrap {
     /** Les usines possédées au départ, avec leur état et leur niveau. */
     fun startingFactories(): List<StartingFactory>
 
     /**
+     * Le plafond hors ligne, en heures, d'une entreprise neuve : `companies.offline_cap_hours`. Le plafond de
+     * départ est un chiffre du jeu (`horsLigne.plafondHeures`) ; la colonne le reprend à la création pour que
+     * `definitions/` reste la seule source, puis les améliorations l'étendent.
+     */
+    fun startingOfflineCapHours(): Double
+
+    /**
      * Où poser une case d'archipel NEUVE, d'indice [slotIndex] (les cases libres déjà dans
      * `archipelago_slots` servent d'abord). L'écart entre deux îles est un chiffre du jeu : il vient des définitions.
      */
     fun slotOrigin(slotIndex: Int): SlotOrigin
-}
-
-/**
- * L'implémentation par défaut : aucune usine au départ, et une case d'archipel d'indice N posée en (N, 0). C'est
- * le minimum pour que les coordonnées restent uniques (`uq_slots_origin`), PAS une grille de jeu : les îles
- * se chevaucheraient dans le monde. À remplacer avant d'accueillir de vrais joueurs.
- */
-object EmptyBootstrap : CompanyBootstrap {
-    override fun startingFactories(): List<StartingFactory> = emptyList()
-
-    override fun slotOrigin(slotIndex: Int): SlotOrigin = SlotOrigin(slotIndex, 0)
 }

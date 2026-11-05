@@ -19,6 +19,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import java.sql.Connection
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
@@ -263,7 +264,7 @@ class SessionSqlTest {
     @DisplayName("Si la fin de join échoue, rien n'est créé : ni joueur, ni entreprise, ni case")
     fun failedJoinLeavesNothing() = runBlocking {
         val failing = object : EconomyFigures by TestEconomy() {
-            override fun forCompany(company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = error("moteur en panne")
+            override fun forCompany(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = error("moteur en panne")
         }
 
         assertThrows<IllegalStateException> { runBlocking { join(figures = failing) } }
