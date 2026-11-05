@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 6 h 45, phase 1 close, phase 2 en cours (session de direction).
+Dernière mise à jour : 5 novembre 2026, 7 h 50, bilan de la nuit : phase 1 close, phases 2 et 3 en cours (session de direction).
 
 ## État
 
@@ -22,7 +22,10 @@ Dernière mise à jour : 5 novembre 2026, 6 h 45, phase 1 close, phase 2 en cour
   (tests Gradle compris), CI verte, image de silooo-core publiée depuis `main`. Ce qui n'est pas de la phase 1
   et reste pour la phase 3 : les routes d'économie (`getCompany`, `collect`, `buyLevels`, …) et la mécanique
   d'énergie (`stoppedNoPower` toujours faux).
-- Phase en cours : **2** (Bedrock). Le relevé est fait ; deux sous-agents écrivent `deploy/` et `addon/`.
+- Phase en cours : **2** (Bedrock). Le relevé est fait, `addon/` est sur `main` (client `server-net`, heartbeat,
+  `join`, `leave`, événements, types générés, `.mcpack`). `deploy/` est écrit sur `claude/phase2-deploy` et attend
+  une reprise : minecraft.net refuse le téléchargement du zip de BDS à tout client qui n'est pas un navigateur
+  (décision 26). La phase **3** est ouverte en parallèle côté service (routes d'économie) et côté add-on (écrans).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -91,7 +94,9 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
-- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (recommandé : 19142 à 19173 ; `docs/adr/0004-port-bedrock.md`)
+- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (le compose de `deploy/` propose 19143 à 19174 pour 32 joueurs ; `docs/adr/0004-port-bedrock.md`)
+- [ ] Télécharger `bedrock-server-1.26.62.1.zip` dans un navigateur (minecraft.net refuse `curl`, même avec un User-Agent honnête, depuis le PC comme depuis les runners GitHub), calculer `sha256sum`, écrire la somme dans `deploy/bds/bds.sha256`, poser le zip dans `/var/www/silooo/bds/` sur le VPS (décision 26)
+- [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
@@ -192,6 +197,14 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
     elle passe le schéma `Xuid`, tient dans la colonne, survit au monde, et le site SileneMC connaît les joueurs
     par leur gamertag. Coût : un gamertag changé est un joueur neuf tant qu'une vraie source de XUID n'existe pas.
     Ni le contrat, ni la base, ni le service ne changent. À valider par Kr.
+26. **BDS téléchargé au premier démarrage, pas dans l'image.** minecraft.net ne répond pas à `curl`, même avec un
+    User-Agent honnête (0 octet puis délai dépassé, depuis le PC et depuis les runners GitHub) ; on ne déguise pas le
+    client en navigateur, et les conditions de BDS interdisent d'héberger le zip nous-mêmes. L'image `silooo-bds`
+    contient Ubuntu, l'add-on et `start.sh` ; au démarrage, `start.sh` prend le zip posé par Kr dans le volume
+    `/data/bds` (ou tente le téléchargement), contrôle la somme SHA-256 épinglée dans `deploy/bds/bds.sha256` (ou,
+    tant qu'elle n'est pas épinglée, le MD5 publié par Mojang, et journalise la somme à épingler), puis décompresse
+    une fois dans le volume. La version reste épinglée et contrôlée, comme le plan le veut ; seul le lieu du
+    téléchargement change. À relire par Kr.
 
 ## À valider par Kr
 
@@ -270,3 +283,15 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
   de plus), question posée à Kr, piste notée dans `docs/bedrock.md`. Quatre cases de la phase 2 cochées ; restent
   `deploy/` (sous-agent en cours), l'image BDS dans la CI, et les deux cases qui attendent Kr. Vérifier :
   `git log --oneline -4 origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 7 h 50 : bilan de la nuit (direction).**
+  - Fait depuis le bilan de 5 h 40 : contrat complété (409 déclaré partout), relevé Bedrock fusionné et reporté dans
+    l'ADR 0004 et le plan, moteur branché sur `join` (phase 1 close), `addon/` et le générateur de types fusionnés,
+    identité provisoire des joueurs (décision 25), liste de la phase 3 écrite. `main` : vérificateur et CI verts.
+  - En cours : `deploy/` (reprise après la décision 26, `claude/phase2-deploy`), routes d'économie
+    (`claude/phase3-economie-routes`), écrans de l'add-on (`claude/phase3-addon-ecrans`).
+  - Reste pour la phase 2 : fusionner `deploy/`, l'image BDS verte dans la CI ; puis Kr (base, port, zip de BDS,
+    DNS, monde « Beta APIs », test console, mesure de la mémoire). Phase 3 : les routes, les écrans, puis la
+    cinématique, Oooscar, la mission de la mairie et le JSON UI du pack de ressources.
+  - Décisions prises seul depuis 5 h 40 : 21 à 26. Textes nouveaux à valider : nom du pack, description du pack,
+    nom du serveur « Silooo » (`BDS_SERVER_NAME`), et ceux que la tranche d'écrans apportera.
+  - Vérifier : `git log --oneline -8 origin/main`, `gh run list --branch main --limit 3`.
