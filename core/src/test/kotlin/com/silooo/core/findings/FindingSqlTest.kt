@@ -203,7 +203,9 @@ class FindingSqlTest {
         assertTrue(lingotsOf(KR) >= reward * starterProducts.size, "les primes sont au solde (la mission de bienvenue s'y ajoute)")
 
         val book = bookOf(KR)
-        assertEquals(starterProducts.sorted(), book.found.map { it.id })
+        // Un même encaissement inscrit les produits l'un après l'autre : l'instant ne les départage pas, seul l'ensemble est sûr.
+        assertEquals(starterProducts.sorted(), book.found.map { it.id }.sorted())
+        assertEquals(book.found.map { it.foundAt }.sorted(), book.found.map { it.foundAt }, "du plus ancien au plus récent")
         book.found.forEach { assertTrue(runCatching { Instant.parse(it.foundAt) }.isSuccess, "foundAt est un instant ISO : ${it.foundAt}") }
     }
 
@@ -269,8 +271,8 @@ class FindingSqlTest {
         earnSomething(id)
         assertEquals(HttpStatusCode.OK, collect(id, n = 2, actor = OTHER).status)
 
-        assertEquals(starterProducts.sorted(), bookOf(OTHER).found.map { it.id })
-        assertEquals(starterProducts.sorted(), bookOf(KR).found.map { it.id })
+        assertEquals(starterProducts.sorted(), bookOf(OTHER).found.map { it.id }.sorted())
+        assertEquals(starterProducts.sorted(), bookOf(KR).found.map { it.id }.sorted())
         assertEquals(starterProducts.size * 2, findingRows().size)
         assertEquals(starterProducts.size * 2, findingLedger().size)
     }
