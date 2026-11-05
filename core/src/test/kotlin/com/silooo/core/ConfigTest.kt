@@ -1,6 +1,7 @@
 package com.silooo.core
 
 import java.nio.file.Files
+import com.silooo.core.site.SiteMode
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -118,5 +119,81 @@ class ConfigTest {
     @DisplayName("Le mode migrate n'a pas besoin des définitions")
     fun migrateDoesNotNeedDefinitions() {
         Config.database(complete - Config.DEFINITIONS_DIR)
+    }
+
+    @Test
+    @DisplayName("Le site écoute sur 8081 en mode attente quand rien n'est posé")
+    fun siteDefaults() {
+        val config = Config.service(complete)
+        assertEquals(Config.DEFAULT_SITE_PORT, config.sitePort)
+        assertEquals(8081, config.sitePort)
+        assertEquals(SiteMode.ATTENTE, config.siteMode)
+        assertEquals(Config.DEFAULT_SITE_URL, config.siteUrl)
+        assertEquals(null, config.discordUrl)
+    }
+
+    @Test
+    @DisplayName("SILOOO_SITE_MODE=ouvert et SILOOO_SITE_PORT sont lus")
+    fun siteVariablesAreRead() {
+        val config = Config.service(
+            complete + mapOf(
+                Config.SITE_MODE to "ouvert",
+                Config.SITE_PORT to "9091",
+                Config.SITE_URL to "https://exemple.test/",
+                Config.SITE_URL_DISCORD to "https://discord.gg/exemple",
+            ),
+        )
+        assertEquals(SiteMode.OUVERT, config.siteMode)
+        assertEquals(9091, config.sitePort)
+        assertEquals("https://exemple.test", config.siteUrl)
+        assertEquals("https://discord.gg/exemple", config.discordUrl)
+    }
+
+    @Test
+    @DisplayName("Un mode du site inconnu est refusé et le message cite la variable")
+    fun unknownSiteMode() {
+        for (bad in listOf("ouvert!", "closed", "1")) {
+            val error = assertThrows<ConfigException>(bad) { Config.service(complete + (Config.SITE_MODE to bad)) }
+            assertTrue(error.message!!.contains(Config.SITE_MODE), error.message)
+        }
+    }
+
+    @Test
+    @DisplayName("Le port du site ne peut pas être celui de l'API, et le message le dit")
+    fun sitePortEqualToApiPort() {
+        val error = assertThrows<ConfigException> { Config.service(complete + mapOf(Config.PORT to "9090", Config.SITE_PORT to "9090")) }
+        assertTrue(error.message!!.contains(Config.SITE_PORT) && error.message!!.contains(Config.PORT), error.message)
+        // Le défaut du site (8081) ne doit pas non plus tomber sur le port de l'API.
+        assertThrows<ConfigException> { Config.service(complete + (Config.PORT to "8081")) }
+    }
+
+    @Test
+    @DisplayName("Un port du site invalide est refusé")
+    fun invalidSitePort() {
+        for (bad in listOf("abc", "0", "70000", "-1")) {
+            assertThrows<ConfigException>("SILOOO_SITE_PORT=$bad") { Config.service(complete + (Config.SITE_PORT to bad)) }
+        }
+    }
+
+    @Test
+    @DisplayName("Les problèmes du site s'ajoutent à ceux du reste, dans un seul message")
+    fun siteProblemsAreListedWithTheOthers() {
+        val error = assertThrows<ConfigException> { Config.service(mapOf(Config.SITE_MODE to "nimporte")) }
+        assertTrue(error.message!!.contains(Config.SITE_MODE) && error.message!!.contains(Config.API_KEY), error.message)
+    }
+
+    @Test
+    @DisplayName("Une adresse du site qui ne commence pas par http est refusée")
+    fun invalidSiteUrl() {
+        assertThrows<ConfigException> { Config.service(complete + (Config.SITE_URL to "silooo.com")) }
+        assertThrows<ConfigException> { Config.service(complete + (Config.SITE_URL_DISCORD to "discord.gg/x")) }
+    }
+
+    @Test
+    @DisplayName("Le toString montre le port et le mode du site, jamais la clé")
+    fun toStringShowsSite() {
+        val text = Config.service(complete).toString()
+        assertTrue(text.contains("sitePort=8081") && text.contains("siteMode=attente"), text)
+        assertFalse(text.contains("cle-de-test"), text)
     }
 }

@@ -53,6 +53,7 @@ import com.silooo.core.session.SessionStore
 import com.silooo.core.session.sessionRoutes
 import com.silooo.core.staff.JdbcStaffStore
 import com.silooo.core.staff.StaffStore
+import com.silooo.core.site.SiteMode
 import com.silooo.core.staff.staffRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -116,6 +117,12 @@ class Dependencies(
     val apiRequestRetention: Duration? = null,
     /** Intervalle du minuteur des incidents d'usine ; `null` : pas de minuteur, aucun incident ne s'ouvre (les tests). */
     val incidentTick: Duration? = null,
+    /** Le mode du site public (`SILOOO_SITE_MODE`) ; le site n'est ouvert que si Kr l'a décidé. */
+    val siteMode: SiteMode = SiteMode.ATTENTE,
+    /** L'adresse publique du site (`SILOOO_SITE_URL`), pour les liens absolus de S1. */
+    val siteUrl: String = Config.DEFAULT_SITE_URL,
+    /** Le lien Discord du site (`SILOOO_SITE_URL_DISCORD`) ; `null` : pas de lien. */
+    val discordUrl: String? = null,
 )
 
 /**
