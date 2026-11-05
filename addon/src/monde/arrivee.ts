@@ -68,13 +68,16 @@ export function inBuildOrder(factories: readonly Factory[], firstId: string): Fa
 export function createArrivals<P extends { readonly name: string }>(deps: ArrivalDeps<P>): Arrivals<P> {
   const { defs, builder, oooscar, runner, world, keyOf, texts, scheduler, log } = deps;
   const settings = deps.settings ?? config.world;
-  /** Une marque par connexion : une arrivée qui traîne ne doit pas libérer la suivante du même joueur. */
+  /** Une marque par connexion : une arrivée qui traîne ne doit pas libérer la suivante du même joueur. Sert à `busy`. */
   const connections = new Map<string, number>();
+  /** La connexion en cours de chaque joueur présent : reste jusqu'à son départ, même une fois l'arrivée finie. */
+  const present = new Map<string, number>();
   let counter = 0;
 
   function begin(key: string): number {
     counter += 1;
     connections.set(key, counter);
+    present.set(key, counter);
     return counter;
   }
 
@@ -82,7 +85,7 @@ export function createArrivals<P extends { readonly name: string }>(deps: Arriva
     for (let attempt = 0; attempt <= settings.oooscarSpawnRetries; attempt += 1) {
       // Le chunk d'arrivée n'est pas toujours chargé la seconde où le joueur y arrive : on réessaie un peu plus tard.
       await pause(scheduler, settings.oooscarSpawnRetrySeconds);
-      if (connections.get(key) !== connection) return;
+      if (present.get(key) !== connection) return;
       if (oooscar.spawnFor(key, at, facing)) return;
     }
     log.warn("Oooscar : jamais apparue près du joueur");
@@ -139,11 +142,14 @@ export function createArrivals<P extends { readonly name: string }>(deps: Arriva
     },
 
     failed(player) {
-      connections.delete(keyOf(player));
+      const key = keyOf(player);
+      connections.delete(key);
+      present.delete(key);
     },
 
     left(key) {
       connections.delete(key);
+      present.delete(key);
       runner.cancel(key);
       oooscar.removeFor(key);
     },
