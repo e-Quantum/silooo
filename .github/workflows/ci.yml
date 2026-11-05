@@ -15,8 +15,9 @@ permissions:
 
 jobs:
   # La même commande que celle des sessions Claude : tools/verifier.sh (définitions, anti-IA, liens
-  # morts, tests de l'outillage, et core/ addon/ resource-pack/ quand ils existent). Java : celui du
-  # runner suffit tant que core/ n'a pas de Gradle ; ajouter actions/setup-java quand il en aura un.
+  # morts, tests de l'outillage, et core/ addon/ resource-pack/ quand ils existent). Java : Temurin 17
+  # pour les tests Gradle de core/, avec le cache Gradle ; le runner a Docker, donc les tests
+  # Testcontainers (migrations sur mariadb:12.3.3) tournent ici au lieu d'être ignorés.
   verifier:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -30,11 +31,56 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      # gradle-wrapper.jar est un binaire versionné : on contrôle sa somme contre celles de Gradle.
+      - uses: gradle/actions/wrapper-validation@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: core
       - name: Vérifier le dépôt
         run: bash tools/verifier.sh
 
+  # L'image de silooo-core (core/Dockerfile), construite à chaque poussée une fois le dépôt vérifié.
+  # Sur main seulement, elle part sur le registre GitHub, taguée par commit (SHA) et « main ».
+  # Le registre est privé : le tirage sur le VPS demandera une clé de lecture, posée par Kr.
+  image:
+    needs: verifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/e-quantum/silooo-core
+      # Vrai seulement pour une poussée sur main : les branches et les demandes de fusion construisent sans publier.
+      PUBLIER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Se connecter au registre GitHub
+        if: env.PUBLIER == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Construire l'image (et la pousser sur main)
+        uses: docker/build-push-action@v6
+        with:
+          context: core
+          push: ${{ env.PUBLIER == 'true' }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # La migration V1 rejouée sur la même version de MariaDB que la production (12.3.3 sur SileneMC).
-  # Les tests Testcontainers de core/ viendront en phase 1 ; ceci attrape une migration cassée dès maintenant.
+  # Les tests Testcontainers de core/ (job verifier) rejouent aussi les migrations avec Flyway ; ceci
+  # reste le contrôle du fichier SQL brut, avec le client mariadb, sans Gradle.
   migration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
