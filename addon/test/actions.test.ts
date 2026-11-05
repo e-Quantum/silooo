@@ -4,7 +4,7 @@ import type { ApiResult } from "../src/http";
 import type { CollectResponse, CompanyUpdated } from "../src/protocol";
 import { createActions } from "../src/ui/actions";
 import { createViewStore } from "../src/ui/etat";
-import { balances, companyState, factory, joinResponse, ok, recordingLogger } from "./helpers";
+import { balances, companyState, factory, joinResponse, ok, prestigePreview, recordingLogger } from "./helpers";
 import {
   GAMERTAG,
   XUID,
@@ -211,6 +211,8 @@ describe("garde-fous", () => {
       getCompany: () => Promise.reject(new Error("inutile")),
       buyLevels: () => Promise.reject(new Error("inutile")),
       restoreStep: () => Promise.reject(new Error("inutile")),
+      prestige: () => Promise.reject(new Error("inutile")),
+      prestigePreview: () => Promise.reject(new Error("inutile")),
       collect: (companyId: number) =>
         new Promise<ApiResult<CollectResponse>>((resolve) => {
           calls.push(`collect ${companyId}`);
@@ -243,6 +245,8 @@ describe("garde-fous", () => {
       getCompany: () => Promise.reject(new Error("inutile")),
       buyLevels: () => Promise.reject(new Error("inutile")),
       restoreStep: () => Promise.reject(new Error("inutile")),
+      prestige: () => Promise.reject(new Error("inutile")),
+      prestigePreview: () => Promise.reject(new Error("inutile")),
       collect: () => {
         appels += 1;
         return appels === 1 ? Promise.reject(new Error("coupure")) : Promise.resolve(unreachable<never>());
@@ -369,5 +373,148 @@ describe("après un encaissement (les missions sont relues)", () => {
   it("sans afterCollect, rien ne change", async () => {
     const { actions } = setup({ collect: [collected()] });
     assert.deepEqual(await actions.collect(XUID), { kind: "collected", collected: 250, offlineHours: 0 });
+  });
+});
+
+// ---------------------------------------------------------------- phase 4 : le prestige
+
+/** Ce que le service rend après un prestige : la course suivante, le Donar à zéro, les Lingots versés. */
+const prestiged = (version: number, lingots = 1_200): CompanyUpdated => ({
+  state: companyState({ version, era: 2, courseNumber: 3, donar: 0, donarEarned: 0, factories: [factory({ level: 1 })] }),
+  balances: balances({ lingots }),
+});
+
+describe("le prestige", () => {
+  it("envoie un requestId neuf et l'identifiant du joueur, range l'état et les soldes rendus", async () => {
+    const { actions, api, views } = setup({ prestige: [ok(prestiged(2))] });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "prestiged" });
+    assert.deepEqual(api.calls, [{ op: "prestige", companyId: 7, action: { requestId: "id-1", actor: XUID } }]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+    assert.equal(views.get(XUID)?.state.courseNumber, 3);
+    assert.equal(views.get(XUID)?.state.donar, 0);
+    assert.equal(views.get(XUID)?.balances.lingots, 1_200);
+  });
+
+  it("refus PAS_LE_PDG : rendu tel quel, l'état ne bouge pas, rien n'est rejoué", async () => {
+    const { actions, api, views } = setup({ prestige: [refused("PAS_LE_PDG")] });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "refused", reason: "PAS_LE_PDG" });
+    assert.equal(api.calls.length, 1);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("refus SEUIL_NON_ATTEINT : les Donar qui manquent sont rendus, l'état ne bouge pas", async () => {
+    const { actions, views } = setup({ prestige: [refused("SEUIL_NON_ATTEINT", 4_000)] });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "refused", reason: "SEUIL_NON_ATTEINT", missing: 4_000 });
+    assert.equal(views.get(XUID)?.state.version, 1);
+    assert.equal(views.get(XUID)?.state.donar, 100);
+  });
+
+  it("CONFLIT_REESSAYER : recharge l'état, rejoue une fois avec le même requestId, rend le résultat du rejeu", async () => {
+    const { actions, api, views } = setup({
+      prestige: [refused("CONFLIT_REESSAYER"), ok(prestiged(6))],
+      getCompany: [ok(companyState({ version: 5, donar: 900, factories: [factory({ level: 4 })] }))],
+    });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "prestiged" });
+    assert.deepEqual(api.calls.map((call) => call.op), ["prestige", "getCompany", "prestige"]);
+    const sends = api.calls.flatMap((call) => (call.op === "prestige" ? [call.action] : []));
+    assert.equal(sends.length, 2);
+    assert.deepEqual(sends[0], sends[1]);
+    assert.equal(views.get(XUID)?.state.version, 6);
+  });
+
+  it("un second conflit est rendu tel quel : un seul rejeu, jamais de boucle", async () => {
+    const { actions, api } = setup({
+      prestige: [refused("CONFLIT_REESSAYER"), refused("CONFLIT_REESSAYER")],
+      getCompany: [ok(companyState({ version: 2 }))],
+    });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "refused", reason: "CONFLIT_REESSAYER" });
+    assert.deepEqual(api.calls.map((call) => call.op), ["prestige", "getCompany", "prestige"]);
+  });
+
+  it("réseau coupé : échec « network », journalisé, l'état ne bouge pas", async () => {
+    const { actions, log, views } = setup({ prestige: [unreachable()] });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.match(log.warns.join("\n"), /prestige : réseau/);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("route pas encore écrite : échec « error » PAS_FAIT", async () => {
+    const { actions } = setup({ prestige: [failure(501, "PAS_FAIT")] });
+    assert.deepEqual(await actions.prestige(XUID), { kind: "failed", failure: "error", reason: "PAS_FAIT" });
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.prestige("999"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+
+  it("un seul appel à la fois : un prestige déjà en cours rend « occupé » à la seconde demande, sans appel", async () => {
+    const store = storeWith({ version: 1 });
+    const views = createViewStore({ players: store, clock: fakeClock() });
+    let envois = 0;
+    let finir: (() => void) | undefined;
+    const api = {
+      getCompany: () => Promise.reject(new Error("inutile")),
+      collect: () => Promise.reject(new Error("inutile")),
+      buyLevels: () => Promise.reject(new Error("inutile")),
+      restoreStep: () => Promise.reject(new Error("inutile")),
+      prestigePreview: () => Promise.resolve(ok(prestigePreview())),
+      prestige: () =>
+        new Promise<ApiResult<CompanyUpdated>>((resolve) => {
+          envois += 1;
+          finir = () => resolve(ok(prestiged(2)));
+        }),
+    };
+    const actions = createActions({ api, views, newRequestId: sequentialIds(), log: recordingLogger() });
+    const premier = actions.prestige(XUID);
+    assert.deepEqual(await actions.prestige(XUID), { kind: "busy" });
+    assert.deepEqual(await actions.collect(XUID), { kind: "busy" });
+    assert.equal(envois, 1);
+    // L'aperçu est une lecture : il n'attend pas le prestige et ne prend pas le verrou.
+    assert.equal((await actions.preview(XUID)).kind, "preview");
+    finir?.();
+    assert.deepEqual(await premier, { kind: "prestiged" });
+    assert.equal(views.get(XUID)?.state.version, 2);
+  });
+});
+
+describe("l'aperçu du prestige", () => {
+  it("lit l'aperçu du service pour l'entreprise du joueur, sans requestId ni acteur", async () => {
+    const apercu = prestigePreview({ lingotsTotal: 1_900, next: "ETOILE" });
+    const { actions, api } = setup({ prestigePreview: [ok(apercu)] });
+    assert.deepEqual(await actions.preview(XUID), { kind: "preview", preview: apercu });
+    assert.deepEqual(api.calls, [{ op: "prestigePreview", companyId: 7 }]);
+  });
+
+  it("ne change rien à la vue du joueur", async () => {
+    const { actions, views } = setup({ prestigePreview: [ok(prestigePreview())] });
+    const avant = views.get(XUID);
+    await actions.preview(XUID);
+    assert.equal(views.get(XUID), avant);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("réseau coupé : échec « network », journalisé", async () => {
+    const { actions, log } = setup({ prestigePreview: [unreachable()] });
+    assert.deepEqual(await actions.preview(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.match(log.warns.join("\n"), /prestigePreview : réseau/);
+  });
+
+  it("erreur du service et route pas encore écrite : échec « error » avec le code du service", async () => {
+    const { actions } = setup({ prestigePreview: [failure(500, "ERREUR_INTERNE"), failure(501, "PAS_FAIT")] });
+    assert.deepEqual(await actions.preview(XUID), { kind: "failed", failure: "error", reason: "ERREUR_INTERNE" });
+    assert.deepEqual(await actions.preview(XUID), { kind: "failed", failure: "error", reason: "PAS_FAIT" });
+  });
+
+  it("un refus que le contrat ne prévoit pas est une erreur du service, pas un refus du jeu", async () => {
+    const { actions } = setup({ prestigePreview: [refused("CODE_DU_FUTUR")] });
+    assert.deepEqual(await actions.preview(XUID), { kind: "failed", failure: "error", reason: "CODE_DU_FUTUR" });
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.preview("999"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
   });
 });

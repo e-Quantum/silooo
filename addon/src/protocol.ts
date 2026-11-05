@@ -1,5 +1,5 @@
 // Le contrat avec silooo-core : heartbeat, join, leave et pollEvents (phase 2), puis getCompany, collect,
-// buyLevels et restoreStep, puis getMissions (phase 3). Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui
+// buyLevels et restoreStep, puis getMissions (phase 3), puis le prestige (phase 4). Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui
 // fabriquent les corps et lisent les réponses. Quand le contrat change, il change d'abord dans l'OpenAPI.
 
 // ---------------------------------------------------------------- types du contrat
@@ -393,6 +393,8 @@ export const COMPANY_PATHS = {
   collect: "/v1/companies/{companyId}/collect",
   levels: "/v1/companies/{companyId}/factories/{factoryId}/levels",
   restore: "/v1/companies/{companyId}/factories/{factoryId}/restore",
+  prestige: "/v1/companies/{companyId}/prestige",
+  prestigePreview: "/v1/companies/{companyId}/prestige/preview",
 } as const;
 
 function companySegment(companyId: number): string {
@@ -419,6 +421,14 @@ export function levelsPath(companyId: number, factoryId: string): string {
 
 export function restorePath(companyId: number, factoryId: string): string {
   return COMPANY_PATHS.restore.replace("{companyId}", companySegment(companyId)).replace("{factoryId}", factorySegment(factoryId));
+}
+
+export function prestigePath(companyId: number): string {
+  return COMPANY_PATHS.prestige.replace("{companyId}", companySegment(companyId));
+}
+
+export function prestigePreviewPath(companyId: number): string {
+  return COMPANY_PATHS.prestigePreview.replace("{companyId}", companySegment(companyId));
 }
 
 export function actionBody(action: ActionBase): ActionBase {
@@ -526,5 +536,54 @@ export function parseMissionState(body: unknown): Parsed<MissionState> {
         return id;
       }),
     };
+  });
+}
+
+// ---------------------------------------------------------------- phase 4 : le prestige
+
+/** Ce qui vient après un prestige (`PrestigePreview.next`) : l'époque suivante, ou une étoile après la dernière. */
+export const PRESTIGE_NEXT = ["EPOQUE_2", "EPOQUE_3", "EPOQUE_4", "ETOILE"] as const;
+
+export type PrestigeNext = (typeof PRESTIGE_NEXT)[number];
+
+/** Les Lingots qu'un membre recevrait (`PrestigePreview.shares[]`). */
+export interface PrestigeShare {
+  xuid: Xuid;
+  lingots: number;
+}
+
+/**
+ * Réponse 200 de `prestigePreview` : ce que rapporterait un prestige maintenant, calculé par le service. L'add-on
+ * affiche ces nombres tels quels. Quand `allowed` est faux, le service rend zéro Lingot et zéro part.
+ */
+export interface PrestigePreview {
+  allowed: boolean;
+  lingotsTotal: number;
+  /** Lingots si le joueur avait gagné deux fois plus de Donar : le rendement décroissant. Le contrat le laisse facultatif. */
+  lingotsIfDoubled?: number;
+  shares: PrestigeShare[];
+  next: PrestigeNext;
+}
+
+function readPrestigeShare(value: unknown, path: string): PrestigeShare {
+  const rec = record(value, path);
+  const xuid = str(rec, "xuid", path);
+  if (!XUID_PATTERN.test(xuid)) throw new ShapeError(`${path}.xuid : XUID attendu`);
+  // Le contrat ne les marque pas obligatoires, mais une part sans membre ou sans montant ne veut rien dire.
+  return { xuid, lingots: whole(rec, "lingots", path, 0) };
+}
+
+/** Lit le corps 200 de prestigePreview. Les Lingots sont des entiers positifs ou nuls ; `next` une des quatre valeurs du contrat. */
+export function parsePrestigePreview(body: unknown): Parsed<PrestigePreview> {
+  return attempt(() => {
+    const rec = record(body, "prestige");
+    const preview: PrestigePreview = {
+      allowed: bool(rec, "allowed", "prestige"),
+      lingotsTotal: whole(rec, "lingotsTotal", "prestige", 0),
+      shares: list(rec["shares"], "prestige.shares").map((item, i) => readPrestigeShare(item, `prestige.shares[${i}]`)),
+      next: oneOf(rec, "next", "prestige", PRESTIGE_NEXT),
+    };
+    if (rec["lingotsIfDoubled"] !== undefined) preview.lingotsIfDoubled = whole(rec, "lingotsIfDoubled", "prestige", 0);
+    return preview;
   });
 }

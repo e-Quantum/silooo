@@ -1,6 +1,6 @@
-// Les trois actions que les écrans peuvent demander au service : encaisser, monter une usine, avancer sa remise
-// en état. Chacune envoie un `requestId` neuf (UUID) et l'identifiant du joueur (`actor`), range la réponse dans
-// le ViewStore, et rend un résultat que le menu transforme en bulle d'Oooscar.
+// Les quatre actions que les écrans peuvent demander au service : encaisser, monter une usine, avancer sa remise
+// en état, faire le prestige. Chacune envoie un `requestId` neuf (UUID) et l'identifiant du joueur (`actor`), range
+// la réponse dans le ViewStore, et rend un résultat que le menu transforme en bulle d'Oooscar.
 //
 // Sur `CONFLIT_REESSAYER` (le verrou optimiste du service a bougé), on recharge l'état avec getCompany puis on
 // rejoue l'action UNE fois, avec le même `requestId` : le service ne garde pas ce refus, et le même identifiant
@@ -8,12 +8,15 @@
 //
 // Un seul appel à la fois par joueur : un doigt qui appuie deux fois ne paie pas deux fois.
 //
+// L'aperçu du prestige n'est pas une action : une lecture, sans identifiant de requête ni verrou, qui ne change rien
+// chez le service ni dans la vue du joueur.
+//
 // Après un encaissement réussi, `afterCollect` est appelé : c'est le moment où le service a pu faire avancer la
 // mission en cours (ui/missions.ts relit alors les missions). Ce qu'il rend ne change rien au résultat de l'action.
 
 import type { CoreApi } from "../api";
 import { describeFailure, type ApiResult } from "../http";
-import type { ActionBase, BuyAmount, Xuid } from "../protocol";
+import type { ActionBase, BuyAmount, PrestigePreview, Xuid } from "../protocol";
 import { describeError, type Logger } from "../runtime";
 import type { ViewStore, ViewUpdate } from "./etat";
 
@@ -24,19 +27,30 @@ export type ActionOutcome =
   | { readonly kind: "collected"; readonly collected: number; readonly offlineHours: number }
   | { readonly kind: "levelsBought" }
   | { readonly kind: "stepDone" }
+  /** Le prestige est fait : la vue du joueur est celle de la course suivante. */
+  | { readonly kind: "prestiged" }
   | { readonly kind: "refused"; readonly reason: string; readonly missing?: number }
   | { readonly kind: "failed"; readonly failure: "network" | "error" | "unavailable"; readonly reason: string }
   /** Une action du même joueur est encore en cours : celle-ci est ignorée. */
   | { readonly kind: "busy" };
 
+type FailedOutcome = Extract<ActionOutcome, { readonly kind: "failed" }>;
+
+/** Ce que rend la lecture de l'aperçu du prestige : l'aperçu du service, ou l'échec technique. */
+export type PreviewOutcome = { readonly kind: "preview"; readonly preview: PrestigePreview } | FailedOutcome;
+
 export interface Actions {
   collect(xuid: Xuid): Promise<ActionOutcome>;
   buyLevels(xuid: Xuid, factoryId: string, amount: BuyAmount): Promise<ActionOutcome>;
   restoreStep(xuid: Xuid, factoryId: string, step: number): Promise<ActionOutcome>;
+  /** Le prestige de l'entreprise du joueur. Le service refuse si le joueur n'est pas le PDG ou si le seuil n'est pas atteint. */
+  prestige(xuid: Xuid): Promise<ActionOutcome>;
+  /** Lit ce que rapporterait un prestige maintenant (GET prestigePreview). */
+  preview(xuid: Xuid): Promise<PreviewOutcome>;
 }
 
 export interface ActionsDeps {
-  readonly api: Pick<CoreApi, "getCompany" | "collect" | "buyLevels" | "restoreStep">;
+  readonly api: Pick<CoreApi, "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview">;
   readonly views: ViewStore;
   /** Un UUID neuf à chaque appel (runtime.ts, createRequestIdGenerator). */
   readonly newRequestId: () => string;
@@ -102,9 +116,9 @@ export function createActions(deps: ActionsDeps): Actions {
 
   /**
    * Un échec technique : journalisé, rendu sans détail. Les refus du jeu des actions ne passent pas ici ; seul un
-   * refus de getCompany (le contrat n'en prévoit pas) y arrive, et il est traité comme une erreur du service.
+   * refus de getCompany ou de prestigePreview (le contrat n'en prévoit pas) y arrive, et il est traité comme une erreur du service.
    */
-  function failure(label: string, result: Exclude<ApiResult<unknown>, { kind: "ok" }>): ActionOutcome {
+  function failure(label: string, result: Exclude<ApiResult<unknown>, { kind: "ok" }>): FailedOutcome {
     log.warn(`${label} : ${describeFailure(result)}`);
     return result.kind === "network"
       ? { kind: "failed", failure: "network", reason: "RESEAU" }
@@ -136,5 +150,18 @@ export function createActions(deps: ActionsDeps): Actions {
         send: (companyId, action) => api.restoreStep(companyId, factoryId, action, step),
         accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "stepDone" } }),
       }),
+    prestige: (xuid) =>
+      run(xuid, {
+        label: "prestige",
+        send: (companyId, action) => api.prestige(companyId, action),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "prestiged" } }),
+      }),
+    preview: async (xuid) => {
+      const view = views.get(xuid);
+      if (view === undefined) return { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" };
+      const result = await api.prestigePreview(view.state.companyId);
+      if (result.kind === "ok") return { kind: "preview", preview: result.body };
+      return failure("prestigePreview", result);
+    },
   };
 }

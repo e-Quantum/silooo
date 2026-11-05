@@ -21,7 +21,10 @@ import {
   parseEventsPage,
   parseJoinResponse,
   parseMissionState,
+  parsePrestigePreview,
   PATHS,
+  prestigePath,
+  prestigePreviewPath,
   restorePath,
   restoreStepBody,
   type ActionBase,
@@ -33,6 +36,7 @@ import {
   type JoinResponse,
   type MissionState,
   type Parsed,
+  type PrestigePreview,
   type Xuid,
 } from "./protocol";
 
@@ -55,6 +59,10 @@ export interface CoreApi {
   restoreStep(companyId: number, factoryId: string, action: ActionBase, step: number): Promise<ApiResult<CompanyUpdated>>;
   /** GET /v1/players/{xuid}/missions (getMissions), 200 MissionState. */
   getMissions(xuid: Xuid): Promise<ApiResult<MissionState>>;
+  /** GET /v1/companies/{companyId}/prestige/preview (prestigePreview), 200 PrestigePreview. */
+  prestigePreview(companyId: number): Promise<ApiResult<PrestigePreview>>;
+  /** POST /v1/companies/{companyId}/prestige (prestige), 200 CompanyUpdated, 403 PAS_LE_PDG ou 409 SEUIL_NON_ATTEINT. */
+  prestige(companyId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -125,6 +133,16 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => missionsPath(xuid));
       if ("failure" in target) return target.failure;
       return readBody(await client.get(target.path), parseMissionState);
+    },
+    async prestigePreview(companyId) {
+      const target = pathOrError(() => prestigePreviewPath(companyId));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parsePrestigePreview);
+    },
+    async prestige(companyId, action) {
+      const target = pathOrError(() => prestigePath(companyId));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
     },
   };
 }

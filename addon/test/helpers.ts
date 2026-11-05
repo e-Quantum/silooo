@@ -3,7 +3,17 @@
 
 import type { ApiResult, Header, HttpMethod, Transport, TransportResponse } from "../src/http";
 import type { Logger, Scheduler } from "../src/runtime";
-import type { Balances, CompanyState, EventsPage, Factory, GameEvent, JoinResponse, Mission, MissionState } from "../src/protocol";
+import type {
+  Balances,
+  CompanyState,
+  EventsPage,
+  Factory,
+  GameEvent,
+  JoinResponse,
+  Mission,
+  MissionState,
+  PrestigePreview,
+} from "../src/protocol";
 
 export interface RecordingLogger extends Logger {
   readonly infos: string[];
@@ -147,6 +157,11 @@ export function mission(overrides: Partial<Mission> = {}): Mission {
 
 export function missionState(overrides: Partial<MissionState> = {}): MissionState {
   return { current: mission(), completed: [], ...overrides };
+}
+
+/** Un aperçu de prestige du service : permis, 1 200 Lingots (1 700 si le joueur doublait), une seule part, l'époque 2 ensuite. */
+export function prestigePreview(overrides: Partial<PrestigePreview> = {}): PrestigePreview {
+  return { allowed: true, lingotsTotal: 1_200, lingotsIfDoubled: 1_700, shares: [{ xuid: "1", lingots: 1_200 }], next: "EPOQUE_2", ...overrides };
 }
 
 /** L'événement `ANNONCE` d'une mission terminée, tel que le service le publie (api/silooo-core.openapi.yaml, getMissions). */
