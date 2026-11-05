@@ -24,11 +24,12 @@ private const val RULES_URL = "/wiki/regles/"
 internal const val PUBLIC_PREFIX = "/public/"
 
 /**
- * Ce que le navigateur peut savoir du site : aucun script, aucune ressource d'un autre hôte. Le site ne charge
- * rien depuis l'extérieur (c'est écrit dans les mentions), la politique l'impose.
+ * Ce que le navigateur peut charger : les fichiers du site, et rien d'un autre hôte. Le site ne charge rien depuis
+ * l'extérieur (c'est écrit dans les mentions), la politique l'impose. Les scripts sont ceux de `/public/` (les
+ * animations du kit : Oooscar, l'île, les compteurs, la Vote party) ; un script écrit dans la page reste interdit.
  */
 internal const val CONTENT_SECURITY_POLICY =
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'"
+    "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; frame-ancestors 'none'"
 
 /**
  * Les en-têtes de toutes les réponses du site. Les pages ne se gardent pas (le mode peut changer au

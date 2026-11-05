@@ -12,10 +12,13 @@ import com.silooo.core.site.pages.rejoindre
 import com.silooo.core.site.pages.vote
 import com.silooo.core.site.pages.wikiIndex
 import com.silooo.core.site.pages.wikiPage
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.html.respondHtml
 import io.ktor.server.http.content.staticResources
 import io.ktor.server.response.respondRedirect
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import kotlinx.html.HTML
@@ -43,7 +46,28 @@ internal fun Route.siteRoutes(
         }
     }
     staticResources(PUBLIC_PREFIX.trimEnd('/'), "site/public")
+    // Référencement : robots.txt et sitemap.xml listent les pages du mode, rien d'autre (une fiche d'entreprise vit avec
+    // le jeu, elle n'est pas listée). Une heure de cache : ni le mode ni les contenus ne changent sans redémarrage.
+    get("/robots.txt") {
+        call.response.headers.append(HttpHeaders.CacheControl, "public, max-age=3600")
+        call.respondText(robotsTxt(shell), ContentType.Text.Plain)
+    }
+    get("/sitemap.xml") {
+        call.response.headers.append(HttpHeaders.CacheControl, "public, max-age=3600")
+        call.respondText(sitemapXml(shell, pages), ContentType.Application.Xml)
+    }
 }
+
+internal fun robotsTxt(shell: SiteShell): String = "User-agent: *\nAllow: /\nSitemap: ${shell.siteUrl}/sitemap.xml\n"
+
+internal fun sitemapXml(shell: SiteShell, pages: List<ContentPage>): String = buildString {
+    append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+    append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n")
+    for (page in pages) append("  <url><loc>").append(xmlText(shell.siteUrl + page.url)).append("</loc></url>\n")
+    append("</urlset>\n")
+}
+
+private fun xmlText(text: String): String = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 /** La fonction de rendu d'un contenu, choisie par son nom de fichier. Un contenu sans page fait échouer le démarrage. */
 private fun renderer(

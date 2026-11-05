@@ -854,25 +854,38 @@ ne le publie jamais.
   - **Les tests** : `site/SiteStatsTest` (accueil, semaine, classements, fiches, caches, aucun XUID), `site/PayNowWebhookTest`,
     `ConfigPayNowTest`, et sur MariaDB (ignorés sans Docker) `sitedata/SiteStatsSqlTest` et `sitedata/ShopDeliverySqlTest`.
   - **Mettre en ligne** : la marche à suivre est dans `docs/site.md`, section « Mettre en ligne ».
-- **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
-  copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
+- **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Les logos, les
+  jetons, les textures, les icônes et Oooscar ne sont pas dans `core/` : Gradle les copie de `design/` dans les ressources à la
+  construction (`processResources` de `build.gradle.kts` ; l'image Docker reçoit `design/` à côté de `core/`), et `SiteAtelierTest`
+  compare chaque copie à sa source octet pour octet. `robots.txt` et `sitemap.xml` (les pages du mode, une fois chacune) ont une
+  heure de cache.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
   « Lancer »), puis `http://localhost:8081/`. Sans la variable, le site est en `attente`.
 - **Les tests** (sans base) : `site/SiteModuleTest` (les deux modes, `lang`, un seul `h1`, `title`, `description`, `alt`, les
-  en-têtes, le 404, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, et `ConfigTest` pour les variables.
+  en-têtes, le 404, `robots.txt` et `sitemap.xml`, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, `site/SiteAtelierTest`,
+  `site/EmpreinteTest`, et `ConfigTest` pour les variables.
 - **Les textes** vus par les visiteurs passent `tools/anti_ia.py` (contenus Markdown en entier, littéraux du paquet `site`), et chaque
   texte neuf reste à valider par Kr.
-- **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`) : `public/site.css` est l'unique feuille liée, elle importe
-  `atelier/tokens.css` puis `atelier.css` (composants `sa-*` et mise en page). Les jetons, les textures (`atelier/textures/`), les
-  icônes, Oooscar (`atelier/oooscar/`) et les logos (`logo/`) sont des copies de `design/` ; `SiteAtelierTest` les compare à la
-  source octet pour octet et refuse un `url(...)` sans fichier, un arrondi, un dégradé, un flou ou une largeur fixe au-dessus de
-  360 px. Les polices (`polices/`, `woff2` latin tirés de `@fontsource/*`, licence OFL) sont servies par le site.
-- **Ajouter un composant** : le dessiner d'abord dans `design/` (texture dans `design/textures/`, règle dans `design/composants/`),
-  recopier la texture dans `public/atelier/textures/`, écrire la règle dans `atelier.css` avec le même nom `sa-*` et la même bordure
-  de `border-image` que `bundle.css`, puis ajouter la texture à la liste du test de copie si besoin.
-- **Voir les pages dans un navigateur** sans base : `SILOOO_SITE_RENDER_DIR=/tmp/site ./gradlew test --tests '*SiteRenderToDisk'`
-  écrit les pages rendues et `public/` dans ce dossier ; on le sert avec n'importe quel serveur de fichiers (ce test est ignoré
-  quand la variable n'est pas posée).
+- **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`, « Style ») : `public/site.css` est l'unique feuille liée, elle
+  importe `atelier/tokens.css` (copie de `design/tokens.css`), `atelier/composants.css` (`design/composants/bundle.css` où Gradle
+  remplace chaque adresse `/_blob/<id>` par la texture de `atelier/textures/`, table `atelierBlobs` de `build.gradle.kts`) puis
+  `atelier.css` (polices, base, les réglages que le web demande aux composants, la mise en page). `SiteAtelierTest` vérifie que
+  `composants.css` et `bundle.css` ne diffèrent que par ces adresses, et refuse un `url(...)` sans fichier, un arrondi, un dégradé,
+  un flou, une largeur fixe au-dessus de 360 px, et un `border-image` dans `atelier.css` (un composant se dessine dans `design/`).
+  Les polices (`polices/`, `woff2` latin tirés de `@fontsource/*`, licence OFL) sont servies par le site.
+- **Ajouter un composant** : le dessiner dans `design/` (texture dans `design/textures/`, règle dans `design/composants/bundle.css`
+  avec une adresse `/_blob/<id>`), ajouter l'adresse à `atelierBlobs` dans `build.gradle.kts` et à la table de `docs/site.md`. Rien
+  à recopier. Un réglage propre au web (marge, soulignement, interligne) va dans `atelier.css`, jamais un `border-image`.
+- **Voir les pages dans un navigateur** sans base : `./gradlew test` écrit les pages rendues et `public/` dans
+  `core/build/site-rendu/` (`SiteRenderToDisk`, Gradle pose `SILOOO_SITE_RENDER_DIR`) ; `node tools/verifier_site.mjs` les ouvre
+  dans Chromium à 360 et 1 280 px (débordement, erreurs de console, requêtes en échec, images sans `alt`) et `--captures <dossier>`
+  en écrit les captures. `tools/verifier.sh` enchaîne les deux.
+- **L'empreinte d'un gamertag** (`site/Empreinte.kt`) : le `provisionalXuid` de l'add-on (`addon/src/identity.ts`), FNV-1a 64 bits
+  sur les unités UTF-16 du gamertag en minuscules et sans espaces autour, en décimal ; `EmpreinteTest` tient les vecteurs calculés
+  avec l'add-on. Elle retrouve un joueur de `players` depuis la boutique, la liaison Discord ou la connexion Xbox (décision 25).
+- **L'image de partage** (`public/partage.png`, 1200 sur 630 : le logo, le nom sur une plaque, Oooscar et sa bulle) est l'`og:image`
+  de chaque page. Elle se refait avec `node tools/partage/capturer.mjs` (Chromium rend `tools/partage/partage.html` avec le
+  `public/` de `core/build/site-rendu/`).
 
 ## Le Discord
 

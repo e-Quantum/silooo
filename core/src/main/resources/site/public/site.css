@@ -1,6 +1,8 @@
 /*
- * Le point d'entrée du style du site : les jetons de Silooo Atelier (copie exacte de design/tokens.css), puis les
- * composants et la mise en page du web (atelier.css). Une seule feuille liée par les pages ; elle charge les deux autres.
+ * Le point d'entrée du style du site : les jetons de Silooo Atelier (design/tokens.css), les composants sa-* de la charte
+ * (design/composants/bundle.css, dont Gradle fait composants.css en y posant les textures), puis les réglages du web et
+ * la mise en page du site (atelier.css). Une seule feuille liée par les pages ; elle charge les trois autres, dans cet ordre.
  */
 @import url("atelier/tokens.css");
+@import url("atelier/composants.css");
 @import url("atelier.css");

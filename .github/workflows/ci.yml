@@ -28,6 +28,12 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: "**/package-lock.json"
+      # Chromium pour tools/verifier_site.mjs (les pages du site dans un navigateur), à la version du paquet playwright de
+      # package.json ; --with-deps pose ses bibliothèques système. npm ci d'abord : la commande vient de node_modules.
+      - name: Installer Chromium pour Playwright
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
