@@ -31,9 +31,9 @@
       "id": "infos",
       "nom": "Infos",
       "salons": [
-        { "id": "adresse", "emoji": "🌐", "nom": "play.silooo.com · 19142", "type": "vocal", "verrouille": true },
-        { "id": "console", "emoji": "🎮", "nom": "Console : ami HubyOnMC", "type": "vocal", "verrouille": true },
-        { "id": "en-ligne", "emoji": "👥", "nom": "0 en ligne", "type": "vocal", "verrouille": true }
+        { "id": "adresse", "emoji": "🌐", "nom": "play.silooo.com · 19142", "type": "vocal", "verrouille": true, "ecriture": [] },
+        { "id": "console", "emoji": "🎮", "nom": "Console : ami HubyOnMC", "type": "vocal", "verrouille": true, "ecriture": [] },
+        { "id": "en-ligne", "emoji": "👥", "nom": "0 en ligne", "type": "vocal", "verrouille": true, "ecriture": [] }
       ]
     },
     {
@@ -76,7 +76,7 @@
         { "id": "captures", "emoji": "📸", "nom": "captures", "type": "texte", "phase": "beta", "sujet": "Ton île, ta ville, ton usine préférée : en images." },
         { "id": "entreprises", "emoji": "🤝", "nom": "entreprises", "type": "forum", "phase": "beta", "sujet": "Un sujet par entreprise qui cherche un associé." },
         { "id": "villes", "emoji": "🏙️", "nom": "villes", "type": "forum", "phase": "beta", "sujet": "Un sujet par ville : qui construit quoi, et où." },
-        { "id": "suggestions", "emoji": "💡", "nom": "suggestions", "type": "forum", "phase": "beta", "sujet": "Une idée par sujet. Oooscar étiquette : lue, acceptée, prévue, faite." },
+        { "id": "suggestions", "emoji": "💡", "nom": "suggestions", "type": "forum", "sujet": "Une idée par sujet. Oooscar étiquette : lue, acceptée, prévue, faite." },
         { "id": "patch-notes", "emoji": "🆕", "nom": "patch-notes", "type": "texte", "phase": "beta", "ecriture": [], "sujet": "Chaque mise à jour du jeu, en carte." },
         { "id": "createurs", "emoji": "🎬", "nom": "créateurs", "type": "forum", "phase": "beta", "sujet": "Tes vidéos Silooo. Le vote des joueurs reliés choisit trois créateurs par mois." }
       ]
@@ -114,5 +114,33 @@
         { "id": "signalements", "emoji": "🚩", "nom": "signalements", "type": "texte", "ecriture": [], "visible": ["moderation"], "sujet": "Les messages signalés, avec leur contexte. Modération seulement." }
       ]
     }
-  ]
+  ],
+  "accueil": {
+    "commentaire": "L'accueil guidé de Discord, posé par le bot en REST (JDA ne le couvre pas) quand le serveur est en mode Communauté : chaque réponse donne un rôle du plan. Les salons par défaut sont tous les salons publics de la phase. Les questions et leurs réponses sont à valider par Kr.",
+    "questions": [
+      {
+        "id": "plateforme",
+        "titre": "Tu joues sur quoi ?",
+        "unique": true,
+        "obligatoire": true,
+        "options": [
+          { "role": "console", "emoji": "🎮", "titre": "Console", "description": "Xbox, PlayStation ou Switch" },
+          { "role": "telephone", "emoji": "📱", "titre": "Téléphone", "description": "Android, iPhone ou tablette" },
+          { "role": "pc", "emoji": "💻", "titre": "PC", "description": "Windows 10 ou 11" }
+        ]
+      },
+      {
+        "id": "notifications",
+        "titre": "Tu veux être prévenu de quoi ?",
+        "options": [
+          { "role": "actus", "emoji": "📢", "titre": "Actus", "description": "Les étapes du chantier et les nouvelles du jeu" },
+          { "role": "coulisses", "emoji": "🏗️", "titre": "Coulisses", "description": "Chaque spoil débloqué" },
+          { "role": "concours", "emoji": "🏆", "titre": "Concours", "description": "Le concours de la semaine et ses résultats" },
+          { "role": "giveaways", "emoji": "🎁", "titre": "Giveaways", "description": "Les lots tirés au sort" },
+          { "role": "vote-party", "emoji": "🗳️", "titre": "Vote party", "description": "Quand la jauge des votes est pleine" },
+          { "role": "concours-de-villes", "emoji": "🏙️", "titre": "Concours de villes", "description": "Le classement des villes, chaque mois" }
+        ]
+      }
+    ]
+  }
 }

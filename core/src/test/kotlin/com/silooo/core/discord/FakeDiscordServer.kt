@@ -34,6 +34,14 @@ class FakeDiscordServer(
     var members = 0
     var commands: List<CommandSpec> = emptyList()
 
+    /** L'accueil guidé tel que le faux Discord le garde ; [onboardingWrites] : chaque envoi, dans l'ordre. */
+    var onboarding: OnboardingState = OnboardingState.NONE
+    val onboardingWrites = mutableListOf<OnboardingState>()
+
+    /** Le refus que le faux Discord oppose à l'accueil guidé, ou rien. */
+    var refusedOnboarding: String? = null
+    private var nextSnowflake = 100_000_000_000_000_000L
+
     data class Posted(val channelId: String, val messageId: String, val message: BotMessage)
 
     private var nextId = 1000L
@@ -137,6 +145,22 @@ class FakeDiscordServer(
     override suspend fun installCommands(commands: List<CommandSpec>) {
         this.commands = commands
     }
+
+    override suspend fun onboarding(): OnboardingState = onboarding
+
+    override suspend fun setOnboarding(state: OnboardingState): OnboardingState {
+        refusedOnboarding?.let { throw DiscordRefusal(it) }
+        onboardingWrites += state
+        onboarding = state.copy(
+            prompts = state.prompts.map { prompt ->
+                prompt.copy(id = snowflake(prompt.id), options = prompt.options.map { it.copy(id = snowflake(it.id)) })
+            },
+        )
+        return onboarding
+    }
+
+    /** Discord remplace un numéro provisoire par un vrai identifiant (17 chiffres et plus) ; un identifiant connu reste. */
+    private fun snowflake(id: String): String = if (id.length >= 17) id else (nextSnowflake++).toString()
 }
 
 /** Une connexion de test : [emit] joue un événement comme Discord le ferait, depuis le fil de l'appelant. */

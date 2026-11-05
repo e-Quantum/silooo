@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://silooo.com/schemas/plan-serveur-discord.json",
   "title": "Le plan du serveur Discord de Silooo",
-  "description": "Les rôles, les catégories et les salons que le bot Oooscar crée (docs/discord.md). Contrôlé par tools/verifier_plan_discord.mjs, qui ajoute ce que ce schéma ne sait pas dire : unicité, références entre rôles et salons, un seul emoji par salon, les couleurs prises dans design/tokens.json.",
+  "description": "Les rôles, les catégories et les salons que le bot Oooscar crée (docs/discord.md). Contrôlé par tools/verifier_plan_discord.mjs, qui ajoute ce que ce schéma ne sait pas dire : unicité, références entre rôles et salons, un seul emoji par salon et par réponse de l'accueil guidé, les couleurs prises dans design/tokens.json.",
   "type": "object",
   "additionalProperties": false,
   "required": ["roles", "categories"],
@@ -10,7 +10,8 @@
     "$schema": { "type": "string" },
     "commentaire": { "type": "string" },
     "roles": { "type": "array", "items": { "$ref": "#/$defs/role" } },
-    "categories": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/categorie" } }
+    "categories": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/categorie" } },
+    "accueil": { "$ref": "#/$defs/accueil" }
   },
   "$defs": {
     "identifiant": {
@@ -65,6 +66,39 @@
         "ecriture": { "type": "array", "items": { "$ref": "#/$defs/identifiant" }, "description": "Les rôles qui écrivent ; vide, le bot seul ; absente, tout le monde." },
         "visible": { "type": "array", "items": { "$ref": "#/$defs/identifiant" }, "description": "Les rôles qui voient le salon ; absente, la règle de la catégorie." },
         "verrouille": { "type": "boolean", "description": "Un vocal où personne ne se connecte : il ne sert qu'à afficher une information." }
+      }
+    },
+    "accueil": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questions"],
+      "description": "L'accueil guidé de Discord : les questions posées à l'arrivée, chaque réponse donnant un rôle du plan. Le bot le pose par l'interface web de Discord, que sa bibliothèque ne couvre pas ; les salons par défaut sont les salons publics de la phase.",
+      "properties": {
+        "commentaire": { "type": "string" },
+        "questions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/question" } }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "titre", "options"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifiant" },
+        "titre": { "type": "string", "minLength": 1, "maxLength": 100, "description": "La question, sans emoji." },
+        "unique": { "type": "boolean", "description": "Une seule réponse possible." },
+        "obligatoire": { "type": "boolean", "description": "Il faut répondre pour finir l'accueil." },
+        "options": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/reponse" } }
+      }
+    },
+    "reponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "emoji", "titre"],
+      "properties": {
+        "role": { "$ref": "#/$defs/identifiant", "description": "Le rôle du plan que cette réponse donne." },
+        "emoji": { "type": "string", "minLength": 1, "maxLength": 8, "description": "Un seul emoji, devant le titre, comme pour un salon." },
+        "titre": { "type": "string", "minLength": 1, "maxLength": 50, "description": "Sans emoji." },
+        "description": { "type": "string", "maxLength": 100 }
       }
     }
   }

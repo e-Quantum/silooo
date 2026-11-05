@@ -88,8 +88,25 @@ class ServerPlanTest {
         assertTrue(refused("{ pas du json").contains("plan-de-test"))
     }
 
-    private fun plan(roles: String = """[{"id":"staff","nom":"Staff"}]""", categories: String = "[$JOURNAL_CATEGORY]") =
-        """{"roles": $roles, "categories": $categories}"""
+    @Test
+    @DisplayName("L'accueil guidé : deux questions dans le dépôt ; un rôle inconnu, un rôle en double ou un emoji hors de sa clé sont refusés")
+    fun onboarding() {
+        val onboarding = checkNotNull(real.accueil)
+        assertEquals(listOf("plateforme", "notifications"), onboarding.questions.map { it.id })
+        assertTrue(onboarding.questions[0].unique && onboarding.questions[0].obligatoire)
+        assertTrue(onboarding.questions.all { question -> question.options.all { option -> real.roles.any { it.id == option.role } } })
+
+        fun accueil(options: String, titre: String = "Q ?") = """{"questions":[{"id":"q","titre":"$titre","options":[$options]}]}"""
+        assertTrue(refused(plan(accueil = accueil("""{"role":"fantome","emoji":"🎮","titre":"A"}"""))).contains("cite le rôle inconnu « fantome »"))
+        val twice = """{"role":"staff","emoji":"🎮","titre":"A"},{"role":"staff","emoji":"📱","titre":"B"}"""
+        assertTrue(refused(plan(accueil = accueil(twice))).contains("le rôle « staff » est en double"))
+        assertTrue(refused(plan(accueil = accueil("""{"role":"staff","emoji":"🎮","titre":"A"}""", titre = "Q 🎮 ?"))).contains("emoji dans son titre"))
+        assertTrue(refused(plan(accueil = accueil("""{"role":"staff","emoji":"🎮","titre":"A 🎮"}"""))).contains("il va dans la clé emoji"))
+        assertTrue(refused(plan(accueil = """{"questions":[{"id":"q","titre":"Q ?","options":[]}]}""")).contains("n'a pas de réponse"))
+    }
+
+    private fun plan(roles: String = """[{"id":"staff","nom":"Staff"}]""", categories: String = "[$JOURNAL_CATEGORY]", accueil: String? = null) =
+        """{"roles": $roles, "categories": $categories""" + (if (accueil == null) "" else """, "accueil": $accueil""") + "}"
 
     private fun refused(text: String): String =
         assertThrows(PlanException::class.java) { ServerPlan.parse(text, "plan-de-test") }.message.orEmpty()

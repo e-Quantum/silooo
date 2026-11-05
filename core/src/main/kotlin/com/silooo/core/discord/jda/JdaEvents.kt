@@ -2,6 +2,7 @@ package com.silooo.core.discord.jda
 
 import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.DiscordEvent
+import com.silooo.core.discord.DiscordRefusal
 import com.silooo.core.discord.DiscordUser
 import com.silooo.core.discord.FormSpec
 import com.silooo.core.discord.Reply

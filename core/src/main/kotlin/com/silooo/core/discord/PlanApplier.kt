@@ -4,6 +4,7 @@ package com.silooo.core.discord
  * Applique le [plan] au serveur : crée les rôles, catégories et salons de la phase courante qui manquent, met à
  * jour la couleur d'un rôle et le sujet d'un salon qui diffèrent, et ne supprime jamais rien (ADR 0007). Les
  * entrées se reconnaissent à leur nom Discord : renommer un salon dans le plan en crée un nouveau, l'ancien reste.
+ * Une fois les rôles et les salons en place, l'accueil guidé du plan suit ([OnboardingApplier]).
  *
  * En mode [dryRun], rien ne change : le compte rendu dit ce qui manque. Une seule exception, le salon du journal
  * (et sa catégorie) : s'il manque, il est créé pour y écrire le compte rendu, sinon Kr ne le lirait pas.
@@ -92,6 +93,8 @@ class PlanApplier(
             }
         }
 
+        OnboardingApplier(plan, phase, dryRun).run(server, report.ids, report)
+
         val journal = journalId
         if (journal == null) {
             report.failures += "pas de salon du journal : le compte rendu reste dans les journaux du service"
@@ -120,6 +123,9 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
     val changedChannels = mutableListOf<String>()
     val failures = mutableListOf<String>()
 
+    /** L'accueil guidé : ce qu'il en est ; `null` tant que le plan n'en a pas. */
+    var onboarding: OnboardingOutcome? = null
+
     /** Les identifiants Discord trouvés ou créés, par identifiant du plan ; ce qui manque (à blanc, échec) n'y est pas. */
     val roleIds = mutableMapOf<String, String>()
     val channelIds = mutableMapOf<String, String>()
@@ -143,7 +149,8 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
         val mode = if (dryRun) "à blanc" else "appliqué"
         return "plan du serveur (phase ${phase.word}, $mode) : ${missingRoles.size} rôle(s), ${missingCategories.size} catégorie(s) et " +
             "${missingChannels.size} salon(s) manquaient ; ${createdRoles.size + createdCategories.size + createdChannels.size} création(s), " +
-            "${changedRoles.size + changedChannels.size} modification(s), ${failures.size} échec(s)"
+            "${changedRoles.size + changedChannels.size} modification(s), ${failures.size} échec(s) ; accueil guidé " +
+            (onboarding?.status ?: "absent du plan")
     }
 
     fun text(): String {
@@ -164,6 +171,7 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
             if (changedChannels.isNotEmpty()) lines += "J'ai modifié le sujet de " + counted(changedChannels, "salon", "salons") + "."
             lines += "Je ne supprime jamais rien."
         }
+        onboarding?.line?.let { lines += it }
         if (failures.isNotEmpty()) lines += "Échecs : " + failures.joinToString(" ; ") + "."
         val text = lines.joinToString("\n")
         return if (text.length <= MAX_MESSAGE) text else text.substring(0, MAX_MESSAGE - CUT.length) + CUT
