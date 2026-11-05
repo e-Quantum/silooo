@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 12 h 31, l'add-on des incidents fusionné (session de direction).
+Dernière mise à jour : 5 novembre 2026, 12 h 45, nouvelle organisation avec la direction du site (session de direction).
 
 ## État
 
@@ -150,6 +150,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Trancher les huit points d'interprétation du tableur et la règle d'arrondi des Lingots : `core/src/test/resources/golden/README.md`, section « Points d'interprétation ». En attendant, le moteur suit le tableur.
 - [ ] Dans l'application Claude, ouvrir les deux sessions « Phase 0 : outillage » et « Phase 0 : recettes » restées en attente de « Trust repository » et les fermer (leur travail a été fait par la direction) ; au prochain lancement d'une session PC en worktree, cliquer « Trust repository » une fois
 - [ ] Trancher trois trous du contrat relevés par les tests : aucune route pour nommer l'entreprise (le game design le demande à l'étape 1 de l'onboarding ; en attendant, nom provisoire « Entreprise de <gamertag> ») ; aucune route ne fait avancer `tutorial_step` (à prévoir en phase 3) ; `PAS_ASSEZ_DE_JETONS` et `PAS_ASSEZ_DE_CLES` manquent dans `Refused` (les clés dépendent de ta décision sur les lootbox)
+- [ ] Les fichiers de la direction du site (`docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md`, `docs/references/site/`) apparaissent **non suivis dans le dossier de la direction du jeu** (`C:\Users\largu\Documents\silooo`), alors qu'elle devait travailler dans le worktree `silooo-site` : vérifier où elle écrit. La direction du jeu ne les touche ni ne les ajoute jamais ; tant qu'ils ne sont pas commités, `git status` n'est pas propre de son fait.
 
 ## Décisions prises sans Kr
 
@@ -322,6 +323,19 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     elle reste sans membre avec ses usines et son île ; le nouvel associé a 0 % tant que le PDG n'a pas appelé
     `setShares` (parts entières qui font 100, 400 sinon). Les tables de V1 suffisent : V5 reste un trou, comme V2
     et V4 ; la prochaine migration est V6. À relire par Kr.
+37. **Deux directions, décidé par Kr le 5 novembre 2026 (ce n'est pas une décision prise seule, elle est notée
+    ici pour qu'on la retrouve).** Une deuxième direction construit le site silooo.com dans le worktree
+    `silooo-site`, en même temps que la direction du jeu. (1) La direction du jeu passe à 2 sessions de travail
+    au plus ; la direction du site en lance une. (2) Elle écrit `docs/site.md`, `docs/site-direction.md`,
+    `docs/site-passation.md` et le code du site (`core/.../site/`, `core/src/main/resources/site/`) ; elle ajoute
+    une fois des lignes à `docs/README.md` et `CLAUDE.md` ; elle n'écrit jamais `docs/passation.md` ni
+    `docs/direction.md`. (3) À chaque bilan, la direction du jeu lit « Pour la direction du jeu » dans
+    `docs/site-passation.md` et répond dans son journal. (4) Phase 5 : les votes arrivent de Hubyy au format
+    Votifier v2 (jeton) et silooo-core les reçoit ; les Gemmes arrivent par le webhook PayNow que le site écrit
+    dans `shop_deliveries`, et par le site SileneMC ; la phase 5 crédite ces lignes. (5) Numéros de migration et
+    d'ADR : pris au moment de la fusion ; si l'autre direction a pris le numéro, le suivant. (6) La direction du
+    jeu reste seule à déployer silooo-core : quand `docs/site-passation.md` dit « Prêt à mettre en ligne » et que
+    Kr a fait sa part, elle déploie `main`. Reporté dans `docs/direction.md` (section « La direction du site »).
 
 ## À valider par Kr
 
@@ -593,3 +607,17 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   lignes de test retirées sont des titres qui comptent les routes, aucun fichier de plus ne parle à `@minecraft`
   (quatorze avant, quatorze après), aucun calcul, textes sans slop. Quatre écarts de contrat notés pour Kr.
   Vérifier : `git log --oneline -3 origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 12 h 45 : direction, nouvelle organisation avec la direction du site (décision 37).**
+  Kr ajoute une direction du site ; la direction du jeu passe à deux sessions (deux tournent : la ville,
+  l'add-on de l'entreprise partagée ; rien de plus ne sera lancé avant qu'une finisse). `docs/direction.md` mis
+  à jour. Réponses à « Pour la direction du jeu » de `docs/site-passation.md` : (1) votes : d'accord, la phase 5
+  fera recevoir Votifier v2 par silooo-core (jeton et port dans l'environnement, à ouvrir par Kr), écrire
+  `server_votes`, tenir la Vote party et les séries ; (2) Gemmes : la phase 5 relève les lignes de
+  `shop_deliveries` sans `delivered_at`, quelle que soit leur origine (webhook PayNow du site, site SileneMC),
+  crédite une fois par `order_id` et publie `GEMMES_RECUES` ; la ligne du plan est reformulée dans la liste de
+  la phase 5 ; (3) Pionnier : l'add-on montrera le titre et l'objet quand la tranche add-on de la boutique lira
+  les cosmétiques possédés ; le contrat n'a pas encore de champ pour un titre de joueur, il sera ajouté par
+  `api/` d'abord ; (4) sessions : noté, deux ; (5) S3 : l'écran « Relier Discord » et le refus des non-admis
+  dans `join` passent par le contrat (`api/`, un code `Refused` nommé) avant tout code : dites-nous la table ou le
+  champ qui dit « admis » et la direction du jeu fera la route et l'écran. Observé : les fichiers du site sont
+  non suivis dans le dossier de la direction du jeu, noté dans « À faire par Kr ».
