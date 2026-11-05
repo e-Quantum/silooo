@@ -138,6 +138,8 @@ export type IlesDefinitions = {
   readonly centreDansLaCase: IlesPoint;
   /** Où se tiennent les mini-îles : sur un carré autour du centre de l'île principale, qui fait 512 × 512 blocs une fois débloquée. */
   readonly anneau: {
+    /** Demi-côté en blocs de l'île principale une fois débloquée (512 × 512, donc 256), autour du même centre : les mini-îles doivent rester en dehors. */
+    readonly ilePrincipaleDemiCote: number;
     /** Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins le rayon d'une plateforme. */
     readonly demiCote: number;
   };
@@ -158,6 +160,8 @@ export type IlesDefinitions = {
     readonly usine: IlesIdentifiant;
     /** Distance en blocs du centre de la mini-île, du côté de l'île principale, hors du bâtiment. */
     readonly distance: number;
+    /** Où se tient Oooscar à l'arrivée, par rapport au centre de la mini-île de départ. */
+    readonly oooscar: IlesDecalagePlat;
   };
   /** Ce qui se voit d'une usine en ruine. */
   readonly ruine: {
@@ -197,6 +201,32 @@ export type IlesDefinitions = {
     /** Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne. */
     readonly hauteur: number;
   }[];
+  /** La cinématique d'arrivée (design/composants/Cinematique.md : 20 secondes, 4 plans), filmée autour de la mini-île de départ. Chaque plan part d'un point, glisse vers un autre et regarde un point fixe ; tous les points sont donnés par rapport au centre de cette mini-île. */
+  readonly cinematique: {
+    readonly plans: readonly {
+      /** Durée du plan en secondes. */
+      readonly duree: number;
+      /** Où la caméra commence. */
+      readonly depart: IlesVue;
+      /** Où la caméra finit. */
+      readonly arrivee: IlesVue;
+      /** Le point que la caméra regarde pendant tout le plan. */
+      readonly regard: IlesVue;
+    }[];
+  };
+};
+
+/** Un décalage sur le sol de la mini-île, dans son repère : « avant » va vers le centre de l'île principale, « droite » est à droite quand on regarde vers l'avant. En blocs. */
+export type IlesDecalagePlat = {
+  readonly avant: number;
+  readonly droite: number;
+};
+
+/** Un point de la mise en scène, dans le repère de la mini-île : avant, droite (voir decalagePlat) et haut, au-dessus de la face du dessus de la plateforme. En blocs. */
+export type IlesVue = {
+  readonly avant: number;
+  readonly droite: number;
+  readonly haut: number;
 };
 
 /** Identifiant en kebab-case : minuscules sans accent, chiffres, tirets. */

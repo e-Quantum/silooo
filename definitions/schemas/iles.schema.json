@@ -5,7 +5,7 @@
   "description": "Forme de definitions/iles.json : où l'add-on pose les mini-îles des usines autour de l'île principale, et de quoi elles sont faites. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "hauteur", "centreDansLaCase", "anneau", "plateforme", "apparition", "ruine", "materiaux", "usines"],
+  "required": ["version", "commentaire", "hauteur", "centreDansLaCase", "anneau", "plateforme", "apparition", "ruine", "materiaux", "usines", "cinematique"],
   "properties": {
     "version": { "type": "integer", "minimum": 1 },
     "commentaire": { "type": "string" },
@@ -23,8 +23,13 @@
       "description": "Où se tiennent les mini-îles : sur un carré autour du centre de l'île principale, qui fait 512 × 512 blocs une fois débloquée.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["demiCote"],
+      "required": ["ilePrincipaleDemiCote", "demiCote"],
       "properties": {
+        "ilePrincipaleDemiCote": {
+          "description": "Demi-côté en blocs de l'île principale une fois débloquée (512 × 512, donc 256), autour du même centre : les mini-îles doivent rester en dehors.",
+          "type": "integer",
+          "minimum": 1
+        },
         "demiCote": {
           "description": "Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins le rayon d'une plateforme.",
           "type": "integer",
@@ -59,13 +64,17 @@
       "description": "Le point où le joueur apparaît, sur la mini-île de départ.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["usine", "distance"],
+      "required": ["usine", "distance", "oooscar"],
       "properties": {
         "usine": { "description": "L'usine dont le joueur apparaît sur l'île : sa Carrière.", "$ref": "#/$defs/identifiant" },
         "distance": {
           "description": "Distance en blocs du centre de la mini-île, du côté de l'île principale, hors du bâtiment.",
           "type": "integer",
           "minimum": 1
+        },
+        "oooscar": {
+          "description": "Où se tient Oooscar à l'arrivée, par rapport au centre de la mini-île de départ.",
+          "$ref": "#/$defs/decalagePlat"
         }
       }
     },
@@ -119,9 +128,53 @@
           "hauteur": { "description": "Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne.", "type": "integer", "minimum": 3, "maximum": 8 }
         }
       }
+    },
+    "cinematique": {
+      "description": "La cinématique d'arrivée (design/composants/Cinematique.md : 20 secondes, 4 plans), filmée autour de la mini-île de départ. Chaque plan part d'un point, glisse vers un autre et regarde un point fixe ; tous les points sont donnés par rapport au centre de cette mini-île.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plans"],
+      "properties": {
+        "plans": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["duree", "depart", "arrivee", "regard"],
+            "properties": {
+              "duree": { "description": "Durée du plan en secondes.", "type": "number", "exclusiveMinimum": 0, "maximum": 20 },
+              "depart": { "description": "Où la caméra commence.", "$ref": "#/$defs/vue" },
+              "arrivee": { "description": "Où la caméra finit.", "$ref": "#/$defs/vue" },
+              "regard": { "description": "Le point que la caméra regarde pendant tout le plan.", "$ref": "#/$defs/vue" }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
+    "decalagePlat": {
+      "description": "Un décalage sur le sol de la mini-île, dans son repère : « avant » va vers le centre de l'île principale, « droite » est à droite quand on regarde vers l'avant. En blocs.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avant", "droite"],
+      "properties": {
+        "avant": { "type": "number", "minimum": -200, "maximum": 200 },
+        "droite": { "type": "number", "minimum": -200, "maximum": 200 }
+      }
+    },
+    "vue": {
+      "description": "Un point de la mise en scène, dans le repère de la mini-île : avant, droite (voir decalagePlat) et haut, au-dessus de la face du dessus de la plateforme. En blocs.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avant", "droite", "haut"],
+      "properties": {
+        "avant": { "type": "number", "minimum": -200, "maximum": 200 },
+        "droite": { "type": "number", "minimum": -200, "maximum": 200 },
+        "haut": { "type": "number", "minimum": -50, "maximum": 200 }
+      }
+    },
     "identifiant": { "description": "Identifiant en kebab-case : minuscules sans accent, chiffres, tirets.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
     "bloc": { "description": "Identifiant d'un type de bloc de Minecraft.", "type": "string", "pattern": "^minecraft:[a-z0-9_]+$" },
     "pourcentage": { "type": "integer", "minimum": 0, "maximum": 100 },
