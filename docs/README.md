@@ -52,3 +52,11 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 - `api/silooo-core.openapi.yaml` : le contrat entre l'add-on et silooo-core, 29 opérations.
 - `core/src/main/resources/db/migration/` : les migrations Flyway, V1 en tête.
 - `design/` : le design system Silooo Atelier (charte, composants, textures, icônes, Oooscar, logo).
+- `addon/` : le pack de comportement (TypeScript, `server-net`), ses écrans dans `addon/src/ui/`, ses textes dans
+  `addon/src/ui/textes.ts` ; `addon/README.md` liste les textes à valider.
+- `resource-pack/` : le pack de ressources (JSON UI du HUD, textures copiées de `design/`, Oooscar côté client) ;
+  `tools/verifier_pack.mjs` contrôle les copies.
+- `deploy/` : images, `compose.yml`, scripts de déploiement et de sauvegarde ; `deploy/README.md` et
+  [deploiement.md](deploiement.md).
+- `tools/` : `verifier.sh` et les contrôles qu'il enchaîne (`verifier_definitions.mjs`, `generer_types.mjs`,
+  `anti_ia.py`, `verifier_pack.mjs`), leurs tests dans `tools/tests/`.
