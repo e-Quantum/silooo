@@ -112,11 +112,14 @@ object Config {
     /** Le jeton du bot, obligatoire dès que le bot est demandé ; il ne s'affiche jamais. */
     const val DISCORD_TOKEN = "SILOOO_DISCORD_TOKEN"
 
-    /** L'identifiant numérique du serveur Discord que le bot règle (celui de test sur le poste de Kr, puis celui de Silooo). */
+    /** L'identifiant numérique du serveur Discord que le bot règle : le serveur de Silooo, un seul (pas de serveur de test). */
     const val DISCORD_SERVEUR = "SILOOO_DISCORD_SERVEUR"
 
     /** La phase du serveur : `attente` par défaut, `beta`, `ouvert`. Chaque entrée du plan porte la phase où elle apparaît. */
     const val DISCORD_PHASE = "SILOOO_DISCORD_PHASE"
+
+    /** Le QG est ouvert au public : `non` par défaut (messages privés au staff seul, mentions de rôle sur les rôles du staff seuls), `oui` à l'ouverture. */
+    const val DISCORD_PUBLIC = "SILOOO_DISCORD_PUBLIC"
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -438,7 +441,8 @@ object Config {
 
         /**
          * Le bot Discord : `non` (ou rien) le laisse éteint. `a-blanc` et `oui` exigent le jeton et l'identifiant numérique du
-         * serveur ; la phase vaut `attente` quand elle n'est pas posée. Toute valeur inconnue arrête le démarrage.
+         * serveur ; la phase vaut `attente` et le QG reste fermé (`SILOOO_DISCORD_PUBLIC`) quand elles ne sont pas posées.
+         * Toute valeur inconnue arrête le démarrage.
          */
         fun bot(): BotConfig? {
             val rawMode = env[DISCORD_ACTIF]
@@ -460,8 +464,17 @@ object Config {
                 problems += "$DISCORD_PHASE doit valoir ${ServerPhase.entries.joinToString(", ") { it.word }}"
                 return null
             }
+            val rawPublic = env[DISCORD_PUBLIC]?.trim()?.lowercase()
+            val public = when (rawPublic) {
+                null, "", "non" -> false
+                "oui" -> true
+                else -> {
+                    problems += "$DISCORD_PUBLIC doit valoir non ou oui"
+                    return null
+                }
+            }
             if (token == null || guildId == null) return null
-            return BotConfig(mode, BotToken(token), guildId, phase)
+            return BotConfig(mode, BotToken(token), guildId, phase, public)
         }
 
         fun finish() {

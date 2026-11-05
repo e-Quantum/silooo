@@ -79,6 +79,9 @@ interface DiscordServer {
     /** Le nom que le serveur affiche pour [userId] (son surnom, sinon son nom) ; `null` s'il n'est plus là. */
     suspend fun memberName(userId: String): String?
 
+    /** Les identifiants des rôles du membre [userId] ; vide s'il n'est plus là. */
+    suspend fun rolesOf(userId: String): Set<String>
+
     /** Épingle le message [messageId] du salon [channelId]. */
     suspend fun pin(channelId: String, messageId: String)
 

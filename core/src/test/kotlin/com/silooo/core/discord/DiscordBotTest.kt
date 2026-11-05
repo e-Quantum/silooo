@@ -3,9 +3,11 @@ package com.silooo.core.discord
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.DisplayName
@@ -70,6 +72,41 @@ class DiscordBotTest {
         assertFalse(thread.isAlive)
         assertTrue(connection.closed)
         assertTrue(checkNotNull(result.get()).channelIds.containsKey(ServerPlan.JOURNAL_ID))
+    }
+
+    /** Le serveur que les fonctions reçoivent, une fois la boucle lancée ; le bot est ensuite fermé. */
+    private fun serverSeenByFeatures(config: BotConfig, connection: FakeConnection): DiscordServer {
+        val seen = AtomicReference<DiscordServer?>()
+        val bot = DiscordBot(config, { connection }, features = { context ->
+            seen.set(context.server)
+            listOf(Recording())
+        })
+        val thread = Thread({ bot.runGuarded() }, "test-bot").apply { start() }
+        awaitUntil("les fonctions") { seen.get() != null }
+        bot.close()
+        thread.join(2000)
+        return checkNotNull(seen.get())
+    }
+
+    @Test
+    @DisplayName("QG fermé par défaut : les fonctions reçoivent le serveur fermé, qui retient les messages privés hors staff")
+    fun closedByDefault() {
+        assertFalse(config.public)
+        val connection = FakeConnection()
+        val server = serverSeenByFeatures(config, connection)
+        assertTrue(server is ClosedServer)
+        assertFalse(runBlocking { server.direct("42", BotMessage("Bonjour")) })
+        assertTrue(connection.server.directs.isEmpty())
+    }
+
+    @Test
+    @DisplayName("QG public : les fonctions reçoivent le vrai serveur")
+    fun publicKeepsRealServer() {
+        val connection = FakeConnection()
+        val server = serverSeenByFeatures(config.copy(public = true), connection)
+        assertSame(connection.server, server)
+        assertTrue(runBlocking { server.direct("42", BotMessage("Bonjour")) })
+        assertEquals(1, connection.server.directs.size)
     }
 
     @Test

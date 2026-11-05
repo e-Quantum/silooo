@@ -72,4 +72,18 @@ class ConfigDiscordTest {
         assertTrue(dry!!.dryRun)
         assertEquals(ServerPhase.BETA, dry.phase)
     }
+
+    @Test
+    @DisplayName("Le QG reste fermé au public par défaut, s'ouvre avec oui, et une autre valeur arrête le démarrage")
+    fun publicSwitch() {
+        val required = mapOf(Config.DISCORD_ACTIF to "oui", Config.DISCORD_TOKEN to "jeton", Config.DISCORD_SERVEUR to "1")
+        assertFalse(checkNotNull(service(required).bot).public)
+        assertFalse(checkNotNull(service(required + (Config.DISCORD_PUBLIC to "non")).bot).public)
+        assertFalse(checkNotNull(service(required + (Config.DISCORD_PUBLIC to " ")).bot).public)
+        assertTrue(checkNotNull(service(required + (Config.DISCORD_PUBLIC to "oui")).bot).public)
+        assertTrue(checkNotNull(service(required + (Config.DISCORD_PUBLIC to " OUI ")).bot).public)
+        val unknown = refused(required + (Config.DISCORD_PUBLIC to "peut-être"))
+        assertTrue(unknown.contains(Config.DISCORD_PUBLIC + " doit valoir non ou oui"), unknown)
+        assertNull(service(mapOf(Config.DISCORD_PUBLIC to "oui")).bot)
+    }
 }

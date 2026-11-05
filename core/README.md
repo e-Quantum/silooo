@@ -70,6 +70,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DISCORD_TOKEN` | Le jeton du bot ; ne s'affiche jamais | oui dès que `SILOOO_DISCORD_ACTIF` n'est pas `non` |
 | `SILOOO_DISCORD_SERVEUR` | L'identifiant numérique du serveur Discord que le bot règle | oui dès que `SILOOO_DISCORD_ACTIF` n'est pas `non` |
 | `SILOOO_DISCORD_PHASE` | La phase du serveur : `attente`, `beta` ou `ouvert` ; chaque entrée du plan porte la phase où elle apparaît | non, `attente` par défaut |
+| `SILOOO_DISCORD_PUBLIC` | Le QG est ouvert au public : `non` (les messages privés ne partent qu'au staff, les mentions de rôle ne visent que ses rôles) ou `oui` ; toute autre valeur refuse le démarrage | non, `non` par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe, ni la clé, ni le jeton Votifier ne s'écrivent dans les journaux.
@@ -928,11 +929,16 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   `design/tokens.json`, salon du journal). Les clés sont en français ; chaque rôle, catégorie et salon porte la phase où il
   apparaît (`attente`, `beta`, `ouvert`), et `SILOOO_DISCORD_PHASE` dit où en est le serveur. Un salon se reconnaît à son nom
   Discord (`emoji・nom`) : le renommer dans le plan en crée un nouveau.
-- **Le serveur de test** est celui du poste de Kr, avec son propre bot et son propre jeton : `SILOOO_DISCORD_ACTIF=a-blanc`,
-  `SILOOO_DISCORD_TOKEN`, `SILOOO_DISCORD_SERVEUR` (l'identifiant numérique du serveur) et les variables de la base et de la clé,
-  puis `./gradlew run`. Le serveur doit être en mode Communauté pour les forums et le salon d'annonces ; sinon le bot le dit dans
-  son compte rendu et crée le reste. Le bot a besoin des droits « Gérer les rôles » et « Gérer les salons », et de deux intentions
-  privilégiées, « membres du serveur » et « contenu des messages », cochées dans le portail des développeurs.
+- **Le serveur Silooo, depuis le PC.** Il n'y a qu'un serveur Discord, celui de Silooo, et pas de serveur de test (décision de
+  Kr du 5 novembre 2026) : le bot y travaille directement, fermé au public jusqu'à l'ouverture du QG. Il tourne sur le PC de Kr
+  pendant le chantier et sur le VPS après, jamais les deux à la fois. On commence par `SILOOO_DISCORD_ACTIF=a-blanc`, on lit le
+  compte rendu dans `#journal-du-bot`, puis on passe à `oui`. `SILOOO_DISCORD_TOKEN` et `SILOOO_DISCORD_SERVEUR` (l'identifiant
+  numérique du serveur) sont des variables du compte Windows de Kr, jamais affichées. Tant que le QG n'est pas ouvert,
+  `SILOOO_DISCORD_PHASE=attente` et `SILOOO_DISCORD_PUBLIC=non` : les messages privés ne partent qu'au staff et les mentions de
+  rôle ne visent que ses rôles. Avec les variables de la base et de la clé, puis `./gradlew run`. Le serveur doit être en mode
+  Communauté pour les forums et le salon d'annonces ; sinon le bot le dit dans son compte rendu et crée le reste. Le bot a
+  besoin des droits « Gérer les rôles » et « Gérer les salons », et de deux intentions privilégiées, « membres du serveur » et
+  « contenu des messages », cochées dans le portail des développeurs.
 - **Le journal** : le salon `journal-du-bot` de la catégorie Staff reçoit un compte rendu à chaque démarrage (ce qui manquait, ce qui
   a été créé ou modifié, les refus de Discord), sans aucune mention ; le résumé va aussi dans les journaux du service.
 - **La boucle.** Hors `a-blanc`, le bot sert ce qui arrive de Discord (arrivées, accueil terminé, départs, messages, réactions,

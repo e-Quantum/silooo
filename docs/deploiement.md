@@ -101,6 +101,7 @@ chiffres du jeu : le jeu reste dans `definitions/`. Le modèle est `deploy/exemp
 | `SILOOO_DISCORD_TOKEN` | `silooo-core` (par `env_file`) | vide | le jeton du bot Oooscar, obligatoire dès que `SILOOO_DISCORD_ACTIF` n'est pas `non` ; secret, jamais dans le dépôt ni dans les journaux (le service le masque) |
 | `SILOOO_DISCORD_SERVEUR` | `silooo-core` (par `env_file`) | vide | l'identifiant numérique du serveur Discord que le bot règle, obligatoire avec le jeton ; Kr y invite le bot avant de démarrer |
 | `SILOOO_DISCORD_PHASE` | `silooo-core` (par `env_file`) | `attente` | la phase du serveur Discord (`attente`, `beta` ou `ouvert`) : le bot crée les rôles et salons de cette phase et des précédentes, et n'en supprime jamais |
+| `SILOOO_DISCORD_PUBLIC` | `silooo-core` (par `env_file`) | `non` | le QG est ouvert au public : `non` (les messages privés du bot ne partent qu'au staff, ses mentions de rôle ne visent que les rôles Staff et Modération) ou `oui` ; toute autre valeur arrête le service ; reste à `non` jusqu'à l'ouverture du QG |
 | `BDS_PORT` | `silooo-bds` | `19142` | port TCP de signalisation NetherNet ([ADR 0004](adr/0004-port-bedrock.md)) |
 | `BDS_UDP_PORTS` | `silooo-bds` | `19143-19174` | plage UDP du jeu dans le conteneur (`server-udp-ports`) : 32 ports pour 20 joueurs, à confirmer libre par Kr |
 | `BDS_UDP_PORTS_PUBLIES` | `silooo-bds` | `19143-19174` | plage UDP publiée sur le VPS, de la même taille |

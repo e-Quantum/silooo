@@ -280,9 +280,10 @@ Soutiens, parrainage, lots des concours passent par le contrat et « Pour la dir
   avec le plan, sans rien changer) ; `non` par défaut ; `SILOOO_DISCORD_PHASE` dit quelles entrées du plan existent ; une file
   bornée pour les images ; un budget mémoire mesuré avec et sans le bot, chiffres dans la passation ; une panne du bot
   ou de Discord n'arrête ni le jeu ni le site. Au-delà du budget, le bot devient un processus à part (ADR).
-- **Les secrets** : `SILOOO_DISCORD_TOKEN` et l'identifiant du serveur viennent de l'environnement du conteneur (du VPS
-  pour le vrai bot, d'un fichier local pour le bot de test), jamais du dépôt ; la session lance le programme sans
-  ouvrir ce fichier ni afficher la variable ; les journaux masquent tout jeton.
+- **Les secrets** : `SILOOO_DISCORD_TOKEN` et l'identifiant du serveur viennent de l'environnement, jamais du dépôt :
+  des variables du compte Windows de Kr tant que le bot tourne sur son PC, le fichier d'environnement du conteneur sur le
+  VPS ensuite. La session lance le programme sans ouvrir de fichier d'environnement ni afficher la variable ; les journaux
+  masquent tout jeton.
 - **Ce que le bot demande à Discord** : les intentions de serveur, de membres et de contenu des messages (privilégiées,
   accordées sans examen sous 100 serveurs), les droits de gérer les salons, les rôles, les pseudos et les webhooks.
   Il utilise commandes, boutons, menus, fenêtres, la commande de clic droit, les composants récents, un webhook pour
@@ -292,6 +293,11 @@ Soutiens, parrainage, lots des concours passent par le contrat et « Pour la dir
 - **Les données**, par migrations : rappels, journal du tchat relié (purgé après 30 jours), relais coupés, message de
   `#🏭・le-silo`, spoils, votes des sondages, XP (comptée en mémoire, écrite une fois par minute), tickets, lots en
   attente. La liaison réutilise `site_registrations` du site.
-- **Le serveur de test** : « Silooo Test » et l'application « Oooscar Test », créés par Kr ; le bot de test tourne sur le
-  PC de Kr, jamais sur le VPS ; chaque étape s'y rejoue avant d'être cochée. Le vrai serveur ne reçoit le bot qu'à la
-  mise en service, déployée par la direction du jeu.
+- **Le serveur Silooo** : un seul serveur Discord, pas de serveur de test (décision de Kr du 5 novembre 2026, voir
+  « Décisions de Kr » dans [discord-passation.md](discord-passation.md)). Le bot y travaille depuis le PC de Kr pendant le
+  chantier, à blanc d'abord : Kr lit le compte rendu dans `#📒・journal-du-bot` avant tout passage à `oui`. Le serveur reste
+  fermé au public jusqu'à l'ouverture du QG ; d'ici là, le bot n'écrit en privé et ne mentionne de rôle qu'au staff et à la
+  modération (`ClosedServer`, tant que `SILOOO_DISCORD_PUBLIC` vaut `non`). Un seul bot tourne à la fois : celui du PC
+  pendant le chantier, celui du VPS après la passation, déployée par la direction du jeu. Chaque étape se rejoue sur ce
+  serveur avant d'être cochée ; ce que le bot y écrit pendant les essais est listé dans la passation, pour être nettoyé
+  avant l'ouverture.

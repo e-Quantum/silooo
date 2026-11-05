@@ -331,6 +331,20 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         }
     }
 
+    override suspend fun rolesOf(userId: String): Set<String> {
+        val member = guild.getMemberById(userId) ?: try {
+            guild.retrieveMemberById(userId).submit().await()
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_MEMBER || e.errorResponse == ErrorResponse.UNKNOWN_USER) {
+                return emptySet()
+            }
+            throw DiscordRefusal("Discord refuse de lire les rôles du membre " + userId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de lire les rôles du membre " + userId)
+        }
+        return member.roles.map { it.id }.toSet()
+    }
+
     override suspend fun installCommands(commands: List<CommandSpec>) {
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
     }

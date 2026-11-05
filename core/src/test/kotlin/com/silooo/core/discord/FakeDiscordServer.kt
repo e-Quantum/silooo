@@ -223,6 +223,8 @@ class FakeDiscordServer(
 
     override suspend fun memberName(userId: String): String? = names[userId]
 
+    override suspend fun rolesOf(userId: String): Set<String> = memberRoles[userId]?.toSet() ?: emptySet()
+
     override suspend fun pin(channelId: String, messageId: String) {
         pinned += channelId to messageId
     }

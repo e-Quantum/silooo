@@ -50,16 +50,19 @@ class BotToken(private val value: String) {
 
 /**
  * Ce que le bot sait de lui-même au démarrage : son mode, son jeton, le serveur Discord à régler
- * (`SILOOO_DISCORD_SERVEUR`, l'identifiant numérique du serveur) et la phase.
+ * (`SILOOO_DISCORD_SERVEUR`, l'identifiant numérique du serveur), la phase et l'ouverture du QG au public
+ * (`SILOOO_DISCORD_PUBLIC`). [public] faux : le QG est fermé, le bot n'écrit en privé qu'au staff et ne mentionne que
+ * les rôles du staff (`ClosedServer`).
  */
 data class BotConfig(
     val mode: BotMode,
     val token: BotToken,
     val guildId: String,
     val phase: ServerPhase = ServerPhase.ATTENTE,
+    val public: Boolean = false,
 ) {
     /** En mode `a-blanc`, le bot n'applique rien : il écrit l'écart. */
     val dryRun: Boolean get() = mode == BotMode.A_BLANC
 
-    override fun toString() = "BotConfig(mode=${mode.word}, token=***, guildId=$guildId, phase=${phase.word})"
+    override fun toString() = "BotConfig(mode=${mode.word}, token=***, guildId=$guildId, phase=${phase.word}, public=$public)"
 }

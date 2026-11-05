@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 20 h 22, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 20 h 33, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -18,11 +18,13 @@ est recopiée sous l'étape qu'elle touche.
   `SILOOO_DISCORD_SERVEUR`, `SILOOO_DISCORD_PHASE` (`core/README.md`, « Le Discord »). Le site a déjà
   `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`, `SILOOO_SITE_URL_DISCORD`, le paquet `registration/`
   (`DiscordIdentity`) et la table `site_registrations` (V7).
-- Le bot n'a encore jamais parlé à Discord : le plan s'applique au faux Discord dans les tests ; le serveur de test
-  attend l'application et le jeton de Kr (« À faire par Kr »).
-- `CLAUDE.md` ne contient pas l'exception Discord du plan : la session n'agit sur Discord que par le bot de test, et
-  tout réglage que l'API ne permet pas va dans « À faire par Kr » avec sa marche à suivre.
-- D0 est sur `main` ; il en reste le serveur de test (après Kr) et la mesure mémoire connectée.
+- Le bot n'a encore jamais parlé à Discord : le plan s'applique au faux Discord dans les tests. Depuis la décision de Kr
+  du 5 novembre à 19 h 57 (« Décisions de Kr »), il n'y a qu'un serveur, Silooo, fermé au public jusqu'à l'ouverture du
+  QG ; le bot y travaille directement, depuis le PC de Kr, à blanc d'abord. Ce qu'il manque pour le lancer est dans
+  « Lancer le bot depuis le PC ».
+- `CLAUDE.md` ne contient pas l'exception Discord du plan : la session n'agit sur Discord que par le bot, sur le serveur
+  Silooo, et tout réglage que l'API ne permet pas va dans « À faire par Kr » avec sa marche à suivre.
+- D0 est sur `main` ; il en reste le plan appliqué au serveur Silooo (après Kr) et la mesure mémoire connectée.
 - Étape en cours : **D2**. Son socle est écrit (branche `claude/discord-d2`) : les événements Discord sans JDA
   (`DiscordEvent`, `Reply`), les messages du bot (`BotMessage` : texte, image, boutons, menu, carte à barre ciel,
   formulaires, commandes), la boucle à un fil (`BotRuntime` : file bornée, minuteries, fonctions `Feature` isolées
@@ -37,11 +39,11 @@ est recopiée sous l'étape qu'elle touche.
   Communauté, mot d'accueil, tâches, trois rubriques) et le brief des trois plaques pour D1.
 - Le bonjour d'Oooscar, le tuto en message privé, les arrivées groupées, le statut et le vocal d'info « N en ligne » sont
   écrits (`Welcome.kt`, `Status.kt`, `InfoVoice.kt`, `MemberStore.kt`) et branchés en production par `BotFeatures` dans
-  `Main.kt`, avec les joueurs en ligne de `ServerPresence`. Ils n'ont jamais été vus tourner sur un vrai serveur : aucun
-  bot de test n'a été lancé dans cette session, seuls les faux Discord des tests les ont joués.
+  `Main.kt`, avec les joueurs en ligne de `ServerPresence`. Ils n'ont jamais été vus tourner sur un vrai serveur : le bot
+  n'a été lancé sur aucun serveur dans cette session, seuls les faux Discord des tests les ont joués.
 - Les coulisses sont écrites et branchées (`SpoilStore`, `JdbcSpoilStore`, `SpoilFeature`, `/spoil`, `Feature.commands` pour
   poser les commandes) : jamais vues sur un vrai serveur. Le code JDA des pièces jointes (`JdaEvents`) et des réactions
-  (`JdaServer.reactors`) compile mais ne se teste que sur le serveur de test.
+  (`JdaServer.reactors`) compile mais ne se teste que sur le serveur Silooo.
 - Les admissions du staff sont écrites et branchées (`AdmissionStore`, `JdbcAdmissionStore` sur `discord_admissions`,
   `AdmissionFeature`, `SiteRegistrationStore.admit`) : toutes les 60 secondes, une carte par inscription de la page
   d'attente dans `#✅・admissions`, avec Admettre, Refuser et Plus tard ; Admettre pose `admitted_at`, puis donne le rôle
@@ -72,7 +74,7 @@ est recopiée sous l'étape qu'elle touche.
 - Le socle du bot s'est élargi pour ces fonctions : `ServerIds.categories` et `category(planId)` (remplis par
   `PlanApplier`, `PlanReport.categoryIds`), `ChannelSpec.memberViewers`, `ChannelMessage`, `DiscordServer.deleteChannel`,
   `history`, `moveToVoice`, `voiceMembers` et `memberName`, `MessagePosted.parentChannelId`. Le code JDA correspondant
-  compile mais ne se teste que sur le serveur de test. Jamais vu sur un vrai serveur.
+  compile mais ne se teste que sur le serveur Silooo. Jamais vu sur un vrai serveur.
 - L'AutoMod, `#bienvenue`, les quatre tableaux et les deux petits jeux sont écrits et branchés dans `BotFeatures` :
   `Automod.kt` (quatre règles posées par l'API à chaque démarrage, listes dans `core/src/main/resources/discord/automod.json`),
   `Bienvenue.kt` (la carte de `#bienvenue` et l'icône du serveur), `Reactions.kt`, `Highlights.kt` et `Help.kt` (top
@@ -83,10 +85,39 @@ est recopiée sous l'étape qu'elle touche.
   neuf méthodes (décision 47). La suite `com.silooo.core.discord.*` est verte (40 classes de tests). Les images de D1
   (`bienvenue-jour.png`, `bienvenue-nuit.png`, `icone-serveur.png`, les étages du monte-charge) et les emojis `:donar:` et
   `:prestige:` manquent encore : le bot s'en passe et le dit au journal. Jamais vus sur un vrai serveur.
-- Tâche suivante : le rapport du lundi dans `#journal-du-bot`, puis la passation et la fusion sur main ; ensuite D3.
+- Le serveur fermé est tenu par le code (décision 59) : `ClosedServer` et la variable `SILOOO_DISCORD_PUBLIC` retiennent
+  les messages privés aux membres hors staff et réduisent les mentions de rôle au staff et à la modération tant que le QG
+  n'est pas ouvert. Codés en même temps que ce texte par un agent Sonnet (`core/`) ; jamais joués sur un vrai serveur.
+- Tâche suivante : le premier passage à blanc sur le serveur Silooo, dès que les variables du compte sont visibles et
+  qu'une base est là (« Lancer le bot depuis le PC ») ; puis le rapport du lundi dans `#journal-du-bot`, la passation et
+  la fusion sur main ; ensuite D3.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
+
+## Lancer le bot depuis le PC
+
+Constaté par la session le 5 novembre 2026. Depuis la décision de Kr (« Décisions de Kr »), le bot se lance depuis le PC,
+sur le serveur Silooo. Il manque quatre choses.
+
+1. **Les variables du compte.** `SILOOO_DISCORD_TOKEN` et `SILOOO_DISCORD_SERVEUR` ne sont pas visibles du terminal de la
+   session : une variable du compte Windows n'est lue qu'au démarrage d'un processus. L'application Claude doit donc être
+   relancée après leur pose, ou Kr lance le bot depuis un terminal à lui. La session ne peut pas vérifier elle-même
+   qu'elles sont posées : elle ne les affiche jamais.
+2. **Une base MariaDB.** Aucune n'est installée sur le PC et Docker Desktop est éteint. Deux voies : Kr démarre Docker
+   Desktop et la session lance un conteneur `mariadb` avec une base `silooo` (un utilisateur local, un mot de passe local
+   qui ne sort pas du PC), puis `./gradlew run --args=migrate` ; ou Kr installe MariaDB. Cette base locale ne sert qu'aux
+   essais : à la passation au VPS, c'est la base `silooo` de SileneMC qui compte, et ce que le bot a écrit sur Discord
+   pendant les essais reste (d'où « Essais à nettoyer avant l'ouverture »).
+3. **`SILOOO_API_KEY`.** Une valeur locale quelconque, posée par la session au lancement.
+4. **Le lancement.** Depuis `core/` :
+
+   ```
+   SILOOO_DISCORD_ACTIF=a-blanc SILOOO_DISCORD_PHASE=attente SILOOO_DISCORD_PUBLIC=non ./gradlew run
+   ```
+
+   Le compte rendu va dans `#📒・journal-du-bot` s'il existe, sinon dans les journaux du service ; Kr le lit avant tout
+   passage à `oui`.
 
 ## Les étapes
 
@@ -96,7 +127,7 @@ de chaque étape, la session relit ses cases et ajoute celles qui manquent.
 
 ### D0 : le socle
 
-Critère de fin : le plan s'applique au faux Discord, puis au serveur de test (à blanc, puis pour de vrai), et
+Critère de fin : le plan s'applique au faux Discord, puis au serveur Silooo (à blanc, puis pour de vrai), et
 `tools/verifier.sh` est vert.
 
 - [x] Premier tour, branche `claude/discord-docs` : `docs/discord.md`, ce fichier, une ligne dans `docs/README.md` et
@@ -119,10 +150,10 @@ Critère de fin : le plan s'applique au faux Discord, puis au serveur de test (�
   lit le plan et les littéraux du paquet `discord/`, la clé `emoji` exceptée ; dix cas refusés dans `tools/tests/run.sh`
 - [x] La mémoire au chargement : JDA chargé sans connexion coûte 51 Ko de tas et 318 Ko hors tas (classes), JVM 17.0.12
   (`DiscordMemoryTest`, chiffre écrit dans `core/build/mesure-memoire-discord.txt`), loin du budget de 96 Mo
-- [ ] La mémoire connectée : la JVM mesurée avec le bot sur le serveur de test, à blanc, chiffre ici (**après Kr**)
+- [ ] La mémoire connectée : la JVM mesurée avec le bot sur le serveur Silooo, à blanc, chiffre ici (**après Kr**)
 - [x] Le plan appliqué au faux Discord (`PlanApplierTest` : attente, bêta après attente, à blanc, refus isolé, dérive)
-- [ ] Le plan appliqué au serveur de test « Silooo Test » à blanc, puis pour de vrai (**après Kr** : l'application
-  « Oooscar Test », son jeton dans un fichier local, l'invitation sur le serveur de test, le mode Communauté)
+- [ ] Le plan appliqué au serveur Silooo, à blanc puis pour de vrai (**après Kr** : les intentions privilégiées et les
+  droits du bot sur le serveur Silooo, le mode Communauté ; puis le compte rendu à blanc lu dans `#📒・journal-du-bot`)
 
 ### D1 : les visuels
 
@@ -151,7 +182,7 @@ manière de Silooo Atelier, les images en pixel 2D tirées de `design/` sans lis
 
 ### D2 : le QG
 
-Critère de fin : sur le serveur de test, une arrivée se joue de bout en bout (accueil, bonjour, tuto, rôle, spoil
+Critère de fin : sur le serveur Silooo, une arrivée se joue de bout en bout (accueil, bonjour, tuto, rôle, spoil
 débloqué, ticket, admission), captures à l'appui, et « Prêt à mettre en ligne : le QG » est écrit ici. Corrections de la
 critique : le QG ouvre avec une douzaine de salons, les autres viennent avec la bêta ; seuils des spoils vers 40 % des
 membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune annonce ne réclame de boost
@@ -196,7 +227,7 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   tests sur le faux Discord et sur MariaDB (CI), pas encore vu sur un vrai serveur
 - [ ] Le rapport du lundi dans `#📒・journal-du-bot` : arrivées, accueil terminé, comptes reliés sous 7 jours, membres
   revenus après 7 jours, messages par jour, d'où viennent les arrivants, messages privés échoués, signalements
-- [ ] Une arrivée rejouée de bout en bout sur le serveur de test, captures dans `docs/references/discord/captures/`
+- [ ] Une arrivée rejouée de bout en bout sur le serveur Silooo, captures dans `docs/references/discord/captures/`
   (envoyées par Kr tant que l'exception Discord n'est pas dans `CLAUDE.md`), et « Prêt à mettre en ligne : le QG »
 
 ### D3 : le jeu sur Discord
@@ -223,7 +254,7 @@ y entre toujours (point 1).
 
 ### D4 : le tchat relié
 
-Critère de fin : un message passe dans les deux sens sur le serveur de test, et un message interdit ne passe dans
+Critère de fin : un message passe dans les deux sens sur le serveur Silooo, et un message interdit ne passe dans
 aucun. Correction de la critique (point 1) : le relais refuse les demandes de contact ; en jeu, « Voir le tchat
 Discord » et le signalement sont demandés à la direction du jeu.
 
@@ -249,17 +280,19 @@ Critère de fin : chaque récompense arrive une seule fois en jeu, dans un test 
 Critère de fin : D0 à D6 cochées sur `main` sauf les cases de Kr, `main` vert, dernier bilan poussé, `git status`
 propre.
 
-- [ ] Le serveur de test rejoué en entier, captures dans `docs/references/discord/`, la liste de Kr à jour
+- [ ] Le serveur Silooo rejoué en entier, captures dans `docs/references/discord/`, la liste de Kr à jour
 - [ ] « Prêt pour la bêta » écrit ici, avec ce que Kr doit avoir fait avant ; la direction du jeu déploie
 
 ## Prêt à mettre en ligne
 
 Pas encore. Deux mises en ligne sont prévues, chacune écrite ici avec ce que Kr doit avoir fait avant :
 
-1. **Le QG**, avec la page d'attente du site (fin de D2) : Kr pose le jeton du vrai bot dans le fichier d'environnement
-   du VPS, l'invite sur le serveur Silooo avec les droits listés, et donne l'identifiant du serveur. La direction du
-   jeu déploie avec `SILOOO_DISCORD_ACTIF=oui`. Le premier passage se fait à blanc : Kr lit l'écart dans
-   `#📒・journal-du-bot`, puis le bot applique le plan.
+1. **Le QG**, avec la page d'attente du site (fin de D2) : le bot est déjà sur le serveur Silooo, fermé au public
+   (« Décisions de Kr »). Il passe du PC au VPS : Kr pose le jeton et l'identifiant du serveur dans le fichier
+   d'environnement du VPS, le bot du PC s'arrête (un seul bot à la fois), et la direction du jeu déploie avec
+   `SILOOO_DISCORD_ACTIF=oui` et `SILOOO_DISCORD_PUBLIC=non`. Le premier passage sur le VPS se fait à blanc : Kr lit
+   l'écart dans `#📒・journal-du-bot`. Quand Kr ouvre le QG, `SILOOO_DISCORD_PUBLIC` passe à `oui`, après le nettoyage
+   de « Essais à nettoyer avant l'ouverture ».
 2. **La bêta** (fin de D6) : les salons de la phase `beta` apparaissent, la liaison et les rôles du jeu s'allument.
 
 ## Pour la direction du jeu
@@ -276,6 +309,9 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 8. **Le déploiement.** Les quatre variables du bot sont dans `deploy/exemple.env.txt` avec `SILOOO_DISCORD_ACTIF=non`
    (le test `deploy-compose.mjs` l'exige) et dans le tableau de `docs/deploiement.md` ; rien dans `compose.yml`. Au QG (fin de D2), la direction du jeu pose
    `SILOOO_DISCORD_ACTIF=a-blanc` puis `oui` dans l'environnement du VPS, avec le jeton et l'identifiant donnés par Kr.
+   Une cinquième variable, `SILOOO_DISCORD_PUBLIC` (décision 59), vaut `non` par défaut et `oui` quand Kr ouvre le QG au
+   public ; elle est à ajouter à `deploy/exemple.env.txt` et au tableau de `docs/deploiement.md` avec les quatre autres.
+   Sur le VPS, `SILOOO_DISCORD_ACTIF=non` reste jusqu'à la passation du bot du PC au VPS.
 3. **La preuve de liaison en jeu** (D3) : un écran Menu, Mon compte, « Relier Discord » qui montre un code de
    6 caractères valable 10 minutes, lu dans silooo-core. La route sera proposée au contrat par la session Discord, par
    la recette `silooo-route` ; l'écran reste à vous.
@@ -310,20 +346,23 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 
 ## À faire par Kr
 
-- [ ] Créer le serveur « Silooo Test » et l'application « Oooscar Test » ; activer les intentions « membres du serveur »
-  et « contenu des messages » ; l'inviter sur le serveur de test avec les droits de gérer les salons, les rôles, les
-  pseudos et les webhooks ; poser son jeton et l'identifiant du serveur dans un fichier local d'environnement que la
-  session lancera sans l'ouvrir (dire son chemin). Les variables attendues : `SILOOO_DISCORD_ACTIF=a-blanc`,
-  `SILOOO_DISCORD_TOKEN`, `SILOOO_DISCORD_SERVEUR` (l'identifiant numérique), avec celles de la base et de la clé
-  (`core/README.md`, « Le Discord »)
-- [ ] Passer les deux serveurs (test, puis Silooo) en serveur Communauté : accueil guidé, forums, annonces. Discord
-  demande un salon des règles (`#👋・bienvenue`) et un salon des mises à jour (`#📒・journal-du-bot`), que le bot a créés
-  au premier passage (`docs/discord-guide.md`, 1)
+- [ ] Sur le serveur Silooo : activer les intentions privilégiées « membres du serveur » et « contenu des messages » de
+  l'application du bot ; l'inviter avec les droits Gérer les rôles, Gérer les salons, Gérer les messages, Gérer le
+  serveur, Déplacer les membres, Lire l'historique des messages, Ajouter des réactions ; passer le serveur en mode
+  Communauté
+- [ ] Relancer l'application Claude après la pose des variables du compte (ou lancer le bot depuis un terminal à toi), et
+  démarrer Docker Desktop (ou installer MariaDB) pour la base locale des essais (« Lancer le bot depuis le PC »)
+- [ ] Mode Communauté (accueil guidé, forums, annonces) : Discord demande un salon des règles (`#👋・bienvenue`) et un salon
+  des mises à jour (`#📒・journal-du-bot`), que le bot a créés au premier passage (`docs/discord-guide.md`, 1)
+- [ ] Après le premier passage pour de vrai : te donner à la main le rôle Staff que le bot a créé. Tant que le QG est
+  fermé, `ClosedServer` (décision 59) ne laisse les messages privés et les mentions de rôle qu'au staff et à la
+  modération
 - [ ] Poser le Guide du serveur à la main (l'API ne le permet pas) : le mot d'accueil, les trois tâches des nouveaux,
   les trois rubriques avec leurs textes, puis leurs images quand D1 les aura rendues (`docs/discord-guide.md`, 3) ; lire
   dans `#📒・journal-du-bot` que l'accueil guidé est posé, et dire si Discord a refusé
-- [ ] Pour le vrai serveur, à la mise en ligne du QG : l'application et son jeton dans le fichier d'environnement du
-  VPS, l'invitation avec les mêmes droits, l'identifiant du serveur, les rôles Staff et Modération donnés à la main
+- [ ] À la mise en ligne du QG (le bot passe du PC au VPS) : le jeton et l'identifiant du serveur dans le fichier
+  d'environnement du VPS, jamais dans le dépôt ; les rôles Staff et Modération donnés à la main aux autres membres du
+  staff ; `SILOOO_DISCORD_PUBLIC=oui` à l'ouverture au public, une fois « Essais à nettoyer avant l'ouverture » traité
 - [ ] S'il veut que la session règle le serveur par le contrôle à distance (badge, captures, ce que l'API ne permet
   pas) : coller l'exception Discord du plan dans la section du mode autonome de `CLAUDE.md`. Sans elle, ces réglages
   restent ici avec leur marche à suivre
@@ -333,21 +372,21 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   `Documents\minecraft\contenu-reseaux\_outils`), et si Pillow lit les polices woff2 du dépôt ; sinon, des TTF dans
   `_outils\assets\fonts\`
 - [ ] Les coulisses : l'emoji de serveur `:silo:` doit exister (D1) ; tant qu'il manque, le compte des réactions reste à
-  zéro et le spoil suivant ne part pas. Puis rejouer `/spoil` sur le serveur de test avec une image : le premier spoil
+  zéro et le spoil suivant ne part pas. Puis rejouer `/spoil` sur le serveur Silooo avec une image : le premier spoil
   part tout de suite avec le rôle Coulisses, le second attend, les réactions `:silo:` font monter la ligne d'état jusqu'au
   seuil ; dire si Discord a refusé la pièce jointe, la réponse différée ou la modification du message
-- [ ] Rejouer les admissions et `/annonce` sur le serveur de test (une inscription sur la page d'attente, puis Admettre ;
+- [ ] Rejouer les admissions et `/annonce` sur le serveur Silooo (une inscription sur la page d'attente, puis Admettre ;
   puis `/annonce` avec et sans image, avec un texte à tics pour voir le refus).
 - [ ] Dire à la session du site que `/annonce` écrira dans les Actus quand leur registre sera sur `main`.
-- [ ] Donner au bot de test les droits Gérer les salons, Déplacer les membres et Lire l'historique des messages, puis
-  rejouer un ticket (ouvrir, écrire, fermer), « Crée ton vocal », quelques messages d'XP et `/niveau`, un `/giveaway`
-  d'une journée.
+- [ ] Une fois le bot invité avec les droits Gérer les salons, Déplacer les membres et Lire l'historique des messages
+  (case d'invitation ci-dessus), rejouer sur le serveur Silooo un ticket (ouvrir, écrire, fermer), « Crée ton vocal »,
+  quelques messages d'XP et `/niveau`, un `/giveaway` d'une journée.
 - [ ] Relire `docs/discord-reglement-giveaways.md` et le donner à la session du site pour publication.
 - [ ] Choisir les paliers de prestige qui donnent un rôle, et trancher les rôles liés de Discord (option, ou rien)
 - [ ] Retirer les récompenses par invitation de SileneMC (`#🎁・inviter`), interdites par Discord (critique, point 14)
-- [ ] Donner au bot, en plus des droits déjà listés, « Gérer le serveur » (l'AutoMod et l'icône), « Gérer les messages »
-  (supprimer dans `#comptage`, épingler dans `#coulisses`) et « Ajouter des réactions » (le `:donar:` du comptage) ; sans
-  « Gérer le serveur », le bot le dit au journal et continue
+- [ ] Les droits « Gérer le serveur » (l'AutoMod et l'icône), « Gérer les messages » (supprimer dans `#comptage`, épingler
+  dans `#coulisses`) et « Ajouter des réactions » (le `:donar:` du comptage) sont dans la case d'invitation ci-dessus ;
+  sans « Gérer le serveur », le bot le dit au journal et continue
 - [ ] Compléter la liste des mots refusés dans `core/src/main/resources/discord/automod.json` (46 mots de départ) ; le
   filtre du tchat relié de D4 lira le même fichier
 - [ ] Poser les emojis de serveur `:donar:` et `:prestige:` (D1) : sans `:donar:`, le comptage ne réagit pas ; sans
@@ -356,6 +395,27 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   règles à mots-clés) ; puis dire si Discord a refusé l'icône, l'épinglage dans `#coulisses` ou l'ajout des réactions
 - [ ] Plus tard, aux boosts : le badge SILO à 3 boosts, la bannière en arrière-plan d'invitation à 2, en haut des
   salons à 7, animée à 14
+
+## Essais à nettoyer avant l'ouverture
+
+Chaque lancement du bot sur le serveur Silooo ajoute ici ce qu'il a créé ou écrit (rôles, salons, messages, règles
+AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
+
+- Aucun lancement pour l'instant.
+
+## Décisions de Kr
+
+1. **Un seul serveur Discord, pas de serveur de test** (5 novembre 2026, 19 h 57). Le bot travaille directement sur le
+   serveur Silooo, qui reste fermé au public jusqu'à l'ouverture du QG. Le serveur « Silooo Test » et l'application
+   « Oooscar Test » ne sont plus attendus.
+   - Le jeton et l'identifiant du serveur sont des variables d'environnement du compte Windows de Kr,
+     `SILOOO_DISCORD_TOKEN` et `SILOOO_DISCORD_SERVEUR` : ils ne s'écrivent dans aucun fichier du dépôt ni dans aucun
+     message, et la session ne les affiche jamais. Elle pose elle-même `SILOOO_DISCORD_ACTIF` et
+     `SILOOO_DISCORD_PHASE=attente` à chaque lancement.
+   - Les garde-fous : à blanc d'abord, et le compte rendu lu dans `#📒・journal-du-bot` avant tout passage à `oui` ; tant que
+     le QG n'est pas ouvert, messages privés et mentions de rôle vers le staff seulement (décision 59) ; un seul bot à la
+     fois, celui du PC pendant le chantier et celui du VPS après ; la liste des essais à nettoyer avant l'ouverture est
+     tenue ici (« Essais à nettoyer avant l'ouverture »).
 
 ## Décisions prises sans Kr
 
@@ -538,6 +598,14 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     (`card = true`), retrouvés par leur clé dans `discord_bot_messages` et modifiés en place, repostés seulement s'ils ont
     disparu (`LiveMessage`, `Boards.kt`) ; les tableaux de la semaine et du mois et le chantier suivent la même forme. Les
     giveaways restent en message classique (décision 42).
+59. **Le serveur fermé est tenu par `ClosedServer`, tant que `SILOOO_DISCORD_PUBLIC` vaut `non`.** Pour appliquer la décision
+    de Kr du 5 novembre (« Décisions de Kr ») sans second serveur, une variable `SILOOO_DISCORD_PUBLIC` (`non` par défaut,
+    `oui` quand le QG est ouvert). Tant qu'elle vaut `non`, `ClosedServer` enveloppe le `DiscordServer` du bot : un message
+    privé à un membre sans rôle Staff ni Modération est retenu (compté, une ligne dans les journaux du service, et la
+    fonction appelante croit que le membre refuse les messages privés : le bonjour pose alors le bouton « Mon tuto »), et
+    les mentions de rôle d'un message sont réduites aux rôles Staff et Modération. Les mentions de membres ne changent pas.
+    Sur le VPS, `SILOOO_DISCORD_ACTIF=non` reste jusqu'à la passation du bot du PC au VPS ; à l'ouverture du QG,
+    `SILOOO_DISCORD_PUBLIC` passe à `oui`.
 
 ## À valider par Kr
 
@@ -844,3 +912,14 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   `origin/main` (970305d), vérificateur lancé. Les décisions 47 à 58 et les textes à valider sont ci-dessus ; `core/README.md` à
   jour. Rien n'a tourné contre un vrai Discord. Suite : le rapport du lundi dans `#journal-du-bot`, puis la passation et la fusion
   sur main.
+- 5 novembre 2026, 20 h 26 à 20 h 33 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  La décision de Kr reçue à 19 h 57 : un seul serveur Discord, Silooo, pas de serveur de test ; le bot y travaille
+  directement, depuis le PC, et le serveur reste fermé au public jusqu'à l'ouverture du QG. Docs mises à jour : ce fichier
+  (« Décisions de Kr », décision 59, « Lancer le bot depuis le PC », « Essais à nettoyer avant l'ouverture », les étapes
+  D0, D2, D4 et D6, « À faire par Kr », « Prêt à mettre en ligne »), `docs/discord.md` (le serveur Silooo à la place du
+  serveur de test, les secrets) et `core/README.md` (par un agent Sonnet). Le garde-fou `ClosedServer` et la variable
+  `SILOOO_DISCORD_PUBLIC` sont codés en parallèle par un agent Sonnet (décision 59). Ce qu'il manque pour lancer depuis le
+  PC : les variables du compte pas encore visibles du terminal de la session (relancer l'application Claude), une base
+  MariaDB (aucune installée, Docker Desktop éteint) et une `SILOOO_API_KEY` locale. Rien n'a encore tourné contre un vrai
+  Discord. Suite : le premier passage à blanc dès que les variables du compte sont visibles et qu'une base est là ; puis
+  le rapport du lundi.

@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory
  *
  * [connect] ouvre la connexion : JDA en production, un faux dans les tests. [loadPlan] lit le plan du serveur.
  * [features] construit les fonctions du bot ; `null` (ou le mode à blanc) : le bot applique le plan et s'arrête là.
+ * Tant que [BotConfig.public] est faux, les fonctions reçoivent un [ClosedServer] : messages privés et mentions de
+ * rôle réservés au staff. Le plan lui-même (rôles, salons, compte rendu du journal) passe par le vrai serveur.
  */
 class DiscordBot(
     private val config: BotConfig,
@@ -45,8 +47,17 @@ class DiscordBot(
             report.failures.forEach { log.warn("Bot Discord, échec : {}.", config.token.mask(it)) }
             val build = features
             if (build != null && !config.dryRun) {
+                val staff = setOfNotNull(report.ids.role("staff"), report.ids.role("moderation"))
+                val server = if (config.public) opened.server else ClosedServer(opened.server, staff)
+                log.info(
+                    if (config.public) {
+                        "Bot Discord : QG public."
+                    } else {
+                        "Bot Discord : QG fermé, messages privés et mentions de rôle réservés au staff."
+                    },
+                )
                 val loop = synchronized(this) {
-                    if (closed) null else BotRuntime(opened.server, report.ids, config.phase, build, clock, mask = config.token::mask).also { runtime = it }
+                    if (closed) null else BotRuntime(server, report.ids, config.phase, build, clock, mask = config.token::mask).also { runtime = it }
                 }
                 if (loop != null) {
                     opened.onEvent(loop::offer)
