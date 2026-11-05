@@ -61,7 +61,7 @@ export function frameOf(center: Xz, main: Xz): Frame {
   const avantX = longueur === 0 ? 1 : dx / longueur;
   const avantZ = longueur === 0 ? 0 : dz / longueur;
   // Quand on regarde vers (avantX, avantZ), la droite est à (-avantZ, avantX) : vers l'ouest, la droite est le nord.
-  return { center, avantX, avantZ, droiteX: -avantZ, droiteZ: avantX };
+  return { center, avantX, avantZ, droiteX: 0 - avantZ, droiteZ: avantX };
 }
 
 export function frameOfIsland(origin: Xz, usine: Pick<UsineIle, "angle">, defs: IlesDefinitions): Frame {
