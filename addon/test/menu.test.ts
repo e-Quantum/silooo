@@ -1,0 +1,693 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import type { CompanyState, CompanyUpdated, Factory } from "../src/protocol";
+import { createActions, type ActionOutcome } from "../src/ui/actions";
+import { COLOR } from "../src/ui/apparence";
+import { counterValue } from "../src/ui/compteur";
+import { createViewStore, type CompanyView } from "../src/ui/etat";
+import { createMenu, ficheScreen, mainScreen, noticeOf, siloScreen, unavailableScreen, usinesScreen } from "../src/ui/menu";
+import { formatAmount, formatCount, formatRate } from "../src/ui/nombres";
+import { BULLES, FACTORY_NAMES, FICHE_TEXTES, MENU_TEXTES, SILO_TEXTES, USINES_TEXTES } from "../src/ui/textes";
+import { balances, companyState, factory, ok, recordingLogger } from "./helpers";
+import {
+  PLAYER,
+  XUID,
+  bare,
+  busy,
+  close,
+  failure,
+  fakeClock,
+  fakeCompany,
+  fakePresenter,
+  plain,
+  press,
+  refused,
+  sequentialIds,
+  storeWith,
+  unreachable,
+  viewsWith,
+  type Reply,
+  type Script,
+} from "./ui-helpers";
+
+const IDS = Object.keys(FACTORY_NAMES);
+
+function viewOf(state: Partial<CompanyState> = {}, clock = fakeClock(0)): CompanyView {
+  const view = viewsWith(state, clock).views.get(XUID);
+  if (view === undefined) throw new Error("vue absente");
+  return view;
+}
+
+function many(count: number): Factory[] {
+  return IDS.slice(0, count).map((factoryId, i) => factory({ factoryId, level: i + 1 }));
+}
+
+const titleOf = (spec: { title: string }) => spec.title;
+
+// ---------------------------------------------------------------- les écrans
+
+describe("menu principal", () => {
+  const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }));
+
+  it("cinq tuiles : Silo et Usines actifs, Carte, Objectifs et Amis verrouillés", () => {
+    assert.equal(screen.spec.title, MENU_TEXTES.titre);
+    assert.equal(screen.spec.buttons.length, 5);
+    assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
+      "silo",
+      "usines",
+      "soon",
+      "soon",
+      "soon",
+    ]);
+  });
+
+  it("les tuiles actives disent ce que le service a dit : revenu et nombre d'usines", () => {
+    const buttons = screen.spec.buttons.map(bare);
+    assert.match(buttons[0] ?? "", new RegExp(`Silo\\n${MENU_TEXTES.revenu(formatRate(7_200))}`));
+    assert.match(buttons[1] ?? "", /Usines\n3 usines/);
+  });
+
+  it("les tuiles verrouillées portent un cadenas et un mot, en gris", () => {
+    for (const index of [2, 3, 4]) {
+      const text = screen.spec.buttons[index] ?? "";
+      assert.ok(text.startsWith(COLOR.locked), text);
+      assert.ok(bare(text).includes("[X]"));
+      assert.ok(bare(text).endsWith(MENU_TEXTES.bientot));
+    }
+    assert.match(bare(screen.spec.buttons[2] ?? ""), /Carte/);
+    assert.match(bare(screen.spec.buttons[3] ?? ""), /Objectifs/);
+    assert.match(bare(screen.spec.buttons[4] ?? ""), /Amis/);
+  });
+
+  it("le corps porte le nom de l'entreprise tel que le service le donne", () => {
+    assert.equal(bare(screen.spec.body), "Les Forges");
+  });
+
+  it("une bulle d'Oooscar passe avant le nom", () => {
+    const withNotice = mainScreen(viewOf(), { bubble: BULLES.bientot });
+    assert.match(bare(withNotice.spec.body), /^Oooscar \[oups\] Pas encore disponible\.\n\nEntreprise de test$/);
+  });
+
+  it("une seule usine s'écrit au singulier", () => {
+    assert.match(bare(mainScreen(viewOf({ factories: many(1) })).spec.buttons[1] ?? ""), /1 usine$/);
+  });
+
+  it("tient dans les huit tuiles d'un écran", () => {
+    assert.ok(screen.spec.buttons.length <= 8);
+  });
+});
+
+describe("écran des usines", () => {
+  const view = viewOf({ factories: many(10) });
+
+  it("une tuile par usine, le nom et la ligne d'info du service, puis Suite et Retour", () => {
+    const screen = usinesScreen(view, 0, 4);
+    assert.equal(screen.spec.title, USINES_TEXTES.titre);
+    assert.equal(screen.spec.buttons.length, 6);
+    const names = screen.spec.buttons.slice(0, 4).map((b) => bare(b).split("\n")[0] ?? "");
+    assert.deepEqual(names, IDS.slice(0, 4).map((id) => `[U] ${FACTORY_NAMES[id as keyof typeof FACTORY_NAMES]}`));
+    assert.match(bare(screen.spec.buttons[0] ?? ""), /\nNiv\. 1 · 2\/s$/);
+    assert.match(bare(screen.spec.buttons[3] ?? ""), /\nNiv\. 4 · 2\/s$/);
+    assert.deepEqual(screen.spec.buttons.slice(4).map(bare), [USINES_TEXTES.suite, MENU_TEXTES.retour]);
+    assert.deepEqual(screen.targets.slice(0, 4).map((t) => t.kind === "go" && t.route.screen === "fiche" && t.route.factoryId), IDS.slice(0, 4));
+    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "usines", page: 1 } });
+    assert.deepEqual(screen.targets[5], { kind: "go", route: { screen: "main" } });
+  });
+
+  it("pages : Précédent et Suite aux bons endroits, page indiquée, jamais plus de tuiles que demandé", () => {
+    const labels = (page: number) => usinesScreen(view, page, 4).spec.buttons.map((b) => bare(b).split("\n")[0]);
+    assert.equal(labels(0).filter((l) => l === USINES_TEXTES.precedent).length, 0);
+    assert.ok(labels(1).includes(USINES_TEXTES.precedent) && labels(1).includes(USINES_TEXTES.suite));
+    assert.ok(labels(2).includes(USINES_TEXTES.precedent) && !labels(2).includes(USINES_TEXTES.suite));
+    assert.equal(labels(2).length, 2 + 2);
+    assert.match(bare(usinesScreen(view, 1, 4).spec.body), new RegExp(USINES_TEXTES.page(2, 3)));
+    for (const page of [0, 1, 2]) {
+      assert.ok(usinesScreen(view, page, 4).spec.buttons.length <= 4 + 3);
+    }
+  });
+
+  it("une page hors limites revient dans les limites", () => {
+    assert.equal(usinesScreen(view, 99, 4).spec.body, usinesScreen(view, 2, 4).spec.body);
+    assert.equal(usinesScreen(view, -3, 4).spec.body, usinesScreen(view, 0, 4).spec.body);
+    assert.equal(usinesScreen(view, 0, 0).spec.buttons.length, 1 + 1 + 1);
+  });
+
+  it("une seule page : pas de numéro de page, pas de Suite", () => {
+    const screen = usinesScreen(viewOf({ factories: many(3) }), 0, 8);
+    assert.equal(screen.spec.body, "");
+    assert.deepEqual(screen.spec.buttons.slice(3).map(bare), [MENU_TEXTES.retour]);
+  });
+
+  it("aucune usine : une phrase et le retour", () => {
+    const screen = usinesScreen(viewOf({ factories: [] }), 0, 8);
+    assert.equal(screen.spec.body, USINES_TEXTES.vide);
+    assert.deepEqual(screen.spec.buttons, [MENU_TEXTES.retour]);
+  });
+
+  it("la ligne d'info suit la situation de l'usine : repère, couleur et mot", () => {
+    const screen = usinesScreen(
+      viewOf({
+        factories: [
+          factory({ factoryId: "carriere", state: "EN_RUINE" }),
+          factory({ factoryId: "scierie", state: "REMISE_EN_ETAT", restoreStep: 2 }),
+          factory({ factoryId: "ferme", incidentId: 4 }),
+          factory({ factoryId: "centrale", stoppedNoPower: true }),
+          factory({ factoryId: "fonderie" }),
+        ],
+      }),
+      0,
+      8,
+    );
+    const lines = screen.spec.buttons.slice(0, 5).map(bare);
+    assert.deepEqual(lines, [
+      "[X] Carrière\nEn ruine",
+      "[T] Scierie\nRemise en état 2/4",
+      "[!] Ferme\nIncident",
+      "[E] Centrale\nSans courant",
+      "[U] Fonderie\nNiv. 3 · 2/s",
+    ]);
+    // L'état n'est jamais porté par la couleur seule : un repère en texte précède chaque nom.
+    assert.ok(screen.spec.buttons[0]?.includes(COLOR.blocked));
+    assert.ok(screen.spec.buttons[2]?.includes(COLOR.incident));
+    assert.ok(screen.spec.buttons[4]?.includes(COLOR.success));
+  });
+});
+
+describe("fiche d'une usine active", () => {
+  const view = viewOf({
+    factories: [factory({ factoryId: "mine-profonde", level: 12, ratePerHour: 36_000, nextCost: 1_250, nextMilestone: 25 })],
+  });
+  const screen = ficheScreen(view, "mine-profonde", 1);
+
+  it("suit l'ordre de la fiche : situation, nom, phrase, puis trois infos tirées des champs du service", () => {
+    assert.ok(screen);
+    assert.equal(screen.spec.title, FICHE_TEXTES.titre);
+    assert.deepEqual(bare(screen.spec.body).split("\n"), [
+      "ACTIVE",
+      "Mine profonde",
+      FICHE_TEXTES.phrase.ACTIVE,
+      "",
+      `Niveau ${formatCount(12)}`,
+      `Revenu ${formatRate(36_000)}`,
+      `Palier ×2 au niveau ${formatCount(25)}`,
+    ]);
+  });
+
+  it("quatre boutons de montée dans l'ordre du contrat, puis Retour vers la bonne page", () => {
+    assert.ok(screen);
+    assert.deepEqual(
+      screen.targets.map((t) => (t.kind === "buy" ? t.amount : t.kind)),
+      ["1", "10", "palier", "max", "go"],
+    );
+    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "usines", page: 1 } });
+    assert.deepEqual(screen.spec.buttons.map((b) => bare(b).split("\n")[0]), [
+      FICHE_TEXTES.monter["1"],
+      FICHE_TEXTES.monter["10"],
+      FICHE_TEXTES.monter.palier,
+      FICHE_TEXTES.monter.max,
+      FICHE_TEXTES.retour,
+    ]);
+  });
+
+  it("le coût du service est sur le bouton « de 1 » ; les autres n'affichent aucun prix, le contrat n'en donne pas", () => {
+    assert.ok(screen);
+    assert.equal(bare(screen.spec.buttons[0] ?? ""), `${FICHE_TEXTES.monter["1"]}\n${FICHE_TEXTES.cout(formatAmount(1_250))}`);
+    for (const index of [1, 2, 3]) assert.doesNotMatch(screen.spec.buttons[index] ?? "", /\n|Donar/);
+  });
+
+  it("chaque bouton vise la bonne usine", () => {
+    assert.ok(screen);
+    for (const target of screen.targets.filter((t) => t.kind === "buy")) {
+      assert.equal(target.kind === "buy" && target.factoryId, "mine-profonde");
+    }
+  });
+
+  it("une usine inconnue du service : pas de fiche", () => {
+    assert.equal(ficheScreen(view, "n-existe-pas", 0), undefined);
+  });
+
+  it("un incident garde la montée possible et change la situation et la phrase", () => {
+    const incident = ficheScreen(viewOf({ factories: [factory({ incidentId: 9 })] }), "carriere", 0);
+    assert.match(bare(incident?.spec.body ?? ""), new RegExp(`^${FICHE_TEXTES.sorte.INCIDENT}\\nCarrière\\n${FICHE_TEXTES.phrase.INCIDENT}`));
+    assert.equal(incident?.targets.filter((t) => t.kind === "buy").length, 4);
+    const sansCourant = ficheScreen(viewOf({ factories: [factory({ stoppedNoPower: true })] }), "carriere", 0);
+    assert.match(bare(sansCourant?.spec.body ?? ""), new RegExp(FICHE_TEXTES.sorte.SANS_COURANT));
+  });
+
+  it("une bulle d'Oooscar passe en tête", () => {
+    const withNotice = ficheScreen(view, "mine-profonde", 0, { bubble: BULLES.montee });
+    assert.match(bare(withNotice?.spec.body ?? ""), /^Oooscar \[joie\] Usine améliorée !\n\nACTIVE\nMine profonde/);
+  });
+});
+
+describe("fiche d'une usine en ruine ou en remise en état", () => {
+  const step = (restore: Partial<Factory>) =>
+    ficheScreen(viewOf({ factories: [factory({ factoryId: "scierie", ...restore })] }), "scierie", 0);
+
+  it("une ruine propose la première étape, par un seul verbe", () => {
+    const screen = step({ state: "EN_RUINE", level: 0 });
+    assert.deepEqual(screen?.spec.buttons.map(bare), [FICHE_TEXTES.etapes[0].bouton, FICHE_TEXTES.retour]);
+    assert.deepEqual(screen?.targets[0], { kind: "restore", factoryId: "scierie", step: 1 });
+    assert.match(bare(screen?.spec.body ?? ""), /EN RUINE\nScierie\n.*\n\nÉtape 1 sur 4 : Dialogue$/);
+  });
+
+  it("une remise en état propose l'étape qui suit la dernière faite", () => {
+    const screen = step({ state: "REMISE_EN_ETAT", restoreStep: 2 });
+    assert.deepEqual(screen?.spec.buttons.map(bare), ["Livrer", FICHE_TEXTES.retour]);
+    assert.deepEqual(screen?.targets[0], { kind: "restore", factoryId: "scierie", step: 3 });
+    assert.match(bare(screen?.spec.body ?? ""), /Étape 3 sur 4 : Livraison$/);
+  });
+
+  it("les quatre étapes ont chacune leur verbe", () => {
+    const verbs = [1, 2, 3, 4].map((done) => {
+      const screen = step({ state: "REMISE_EN_ETAT", restoreStep: done - 1 });
+      return bare(screen?.spec.buttons[0] ?? "");
+    });
+    assert.deepEqual(verbs, ["Parler", "Réparer", "Livrer", "Recruter"]);
+  });
+
+  it("aucun bouton de montée, aucun niveau, aucun revenu", () => {
+    const screen = step({ state: "EN_RUINE", level: 0, ratePerHour: 0 });
+    assert.ok(screen);
+    assert.ok(!screen.targets.some((t) => t.kind === "buy"));
+    assert.doesNotMatch(bare(screen.spec.body), /Niveau|Revenu|Palier/);
+  });
+
+  it("quatre étapes faites mais encore en remise en état : rien à demander, seul Retour reste", () => {
+    const screen = step({ state: "REMISE_EN_ETAT", restoreStep: 4 });
+    assert.deepEqual(screen?.spec.buttons.map(bare), [FICHE_TEXTES.retour]);
+  });
+});
+
+describe("écran du Silo", () => {
+  it("montre le compteur à l'instant demandé, le revenu et le multiplicateur du service", () => {
+    const view = viewOf({ donar: 1_000, ratePerHour: 3_600, multiplier: 2.5 });
+    const at = (nowMs: number) => bare(siloScreen(view, nowMs).spec.body);
+    assert.deepEqual(at(0).split("\n"), [
+      SILO_TEXTES.phrase,
+      "",
+      SILO_TEXTES.donar(formatAmount(1_000)),
+      SILO_TEXTES.revenu(formatRate(3_600)),
+      SILO_TEXTES.multiplicateur("×2,5"),
+    ]);
+    assert.match(at(60_000), new RegExp(SILO_TEXTES.donar(formatAmount(counterValue(view.anchor, 60_000)))));
+    assert.notEqual(at(60_000), at(0));
+  });
+
+  it("deux boutons : Encaisser, puis Retour vers le menu", () => {
+    const screen = siloScreen(viewOf(), 0);
+    assert.deepEqual(screen.spec.buttons, [SILO_TEXTES.encaisser, SILO_TEXTES.retour]);
+    assert.deepEqual(screen.targets, [{ kind: "collect" }, { kind: "go", route: { screen: "main" } }]);
+  });
+
+  it("la bulle et les chiffres de l'encaissement passent avant le reste", () => {
+    const notice = noticeOf({ kind: "collected", collected: 1_500, offlineHours: 0 });
+    const body = bare(siloScreen(viewOf(), 0, notice).spec.body);
+    assert.ok(body.startsWith(`Oooscar [joie] Production encaissée !\n${SILO_TEXTES.encaisse(formatAmount(1_500))}\n\nEncaisse pour`));
+  });
+});
+
+describe("noticeOf", () => {
+  const n = (outcome: ActionOutcome) => noticeOf(outcome);
+
+  it("un encaissement : la bulle, les Donar reçus et, hors ligne, la durée", () => {
+    assert.deepEqual(n({ kind: "collected", collected: 1_500, offlineHours: 0 }), {
+      bubble: BULLES.collecte,
+      lines: [SILO_TEXTES.encaisse(formatAmount(1_500))],
+    });
+    assert.deepEqual(n({ kind: "collected", collected: 90_000, offlineHours: 8 }), {
+      bubble: BULLES.collecteHorsLigne,
+      lines: [SILO_TEXTES.encaisse(formatAmount(90_000)), "Hors ligne 8 h"],
+    });
+  });
+
+  it("une montée et une étape réussies", () => {
+    assert.deepEqual(n({ kind: "levelsBought" }), { bubble: BULLES.montee });
+    assert.deepEqual(n({ kind: "stepDone" }), { bubble: BULLES.etape });
+  });
+
+  it("un refus du jeu : la bulle du code, avec la somme qui manque", () => {
+    assert.equal(n({ kind: "refused", reason: "PAS_ASSEZ_DE_DONAR", missing: 120 })?.bubble.text, "Il te manque 120 Donar.");
+    assert.equal(n({ kind: "refused", reason: "PAS_LE_PDG" })?.bubble.text, "Seul le PDG peut le faire.");
+    assert.equal(n({ kind: "refused", reason: "CODE_DU_FUTUR" })?.bubble, BULLES.refusInconnu);
+  });
+
+  it("un échec technique : service injoignable, route pas encore écrite, panne du service", () => {
+    assert.equal(n({ kind: "failed", failure: "network", reason: "RESEAU" })?.bubble, BULLES.serviceInjoignable);
+    assert.equal(n({ kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" })?.bubble, BULLES.serviceInjoignable);
+    assert.equal(n({ kind: "failed", failure: "error", reason: "PAS_FAIT" })?.bubble, BULLES.bientot);
+    assert.equal(n({ kind: "failed", failure: "error", reason: "ERREUR_INTERNE" })?.bubble, BULLES.problemeService);
+  });
+
+  it("une action ignorée parce qu'une autre tourne : pas de bulle", () => {
+    assert.equal(n({ kind: "busy" }), undefined);
+  });
+});
+
+describe("écran sans réponse du service", () => {
+  it("une bulle de panique et un seul bouton qui ferme", () => {
+    const screen = unavailableScreen();
+    assert.match(bare(screen.spec.body), /Oooscar \[panique\] Le service ne répond pas\./);
+    assert.deepEqual(screen.targets, [{ kind: "end" }]);
+  });
+});
+
+// ---------------------------------------------------------------- le parcours
+
+const ACTIVE = factory({ factoryId: "carriere", level: 3, ratePerHour: 7_200, nextCost: 150, nextMilestone: 25 });
+
+function after(level: number, version = 2, extra: Partial<Factory> = {}): CompanyUpdated {
+  return {
+    state: companyState({ version, donar: 40, factories: [factory({ factoryId: "carriere", level, nextCost: 200, ...extra })] }),
+    balances: balances(),
+  };
+}
+
+function setup(replies: readonly Reply[], script: Script = {}, state: Partial<CompanyState> = { factories: [ACTIVE] }) {
+  const clock = fakeClock(0);
+  const store = storeWith(state);
+  const views = createViewStore({ players: store, clock });
+  const api = fakeCompany(script);
+  const log = recordingLogger();
+  const actions = createActions({ api, views, newRequestId: sequentialIds(), log });
+  const presenter = fakePresenter(replies);
+  const waits: number[] = [];
+  const menu = createMenu({
+    views,
+    actions,
+    presenter,
+    clock,
+    wait: async (seconds) => void waits.push(seconds),
+    log,
+    tilesPerScreen: 8,
+    busyRetries: 3,
+    busyRetrySeconds: 0.5,
+  });
+  return { menu, presenter, api, views, log, waits, store };
+}
+
+describe("parcours : menu, Usines, fiche, montée", () => {
+  it("succès : la fiche revient avec le nouveau niveau et la bulle de joie", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Usines"), press("Carrière"), press("Monter de 1"), close],
+      { buyLevels: [ok(after(4))] },
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "USINES", "USINE", "USINE"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /Niveau 3/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[joie\] Usine améliorée !\n\nACTIVE\nCarrière/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Niveau 4/);
+    assert.deepEqual(api.calls, [
+      { op: "buyLevels", companyId: 7, factoryId: "carriere", action: { requestId: "id-1", actor: XUID }, amount: "1" },
+    ]);
+  });
+
+  it("chaque bouton de montée envoie sa quantité", async () => {
+    const { menu, api } = setup(
+      [
+        press("Usines"),
+        press("Carrière"),
+        press("Monter de 10"),
+        press("Monter au palier"),
+        press("Monter au max"),
+        close,
+      ],
+      { buyLevels: [ok(after(13, 2)), ok(after(25, 3)), ok(after(40, 4))] },
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(
+      api.calls.map((call) => (call.op === "buyLevels" ? call.amount : call.op)),
+      ["10", "palier", "max"],
+    );
+    assert.deepEqual(new Set(api.calls.map((call) => ("action" in call ? call.action.requestId : ""))).size, 3);
+  });
+
+  it("refus PAS_ASSEZ_DE_DONAR : la fiche revient inchangée avec ce qui manque", async () => {
+    const { menu, presenter, views } = setup(
+      [press("Usines"), press("Carrière"), press("Monter de 1"), close],
+      { buyLevels: [refused("PAS_ASSEZ_DE_DONAR", 120)] },
+    );
+    await menu.open(PLAYER);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[oups\] Il te manque 120 Donar\.\n\nACTIVE/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Niveau 3/);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("CONFLIT_REESSAYER : l'état est rechargé, l'action rejouée avec le même requestId, le joueur ne voit que le succès", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Usines"), press("Carrière"), press("Monter de 1"), close],
+      {
+        buyLevels: [refused("CONFLIT_REESSAYER"), ok(after(4, 6))],
+        getCompany: [ok(companyState({ version: 5, factories: [ACTIVE] }))],
+      },
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(
+      api.calls.map((call) => call.op),
+      ["buyLevels", "getCompany", "buyLevels"],
+    );
+    const ids = api.calls.flatMap((call) => (call.op === "buyLevels" ? [call.action.requestId] : []));
+    assert.equal(ids[0], ids[1]);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Usine améliorée !/);
+    assert.equal(presenter.shown.length, 4);
+  });
+
+  it("service injoignable : la fiche revient avec la panique d'Oooscar", async () => {
+    const { menu, presenter } = setup(
+      [press("Usines"), press("Carrière"), press("Monter de 1"), close],
+      { buyLevels: [unreachable()] },
+    );
+    await menu.open(PLAYER);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[panique\] Le service ne répond pas\./);
+  });
+
+  it("route pas encore écrite : « Pas encore disponible »", async () => {
+    const { menu, presenter } = setup(
+      [press("Usines"), press("Carrière"), press("Monter de 1"), close],
+      { buyLevels: [failure(501, "PAS_FAIT")] },
+    );
+    await menu.open(PLAYER);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /\[oups\] Pas encore disponible\./);
+  });
+
+  it("Retour remonte d'un écran à la fois, jusqu'au menu", async () => {
+    const { menu, presenter } = setup([
+      press("Usines"),
+      press("Carrière"),
+      press("Retour"),
+      press("Retour"),
+      close,
+    ]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "USINES", "USINE", "USINES", "MENU"]);
+  });
+
+  it("Retour de la fiche revient sur la page des usines d'où l'on vient", async () => {
+    const fifth = FACTORY_NAMES[IDS[4] as keyof typeof FACTORY_NAMES];
+    const { menu, presenter } = setupSmallPages([press("Usines"), press("Suite"), press(fifth), press("Retour"), close]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "USINES", "USINES", "USINE", "USINES"]);
+    assert.match(bare(presenter.shown[4]?.body ?? ""), /Page 2 sur 3/);
+  });
+});
+
+function setupSmallPages(replies: readonly Reply[]) {
+  const clock = fakeClock(0);
+  const store = storeWith({ factories: many(10) });
+  const views = createViewStore({ players: store, clock });
+  const log = recordingLogger();
+  const presenter = fakePresenter(replies);
+  const actions = createActions({ api: fakeCompany(), views, newRequestId: sequentialIds(), log });
+  const menu = createMenu({ views, actions, presenter, clock, wait: async () => undefined, log, tilesPerScreen: 4 });
+  return { menu, presenter };
+}
+
+describe("parcours : remise en état", () => {
+  const RUINE = { factories: [factory({ factoryId: "carriere", state: "EN_RUINE" as const, level: 0, ratePerHour: 0 })] };
+
+  it("une ruine : le bouton Parler envoie l'étape 1, la fiche montre ensuite l'étape 2", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Usines"), press("Carrière"), press("Parler"), close],
+      {
+        restoreStep: [
+          ok({
+            state: companyState({
+              version: 2,
+              factories: [factory({ factoryId: "carriere", state: "REMISE_EN_ETAT", restoreStep: 1, level: 0 })],
+            }),
+            balances: balances(),
+          }),
+        ],
+      },
+      RUINE,
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(api.calls, [
+      { op: "restoreStep", companyId: 7, factoryId: "carriere", action: { requestId: "id-1", actor: XUID }, step: 1 },
+    ]);
+    const last = bare(presenter.shown[3]?.body ?? "");
+    assert.match(last, /^Oooscar \[joie\] Étape terminée !/);
+    assert.match(last, /REMISE EN ÉTAT/);
+    assert.match(last, /Étape 2 sur 4 : Tâches$/);
+    assert.ok(presenter.shown[3]?.buttons.map(bare).includes("Réparer"));
+  });
+
+  it("quand l'usine devient active, les boutons de montée apparaissent", async () => {
+    const { menu, presenter } = setup(
+      [press("Usines"), press("Carrière"), press("Recruter"), close],
+      { restoreStep: [ok(after(1, 5))] },
+      { factories: [factory({ factoryId: "carriere", state: "REMISE_EN_ETAT", restoreStep: 3, level: 0 })] },
+    );
+    await menu.open(PLAYER);
+    assert.ok(presenter.shown[3]?.buttons.map(bare).some((b) => b.startsWith("Monter de 1")));
+  });
+});
+
+describe("parcours : Silo et encaissement", () => {
+  it("Silo puis Encaisser : l'écran revient avec la bulle et les Donar reçus", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Silo"), press("Encaisser"), close],
+      { collect: [ok({ collected: 1_500, offlineHours: 0, state: companyState({ version: 2, donar: 1_540 }) })] },
+    );
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "SILO", "SILO"]);
+    const body = bare(presenter.shown[2]?.body ?? "");
+    assert.ok(body.startsWith(`Oooscar [joie] Production encaissée !\n${SILO_TEXTES.encaisse(formatAmount(1_500))}\n\n`));
+    assert.deepEqual(api.calls, [{ op: "collect", companyId: 7, action: { requestId: "id-1", actor: XUID } }]);
+  });
+
+  it("deux touches depuis le menu principal, pas une de plus avant l'appel au service", async () => {
+    const { menu, presenter, api } = setup(
+      [press("Silo"), press("Encaisser"), close],
+      { collect: [ok({ collected: 1, offlineHours: 0, state: companyState({ version: 2 }) })] },
+    );
+    const original = api.collect.bind(api);
+    let screensSeen = -1;
+    api.collect = (companyId, action) => {
+      screensSeen = presenter.shown.length;
+      return original(companyId, action);
+    };
+    await menu.open(PLAYER);
+    assert.equal(screensSeen, 2);
+  });
+
+  it("l'encaissement d'une absence : Oooscar dort et dit la durée", async () => {
+    const { menu, presenter } = setup(
+      [press("Silo"), press("Encaisser"), close],
+      { collect: [ok({ collected: 90_000, offlineHours: 8, state: companyState({ version: 2 }) })] },
+    );
+    await menu.open(PLAYER);
+    const body = bare(presenter.shown[2]?.body ?? "");
+    assert.match(body, /\[dodo\] Gagné pendant ton absence\./);
+    assert.match(body, /Hors ligne 8 h/);
+  });
+
+  it("Retour du Silo ramène au menu", async () => {
+    const { menu, presenter } = setup([press("Silo"), press("Retour"), close]);
+    await menu.open(PLAYER);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "SILO", "MENU"]);
+  });
+});
+
+describe("parcours : tuiles verrouillées", () => {
+  for (const nom of ["Carte", "Objectifs", "Amis"]) {
+    it(`${nom} : le menu reste, Oooscar dit que ce n'est pas encore disponible, aucun appel au service`, async () => {
+      const { menu, presenter, api } = setup([press(nom), close]);
+      await menu.open(PLAYER);
+      assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MENU"]);
+      assert.match(bare(presenter.shown[1]?.body ?? ""), /^Oooscar \[oups\] Pas encore disponible\./);
+      assert.deepEqual(api.calls, []);
+    });
+  }
+
+  it("la bulle ne reste qu'un écran", async () => {
+    const { menu, presenter } = setup([press("Carte"), press("Usines"), press("Retour"), close]);
+    await menu.open(PLAYER);
+    assert.doesNotMatch(bare(presenter.shown[3]?.body ?? ""), /Oooscar/);
+  });
+});
+
+describe("parcours : fermeture, écran occupé, joueur parti", () => {
+  it("fermer un écran ferme le menu", async () => {
+    const { menu, presenter } = setup([press("Usines"), close]);
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown.length, 2);
+  });
+
+  it("un bouton qui n'existe pas ferme le menu sans bruit", async () => {
+    const { menu, log } = setup([() => ({ kind: "selected", index: 99 })]);
+    await menu.open(PLAYER);
+    assert.deepEqual(log.all(), []);
+  });
+
+  it("écran occupé (le tchat est ouvert) : réessaie après la pause réglée, puis montre l'écran", async () => {
+    const { menu, presenter, waits } = setup([busy, busy, press("Usines"), close]);
+    await menu.open(PLAYER);
+    assert.deepEqual(waits, [0.5, 0.5]);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MENU", "MENU", "USINES"]);
+  });
+
+  it("écran occupé trop longtemps : abandonne après les essais réglés, le dit au journal, ne lève pas", async () => {
+    const { menu, presenter, waits, log } = setup([busy, busy, busy, busy]);
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown.length, 4);
+    assert.equal(waits.length, 3);
+    assert.match(log.infos.join("\n"), /menu de Alex : écran occupé, abandon/);
+  });
+
+  it("un joueur sans réponse de join voit « le service ne répond pas » et rien d'autre", async () => {
+    const { menu, presenter, api } = setup([press("Retour")]);
+    await menu.open({ name: "Inconnu" });
+    assert.equal(presenter.shown.length, 1);
+    assert.match(bare(presenter.shown[0]?.body ?? ""), /Le service ne répond pas\./);
+    assert.deepEqual(api.calls, []);
+  });
+
+  it("le présentateur qui lève (joueur parti) est journalisé, rien ne remonte, le menu peut se rouvrir", async () => {
+    const { menu, presenter, log } = setup([
+      () => {
+        throw new Error("joueur parti");
+      },
+      close,
+    ]);
+    await menu.open(PLAYER);
+    assert.match(log.warns.join("\n"), /menu de Alex : Error: joueur parti/);
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown.length, 2);
+  });
+
+  it("un menu déjà ouvert pour le joueur : le second appel est ignoré", async () => {
+    let release: (() => void) | undefined;
+    const { menu, presenter } = setup([
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ kind: "closed" });
+        }),
+    ]);
+    const first = menu.open(PLAYER);
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown.length, 1);
+    release?.();
+    await first;
+  });
+
+  it("l'usine disparaît côté service pendant le parcours : retour à la liste, la bulle est gardée", async () => {
+    const { menu, presenter } = setup(
+      [press("Usines"), press("Carrière"), press("Monter de 1"), close],
+      { buyLevels: [ok({ state: companyState({ version: 2, factories: [] }), balances: balances() })] },
+    );
+    await menu.open(PLAYER);
+    assert.equal(presenter.shown[3]?.title, "USINES");
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Usine améliorée !/);
+  });
+
+  it("le texte brut de chaque écran montré ne contient ni emoji ni point de suspension", async () => {
+    const { menu, presenter } = setup(
+      [press("Silo"), press("Retour"), press("Usines"), press("Carrière"), close],
+    );
+    await menu.open(PLAYER);
+    for (const spec of presenter.shown) {
+      assert.doesNotMatch(plain(spec), /\p{Extended_Pictographic}|\.\.\.|…/u);
+    }
+  });
+});

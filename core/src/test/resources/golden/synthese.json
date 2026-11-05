@@ -1,0 +1,411 @@
+{
+  "columns": {
+    "playerSees": {
+      "endHour": {
+        "column": "F",
+        "label": "Heure de fin (cumulée)",
+        "unit": "h"
+      },
+      "globalMultiplier": {
+        "column": "D",
+        "label": "Multiplicateur global",
+        "unit": "×"
+      },
+      "incomeAtEndDisplay": {
+        "column": "C",
+        "label": "Revenu à la fin, par heure de jeu"
+      },
+      "lingotsEarned": {
+        "column": "E",
+        "label": "Lingots gagnés",
+        "unit": "Lingots"
+      },
+      "realDays": {
+        "column": "G",
+        "label": "Jours réels (joueur type)",
+        "unit": "jours"
+      },
+      "stage": {
+        "column": "A",
+        "label": "Course"
+      },
+      "thresholdDisplay": {
+        "column": "B",
+        "label": "Seuil de prestige"
+      }
+    },
+    "targets": {
+      "computed": {
+        "column": "B",
+        "label": "Temps calculé (h)",
+        "unit": "h"
+      },
+      "computedMinutes": {
+        "column": "F",
+        "label": "En minutes",
+        "unit": "min"
+      },
+      "displayedAmount": {
+        "column": "G",
+        "label": "Donar du joueur à ce moment"
+      },
+      "stage": {
+        "column": "A",
+        "label": "Étape"
+      },
+      "targetMax": {
+        "column": "D",
+        "label": "Cible max (h)",
+        "unit": "h"
+      },
+      "targetMin": {
+        "column": "C",
+        "label": "Cible min (h)",
+        "unit": "h"
+      },
+      "verdict": {
+        "column": "E",
+        "label": "Verdict"
+      }
+    }
+  },
+  "overallVerdict": "13 étapes sur 13 dans la cible",
+  "playerSees": [
+    {
+      "course": 1,
+      "endHour": 14.7008517393275,
+      "globalMultiplier": 1.05,
+      "incomeAtEndDisplay": "195.5 M",
+      "lingotsEarned": 100,
+      "realDays": 9.80056782621836,
+      "stage": "1er prestige : époque 2 (vapeur)",
+      "thresholdDisplay": "1 Md"
+    },
+    {
+      "course": 2,
+      "endHour": 37.507510838713,
+      "globalMultiplier": 1.62350425869664,
+      "incomeAtEndDisplay": "183.7 Md",
+      "lingotsEarned": 100,
+      "realDays": 25.0050072258087,
+      "stage": "2e prestige : époque 3 (moderne)",
+      "thresholdDisplay": "500 Md"
+    },
+    {
+      "course": 3,
+      "endHour": 82.3379556487222,
+      "globalMultiplier": 2.23753755419357,
+      "incomeAtEndDisplay": "95.3 aa",
+      "lingotsEarned": 100,
+      "realDays": 54.8919704324815,
+      "stage": "3e prestige : époque 4 (futuriste)",
+      "thresholdDisplay": "1 ab"
+    },
+    {
+      "course": 4,
+      "endHour": 104.541682935431,
+      "globalMultiplier": 2.96168977824361,
+      "incomeAtEndDisplay": "17 ab",
+      "lingotsEarned": 100,
+      "realDays": 69.6944552902873,
+      "stage": "1re étoile",
+      "thresholdDisplay": "200 ab"
+    },
+    {
+      "course": 5,
+      "endHour": 125.522649901163,
+      "globalMultiplier": 1071.81252440315,
+      "incomeAtEndDisplay": "24.1 ac",
+      "lingotsEarned": 100,
+      "realDays": 83.6817666007752,
+      "stage": "2e étoile",
+      "thresholdDisplay": "500 ac"
+    },
+    {
+      "course": 6,
+      "endHour": 145.690778629096,
+      "globalMultiplier": 375985.192455523,
+      "incomeAtEndDisplay": "33.7 ad",
+      "lingotsEarned": 100,
+      "realDays": 97.1271857527307,
+      "stage": "3e étoile",
+      "thresholdDisplay": "500 ad"
+    },
+    {
+      "course": 7,
+      "endHour": 166.571118134267,
+      "globalMultiplier": 129018255.114928,
+      "incomeAtEndDisplay": "14.6 ae",
+      "lingotsEarned": 100,
+      "realDays": 111.047412089511,
+      "stage": "4e étoile",
+      "thresholdDisplay": "300 ae"
+    },
+    {
+      "course": 8,
+      "endHour": 192.548123964053,
+      "globalMultiplier": 43601130284.4378,
+      "incomeAtEndDisplay": "11.7 af",
+      "lingotsEarned": 100,
+      "realDays": 128.365415976035,
+      "stage": "5e étoile",
+      "thresholdDisplay": "300 af"
+    },
+    {
+      "course": 9,
+      "endHour": 214.123611886338,
+      "globalMultiplier": 14610959706163.2,
+      "incomeAtEndDisplay": "4.6 ag",
+      "lingotsEarned": 100,
+      "realDays": 142.749074590892,
+      "stage": "6e étoile",
+      "thresholdDisplay": "100 ag"
+    }
+  ],
+  "source": {
+    "file": "docs/references/silooo-equilibrage-v2.xlsx",
+    "generator": "tools/tableur/extraire.py",
+    "sha256": "553035cc854e45b506f062e633dc051068621ab1fa0178009bf107e8068e4652",
+    "sheets": [
+      "Synthèse"
+    ],
+    "warning": "Fichier généré par tools/tableur/extraire.py : ne pas modifier à la main."
+  },
+  "targets": [
+    {
+      "computed": 0.0797893988095238,
+      "computedMinutes": 4.78736392857143,
+      "displayedAmount": "32.7 k",
+      "displayedAmountMeaning": "incomeAfterPerHour",
+      "id": "first-upgrade",
+      "link": {
+        "simulationPurchase": 1
+      },
+      "measure": "cumulativeHour",
+      "order": 1,
+      "sheetRow": 5,
+      "stage": "1re amélioration (Carrière niveau 5)",
+      "targetMax": 0.0833333333333333,
+      "targetMin": 0,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 0.282292013955215,
+      "computedMinutes": 16.9375208373129,
+      "displayedAmount": "373.4 k",
+      "displayedAmountMeaning": "incomeAfterPerHour",
+      "id": "second-factory",
+      "link": {
+        "simulationPurchase": 4
+      },
+      "measure": "cumulativeHour",
+      "order": 2,
+      "sheetRow": 6,
+      "stage": "2e usine (Scierie)",
+      "targetMax": 0.333333333333333,
+      "targetMin": 0.25,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 1,
+      "computedMinutes": 60,
+      "displayedAmount": "—",
+      "displayedAmountMeaning": "none",
+      "id": "first-city-zone",
+      "link": {
+        "cityZone": 1
+      },
+      "measure": "cumulativeHour",
+      "order": 3,
+      "sheetRow": 7,
+      "stage": "1re zone de ville",
+      "targetMax": 1.5,
+      "targetMin": 0.75,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 2.01735348926311,
+      "computedMinutes": 121.041209355787,
+      "displayedAmount": "9 M",
+      "displayedAmountMeaning": "incomeAfterPerHour",
+      "id": "deep-mine",
+      "link": {
+        "simulationPurchase": 12
+      },
+      "measure": "cumulativeHour",
+      "order": 4,
+      "sheetRow": 8,
+      "stage": "Mine profonde",
+      "targetMax": 3,
+      "targetMin": 2,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 14.7008517393275,
+      "computedMinutes": 882.051104359652,
+      "displayedAmount": "1 Md",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "prestige-1",
+      "link": {
+        "course": 1
+      },
+      "measure": "cumulativeHour",
+      "order": 5,
+      "sheetRow": 9,
+      "stage": "1er prestige : époque 2 (vapeur)",
+      "targetMax": 15,
+      "targetMin": 10,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 37.507510838713,
+      "computedMinutes": 2250.45065032278,
+      "displayedAmount": "500 Md",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "prestige-2",
+      "link": {
+        "course": 2
+      },
+      "measure": "cumulativeHour",
+      "order": 6,
+      "sheetRow": 10,
+      "stage": "2e prestige : époque 3 (moderne)",
+      "targetMax": 40,
+      "targetMin": 30,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 82.3379556487222,
+      "computedMinutes": 4940.27733892333,
+      "displayedAmount": "1 ab",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "prestige-3",
+      "link": {
+        "course": 3
+      },
+      "measure": "cumulativeHour",
+      "order": 7,
+      "sheetRow": 11,
+      "stage": "3e prestige : époque 4 (futuriste)",
+      "targetMax": 100,
+      "targetMin": 70,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 22.2037272867086,
+      "computedMinutes": 1332.22363720252,
+      "displayedAmount": "200 ab",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "star-1",
+      "link": {
+        "course": 4
+      },
+      "measure": "courseDuration",
+      "order": 8,
+      "sheetRow": 12,
+      "stage": "1re étoile (durée de la course en époque 4)",
+      "targetMax": 30,
+      "targetMin": 20,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 20.9809669657319,
+      "computedMinutes": 1258.85801794392,
+      "displayedAmount": "500 ac",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "star-2",
+      "link": {
+        "course": 5
+      },
+      "measure": "courseDuration",
+      "order": 9,
+      "sheetRow": 13,
+      "stage": "2e étoile (durée de la course)",
+      "targetMax": 30,
+      "targetMin": 20,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 20.1681287279333,
+      "computedMinutes": 1210.087723676,
+      "displayedAmount": "500 ad",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "star-3",
+      "link": {
+        "course": 6
+      },
+      "measure": "courseDuration",
+      "order": 10,
+      "sheetRow": 14,
+      "stage": "3e étoile (durée de la course)",
+      "targetMax": 30,
+      "targetMin": 20,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 20.880339505171,
+      "computedMinutes": 1252.82037031026,
+      "displayedAmount": "300 ae",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "star-4",
+      "link": {
+        "course": 7
+      },
+      "measure": "courseDuration",
+      "order": 11,
+      "sheetRow": 15,
+      "stage": "4e étoile (durée de la course)",
+      "targetMax": 30,
+      "targetMin": 20,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 25.9770058297861,
+      "computedMinutes": 1558.62034978716,
+      "displayedAmount": "300 af",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "star-5",
+      "link": {
+        "course": 8
+      },
+      "measure": "courseDuration",
+      "order": 12,
+      "sheetRow": 16,
+      "stage": "5e étoile (durée de la course)",
+      "targetMax": 30,
+      "targetMin": 20,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    },
+    {
+      "computed": 21.5754879222845,
+      "computedMinutes": 1294.52927533707,
+      "displayedAmount": "100 ag",
+      "displayedAmountMeaning": "prestigeThreshold",
+      "id": "star-6",
+      "link": {
+        "course": 9
+      },
+      "measure": "courseDuration",
+      "order": 13,
+      "sheetRow": 17,
+      "stage": "6e étoile (durée de la course)",
+      "targetMax": 30,
+      "targetMin": 20,
+      "unit": "h",
+      "verdict": "Dans la cible"
+    }
+  ],
+  "verdictRule": "Trop court si computed < targetMin, Trop long si computed > targetMax, sinon Dans la cible : la fourchette [targetMin, targetMax] est la tolérance de la feuille, bornes comprises."
+}

@@ -1,0 +1,14 @@
+Construis des usines sur ton île.
+Fonderie débloquée.
+Production ×2 pendant 15 min.
+Il te manque 240 k Donar.
+Ta Scierie produit 4 200 Donar/s.
+Tu as 3 usines à améliorer.
+La Fonderie t'attend !
+Le Silo est prêt à être récolté.
+SCIERIE
+NIV. 47 · ÉPOQUE 1
+Le HUD affiche le gain par seconde.
+Le PDG invite ses associés VIP et MVIP.
+Grade Ultime : bonus de Donar maximal.
+Le grade Légende coûte 3 500 Gemmes.

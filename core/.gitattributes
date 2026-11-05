@@ -1,0 +1,2 @@
+# Le script batch de Windows a besoin de fins de ligne CRLF ; le reste du dépôt reste en LF (voir le fichier à la racine).
+*.bat text eol=crlf

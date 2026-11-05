@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/economie.schema.json",
+  "title": "Économie de Silooo",
+  "description": "Forme de definitions/economie.json. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "niveaux", "horsLigne", "prestige", "lingotsHorsPrestige", "ville", "notation"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "niveaux": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["croissancePrix", "formulePrix", "paliersX2"],
+      "properties": {
+        "croissancePrix": { "type": "number", "exclusiveMinimum": 1 },
+        "formulePrix": { "type": "string", "minLength": 1 },
+        "paliersX2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fixes", "ensuiteTous", "commentaire"],
+          "properties": {
+            "fixes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "integer", "minimum": 1 }
+            },
+            "ensuiteTous": { "type": "integer", "minimum": 1 },
+            "commentaire": { "type": "string" }
+          }
+        }
+      }
+    },
+    "horsLigne": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plafondHeures", "efficacite"],
+      "properties": {
+        "plafondHeures": { "type": "number", "exclusiveMinimum": 0 },
+        "efficacite": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "prestige": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seuils", "etoilesSuivantes", "facteurSeuilSuivant", "conversionLingots",
+        "productionParEtoile", "bonusParLingotDetenu", "departDeCourse"
+      ],
+      "properties": {
+        "seuils": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["course", "fin", "donar"],
+            "properties": {
+              "course": { "type": "integer", "minimum": 1 },
+              "fin": { "type": "string", "minLength": 1 },
+              "donar": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        "etoilesSuivantes": { "type": "string" },
+        "facteurSeuilSuivant": {
+          "description": "Au-delà de la dernière course listée dans seuils, chaque seuil vaut le précédent multiplié par ce facteur (la lecture chiffrée de etoilesSuivantes).",
+          "type": "number",
+          "exclusiveMinimum": 1
+        },
+        "conversionLingots": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["coefficient", "diviseurReference", "formule"],
+          "properties": {
+            "coefficient": { "type": "number", "exclusiveMinimum": 0 },
+            "diviseurReference": { "type": "number", "exclusiveMinimum": 0 },
+            "formule": { "type": "string", "minLength": 1 }
+          }
+        },
+        "productionParEtoile": { "type": "number", "exclusiveMinimum": 0 },
+        "bonusParLingotDetenu": { "type": "number", "minimum": 0 },
+        "departDeCourse": {
+          "description": "L'usine qui est déjà là au début de chaque course, et son niveau ; les autres usines repartent à zéro.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["usine", "niveau"],
+          "properties": {
+            "usine": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+            "niveau": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "lingotsHorsPrestige": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["missionBienvenue", "moyenneParHeureDeJeu"],
+      "properties": {
+        "missionBienvenue": { "type": "integer", "minimum": 0 },
+        "moyenneParHeureDeJeu": { "type": "number", "minimum": 0 }
+      }
+    },
+    "ville": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zonesPrixLingots"],
+      "properties": {
+        "zonesPrixLingots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "notation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apresMd", "limiteDouble"],
+      "properties": {
+        "apresMd": { "type": "string" },
+        "limiteDouble": { "type": "string" }
+      }
+    }
+  }
+}

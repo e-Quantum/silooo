@@ -1,0 +1,1 @@
+$.packsGemmes[0].euros: format invalide

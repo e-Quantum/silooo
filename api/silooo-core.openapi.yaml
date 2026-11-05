@@ -15,6 +15,9 @@ info:
       il renvoie la même réponse sans refaire l'action.
     - Le Donar est un nombre à virgule (double) ; Lingots, Gemmes, jetons et clés sont des entiers.
     - Le service ne peut pas appeler l'add-on : l'add-on interroge `/v1/events` à intervalle court.
+    - Toute opération peut répondre 400, 401, 500 ou 501 avec le corps `Erreur` : la forme de la
+      requête, la clé, une panne du service ou une route pas encore écrite. Ces codes ne viennent
+      pas du jeu ; l'add-on les traite d'un bloc (réessayer, ou dire qu'Oooscar ne répond pas).
 servers:
   - url: http://silooo-core:8080
     description: réseau Docker interne
@@ -37,6 +40,10 @@ paths:
                 serverId: { type: string, example: bds-1 }
                 onlineXuids: { type: array, items: { $ref: '#/components/schemas/Xuid' } }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '204': { description: noté }
 
   /v1/events:
@@ -47,6 +54,10 @@ paths:
         - { name: after, in: query, required: true, schema: { type: integer, format: int64 }, description: dernier id déjà reçu }
         - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: événements, du plus ancien au plus récent
           content:
@@ -73,6 +84,11 @@ paths:
                 xuid: { $ref: '#/components/schemas/Xuid' }
                 gamertag: { type: string, maxLength: 32 }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200':
           description: tout ce qu'il faut pour afficher le joueur
           content:
@@ -93,6 +109,11 @@ paths:
               properties:
                 xuid: { $ref: '#/components/schemas/Xuid' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '204': { description: noté }
 
   /v1/companies/{companyId}:
@@ -101,6 +122,10 @@ paths:
       operationId: getCompany
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: état courant
           content:
@@ -114,6 +139,11 @@ paths:
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody: { $ref: '#/components/requestBodies/Action' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200':
           description: ce qui a été encaissé et le nouvel état
           content:
@@ -123,7 +153,7 @@ paths:
                 required: [collected, offlineHours, state]
                 properties:
                   collected: { $ref: '#/components/schemas/Donar' }
-                  offlineHours: { type: number, description: 'heures comptées, plafond appliqué' }
+                  offlineHours: { type: number, description: 'heures comptées : pleines en régime en ligne, plafonnées par l''entreprise en régime hors ligne' }
                   state: { $ref: '#/components/schemas/CompanyState' }
 
   /v1/companies/{companyId}/factories/{factoryId}/levels:
@@ -148,6 +178,10 @@ paths:
                       enum: ['1', '10', 'palier', 'max']
                       description: palier = jusqu'au prochain ×2 ; max = tout ce qu'on peut payer
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -170,6 +204,10 @@ paths:
                   properties:
                     step: { type: integer, minimum: 1, maximum: 4 }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -182,6 +220,11 @@ paths:
         - { name: incidentId, in: path, required: true, schema: { type: integer, format: int64 } }
       requestBody: { $ref: '#/components/requestBodies/Action' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
 
   /v1/companies/{companyId}/agency:
@@ -190,6 +233,10 @@ paths:
       operationId: getCandidates
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: candidats
           content:
@@ -216,6 +263,10 @@ paths:
                   properties:
                     factoryId: { type: string, description: usine où l'affecter tout de suite }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -238,6 +289,11 @@ paths:
                   properties:
                     factoryId: { type: string }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
     delete:
       summary: Renvoie un membre du personnel (seul cas où il part)
@@ -248,6 +304,11 @@ paths:
         - { $ref: '#/components/parameters/ActorXuid' }
         - { $ref: '#/components/parameters/RequestId' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
 
   /v1/companies/{companyId}/prestige/preview:
@@ -256,6 +317,10 @@ paths:
       operationId: prestigePreview
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: aperçu
           content:
@@ -269,6 +334,10 @@ paths:
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody: { $ref: '#/components/requestBodies/Action' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '403': { $ref: '#/components/responses/Refused' }
         '409': { $ref: '#/components/responses/Refused' }
@@ -290,6 +359,10 @@ paths:
                   properties:
                     targetXuid: { $ref: '#/components/schemas/Xuid' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
     put:
@@ -315,6 +388,10 @@ paths:
                           xuid: { $ref: '#/components/schemas/Xuid' }
                           percent: { type: integer, minimum: 0, maximum: 100 }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -327,6 +404,10 @@ paths:
         - { name: zoneIndex, in: path, required: true, schema: { type: integer, minimum: 1, maximum: 16 } }
       requestBody: { $ref: '#/components/requestBodies/Action' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -350,6 +431,10 @@ paths:
                     z: { type: integer }
                     rotation: { type: integer, enum: [0, 90, 180, 270] }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -362,6 +447,10 @@ paths:
         - { name: buildingId, in: path, required: true, schema: { type: integer, format: int64 } }
       requestBody: { $ref: '#/components/requestBodies/Action' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -370,6 +459,10 @@ paths:
       summary: La commande mondiale du jour et sa progression
       operationId: todayOrder
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: commande du jour
           content:
@@ -392,6 +485,11 @@ paths:
                   properties:
                     quantity: { type: number, minimum: 0 }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '200':
           description: commande mise à jour
           content:
@@ -405,6 +503,10 @@ paths:
       parameters:
         - { name: resourceId, in: query, schema: { type: string } }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: offres
           content:
@@ -429,6 +531,10 @@ paths:
                     quantity: { type: integer, format: int64, minimum: 1 }
                     unitPrice: { type: integer, format: int64, minimum: 1 }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: offre créée
           content:
@@ -454,6 +560,10 @@ paths:
                   properties:
                     quantity: { type: integer, format: int64, minimum: 1 }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: achat fait, soldes mis à jour
           content:
@@ -467,6 +577,10 @@ paths:
       operationId: catalog
       parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: catalogue, avec ce que le joueur possède déjà
           content:
@@ -499,6 +613,10 @@ paths:
                     itemId: { type: string }
                     forXuid: { $ref: '#/components/schemas/Xuid' }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: achat fait
           content:
@@ -512,6 +630,10 @@ paths:
       operationId: getPass
       parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200':
           description: pass
           content:
@@ -541,6 +663,10 @@ paths:
                     tier: { type: integer, minimum: 1 }
                     track: { type: string, enum: [GRATUIT, PREMIUM] }
       responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
         '200': { description: palier réclamé }
         '409': { $ref: '#/components/responses/Refused' }
 
@@ -589,6 +715,21 @@ components:
                        USINE_VERROUILLEE, ZONE_VERROUILLEE, EMPLACEMENT_OCCUPE, ENTREPRISE_PLEINE, DEJA_POSSEDE,
                        GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER]
               missing: { type: number, description: 'ce qui manque, quand c''est une somme' }
+    Erreur:
+      description: >-
+        erreur technique, hors du jeu ; `reason` est un code stable. 400 REQUETE_INVALIDE (corps ou
+        paramètre hors contrat), 401 CLE_INVALIDE (en-tête X-Silooo-Key absent ou faux), 500
+        ERREUR_INTERNE (le détail est dans les journaux du service, jamais dans la réponse), 501 PAS_FAIT
+        (route du contrat pas encore écrite, ou mise en attente d'une décision de Kr)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason:
+                type: string
+                enum: [REQUETE_INVALIDE, CLE_INVALIDE, ERREUR_INTERNE, PAS_FAIT]
 
   schemas:
     Xuid:
@@ -643,6 +784,13 @@ components:
         threshold: { $ref: '#/components/schemas/Donar' }
         factories: { type: array, items: { $ref: '#/components/schemas/Factory' } }
         zonesOwned: { type: array, items: { type: integer } }
+        island:
+          type: object
+          description: "origine de l'archipel de l'entreprise, en blocs (archipelago_slots) : l'add-on y pose l'île et les usines, il ne la calcule pas"
+          required: [x, z]
+          properties:
+            x: { type: integer }
+            z: { type: integer }
         version: { type: integer, description: verrou optimiste }
     JoinResponse:
       type: object

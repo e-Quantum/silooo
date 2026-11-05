@@ -1,0 +1,123 @@
+# Projet Docker Compose « silooo » : silooo-migrate, silooo-core et silooo-bds
+# (docs/deploiement.md, docs/architecture.md, ADR 0003 et 0004).
+#
+# Se lance depuis la racine du projet (sur le VPS : /var/www/silooo), avec le dossier de projet posé
+# explicitement. C'est ce que fait deploy/scripts/deploy.sh :
+#   docker compose -p silooo --project-directory . -f deploy/compose.yml <commande>
+# Le dossier de projet est la racine, pas deploy/ : c'est là que Kr a posé le fichier d'environnement
+# (« .env »), et Compose le lit deux fois, pour les ${...} de ce fichier et pour env_file ci-dessous.
+# Ce fichier n'est jamais dans le dépôt, jamais lu ni affiché par une session. Les variables attendues
+# sont listées dans deploy/exemple.env.txt.
+#
+# SILOOO_TAG (le tag des images, un SHA de commit de main) vient de deploy.sh, jamais du fichier
+# d'environnement : sans lui, aucune commande compose ne démarre une image par erreur.
+
+# Les journaux des conteneurs sont limités en taille : le disque du VPS est serré (docs/deploiement.md).
+x-journaux: &journaux
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+name: silooo
+
+services:
+  # Les migrations Flyway, une fois avant chaque démarrage de silooo-core, puis le conteneur sort.
+  silooo-migrate:
+    image: "ghcr.io/e-quantum/silooo-core:${SILOOO_TAG:?SILOOO_TAG manque, lance deploy/scripts/deploy.sh avec un tag}"
+    command: ["migrate"]
+    # SILOOO_DB_URL, SILOOO_DB_USER, SILOOO_DB_PASSWORD (la clé n'est pas utile en mode migrate).
+    env_file: .env
+    networks: [silooo, silenemc]
+    # Plan de construction, « Écrire les conteneurs » : 256 Mo pour Flyway, qui ne vit que le temps d'une migration.
+    mem_limit: 256m
+    restart: "no"
+    logging: *journaux
+
+  # Le service. AUCUN port publié : il ne répond que sur le réseau Docker « silooo » (ADR 0002 et 0004).
+  silooo-core:
+    image: "ghcr.io/e-quantum/silooo-core:${SILOOO_TAG:?SILOOO_TAG manque, lance deploy/scripts/deploy.sh avec un tag}"
+    env_file: .env
+    depends_on:
+      silooo-migrate:
+        condition: service_completed_successfully
+    networks: [silooo, silenemc]
+    # Plan de construction : 512 Mo pour silooo-core (la JVM suit la limite, -XX:MaxRAMPercentage=75).
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *journaux
+
+  # Le serveur Bedrock. Il n'appelle que silooo-core, par le nom de service « silooo-core » sur le réseau « silooo ».
+  # Pas d'env_file : il ne reçoit ni le mot de passe de la base ni rien d'autre que ce qui est listé ici.
+  silooo-bds:
+    image: "ghcr.io/e-quantum/silooo-bds:${SILOOO_TAG:?SILOOO_TAG manque, lance deploy/scripts/deploy.sh avec un tag}"
+    depends_on:
+      - silooo-core
+    environment:
+      # Lus par deploy/bds/start.sh, qui rend server.properties et les fichiers de config/. Vide = défaut du script.
+      BDS_SERVER_NAME: ${BDS_SERVER_NAME:-}
+      BDS_PORT: ${BDS_PORT:-19142}
+      BDS_UDP_PORTS: ${BDS_UDP_PORTS:-19143-19174}
+      BDS_UDP_PORTS_PUBLIES: ${BDS_UDP_PORTS_PUBLIES:-19143-19174}
+      BDS_PUBLIC_IP: ${BDS_PUBLIC_IP:-}
+      BDS_MAX_PLAYERS: ${BDS_MAX_PLAYERS:-}
+      BDS_LEVEL_NAME: ${BDS_LEVEL_NAME:-}
+      BDS_ALLOW_LIST: ${BDS_ALLOW_LIST:-}
+      SILOOO_CORE_URL: ${SILOOO_CORE_URL:-}
+      # La clé X-Silooo-Key : start.sh la range dans secrets.json (mode 600), lu par @minecraft/server-admin.
+      SILOOO_API_KEY: "${SILOOO_API_KEY:?SILOOO_API_KEY manque dans le fichier d'environnement}"
+    ports:
+      # Avec NetherNet (transport par défaut depuis BDS 1.26.50, seul accepté par les clients 26.60), server-port est un
+      # port TCP de signalisation HTTP : c'est le BDS_PORT de l'ADR 0004 (19142 pour la bêta).
+      - "${BDS_PORT:-19142}:${BDS_PORT:-19142}/tcp"
+      # Le jeu passe en UDP, un port par joueur, dans la plage de la clé server-udp-ports de server.properties.
+      # start.sh écrit cette clé à partir des mêmes variables : BDS_UDP_PORTS est la plage DANS le conteneur,
+      # BDS_UDP_PORTS_PUBLIES celle de l'hôte (ce que le client reçoit, avec BDS_PUBLIC_IP). Les deux plages ont
+      # la même taille, au moins max-players. Les ouvrir en UDP dans le pare-feu du VPS revient à Kr.
+      - "${BDS_UDP_PORTS_PUBLIES:-19143-19174}:${BDS_UDP_PORTS:-19143-19174}/udp"
+    volumes:
+      # Le monde (avec « Beta APIs » activé, voir docs/deploiement.md) et le dossier config/ de BDS.
+      - bds-worlds:/data/worlds
+      - bds-config:/data/config
+      # Le serveur Bedrock lui-même (décision 26) : l'image ne contient pas BDS. Kr pose le zip dans ce dossier de l'hôte
+      # (SILOOO_BDS_DIR, propriété de l'uid 10001 : chown 10001:10001), start.sh le contrôle puis le décompresse
+      # dans /data/bds/<version>/. Le dossier doit exister : Compose ne le crée pas, il serait alors créé par root.
+      - type: bind
+        source: "${SILOOO_BDS_DIR:-/var/www/silooo/bds}"
+        target: /data/bds
+        bind:
+          create_host_path: false
+    networks: [silooo]
+    # Plan de construction : 1,5 Gio pour le serveur Bedrock.
+    mem_limit: 1536m
+    # Pas « unless-stopped » : sans zip valide, start.sh sort avec un code d'erreur et un message pour Kr, et une
+    # boucle de redémarrages referait le téléchargement à chaque tour. Cinq essais couvrent un arrêt accidentel
+    # de BDS ; au-delà, le conteneur reste arrêté et « docker logs silooo-silooo-bds-1 » dit pourquoi.
+    restart: on-failure:5
+    # La console de BDS lit l'entrée standard : sans elle le serveur peut s'arrêter, et « docker attach » sert à
+    # lancer allowlist add.
+    stdin_open: true
+    tty: true
+    # Laisser à BDS le temps d'enregistrer le monde. Le signal d'arrêt propre de BDS reste à confirmer au
+    # premier arrêt (docs/deploiement.md).
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    logging: *journaux
+
+networks:
+  # Le réseau du projet : silooo-core et silooo-bds s'y parlent, et le test de fumée de deploy.sh y entre.
+  silooo:
+    name: silooo
+  # Le réseau Docker de SileneMC, rejoint en externe pour atteindre MariaDB et Redis sans ouvrir leurs ports
+  # (ADR 0003, recommandation du plan, à valider par Kr). Seuls silooo-migrate et silooo-core y entrent.
+  # Le nom par défaut est une hypothèse : le dépôt ne le dit nulle part. Kr le confirme avec « docker network ls »
+  # et le pose dans SILENEMC_NETWORK si besoin (et deploy/scripts/commun.sh doit porter le même défaut).
+  silenemc:
+    external: true
+    name: ${SILENEMC_NETWORK:-silenemc_default}
+
+volumes:
+  bds-worlds:
+    name: silooo-bds-worlds
+  bds-config:
+    name: silooo-bds-config

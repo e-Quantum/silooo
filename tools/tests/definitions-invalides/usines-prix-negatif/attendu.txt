@@ -1,0 +1,1 @@
+$.usines[1].prixNiveau1: doit être strictement supérieur à 0

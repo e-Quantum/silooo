@@ -1,8 +1,9 @@
 # Économie : formules, paliers, prestige, notation
 
 Les chiffres du jeu vivent dans [definitions/economie.json](../definitions/economie.json),
-[definitions/usines.json](../definitions/usines.json) et
-[definitions/boutique.json](../definitions/boutique.json). Le tableur
+[definitions/usines.json](../definitions/usines.json),
+[definitions/boutique.json](../definitions/boutique.json) et [definitions/monde.json](../definitions/monde.json)
+(où se posent les îles). Le tableur
 [silooo-equilibrage-v2.xlsx](references/silooo-equilibrage-v2.xlsx) simule un joueur type et
 vérifie treize cibles de rythme. Ce fichier explique les mécanismes et renvoie aux clés ; il ne
 recopie aucune valeur. Pour changer un chiffre, suis la recette `silooo-equilibrage` et ajoute une
@@ -31,7 +32,10 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
   ```
 
 - L'opération `buyLevels` accepte `1`, `10`, `palier` (jusqu'au prochain ×2) et `max` (tout ce que
-  le solde permet). C'est le service qui calcule, jamais l'add-on.
+  le solde permet). C'est le service qui calcule, jamais l'add-on. `1`, `10` et `palier` se paient en entier
+  ou pas du tout (409 `PAS_ASSEZ_DE_DONAR`, avec la somme qui manque). `max` achète tout ce que le solde paie
+  et ne refuse que s'il ne paie pas même un niveau, auquel cas il manque le prix du prochain niveau moins le
+  solde. **À valider par Kr.**
 - La croissance du prix est le réglage le plus sensible du jeu : une variation au centième rallonge
   le premier prestige de plusieurs heures.
 
@@ -54,18 +58,68 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
 
 - La production continue pendant l'absence, jusqu'à un plafond en heures : clé
   `horsLigne.plafondHeures` au départ, puis la colonne `companies.offline_cap_hours` quand les
-  améliorations du chef d'équipe et du Silo l'ont étendu.
+  améliorations du chef d'équipe et du Silo l'ont étendu. La création de l'entreprise recopie la clé dans la
+  colonne ; à partir de là, la colonne fait foi et le moteur lui applique sa formule.
 - Elle est comptée à efficacité réduite : clé `horsLigne.efficacite`.
-- L'opération `collect` applique le plafond et renvoie `offlineHours`, les heures retenues. À
-  l'arrivée, `JoinResponse.offlineCollected` donne ce qui a été encaissé pendant l'absence.
+- L'absence se compte depuis `companies.last_collect_at`, le dernier calcul de production de l'entreprise, et non
+  depuis le départ du joueur (`players.last_seen_at`) : la production appartient à l'entreprise, et deux associés
+  qui se relaient ne doivent pas se faire payer la même heure deux fois. Le revenu est celui d'aujourd'hui,
+  multiplicateur de maintenant compris. Le surplus au-delà du plafond est perdu.
+- **Deux régimes, selon qu'un membre de l'entreprise était connecté.** La production écoulée depuis
+  `last_collect_at` se verse ainsi, puis `last_collect_at` repart de maintenant dans la même écriture :
+  - **En ligne**, au moins un membre connecté pendant la période : le revenu plein, `revenu par heure × heures`,
+    sans plafond ni efficacité. C'est ce que le compteur de l'add-on a fait défiler (règle 2 de
+    [socle.md](socle.md)).
+  - **Hors ligne**, personne de connecté : la formule de cette section, heures plafonnées par la colonne de
+    l'entreprise et efficacité `horsLigne.efficacite`.
+
+  **À valider par Kr.**
+- Pour quatre opérations, le régime se connaît par construction. `collect`, `buyLevels` et `restoreStep` sont
+  demandées par un membre connecté : en ligne. `leave` verse la production en ligne (le partant était connecté
+  jusque-là) et remet `last_collect_at` à maintenant : la période hors ligne commence au départ du dernier membre.
+  Seul `join` choisit : en ligne si un AUTRE membre de l'entreprise est connecté à cet instant, hors ligne sinon.
+- La présence que `join` interroge est `ServerPresence`, que `heartbeat` remplit (l'add-on bat toutes les
+  10 secondes, avec les XUID des joueurs en ligne). Un signal de plus de 30 secondes est périmé : un serveur qui
+  ne bat plus n'a plus de joueurs en ligne. Celui qui arrive ne compte pas pour lui-même. `players.last_seen_at` ne
+  sert pas : il est figé au départ et remis au retour, il ne dit pas qui est connecté maintenant. La présence est en
+  mémoire : si silooo-core redémarre, un `join` qui tombe avant le prochain signal de vie (10 secondes) voit une
+  période hors ligne, ce qui paie moins, jamais plus.
+- `join` verse selon ce régime, puis remet `last_collect_at` à maintenant même quand le gain est nul (plafond nul,
+  aucune usine qui produit) : sans cela, un `collect` ultérieur compterait ces heures au revenu plein. Cela coûte
+  une écriture, donc un coup de version, de plus ; elle n'a lieu que si du temps s'est écoulé.
+- `collect`, `buyLevels` et `restoreStep` versent la production en attente, puis remettent `last_collect_at` à
+  maintenant dans la même écriture que le reste de l'action. `buyLevels` paie donc l'achat avec ce solde, et
+  l'usine ne produit à son nouveau niveau que depuis maintenant. Un `collect` sans temps écoulé ne change rien.
+- `collect` renvoie `offlineHours`, nom du contrat pour les heures comptées : toutes les heures écoulées (il est
+  toujours en ligne), sans plafond. À l'arrivée, `JoinResponse.offlineCollected` donne ce qui a été encaissé au
+  régime hors ligne ; la production versée au régime en ligne va au Donar de l'entreprise (`state.donar`) et n'y
+  figure pas.
 - Sans chef d'équipe, une usine s'arrête quand son stock est plein. Jamais de grève ni d'incident
   pendant une absence.
+
+## La remise en état
+
+Les quatre étapes sont celles de [game-design.md](game-design.md) (dialogue, tâches, livraison, recrutement) ;
+l'opération `restoreStep` en avance une à la fois. Rien dans `definitions/` ne chiffre cette remise en état, donc
+le service tranche ainsi, **à valider par Kr** :
+
+- Les étapes se font dans l'ordre, une fois chacune. `EN_RUINE` n'accepte que l'étape 1 ; `REMISE_EN_ETAT` à
+  l'étape *s* n'accepte que l'étape *s* + 1. Une étape trop loin donne `USINE_VERROUILLEE`, une étape déjà faite
+  ou une usine déjà `ACTIVE` donne `DEJA_POSSEDE`, et rien n'est écrit.
+- Aucune étape ne coûte de Donar : ni `usines.json` ni `economie.json` n'a de prix de remise en état. Le jour où
+  il y en aura un, il va dans `definitions/` et le service le lit ; le chiffre n'entre jamais dans le code.
+- La dernière étape passe l'usine `ACTIVE` au niveau le plus haut entre son niveau (0 en ruine) et
+  `prestige.departDeCourse.niveau`, le niveau où la Carrière démarre chaque course. Une usine remise en état
+  produit donc dès l'étape 4.
+- Chaque étape verse d'abord la production en attente, au régime en ligne (voir « Hors ligne ») : l'usine remise
+  en état ne produit que depuis maintenant.
 
 ## Le prestige et les Lingots
 
 - Le prestige est permis quand les Donar gagnés dans la course atteignent le seuil de la course :
   clé `prestige.seuils`, une entrée par course, et `CompanyState.threshold` côté API. Au-delà des
-  seuils listés, la clé `prestige.etoilesSuivantes` dit comment calculer les suivants.
+  seuils listés, chaque seuil vaut le précédent multiplié par la clé `prestige.facteurSeuilSuivant`
+  (`prestige.etoilesSuivantes` en garde le texte).
 - Les Lingots gagnés suivent la clé `prestige.conversionLingots` :
 
   ```
@@ -116,6 +170,26 @@ profonde, les trois prestiges, puis les six premières étoiles. Les tests doré
 « Paramètres » liste les réglages, dans le même ordre que `economie.json`. Le tableur portait
 encore le nom UrbaFactory : c'est le même fichier.
 
+### Ce que le moteur de la phase 1 a dû trancher
+
+Le moteur (`core/.../economy/`) rejoue le tableur à 1e-14 près en relatif, soit l'arrondi à 15 chiffres
+des JSON dorés et rien d'autre. Pour y arriver, il applique les règles suivantes, toutes **à valider par Kr**
+(points 1, 2, 4, 5 et 6 de `core/src/test/resources/golden/README.md`) :
+
+- Paliers ×2 aux niveaux 25 et 50, puis à chaque multiple de 100 (clé `niveaux.paliersX2`).
+- Lingots du prestige : valeur exacte de la formule, arrondie à l'entier inférieur, sauf si elle tombe à
+  moins de 1e-9 (relatif) d'un entier, auquel cas on garde cet entier (100 Lingots au seuil, pas 99).
+- Le multiplicateur de la course est calculé au départ et figé jusqu'au prestige. Il compte les Lingots
+  gardés tels quels, fractionnaires (le joueur type du tableur en garde la moitié).
+- Époque de la course = min(course, plus grande époque de `usines.json`) ; étoiles = course moins cette
+  époque, jamais négatif.
+- Les seuils de `prestige.seuils` (9 en phase 1) sont ceux du tableur. Au-delà, `prestigeThreshold` multiplie le
+  dernier seuil par `prestige.facteurSeuilSuivant` à chaque course de plus (le texte de `etoilesSuivantes` parlait
+  d'un facteur à recaler pendant l'alpha ; la clé le chiffre). Un seuil qui sortirait des doubles vaut
+  `Double.MAX_VALUE`, pour que l'état d'une entreprise reste toujours calculable. **À valider par Kr.**
+- Affichage : trois chiffres au plus, virgule, décimale tronquée (le tableur écrit « 195.5 M », la charte
+  veut « 195 M »). Sous 1 000, entier arrondi à l'unité la plus proche.
+
 ## Les garde-fous du long terme
 
 - Chaque entrée d'argent a une sortie en face : salaires, rachats, entretien de la ville, intérêts,
@@ -140,3 +214,6 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 
 | Date | Clé | Avant | Après | Pourquoi |
 | --- | --- | --- | --- | --- |
+| 5 nov. 2026 | `prestige.departDeCourse` (`usine`, `niveau`) | absente | `carriere`, niveau `1` | Le tableur démarre chaque course avec la Carrière au niveau 1 (Paramètres!B17), jamais à zéro : règle du jeu sans clé, dont le moteur a besoin. **À valider par Kr** (point 2 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, le rejeu des tests dorés les retrouve. |
+| 5 nov. 2026 | `prestige.facteurSeuilSuivant` | absente (le texte `etoilesSuivantes` parlait d'un facteur à recaler) | `1000` | Le moteur doit donner un seuil à toute course, et `join` ne peut pas tomber au-delà de la 9e : la clé chiffre le texte. **À valider par Kr** (point 5 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, aucune course listée ne change. |
+| 5 nov. 2026 | `monde.json` : `archipel.ecartEntreCases`, `archipel.casesParRangee`, `archipel.origine` (`x`, `z`) | fichier absent | `600`, `64`, `0` et `0` | `CompanyBootstrap.slotOrigin` pose chaque île neuve sur une grille : colonne `N % casesParRangee`, rangée `N / casesParRangee`. 600 blocs reprend l'espace à prévoir par joueur ([game-design.md](game-design.md), section Technique) ; la largeur de 64 cases et l'origine en (0, 0) sont des valeurs de départ, à recaler quand le monde sera posé. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |

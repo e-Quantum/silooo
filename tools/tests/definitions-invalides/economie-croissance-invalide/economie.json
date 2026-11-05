@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "niveaux": {
+    "croissancePrix": 1,
+    "formulePrix": "prix(n -> n+k) = prixNiveau1 * croissance^n * (croissance^k - 1) / (croissance - 1)",
+    "paliersX2": {
+      "fixes": [
+        25,
+        50
+      ],
+      "ensuiteTous": 100,
+      "commentaire": "production x2 a 25, 50, puis tous les 100 niveaux"
+    }
+  },
+  "horsLigne": {
+    "plafondHeures": 8,
+    "efficacite": 0.3
+  },
+  "prestige": {
+    "seuils": [
+      {
+        "course": 1,
+        "fin": "1er prestige, epoque 2",
+        "donar": 1000000000
+      },
+      {
+        "course": 2,
+        "fin": "2e prestige, epoque 3",
+        "donar": 500000000000
+      },
+      {
+        "course": 3,
+        "fin": "3e prestige, epoque 4",
+        "donar": 1000000000000000
+      },
+      {
+        "course": 4,
+        "fin": "etoile 1",
+        "donar": 200000000000000000
+      },
+      {
+        "course": 5,
+        "fin": "etoile 2",
+        "donar": 500000000000000000000
+      },
+      {
+        "course": 6,
+        "fin": "etoile 3",
+        "donar": 5e+23
+      },
+      {
+        "course": 7,
+        "fin": "etoile 4",
+        "donar": 3e+26
+      },
+      {
+        "course": 8,
+        "fin": "etoile 5",
+        "donar": 3e+29
+      },
+      {
+        "course": 9,
+        "fin": "etoile 6",
+        "donar": 1e+32
+      }
+    ],
+    "etoilesSuivantes": "seuil precedent x 1000 (a recaler pendant l'alpha)",
+    "facteurSeuilSuivant": 1000,
+    "conversionLingots": {
+      "coefficient": 10,
+      "diviseurReference": 1000,
+      "formule": "lingots = coefficient * cbrt(donarGagnes / (seuil / diviseurReference))"
+    },
+    "productionParEtoile": 300,
+    "bonusParLingotDetenu": 0.01
+  },
+  "lingotsHorsPrestige": {
+    "missionBienvenue": 10,
+    "moyenneParHeureDeJeu": 1
+  },
+  "ville": {
+    "zonesPrixLingots": [
+      5,
+      10,
+      15,
+      20,
+      30,
+      40,
+      50,
+      60,
+      75,
+      90,
+      110,
+      130,
+      150,
+      180,
+      200,
+      235
+    ]
+  },
+  "notation": {
+    "apresMd": "aa = 1e12, ab = 1e15, ... deux lettres par puissance de 1000",
+    "limiteDouble": "environ 1e308 (suffixe du)"
+  }
+}

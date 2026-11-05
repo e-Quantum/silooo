@@ -1,0 +1,26 @@
+# Ce qui n'entre pas dans le contexte de construction de l'image :
+#   docker build -f core/Dockerfile -t silooo-core .
+# Le contexte est la racine du dépôt. Ce fichier porte le nom du Dockerfile suivi de « .dockerignore » : BuildKit
+# l'utilise à la place d'un .dockerignore à la racine (que le dépôt n'a pas).
+
+# On exclut tout, puis on rouvre ce que l'image lit : le code de core/ et les chiffres du jeu.
+# Un nouveau dossier à la racine n'entre donc jamais dans l'image par accident.
+*
+
+!core/gradlew
+!core/settings.gradle.kts
+!core/build.gradle.kts
+!core/gradle.properties
+!core/gradle
+!core/src
+!definitions
+
+# Les tests tournent dans la CI (job verifier), pas dans l'image. Les schémas JSON servent aux outils, pas au service.
+core/src/test
+definitions/schemas
+
+# Jamais de secret dans une image : fichiers d'environnement, clés, certificats, où qu'ils soient.
+**/.env
+**/.env.*
+**/*.key
+**/*.pem

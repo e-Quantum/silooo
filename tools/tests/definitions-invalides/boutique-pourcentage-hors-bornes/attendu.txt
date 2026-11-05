@@ -1,0 +1,1 @@
+$.packsGemmes[1].bonusPourcent: doit être au plus 100

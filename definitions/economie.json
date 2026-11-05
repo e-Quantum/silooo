@@ -65,13 +65,18 @@
       }
     ],
     "etoilesSuivantes": "seuil precedent x 1000 (a recaler pendant l'alpha)",
+    "facteurSeuilSuivant": 1000,
     "conversionLingots": {
       "coefficient": 10,
       "diviseurReference": 1000,
       "formule": "lingots = coefficient * cbrt(donarGagnes / (seuil / diviseurReference))"
     },
     "productionParEtoile": 300,
-    "bonusParLingotDetenu": 0.01
+    "bonusParLingotDetenu": 0.01,
+    "departDeCourse": {
+      "usine": "carriere",
+      "niveau": 1
+    }
   },
   "lingotsHorsPrestige": {
     "missionBienvenue": 10,

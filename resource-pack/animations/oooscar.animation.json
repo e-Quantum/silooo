@@ -1,0 +1,45 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.silooo_oooscar.balancement": {
+      "loop": true,
+      "animation_length": 4.0,
+      "bones": {
+        "corps": {
+          "rotation": [0, 0, "math.sin(query.anim_time * 90.0) * 1.5"],
+          "position": [0, "math.sin(query.anim_time * 180.0) * 0.25", 0]
+        },
+        "toit": {
+          "rotation": [0, "math.sin(query.anim_time * 90.0 - 50.0) * 2.0", "math.sin(query.anim_time * 90.0 - 40.0) * 1.5"]
+        }
+      }
+    },
+    "animation.silooo_oooscar.accueil": {
+      "loop": false,
+      "animation_length": 2.0,
+      "bones": {
+        "bras_g": {
+          "rotation": {
+            "0.0": [0, 0, 0],
+            "0.3": [-110, 0, 0],
+            "0.6": [-92, 0, 0],
+            "0.9": [-114, 0, 0],
+            "1.2": [-92, 0, 0],
+            "1.5": [-110, 0, 0],
+            "2.0": [0, 0, 0]
+          }
+        },
+        "toit": {
+          "position": {
+            "0.0": [0, 0, 0],
+            "0.15": [0, 2, 0],
+            "0.3": [0, 0, 0],
+            "0.5": [0, 1, 0],
+            "0.65": [0, 0, 0],
+            "2.0": [0, 0, 0]
+          }
+        }
+      }
+    }
+  }
+}

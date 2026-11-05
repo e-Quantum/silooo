@@ -15,7 +15,8 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | Toucher au service (`core/`) | [architecture.md](architecture.md), [socle.md](socle.md), [base-de-donnees.md](base-de-donnees.md), `api/silooo-core.openapi.yaml` | `silooo-route` |
 | Ajouter ou changer une route | `api/silooo-core.openapi.yaml` d'abord, puis [architecture.md](architecture.md) | `silooo-route` |
 | Écrire une migration | [base-de-donnees.md](base-de-donnees.md), `core/src/main/resources/db/migration/` | |
-| Changer un prix, un gain, une usine | [economie.md](economie.md), `definitions/`, `docs/references/silooo-equilibrage-v2.xlsx` | `silooo-equilibrage` |
+| Changer un prix, un gain, un seuil | [economie.md](economie.md), `definitions/`, `docs/references/silooo-equilibrage-v2.xlsx` | `silooo-equilibrage` |
+| Ajouter ou régler une usine | [game-design.md](game-design.md) « Catalogue des usines », [economie.md](economie.md), `definitions/usines.json` et `definitions/schemas/` | `silooo-equilibrage`, section « Ajouter une usine » |
 | Toucher à `addon/` ou `resource-pack/` | [bedrock.md](bedrock.md), [architecture.md](architecture.md), [design.md](design.md) | `silooo-ecran` |
 | Dessiner un écran ou écrire pour les joueurs | [design.md](design.md), `design/README.md`, `design/composants/`, [anti-ia.md](anti-ia.md) | `silooo-ecran` |
 | Déployer (jamais sans Kr pour la base, le port, le DNS) | [deploiement.md](deploiement.md), [direction.md](direction.md) | |
@@ -47,7 +48,16 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 
 ## Le socle, hors de `docs/`
 
-- `definitions/` : les chiffres du jeu (usines, économie, boutique) et leurs schémas dans `definitions/schemas/`.
+- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles, iles : la forme des mini-îles et la cinématique) et leurs schémas dans `definitions/schemas/`.
 - `api/silooo-core.openapi.yaml` : le contrat entre l'add-on et silooo-core, 29 opérations.
 - `core/src/main/resources/db/migration/` : les migrations Flyway, V1 en tête.
 - `design/` : le design system Silooo Atelier (charte, composants, textures, icônes, Oooscar, logo).
+- `addon/` : le pack de comportement (TypeScript, `server-net`), ses écrans dans `addon/src/ui/`, ses textes dans
+  `addon/src/ui/textes.ts`, son monde dans `addon/src/monde/`, son dossier statique `addon/pack/` ; `addon/README.md`
+  liste les textes à valider.
+- `resource-pack/` : le pack de ressources (JSON UI du HUD, textures copiées de `design/`, Oooscar côté client) ;
+  `tools/verifier_pack.mjs` contrôle les copies.
+- `deploy/` : images, `compose.yml`, scripts de déploiement et de sauvegarde ; `deploy/README.md` et
+  [deploiement.md](deploiement.md).
+- `tools/` : `verifier.sh` et les contrôles qu'il enchaîne (`verifier_definitions.mjs`, `generer_types.mjs`,
+  `anti_ia.py`, `verifier_pack.mjs`), leurs tests dans `tools/tests/`.

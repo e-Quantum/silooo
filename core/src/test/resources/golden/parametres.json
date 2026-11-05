@@ -1,0 +1,306 @@
+{
+  "columns": {
+    "factories": {
+      "era": {
+        "column": "B",
+        "label": "Époque"
+      },
+      "level1Price": {
+        "column": "C",
+        "label": "Prix du niveau 1 (Donar)",
+        "unit": "Donar"
+      },
+      "name": {
+        "column": "A",
+        "label": "Usine"
+      },
+      "paybackHours": {
+        "column": "E",
+        "label": "Retour sur investissement du niveau 1 (h)",
+        "unit": "h"
+      },
+      "productionPerLevel": {
+        "column": "D",
+        "label": "Production par niveau (Donar/h, salaires déduits)",
+        "unit": "Donar/h"
+      }
+    },
+    "settings": {
+      "calculated": {
+        "note": "vrai pour le seul réglage qui est une formule (B8)"
+      },
+      "explanation": {
+        "column": "C",
+        "label": "Explication"
+      },
+      "label": {
+        "column": "A",
+        "label": "Réglage"
+      },
+      "value": {
+        "column": "B",
+        "label": "Valeur"
+      }
+    }
+  },
+  "factories": [
+    {
+      "era": 1,
+      "level1Price": 100,
+      "name": "Carrière",
+      "paybackHours": 0.0416666666666667,
+      "productionPerLevel": 2400,
+      "row": 22
+    },
+    {
+      "era": 1,
+      "level1Price": 7000,
+      "name": "Scierie",
+      "paybackHours": 0.416666666666667,
+      "productionPerLevel": 16800,
+      "row": 23
+    },
+    {
+      "era": 1,
+      "level1Price": 120000,
+      "name": "Ferme",
+      "paybackHours": 1.02040816326531,
+      "productionPerLevel": 117600,
+      "row": 24
+    },
+    {
+      "era": 1,
+      "level1Price": 3500000,
+      "name": "Mine profonde",
+      "paybackHours": 4.25170068027211,
+      "productionPerLevel": 823200,
+      "row": 25
+    },
+    {
+      "era": 2,
+      "level1Price": 6000000,
+      "name": "Fonderie",
+      "paybackHours": 1.5,
+      "productionPerLevel": 4000000,
+      "row": 26
+    },
+    {
+      "era": 2,
+      "level1Price": 180000000,
+      "name": "Atelier d'outils",
+      "paybackHours": 3.75,
+      "productionPerLevel": 48000000,
+      "row": 27
+    },
+    {
+      "era": 2,
+      "level1Price": 5400000000,
+      "name": "Briqueterie",
+      "paybackHours": 9.375,
+      "productionPerLevel": 576000000,
+      "row": 28
+    },
+    {
+      "era": 2,
+      "level1Price": 60000000000,
+      "name": "Élevage",
+      "paybackHours": 8.69565217391304,
+      "productionPerLevel": 6900000000,
+      "row": 29
+    },
+    {
+      "era": 3,
+      "level1Price": 1000000000,
+      "name": "Centrale",
+      "paybackHours": 1.66666666666667,
+      "productionPerLevel": 600000000,
+      "row": 30
+    },
+    {
+      "era": 3,
+      "level1Price": 20000000000,
+      "name": "Verrerie",
+      "paybackHours": 6.06060606060606,
+      "productionPerLevel": 3300000000,
+      "row": 31
+    },
+    {
+      "era": 3,
+      "level1Price": 200000000000,
+      "name": "Menuiserie",
+      "paybackHours": 11.1111111111111,
+      "productionPerLevel": 18000000000,
+      "row": 32
+    },
+    {
+      "era": 3,
+      "level1Price": 2000000000000,
+      "name": "Conserverie",
+      "paybackHours": 20,
+      "productionPerLevel": 100000000000,
+      "row": 33
+    },
+    {
+      "era": 3,
+      "level1Price": 15000000000000,
+      "name": "Usine textile",
+      "paybackHours": 27.2727272727273,
+      "productionPerLevel": 550000000000,
+      "row": 34
+    },
+    {
+      "era": 4,
+      "level1Price": 20000000000,
+      "name": "Usine de robots",
+      "paybackHours": 0.2,
+      "productionPerLevel": 100000000000,
+      "row": 35
+    },
+    {
+      "era": 4,
+      "level1Price": 10000000000000,
+      "name": "Cristallerie",
+      "paybackHours": 1,
+      "productionPerLevel": 10000000000000,
+      "row": 36
+    }
+  ],
+  "note": "Les prix et productions sont des propositions de calibrage issues d'une simulation (joueur qui achète toujours le palier le plus rentable) ; chaque époque vaut environ mille fois la précédente, ce qui fait défiler les lettres.",
+  "settings": {
+    "lingotsConversionCoefficient": {
+      "calculated": false,
+      "cell": "B11",
+      "displayFormat": "0",
+      "explanation": "Lingots = coefficient × racine cubique (Donar gagnés ÷ référence).",
+      "label": "Coefficient de conversion en Lingots",
+      "unit": "",
+      "value": 10
+    },
+    "lingotsConversionDivisor": {
+      "calculated": false,
+      "cell": "B12",
+      "displayFormat": "#,##0",
+      "explanation": "Référence = seuil ÷ ce nombre : au seuil, la racine cubique vaut 10.",
+      "label": "Diviseur de référence (seuil ÷ …)",
+      "unit": "",
+      "value": 1000
+    },
+    "lingotsKeptShare": {
+      "calculated": false,
+      "cell": "B10",
+      "displayFormat": "0%",
+      "explanation": "Le joueur type garde la moitié pour le bonus et dépense l'autre en ville.",
+      "label": "Part des Lingots gardés (non dépensés en ville)",
+      "unit": "fraction",
+      "value": 0.5
+    },
+    "missionLingotsPerPlayHour": {
+      "calculated": false,
+      "cell": "B15",
+      "displayFormat": "0.0",
+      "explanation": "Commandes mondiales, missions, votes : moyenne par heure de jeu. Proposition.",
+      "label": "Lingots de missions par heure de jeu",
+      "unit": "Lingots/h",
+      "value": 1
+    },
+    "offlineCapHours": {
+      "calculated": false,
+      "cell": "B5",
+      "displayFormat": "0\" h\"",
+      "explanation": "Décision de cadrage : 8 h au départ, extensible.",
+      "label": "Plafond de production hors ligne",
+      "unit": "h",
+      "value": 8
+    },
+    "offlineEfficiency": {
+      "calculated": false,
+      "cell": "B6",
+      "displayFormat": "0%",
+      "explanation": "Part de la production en ligne obtenue hors ligne. Proposition de calibrage.",
+      "label": "Efficacité hors ligne",
+      "unit": "fraction",
+      "value": 0.3
+    },
+    "offlineMultiplier": {
+      "calculated": true,
+      "cell": "B8",
+      "displayFormat": "0.00\\×",
+      "explanation": "Calculé : 1 + MIN(plafond ; 24 − heures de jeu) × efficacité ÷ heures de jeu.",
+      "label": "Multiplicateur hors ligne",
+      "unit": "×",
+      "value": 2.6
+    },
+    "playHoursPerDay": {
+      "calculated": false,
+      "cell": "B7",
+      "displayFormat": "0.0\" h\"",
+      "explanation": "Sert à ramener le hors-ligne aux heures de jeu.",
+      "label": "Heures de jeu par jour (joueur type)",
+      "unit": "h",
+      "value": 1.5
+    },
+    "priceGrowthPerLevel": {
+      "calculated": false,
+      "cell": "B4",
+      "displayFormat": "0.00\\×",
+      "explanation": "Chaque niveau d'une usine coûte ce multiple du précédent. Le réglage le plus sensible : +0,01 rallonge nettement tout le jeu.",
+      "label": "Croissance du prix par niveau",
+      "unit": "×",
+      "value": 1.11
+    },
+    "productionBonusPerLingotKept": {
+      "calculated": false,
+      "cell": "B9",
+      "displayFormat": "0.0%",
+      "explanation": "Décision de cadrage : +1 % par Lingot détenu.",
+      "label": "Bonus de production par Lingot gardé",
+      "unit": "fraction",
+      "value": 0.01
+    },
+    "productionPerStar": {
+      "calculated": false,
+      "cell": "B16",
+      "displayFormat": "#,##0\\×",
+      "explanation": "Permanent. Avec un seuil ×1 000 environ par étoile, chaque étoile ajoute à peu près une lettre (ac, ad, ae…).",
+      "label": "Production multipliée par chaque étoile",
+      "unit": "×",
+      "value": 300
+    },
+    "startingCarriereLevel": {
+      "calculated": false,
+      "cell": "B17",
+      "displayFormat": "0",
+      "explanation": "Possédée au départ, niveau 1.",
+      "label": "Niveau de la Carrière au début d'une course",
+      "unit": "niveau",
+      "value": 1
+    },
+    "welcomeLingots": {
+      "calculated": false,
+      "cell": "B13",
+      "displayFormat": "0",
+      "explanation": "Donnés vers 1 h de jeu, pour la 1re zone.",
+      "label": "Lingots de bienvenue (mission de la mairie)",
+      "unit": "Lingots",
+      "value": 10
+    },
+    "welcomeMissionHour": {
+      "calculated": false,
+      "cell": "B14",
+      "displayFormat": "0.0\" h\"",
+      "explanation": "Cible « 1re zone de ville vers 1 heure ».",
+      "label": "Heure de la mission de bienvenue",
+      "unit": "h",
+      "value": 1
+    }
+  },
+  "source": {
+    "file": "docs/references/silooo-equilibrage-v2.xlsx",
+    "generator": "tools/tableur/extraire.py",
+    "sha256": "553035cc854e45b506f062e633dc051068621ab1fa0178009bf107e8068e4652",
+    "sheets": [
+      "Paramètres"
+    ],
+    "warning": "Fichier généré par tools/tableur/extraire.py : ne pas modifier à la main."
+  }
+}

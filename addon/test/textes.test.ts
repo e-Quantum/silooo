@@ -1,0 +1,270 @@
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, it } from "node:test";
+import { REFUSAL_REASONS } from "../src/protocol";
+import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, colored } from "../src/ui/apparence";
+import {
+  BOUSSOLE_TEXTES,
+  BULLES,
+  CINEMATIQUE_TEXTES,
+  FACTORY_NAMES,
+  FICHE_TEXTES,
+  HUD_TEXTES,
+  MENU_TEXTES,
+  REFUSAL_BUBBLE_REASONS,
+  SILO_TEXTES,
+  USINES_TEXTES,
+  factoryName,
+  failureBubble,
+  refusalBubble,
+  renderBubble,
+  type Bubble,
+} from "../src/ui/textes";
+
+const mots = (texte: string): string[] => texte.split(/\s+/).filter((mot) => mot !== "");
+
+/** Toutes les bulles qu'Oooscar peut dire : les fixes, un refus par code (avec et sans somme), un échec par sorte. */
+function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
+  const liste: Array<{ nom: string; bulle: Bubble }> = Object.entries(BULLES).map(([nom, bulle]) => ({ nom, bulle }));
+  for (const code of REFUSAL_BUBBLE_REASONS) {
+    for (const somme of [undefined, 0, 1, 120, 1_500, 123_456_789_012, 3e29, 5e120]) {
+      liste.push({ nom: `${code} ${somme ?? "sans somme"}`, bulle: refusalBubble(code, somme) });
+    }
+  }
+  for (const failure of ["network", "error", "unavailable"] as const) {
+    for (const reason of ["RESEAU", "PAS_FAIT", "ERREUR_INTERNE"]) {
+      liste.push({ nom: `${failure} ${reason}`, bulle: failureBubble(failure, reason) });
+    }
+  }
+  return liste;
+}
+
+describe("bulles d'Oooscar", () => {
+  it("six mots au plus, une des cinq expressions, pas de saut de ligne", () => {
+    for (const { nom, bulle } of toutesLesBulles()) {
+      assert.ok(mots(bulle.text).length <= 6, `${nom} : « ${bulle.text} » a plus de six mots`);
+      assert.ok(EXPRESSIONS.includes(bulle.expression), `${nom} : expression ${bulle.expression}`);
+      assert.doesNotMatch(bulle.text, /\n/);
+    }
+  });
+
+  it("chaque code `reason` de l'OpenAPI a sa bulle, et rien d'autre", () => {
+    const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+    const debut = yaml.indexOf("    Refused:");
+    assert.notEqual(debut, -1);
+    const ouvre = yaml.indexOf("[", yaml.indexOf("enum:", debut));
+    const ferme = yaml.indexOf("]", ouvre);
+    const contrat = yaml
+      .slice(ouvre + 1, ferme)
+      .split(",")
+      .map((code) => code.trim())
+      .filter((code) => code !== "");
+    assert.deepEqual([...REFUSAL_BUBBLE_REASONS].sort(), [...contrat].sort());
+    assert.deepEqual([...REFUSAL_BUBBLE_REASONS].sort(), [...REFUSAL_REASONS].sort());
+  });
+
+  it("un refus qui demande une somme la dit, sans somme il garde une phrase complète", () => {
+    assert.equal(refusalBubble("PAS_ASSEZ_DE_DONAR", 120).text, "Il te manque 120 Donar.");
+    assert.equal(refusalBubble("PAS_ASSEZ_DE_LINGOTS", 3).text, "Il te manque 3 Lingots.");
+    assert.equal(refusalBubble("PAS_ASSEZ_DE_GEMMES", 2).text, "Il te manque 2 Gemmes.");
+    assert.equal(refusalBubble("PAS_ASSEZ_DE_DONAR").text, "Il te manque du Donar.");
+  });
+
+  it("un code que l'add-on ne connaît pas donne la phrase de repli, jamais une exception", () => {
+    assert.equal(refusalBubble("CODE_DU_FUTUR"), BULLES.refusInconnu);
+    assert.equal(refusalBubble("constructor"), BULLES.refusInconnu);
+    assert.equal(refusalBubble("toString", 5), BULLES.refusInconnu);
+  });
+
+  it("DEJA_POSSEDE est la seule bulle fière : on n'est pas fier d'un refus", () => {
+    const fieres = REFUSAL_BUBBLE_REASONS.filter((code) => refusalBubble(code).expression === "fier");
+    assert.deepEqual(fieres, ["DEJA_POSSEDE"]);
+  });
+
+  it("les situations de panique sont celles où le service ne répond pas", () => {
+    assert.equal(failureBubble("network", "RESEAU").expression, "panique");
+    assert.equal(failureBubble("unavailable", "X").expression, "panique");
+    assert.equal(failureBubble("error", "ERREUR_INTERNE").expression, "panique");
+    assert.equal(failureBubble("error", "PAS_FAIT").expression, "oups");
+  });
+
+  it("la bulle s'écrit sur une ligne : nom, repère de l'expression, phrase", () => {
+    assert.equal(renderBubble(BULLES.bientot).replaceAll(/§./g, ""), "Oooscar [oups] Pas encore disponible.");
+    assert.ok(renderBubble(BULLES.montee).startsWith(COLOR.muted));
+  });
+
+  it("les cinq expressions sont celles des images de design/mascotte, ni plus ni moins", () => {
+    const fichiers = readdirSync(resolve("..", "design", "mascotte"))
+      .filter((nom) => nom.endsWith(".svg"))
+      .map((nom) => nom.replace(/^oooscar-/, "").replace(/\.svg$/, ""))
+      .sort();
+    assert.deepEqual([...EXPRESSIONS].sort(), fichiers);
+    assert.deepEqual(Object.keys(EXPRESSION_MARK).sort(), fichiers);
+  });
+});
+
+describe("noms des usines", () => {
+  it("recopient definitions/usines.json : mêmes identifiants, mêmes noms", () => {
+    const donnees = JSON.parse(readFileSync(resolve("..", "definitions", "usines.json"), "utf8")) as {
+      usines: Array<{ id: string; nom: string }>;
+    };
+    assert.deepEqual(
+      Object.entries(FACTORY_NAMES).sort(([a], [b]) => a.localeCompare(b)),
+      donnees.usines.map((u) => [u.id, u.nom] as [string, string]).sort(([a], [b]) => a.localeCompare(b)),
+    );
+  });
+
+  it("un identifiant que l'add-on ne connaît pas encore devient un nom lisible", () => {
+    assert.equal(factoryName("carriere"), "Carrière");
+    assert.equal(factoryName("usine-neuve"), "Usine neuve");
+    assert.equal(factoryName("tour"), "Tour");
+    assert.equal(factoryName("constructor"), "Constructor");
+    assert.equal(factoryName("-"), "-");
+    assert.equal(factoryName(""), "");
+  });
+});
+
+// ---------------------------------------------------------------- règles d'écriture
+
+/** Tous les textes fixes des écrans, avec leur chemin, pour les contrôles de style. Les fonctions sont appelées avec des mots d'essai. */
+function feuilles(valeur: unknown, chemin: string): Array<{ chemin: string; texte: string }> {
+  if (typeof valeur === "string") return [{ chemin, texte: valeur }];
+  if (typeof valeur === "function") {
+    const appel = valeur as (...args: unknown[]) => unknown;
+    const nombres = [appel(0, 0, 0), appel(1, 2, "x"), appel(2, 4, "x")].filter((t): t is string => typeof t === "string");
+    const textes = [appel("a", "b", "c")].filter((t): t is string => typeof t === "string");
+    return [...nombres, ...textes].map((texte) => ({ chemin: `${chemin}()`, texte }));
+  }
+  if (Array.isArray(valeur)) return valeur.flatMap((v, i) => feuilles(v, `${chemin}[${i}]`));
+  if (typeof valeur === "object" && valeur !== null) {
+    return Object.entries(valeur).flatMap(([cle, v]) => feuilles(v, `${chemin}.${cle}`));
+  }
+  return [];
+}
+
+const TOUS = [
+  ...feuilles(HUD_TEXTES, "HUD_TEXTES"),
+  ...feuilles(BOUSSOLE_TEXTES, "BOUSSOLE_TEXTES"),
+  ...feuilles(MENU_TEXTES, "MENU_TEXTES"),
+  ...feuilles(USINES_TEXTES, "USINES_TEXTES"),
+  ...feuilles(FICHE_TEXTES, "FICHE_TEXTES"),
+  ...feuilles(SILO_TEXTES, "SILO_TEXTES"),
+  ...feuilles(CINEMATIQUE_TEXTES, "CINEMATIQUE_TEXTES"),
+  ...toutesLesBulles().map(({ nom, bulle }) => ({ chemin: `bulle ${nom}`, texte: bulle.text })),
+];
+
+describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () => {
+  it("le contrôle trouve les textes", () => {
+    assert.ok(TOUS.length > 100);
+  });
+
+  it("ni emoji, ni point de suspension, ni « !! », ni tiret cadratin, ni question", () => {
+    for (const { chemin, texte } of TOUS) {
+      assert.doesNotMatch(texte, /\p{Extended_Pictographic}/u, chemin);
+      assert.doesNotMatch(texte, /\.\.\.|…|!!|—|\?/, `${chemin} : ${texte}`);
+    }
+  });
+
+  it("tutoiement : jamais « vous », « votre » ni « vos »", () => {
+    for (const { chemin, texte } of TOUS) assert.doesNotMatch(texte, /\b(vous|votre|vos)\b/i, chemin);
+  });
+
+  it("les titres de fenêtre sont en capitales, d'un ou deux mots", () => {
+    for (const titre of [MENU_TEXTES.titre, USINES_TEXTES.titre, FICHE_TEXTES.titre, SILO_TEXTES.titre]) {
+      assert.match(titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
+    }
+  });
+
+  it("la phrase d'une fiche tient en dix mots, sur une ligne", () => {
+    for (const phrase of Object.values(FICHE_TEXTES.phrase)) {
+      assert.ok(mots(phrase).length <= 10, phrase);
+      assert.doesNotMatch(phrase, /\n/);
+    }
+  });
+
+  it("les boutons sont courts et sans ponctuation finale ; ceux d'action tiennent en un seul mot", () => {
+    const boutons = [
+      SILO_TEXTES.encaisser,
+      ...Object.values(FICHE_TEXTES.monter),
+      ...FICHE_TEXTES.etapes.map((etape) => etape.bouton),
+      MENU_TEXTES.retour,
+      USINES_TEXTES.precedent,
+      USINES_TEXTES.suite,
+    ];
+    for (const bouton of boutons) {
+      assert.ok(mots(bouton).length >= 1 && mots(bouton).length <= 4, bouton);
+      assert.doesNotMatch(bouton, /[.!?]$/, bouton);
+    }
+    for (const bouton of [SILO_TEXTES.encaisser, ...FICHE_TEXTES.etapes.map((etape) => etape.bouton)]) {
+      assert.equal(mots(bouton).length, 1, bouton);
+    }
+  });
+
+  it("la cinématique : Oooscar parle, une phrase de huit mots au plus par plan, sur une ligne", () => {
+    assert.equal(CINEMATIQUE_TEXTES.qui, "Oooscar");
+    assert.equal(CINEMATIQUE_TEXTES.plans.length, 4);
+    for (const phrase of CINEMATIQUE_TEXTES.plans) {
+      assert.ok(mots(phrase).length >= 1 && mots(phrase).length <= 8, phrase);
+      assert.doesNotMatch(phrase, /\n/);
+      assert.match(phrase, /[.]$/, "une phrase finit par un point");
+    }
+    assert.ok(mots(CINEMATIQUE_TEXTES.passer).length <= 8);
+  });
+
+  it("aucun texte ne dépasse deux lignes", () => {
+    for (const { chemin, texte } of TOUS) {
+      assert.ok(texte.split("\n").length <= 2, chemin);
+    }
+  });
+
+  it("l'habillage n'ajoute que des codes de couleur, des repères entre crochets et un nom", () => {
+    assert.equal(colored(COLOR.donar, "x"), `${COLOR.donar}x${COLOR.reset}`);
+    for (const repere of Object.values(ICON)) assert.match(repere, /^\[[A-Z!]\]$/);
+    for (const repere of Object.values(EXPRESSION_MARK)) assert.match(repere, /^\[[a-z]+\]$/);
+    for (const code of Object.values(COLOR)) assert.match(code, /^§[0-9a-v]$/);
+  });
+});
+
+// ---------------------------------------------------------------- tout est dans le README, « à valider par Kr »
+
+describe("addon/README.md, section « Textes à valider »", () => {
+  const readme = readFileSync(resolve("README.md"), "utf8");
+  const debut = readme.indexOf("## Textes à valider");
+  const fin = readme.indexOf("\n## ", debut + 1);
+  const section = debut < 0 ? "" : readme.slice(debut, fin < 0 ? undefined : fin);
+
+  it("existe", () => {
+    assert.ok(debut >= 0, "la section « Textes à valider » manque");
+    assert.match(section, /à valider par Kr/);
+  });
+
+  it("donne l'avant (rien : ces écrans sont nouveaux) et l'après", () => {
+    assert.match(section, /\| Où \| Avant \| Après \|/);
+    assert.match(section, /rien/);
+  });
+
+  it("contient chaque morceau de texte de ui/textes.ts, sans exception", () => {
+    const source = readFileSync(resolve("src", "ui", "textes.ts"), "utf8");
+    // On enlève les imports, les commentaires et la table des noms d'usines (elle recopie definitions/usines.json).
+    const sansNoms = source.replace(/export const FACTORY_NAMES[\s\S]*?\n};/, "");
+    const lignes = sansNoms
+      .split("\n")
+      .filter((ligne) => !/^\s*(import |\/\/|\*|\/\*)/.test(ligne))
+      .join("\n");
+    const morceaux = new Set<string>();
+    for (const m of lignes.matchAll(/"((?:[^"\\\n]|\\.)*)"(?!\s*:)/g)) morceaux.add(m[1] ?? "");
+    for (const m of lignes.matchAll(/`((?:[^`\\]|\\.)*)`/g)) {
+      for (const part of (m[1] ?? "").split(/\$\{[^}]*\}/)) morceaux.add(part);
+    }
+    const cherches = [...morceaux].map((morceau) => morceau.trim()).filter((morceau) => morceau.length >= 3);
+    assert.ok(cherches.length > 60, `${cherches.length} morceaux trouvés : le contrôle est cassé`);
+    const manquants = cherches.filter((morceau) => !section.includes(morceau));
+    assert.deepEqual(manquants, [], "ces textes ne sont pas dans la section « Textes à valider » du README");
+  });
+
+  it("dit où sont les noms d'usines et les repères provisoires, qui ne sont pas des textes de ui/textes.ts", () => {
+    assert.match(section, /definitions\/usines\.json/);
+    assert.match(section, /ui\/apparence\.ts/);
+  });
+});

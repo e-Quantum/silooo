@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "grades": [
+    { "id": "legende", "nom": "Légende" },
+    { "id": "ultime", "nom": "Ultime" }
+  ],
+  "abonnements": [
+    { "id": "perso", "reserveA": "ultime" }
+  ],
+  "texte": "Le grade Ultime donne le plus gros bonus de Donar."
+}
