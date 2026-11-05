@@ -4,6 +4,7 @@ import com.silooo.core.definitions.DefinitionsLoader
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.time.Duration
 
 /** Une variable d'environnement absente ou invalide. Le message les liste toutes d'un coup. */
 class ConfigException(message: String) : Exception(message)
@@ -16,9 +17,19 @@ data class DatabaseConfig(val url: String, val user: String, val password: Strin
 /**
  * Tout ce qu'il faut pour démarrer le service. La clé ne s'affiche jamais.
  * [definitionsDir] est le dossier qui contient economie.json, usines.json et boutique.json.
+ *
+ * [apiRequestRetention] : combien de temps `api_requests` garde une réponse pour la rejouer ; au-delà,
+ * la ligne est purgée (voir [Config.API_REQUESTS_RETENTION_HOURS]).
  */
-data class ServiceConfig(val port: Int, val apiKey: String, val database: DatabaseConfig, val definitionsDir: Path) {
-    override fun toString() = "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir)"
+data class ServiceConfig(
+    val port: Int,
+    val apiKey: String,
+    val database: DatabaseConfig,
+    val definitionsDir: Path,
+    val apiRequestRetention: Duration = Duration.ofHours(Config.DEFAULT_API_REQUESTS_RETENTION_HOURS),
+) {
+    override fun toString() =
+        "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention)"
 }
 
 /**
@@ -33,6 +44,23 @@ object Config {
     const val DB_PASSWORD = "SILOOO_DB_PASSWORD"
     const val API_KEY = "SILOOO_API_KEY"
     const val DEFINITIONS_DIR = "SILOOO_DEFINITIONS_DIR"
+
+    /**
+     * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
+     * un chiffre du jeu : un rejeu arrive dans les secondes ou les minutes qui suivent une coupure, jamais
+     * des jours plus tard.
+     */
+    const val API_REQUESTS_RETENTION_HOURS = "SILOOO_API_REQUESTS_RETENTION_HOURS"
+
+    /**
+     * 24 heures quand la variable n'est pas posée : très au-delà de n'importe quel nouvel essai de l'add-on,
+     * et assez court pour que la table ne grossisse pas dans la base partagée avec SileneMC (une ligne par
+     * action, avec l'état de l'entreprise en réponse).
+     */
+    const val DEFAULT_API_REQUESTS_RETENTION_HOURS = 24L
+
+    /** Garde-fou : une faute de frappe ne doit pas garder les réponses un siècle (une année au plus). */
+    const val MAX_API_REQUESTS_RETENTION_HOURS = 8760L
 
     /** Port d'écoute quand `SILOOO_PORT` n'est pas posé : celui de l'OpenAPI (`http://silooo-core:8080`). */
     const val DEFAULT_PORT = 8080
@@ -59,8 +87,11 @@ object Config {
         val apiKey = reader.required(API_KEY)
         val port = reader.port()
         val definitionsDir = reader.definitionsDir(workingDir)
+        val retention = reader.apiRequestRetention()
         reader.finish()
-        return ServiceConfig(checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir))
+        return ServiceConfig(
+            checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
+        )
     }
 
     /**
@@ -128,6 +159,17 @@ object Config {
                 return null
             }
             return port
+        }
+
+        fun apiRequestRetention(): Duration? {
+            val raw = env[API_REQUESTS_RETENTION_HOURS]
+            if (raw.isNullOrBlank()) return Duration.ofHours(DEFAULT_API_REQUESTS_RETENTION_HOURS)
+            val hours = raw.trim().toLongOrNull()
+            if (hours == null || hours !in 1..MAX_API_REQUESTS_RETENTION_HOURS) {
+                problems += "$API_REQUESTS_RETENTION_HOURS doit être un nombre entier d'heures entre 1 et $MAX_API_REQUESTS_RETENTION_HOURS"
+                return null
+            }
+            return Duration.ofHours(hours)
         }
 
         fun finish() {
