@@ -63,6 +63,78 @@ class EconomyEngine(private val definitions: Definitions) {
     }
 
     /**
+     * Le niveau d'entreprise : la somme des niveaux de toutes les usines (docs/game-design.md, section Usines et
+     * personnel). Il révèle les usines dont `decouverte` vaut `niveau-entreprise-N`. Une usine absente de `levels`
+     * compte pour zéro.
+     */
+    fun companyLevel(levels: Map<String, Int>): Int {
+        val unknown = levels.keys.firstOrNull { it !in factoriesById }
+        require(unknown == null) { "Usine inconnue : $unknown" }
+        var total = 0
+        for (level in levels.values) {
+            require(level >= 0) { "Un niveau n'est pas négatif : $level" }
+            total += level
+        }
+        return total
+    }
+
+    /**
+     * Vrai si l'usine est révélée sur la carte (le « ????? » se lève), d'après la clé `decouverte` de usines.json :
+     *  - `depart` : toujours, l'entreprise la possède dès sa création ;
+     *  - `niveau-entreprise-N` : le niveau d'entreprise ([companyLevel]) atteint N ;
+     *  - `epoque-N` : l'époque de la course atteint N ;
+     *  - `apres-<usine>` : l'usine nommée est remise en état (`activeFactoryIds` : les usines `ACTIVE`).
+     *
+     * Une usine révélée le reste : le prestige garde la ligne de l'usine (`EN_RUINE`), il ne la cache pas. C'est donc à
+     * l'appelant de se souvenir de ce qu'il a déjà révélé, ce test ne regarde que l'état d'aujourd'hui. Le service ne
+     * lit pas encore `decouverte` ; le simulateur (src/test, paquet simulation) est le premier à le faire.
+     * **À valider par Kr** (lecture de `apres-<usine>` : usine remise en état, pas seulement révélée).
+     */
+    fun isDiscovered(factoryId: String, companyLevel: Int, era: Int, activeFactoryIds: Set<String>): Boolean {
+        require(companyLevel >= 0) { "Un niveau d'entreprise n'est pas négatif : $companyLevel" }
+        require(era >= 1) { "Une époque se numérote depuis 1 : $era" }
+        return when (val rule = discoveryRules.getValue(factory(factoryId).id)) {
+            DiscoveryRule.AtStart -> true
+            is DiscoveryRule.CompanyLevel -> companyLevel >= rule.level
+            is DiscoveryRule.Era -> era >= rule.era
+            is DiscoveryRule.AfterFactory -> rule.factoryId in activeFactoryIds
+        }
+    }
+
+    /** Ce que la clé `decouverte` d'une usine demande, lue une fois (paresseusement : un moteur sans découverte n'échoue pas). */
+    private val discoveryRules: Map<String, DiscoveryRule> by lazy {
+        factoryList.associate { it.id to parseDiscovery(it) }
+    }
+
+    private fun parseDiscovery(factory: FactoryDefinition): DiscoveryRule {
+        val key = factory.discovery
+        fun numberAfter(prefix: String): Int? =
+            if (key.startsWith(prefix)) key.removePrefix(prefix).toIntOrNull()?.takeIf { it >= 1 } else null
+        val companyLevelNeeded = numberAfter(DISCOVERY_COMPANY_LEVEL)
+        val eraNeeded = numberAfter(DISCOVERY_ERA)
+        return when {
+            key == DISCOVERY_AT_START -> DiscoveryRule.AtStart
+            companyLevelNeeded != null -> DiscoveryRule.CompanyLevel(companyLevelNeeded)
+            eraNeeded != null -> DiscoveryRule.Era(eraNeeded)
+            key.startsWith(DISCOVERY_AFTER) -> {
+                val required = key.removePrefix(DISCOVERY_AFTER)
+                require(required in factoriesById && required != factory.id) {
+                    "usines.json : ${factory.id}.decouverte « $key » nomme une usine inconnue ou elle-même"
+                }
+                DiscoveryRule.AfterFactory(required)
+            }
+            else -> throw IllegalArgumentException("usines.json : ${factory.id}.decouverte « $key » n'a pas une forme connue")
+        }
+    }
+
+    private sealed interface DiscoveryRule {
+        data object AtStart : DiscoveryRule
+        data class CompanyLevel(val level: Int) : DiscoveryRule
+        data class Era(val era: Int) : DiscoveryRule
+        data class AfterFactory(val factoryId: String) : DiscoveryRule
+    }
+
+    /**
      * Le prix en Donar pour monter `factoryId` de `levels` niveaux à partir du niveau `fromLevel` :
      * `prixNiveau1 × g^fromLevel × (g^levels - 1) / (g - 1)`, la somme géométrique des prix de chaque
      * niveau (le niveau `n + 1` coûte `prixNiveau1 × g^n`). Zéro pour zéro niveau.
@@ -317,5 +389,14 @@ class EconomyEngine(private val definitions: Definitions) {
          * du bruit d'une racine cubique (1e-15) et loin sous le moindre Lingot à gagner.
          */
         const val FLOAT_NOISE = 1e-9
+
+        /**
+         * Le vocabulaire de la clé `decouverte` d'une usine : le motif de definitions/schemas/usines.schema.json
+         * (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`), une grammaire et pas un réglage.
+         */
+        private const val DISCOVERY_AT_START = "depart"
+        private const val DISCOVERY_COMPANY_LEVEL = "niveau-entreprise-"
+        private const val DISCOVERY_ERA = "epoque-"
+        private const val DISCOVERY_AFTER = "apres-"
     }
 }
