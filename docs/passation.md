@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 8 h 40, le monde de l'add-on fusionné (session de direction).
+Dernière mise à jour : 5 novembre 2026, 9 h 05, bilan : prestige et missions fusionnés, trois tranches lancées (session de direction).
 
 ## État
 
@@ -9,9 +9,9 @@ Dernière mise à jour : 5 novembre 2026, 8 h 40, le monde de l'add-on fusionné
   CI, hooks, trois recettes) et, dans `core/`, le squelette de silooo-core (Gradle, Ktor, Flyway, clé
   `X-Silooo-Key`, heartbeat, filet 501, Dockerfile) avec les données dorées du tableur
   (`core/src/test/resources/golden/`), les routes de session (`join`, `leave`, `GET /v1/events`,
-  idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 29 opérations) et le moteur
-  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Quatre
-  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`.
+  idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 30 opérations) et le moteur
+  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Six
+  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`, `iles`, `missions`.
 - `main` est vert : `tools/verifier.sh` passe sur le PC (tests Gradle compris, tests Docker ignorés) et
   la CI passe (jobs `verifier` avec les deux tests Testcontainers, `migration`, `image`).
 - Sur le VPS : `/var/www/silooo` existe avec un fichier d'environnement posé par Kr. La base `silooo`
@@ -25,10 +25,14 @@ Dernière mise à jour : 5 novembre 2026, 8 h 40, le monde de l'add-on fusionné
 - Phase **2** (Bedrock) : tout ce qui ne dépend pas de Kr est sur `main` (`addon/`, `deploy/`, images `silooo-core`
   et `silooo-bds` publiées par la CI). Restent le déploiement, le test console et la mesure de la mémoire, qui
   attendent la base, le port, le zip de BDS et le DNS (« À faire par Kr »).
-- Phase en cours : **3** (la première heure). Côté service, les quatre routes d'économie sont sur `main` ; côté
-  add-on, le HUD, le menu, la fiche d'usine, le Silo, les mini-îles des usines, l'arrivée, la cinématique et
-  Oooscar aussi (522 tests), et le pack de ressources. Reste la mission de la mairie (le service l'avance sur
-  `claude/phase4-prestige-mission`, l'add-on doit l'afficher), puis le test de bout en bout après Kr.
+- Phase en cours : **3** (la première heure). Côté service, les quatre routes d'économie et la mission de
+  bienvenue (`getMissions`, avancée par `collect`) sont sur `main` ; côté add-on, le HUD, le menu, la fiche
+  d'usine, le Silo, les mini-îles des usines, l'arrivée, la cinématique et Oooscar aussi (522 tests), et le pack
+  de ressources. Reste l'affichage de la mission dans l'add-on (`claude/phase3-addon-mission`, en cours), puis le
+  test de bout en bout après Kr.
+- Phase **4** (la progression), ouverte côté service : `island`, `prestigePreview`, `prestige` et les missions
+  sont sur `main` (560 tests Gradle, 90 SQL en CI). En cours : le simulateur des treize cibles
+  (`claude/phase4-simulateur`) et le personnel (`claude/phase4-personnel`).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -93,7 +97,8 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - [x] add-on : HUD en trois étages (`ui/hud.ts` ; le canal de titre est coupé par `config.ui.hud.titleChannel` tant que le pack de ressources ne masque pas les préfixes, tout passe par la barre d'action), menu à tuiles (boussole « Menu »), liste des usines paginée, fiche d'usine avec Monter de 1, de 10, au palier, au max (`buyLevels`), palier ×2 et coût affichés
 - [x] add-on : le Silo (Encaisser → `collect`, heures hors ligne affichées) et la remise en état en quatre étapes (Parler, Réparer, Livrer, Recruter → `restoreStep`) ; rejeu une fois après `CONFLIT_REESSAYER` ; une bulle d'Oooscar par code `reason`
 - [x] add-on : téléportation à l'île de la Carrière, cinématique d'arrivée (quatre plans de `iles.json`, sous-titres d'Oooscar, saut en restant accroupi une seconde), Oooscar en entité `silooo:oooscar` (`addon/pack/entities/`, une par joueur) ; textes **à valider par Kr**
-- [ ] add-on : la première mission de la mairie affichée (tuile Objectifs lue dans `getMissions`, consigne du HUD ; le service la fait avancer, décision 29)
+- [x] silooo-core : la mission de bienvenue de la mairie (`GET /v1/players/{xuid}/missions`, `definitions/missions.json` dont la récompense est un chemin dans `economie.json` ; `collect` l'avance et la termine dans la même transaction, Lingots versés une fois, événement `ANNONCE` d'action `mission` ; décisions 29 et 31)
+- [ ] add-on : la première mission de la mairie affichée (tuile Objectifs lue dans `getMissions`, consigne du HUD ; le service la fait avancer, décision 29) : en cours, `claude/phase3-addon-mission`
 - [x] `resource-pack/` : manifest, `pack_icon`, textures copiées octet pour octet de `design/` (contrôle `tools/verifier_pack.mjs`), JSON UI (`ui/hud_screen.json`, `ui/silooo/hud.json`) qui masque les préfixes `silooo:hud|` et `silooo:consigne|` et place monnaies et consigne en haut à gauche, Oooscar côté client (géométrie, texture générée par `tools/generer_oooscar.mjs`, animations) ; `start.sh` l'installe dans `resource_packs/silooo` et `world_resource_packs.json`, `texturepack-required=true`. Reste `config.ui.hud.titleChannel: true`, à passer après le test sur un vrai client (**Kr**)
 - [ ] Test de bout en bout de la première heure sur le BDS de test (**après le déploiement**, donc après Kr)
 
@@ -105,7 +110,7 @@ rejoue le tableur. Ouverte le 5 novembre 2026 pour le côté service, pendant qu
 pack de ressources (décision 28). Le marché (`listMarket`, `createListing`, `buyListing`) reste « pas fait » tant
 que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie ne circule entre joueurs).
 
-- [ ] silooo-core : `prestigePreview` et `prestige` (seuil de la course, Lingots par la racine cubique du moteur, partage selon `share_percent`, `prestige_history`, course suivante : époque, multiplicateur figé, étoiles après la dernière époque ; usines remises au départ de course)
+- [x] silooo-core : `prestigePreview` et `prestige` (PDG seul, 403 `PAS_LE_PDG` ; 409 `SEUIL_NON_ATTEINT` avec les Donar qui manquent ; seuil, Lingots, rendement décroissant et départ de course lus par `EconomyEngine` dans `economie.json` ; partage selon `share_percent`, reste au PDG ; `prestige_history` ; course suivante : époque, étoiles ; Carrière au niveau de départ, autres usines en ruine ; un événement par membre ; règles **à valider par Kr**, `core/README.md` « Le prestige », décision 31)
 - [ ] silooo-core : simulateur Kotlin qui rejoue les treize cibles du tableur de bout en bout (achats, paliers, prestiges, étoiles) et fait échouer la CI quand un temps sort de sa fourchette
 - [ ] silooo-core : personnel (`getCandidates`, `hire`, `assignStaff`, `fireStaff`) : candidats du jour, raretés sans tirage payant, salaires comme sortie d'argent, chef d'équipe et plafond hors ligne
 - [ ] silooo-core : incidents (`resolveIncident`) et énergie (`stoppedNoPower`), avec leurs événements
@@ -125,7 +130,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
 - [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
-- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine
+- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`)
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
@@ -259,6 +264,15 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     vivent dans `iles.json`, à part de `monde.json` (la grille) ; l'entité `silooo:oooscar` est en `format_version`
     1.21.0, sans comportement, sans dégâts, jamais persistée. L'île principale n'est pas posée en phase 3 : elle
     est verrouillée au départ et se débloque zone par zone avec la ville (phase 4). À relire par Kr.
+31. **Ce que le prestige remet à zéro, et comment une mission avance.** Tranché par la tranche de service avec la
+    recommandation du plan, détaillé dans `core/README.md` (« Le prestige », « Les missions ») et `docs/economie.md` :
+    la production en attente est versée avant le test du seuil et compte pour les Lingots ; le partage suit
+    `share_percent`, arrondi vers le bas, le reste au PDG ; la Carrière repart au niveau de départ, les autres usines
+    en ruine (niveau 0, lignes gardées, incidents clos) ; mairie, silo, plafond hors ligne et personnel ne bougent
+    pas (pas encore modélisés) ; un événement `ANNONCE` par membre avec sa part. Les missions se font dans l'ordre
+    du catalogue ; la mission en cours avance quand un `collect` rapporte du Donar, se termine et verse ses Lingots
+    dans la même transaction, sans geste du joueur ; un joueur inconnu donne 400. Les textes des missions sont à
+    l'add-on. À relire par Kr.
 
 ## À valider par Kr
 
@@ -275,6 +289,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   `addon/README.md`), le découpage en quatre plans et leur cadrage (`definitions/iles.json`, `cinematique.plans`).
 - La forme des mini-îles (`definitions/iles.json`) : rayon 7, un bâtiment par usine avec son angle autour de l'île
   principale, 35 % de murs et 30 % de sol abîmés pour une usine en ruine, les matériaux.
+- Les règles du prestige et des missions de la décision 31 (`core/README.md`, « Le prestige » et « Les missions » ;
+  `docs/economie.md`) : elles fixent ce que le joueur touche au prestige et quand la mairie le récompense.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -393,3 +409,19 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   `addon/pack/`, build qui copie `pack/`, 522 tests). Deux cases de la phase 3 cochées, la mission de la mairie côté
   add-on devient une case à part. Décision 30. Reste en vol : `claude/phase4-prestige-mission`. Vérifier :
   `git log --oneline -3 origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 9 h 00 : direction, prestige et missions fusionnés.** `claude/phase4-prestige-mission`
+  (`342770b`) fusionnée dans `main` par un commit de fusion (`c598f09`) : `island` renseigné, `prestigePreview`,
+  `prestige`, `getMissions`, `definitions/missions.json`, 30 opérations au contrat, 560 tests Gradle (90 SQL en CI).
+  Décision 31. Vérifier : `git log --oneline -3 origin/main`, `cd core && ./gradlew test`.
+- **5 novembre 2026, 9 h 05 : bilan de la matinée (direction).**
+  - Fait depuis le bilan noté 7 h 50 (6 h 35 à l'horloge) : routes d'économie, `deploy/`, écrans de l'add-on, pack
+    de ressources, monde de l'add-on (îles, arrivée, cinématique, Oooscar), prestige et missions côté service, tous
+    sur `main` ; liste de la phase 4 écrite ; contrat à 30 opérations. `main` : vérificateur et CI verts à chaque
+    poussée.
+  - En cours : l'affichage de la mission de la mairie dans l'add-on (`claude/phase3-addon-mission`), le simulateur
+    des treize cibles (`claude/phase4-simulateur`), le personnel côté service (`claude/phase4-personnel`).
+  - Reste : phase 2, les trois cases de Kr ; phase 3, la mission dans l'add-on puis le test de bout en bout après
+    Kr ; phase 4, sept cases ; phase 5, pas ouverte.
+  - Décisions prises seul depuis ce bilan : 27 à 31. Textes nouveaux à valider : écrans de l'add-on, pack de
+    ressources, cinématique ; règles d'économie des décisions 27 et 31.
+  - Vérifier : `git log --oneline -12 origin/main`, `gh run list --branch main --limit 3`.
