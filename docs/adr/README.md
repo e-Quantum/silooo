@@ -13,6 +13,7 @@ applique une décision cite son numéro.
 | [0003](0003-base-partagee.md) | Une base `silooo` dans la MariaDB de SileneMC | Acceptée |
 | [0004](0004-port-bedrock.md) | Le port du serveur Bedrock | Proposée, à valider par Kr |
 | [0005](0005-langues-du-code.md) | Les langues du code, des textes et de la documentation | Acceptée |
+| [0006](0006-site-silooo-com.md) | Le site silooo.com vit dans silooo-core, sur son propre port, en deux modes | Proposée, à valider par Kr |
 
 ## La règle d'écriture
 

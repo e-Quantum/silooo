@@ -46,6 +46,13 @@ import com.silooo.core.orders.OrderStore
 import com.silooo.core.orders.orderRoutes
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.server.serverRoutes
+import com.silooo.core.shop.DeliveryRelief
+import com.silooo.core.shop.JdbcShopStore
+import com.silooo.core.shop.ShopFigures
+import com.silooo.core.shop.ShopRules
+import com.silooo.core.shop.ShopStore
+import com.silooo.core.shop.launchDeliveryPoll
+import com.silooo.core.shop.shopRoutes
 import com.silooo.core.session.CompanyBootstrap
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.JdbcSessionStore
@@ -53,6 +60,8 @@ import com.silooo.core.session.SessionStore
 import com.silooo.core.session.sessionRoutes
 import com.silooo.core.staff.JdbcStaffStore
 import com.silooo.core.staff.StaffStore
+import com.silooo.core.site.SiteMode
+import com.silooo.core.site.SiteSettings
 import com.silooo.core.staff.staffRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -93,8 +102,14 @@ class Dependencies(
     val clock: Clock = Clock.systemUTC(),
     /** Les accès SQL de la ville (`city_zones`, `city_buildings`) et le paiement des zones et des bâtiments ; déclaré avant [economyFigures], qui y lit les bonus. */
     val cityStore: CityStore = JdbcCityStore(),
-    /** Les chiffres de `join` (revenu, multiplicateur, seuil, hors ligne) : le moteur d'économie, sur [definitions], avec les bonus de la ville. */
-    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore, clock, CityFigures(CityRules(definitions), sessionStore, cityStore)),
+    /** Les accès SQL de la boutique (`shop_purchases`, `player_ranks`, `player_subscriptions`, `shop_deliveries`) ; déclaré avant [economyFigures], qui y lit les bonus du PDG. */
+    val shopStore: ShopStore = JdbcShopStore(),
+    /** Les chiffres de `join` (revenu, multiplicateur, seuil, hors ligne) : le moteur d'économie, sur [definitions], avec les bonus de la ville et de la boutique. */
+    val economyFigures: EconomyFigures = EngineFigures(
+        economy, sessionStore, clock,
+        CityFigures(CityRules(definitions), sessionStore, cityStore),
+        ShopFigures(ShopRules(definitions), shopStore, clock),
+    ),
     /** Ce que la création d'une entreprise tire de `definitions/` : usines de départ, plafond hors ligne, grille des îles. */
     val companyBootstrap: CompanyBootstrap = DefinitionsBootstrap(economy, definitions),
     val eventStore: EventStore = JdbcEventStore(),
@@ -116,6 +131,21 @@ class Dependencies(
     val apiRequestRetention: Duration? = null,
     /** Intervalle du minuteur des incidents d'usine ; `null` : pas de minuteur, aucun incident ne s'ouvre (les tests). */
     val incidentTick: Duration? = null,
+    /**
+     * Le relevé des livraisons de Gemmes (`shop_deliveries`) : il verse celles des joueurs que le service connaît, à `join` et à
+     * intervalle ([deliveryPoll]). `null` : pas de relevé du tout, ni à `join` ni en tâche de fond (les tests).
+     */
+    val deliveries: DeliveryRelief? = null,
+    /** Intervalle du relevé des livraisons ; `null` : pas de tâche de fond (le rattrapage à `join` reste actif si [deliveries] est posé). */
+    val deliveryPoll: Duration? = null,
+    /** Le mode du site public (`SILOOO_SITE_MODE`) ; le site n'est ouvert que si Kr l'a décidé. */
+    val siteMode: SiteMode = SiteMode.ATTENTE,
+    /** L'adresse publique du site (`SILOOO_SITE_URL`), pour les liens absolus de S1. */
+    val siteUrl: String = Config.DEFAULT_SITE_URL,
+    /** Le lien Discord du site (`SILOOO_SITE_URL_DISCORD`) ; `null` : pas de lien. */
+    val discordUrl: String? = null,
+    /** Ce que les pages du site affichent du jeu : adresse, port, boutique, sites de vote. */
+    val siteSettings: SiteSettings = SiteSettings(),
 )
 
 /**
@@ -139,6 +169,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
     }
 
     dependencies.apiRequestRetention?.let { launchApiRequestPurge(dependencies.idempotency, it) }
+    dependencies.deliveries?.let { relief -> dependencies.deliveryPoll?.let { every -> launchDeliveryPoll(relief, every) } }
     dependencies.incidentTick?.let { every ->
         val ticker = IncidentTicker(dependencies.database, dependencies.sessionStore, incidentService(dependencies)) {
             dependencies.serverPresence.onlineXuids()
@@ -163,6 +194,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             staffRoutes(dependencies)
             cityRoutes(dependencies)
             memberRoutes(dependencies)
+            shopRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }

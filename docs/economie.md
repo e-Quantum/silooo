@@ -653,3 +653,108 @@ acheter, poser et améliorer, et paie avec ses propres Lingots.** Les Lingots du
 - Le contrat n'a pas de code pour « bâtiment pas encore permis par la mairie » ni « quantité maximale » ni « dernier niveau » : le
   service rend `ZONE_VERROUILLEE` et `DEJA_POSSEDE`, faute de mieux.
 - Le bonus de vitesse des livraisons est calculé et montré, mais aucun camion ne l'utilise encore.
+
+## La boutique : Gemmes, grades et Pilier
+
+Les Gemmes s'achètent en euros sur le site de SileneMC (PayNow) et se dépensent en jeu. Le service décide de tout : ce qu'un joueur
+peut acheter, ce que ça coûte, ce que ça donne ; l'add-on n'affiche que ce qu'il lui rend (`catalog`, le solde de `buyItem`). Les
+chiffres sont dans `definitions/boutique.json` (les nombres de SileneMC, relevés le 4 novembre 2026) ; les tableaux ci-dessous sont
+recopiés le 5 novembre 2026 : le JSON fait foi. Cette tranche ne vend que les grades et les deux abonnements ; les cosmétiques, les
+boosts collectifs et le pass viendront avec leurs propres articles.
+
+### Les grades à vie
+
+Six grades, à prendre dans l'ordre (`regleGrades`, comme sur SileneMC). Un grade se garde pour toujours, le prestige n'y touche pas.
+
+| Ordre | Grade (`id`) | Prix (Gemmes) | Bonus de Donar |
+|---|---|---|---|
+| 1 | MVIP (`mvip`) | 100 | +5 % |
+| 2 | VIP (`vip`) | 500 | +5 % |
+| 3 | VIP+ (`vip+`) | 1 000 | +10 % |
+| 4 | Héros (`heros`) | 2 000 | +20 % |
+| 5 | Légende (`legende`) | 3 500 | +30 % |
+| 6 | Ultime (`ultime`) | 6 000 | +50 % |
+
+- **Le seul grade qu'on puisse acheter est le premier que le destinataire n'a pas.** Un grade déjà possédé donne `DEJA_POSSEDE`, un
+  grade plus loin que le suivant donne `GRADE_PRECEDENT_REQUIS`. Dans le catalogue, seul ce grade est `available`.
+- **Le grade s'écrit dans `player_ranks`** avec la source `achat` (pour soi) ou `cadeau` (pour un autre joueur).
+
+### Les abonnements
+
+| Abonnement (`id`) | Prix (Gemmes) | Durée | Bonus de Donar | Gemmes rendues | Condition |
+|---|---|---|---|---|---|
+| Pilier (`pilier`) | 400 | 28 jours | +10 % tant qu'il court | 50 à chaque achat | aucune |
+| Perso (`perso`) | 2 500 | 28 jours | aucun | aucune | le grade Ultime (`reserveA`) |
+
+- **Un abonnement se rachète à volonté.** S'il court encore, les jours s'ajoutent à sa fin ; s'il est fini (ou jamais pris), ils
+  partent de maintenant. Son début ne change que lorsqu'il repart de zéro. `player_subscriptions.months_total` compte les achats et ne
+  retombe jamais à zéro, même après un trou : c'est le badge qui évolue.
+- **Le Pilier rend 50 Gemmes à chaque achat**, au destinataire, dans le journal des monnaies (motif `pilier`).
+- **Le Perso demande l'Ultime** du destinataire. Le contrat n'a pas de code pour ce refus : le service rend
+  `GRADE_PRECEDENT_REQUIS`, faute de mieux. Le Perso ne change aucun chiffre du jeu : il ouvrira l'option de préfixe personnel côté
+  jeu, à venir.
+- **Dans le catalogue**, un abonnement est `owned` tant qu'il court, et `available` dès que le grade qu'il demande est possédé
+  (toujours pour le Pilier).
+
+### Qui paie, qui reçoit
+
+- **L'acheteur paie avec ses propres Gemmes**, sur son solde personnel (`PAS_ASSEZ_DE_GEMMES` avec la somme qui manque, sans rien
+  écrire). Motif du journal : `boutique`, référence : l'article.
+- **Un cadeau** (`forXuid`) : l'acheteur paie, le destinataire reçoit le grade ou l'abonnement, et les Gemmes rendues du Pilier.
+  Les vérifications de possession (`DEJA_POSSEDE`, `GRADE_PRECEDENT_REQUIS`) portent sur le destinataire. Un cadeau à soi-même est
+  un achat pour soi.
+- **Un `requestId` ne sert qu'à un achat.** Rejoué, il rend la même réponse sans payer deux fois (`api_requests`), et
+  `shop_purchases.request_id` est unique en base.
+- **Un article inconnu ou pas encore vendu, un acheteur ou un destinataire que le service ne connaît pas** (jamais passé par `join`) :
+  400, rien d'écrit.
+- **Aucun événement n'est écrit pour un achat.** `GEMMES_RECUES` est celui d'une livraison de commande.
+
+### Le bonus de Donar
+
+Le bonus joue sur le multiplicateur global de l'entreprise (celui des Lingots détenus, des étoiles et de la ville), donc sur le
+revenu de chaque usine et sur la production versée, en ligne comme hors ligne.
+
+- **C'est le PDG de l'entreprise qui compte**, pas celui qui joue : le multiplicateur est celui de l'entreprise, le même pour tous ses
+  membres. Le grade ou le Pilier d'un associé ne change rien ; ceux du PDG profitent à toute l'entreprise.
+- **Un seul grade compte : le plus haut**, jamais la somme des grades. Un PDG Ultime a +50 %, pas +95 %.
+- **Le Pilier compte tant qu'il court**, en plus du grade. Le Perso ne compte pas.
+- **Les bonus se multiplient comme celui de la ville** : `multiplicateur x (1 + grade / 100) x (1 + Pilier / 100)`, après le bonus de
+  la ville (`EconomyEngine.withShopBonuses`). Ultime et Pilier font donc x1,5 puis x1,1, soit x1,65. Un bonus à zéro n'est pas
+  appliqué.
+- **Sans grade ni Pilier, rien ne change** : multiplicateur, revenu, salaires et production versée sont ceux d'avant, bit pour bit.
+  Treize cibles du tableur : inchangées, le joueur type n'achète rien dans la boutique.
+- **Un achat ne règle pas la production en attente.** Le nouveau bonus s'applique au prochain règlement, sur tout le temps écoulé
+  depuis le précédent, hors ligne comprise (le plafond d'heures hors ligne reste le même). Un grade acheté juste avant de se
+  reconnecter profite donc à la période d'absence. L'écart reste borné par ce plafond.
+
+### Les livraisons de Gemmes
+
+Le site écrit une ligne dans `shop_deliveries` quand PayNow confirme un paiement. Le service la verse au joueur dès qu'il le
+connaît ([base-de-donnees.md](base-de-donnees.md), section « Les livraisons de Gemmes »).
+
+- **Un passage toutes les 30 secondes** par défaut (variable `SILOOO_DELIVERY_POLL_SECONDS`, de 1 à 3 600), et **au `join`** : les
+  Gemmes d'un joueur qui arrive sont versées avant la réponse, sans attendre le passage suivant.
+- **Le joueur d'une ligne** : son XUID si la ligne en porte un que `players` connaît, sinon son pseudo (casse ignorée), et si
+  plusieurs joueurs le portent, celui qu'on a vu en dernier. Personne ne correspond : la ligne reste en attente, intacte, et le
+  passage suivant la retente. Au `join`, une ligne qui revient à un autre joueur n'est pas versée à celui qui arrive.
+- **Versée une seule fois**, quoi qu'il arrive : dans une seule transaction, la ligne est marquée (`delivered_at`, XUID), les Gemmes
+  sont créditées (motif `livraison`, référence : la commande) et l'événement `GEMMES_RECUES` est écrit (`orderId`, `gemmes`,
+  `gemmesTotal`). Si un des trois échoue, aucun ne reste. Deux passages en même temps, ou un passage et un `join`, ne versent pas
+  deux fois.
+- **Les packs de Gemmes** (`packsGemmes` : prix en euros et bonus) sont ceux du site ; le service ne les lit pas.
+
+### Ce qui reste à valider par Kr
+
+Tous ces choix sont les plus simples que les définitions et le contrat permettaient. Aucun chiffre n'a été ajouté à `definitions/`.
+
+- Les grades s'achètent dans l'ordre ; seul le suivant est `available`.
+- Le Perso sans Ultime se refuse avec `GRADE_PRECEDENT_REQUIS` (pas de code dédié au contrat).
+- Le Pilier se rachète à volonté et s'ajoute à sa fin ; ses Gemmes rendues vont au destinataire à chaque achat, cadeau compris ;
+  `months_total` ne retombe pas à zéro après un trou.
+- Le bonus de Donar est celui du PDG, et non de celui qui joue ou de la moyenne des membres.
+- Le grade et le Pilier se multiplient entre eux et avec la ville ; la feuille « Courses » du tableur (colonne « Multiplicateur
+  global ») est la référence à confirmer.
+- Un achat ne règle pas la production en attente : le bonus profite à toute la période depuis le dernier règlement.
+- Un achat n'écrit aucun événement ; seule une livraison écrit `GEMMES_RECUES`.
+- Une livraison sans joueur connu attend sans limite de temps.
+- L'intervalle du relevé (30 secondes) est un réglage technique, pas un chiffre du jeu.

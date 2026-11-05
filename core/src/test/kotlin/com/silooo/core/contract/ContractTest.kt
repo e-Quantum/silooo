@@ -49,6 +49,9 @@ import com.silooo.core.session.Production
 import com.silooo.core.session.StaffRecord
 import com.silooo.core.session.TestBootstrap
 import com.silooo.core.session.TestEconomy
+import com.silooo.core.shop.InMemoryShopStore
+import com.silooo.core.shop.ITEM_ID_MAX_LENGTH
+import com.silooo.core.shop.ShopRules
 import com.silooo.core.siloooModule
 import com.silooo.core.staff.InMemoryStaffStore
 import io.ktor.client.request.header
@@ -63,6 +66,7 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.lang.reflect.Modifier
 import java.net.URLEncoder
+import java.time.Instant
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -135,6 +139,7 @@ class ContractTest {
         incidents: InMemoryIncidentStore,
         members: InMemoryMemberStore,
         city: InMemoryCityStore,
+        shop: InMemoryShopStore,
     ): Dependencies {
         val database = RecordingDatabase()
         return Dependencies(
@@ -155,6 +160,7 @@ class ContractTest {
             incidentStore = incidents,
             memberStore = members,
             cityStore = city,
+            shopStore = shop,
         )
     }
 
@@ -166,6 +172,7 @@ class ContractTest {
         operationId: String? = null,
         extraSeed: (InMemorySessionStore) -> Unit = {},
         inspect: (InMemorySessionStore, InMemoryMissionStore) -> Unit = { _, _ -> },
+        shopSeed: (InMemoryShopStore) -> Unit = {},
         block: suspend ApplicationTestBuilder.() -> Unit,
     ) = testApplication {
         val sessions = InMemorySessionStore()
@@ -173,11 +180,13 @@ class ContractTest {
         val incidents = InMemoryIncidentStore(sessions)
         val members = InMemoryMemberStore(sessions)
         val city = InMemoryCityStore(sessions)
+        val shop = InMemoryShopStore(sessions)
         if (operationId != null) seedFor(operationId, sessions, economy, incidents, members, city)
         extraSeed(sessions)
+        shopSeed(shop)
         val missions = InMemoryMissionStore(sessions)
         inspect(sessions, missions)
-        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members, city)) }
+        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members, city, shop)) }
         block()
     }
 
@@ -194,6 +203,13 @@ class ContractTest {
         members: InMemoryMemberStore,
         city: InMemoryCityStore,
     ) {
+        if (operationId == "catalog" || operationId == "buyItem") {
+            // Un joueur déjà inscrit, avec de quoi payer le premier grade : la boutique ne dépend que de lui.
+            val player = Xuid.parse(krXuid)!!
+            sessions.enterPlayer(RecordingConnection().connection, player, "Kr")
+            sessions.balances[player] = Balances(0, ShopRules(TestDefinitions.loaded).grades.first().gems, 0, 0)
+            return
+        }
         if (operationId == "getMissions" || operationId == "getFindings") {
             // Un joueur déjà inscrit, sans entreprise : les missions et le Carnet ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
@@ -416,6 +432,13 @@ class ContractTest {
         assertEquals(BuildingBonusType.entries.map { it.name }.toSet(), contract.enumOf(contract.schema("CityBuilding"), "bonusType"), "CityBuilding : les types de bonus")
         val nextZone = contract.propertyOf(contract.schema("CityState"), "nextZone")
         assertEquals(DefinitionsChecks.ZONES_MAX, (contract.propertyOf(nextZone, "zoneIndex")["maximum"] as Number).toInt(), "CityState.nextZone : la dernière zone")
+
+        // La boutique : la longueur de l'identifiant d'article (shop_purchases.item_id), que tous les articles vendus respectent.
+        val buying = operations.single { it.id == "buyItem" }.body!!
+        assertEquals(ITEM_ID_MAX_LENGTH, (contract.propertyOf(buying, "itemId")["maxLength"] as Number).toInt(), "buyItem : la longueur de itemId")
+        assertEquals(1, (contract.propertyOf(buying, "itemId")["minLength"] as Number).toInt(), "buyItem : un itemId n'est pas vide")
+        val shop = ShopRules(TestDefinitions.loaded)
+        assertTrue((shop.grades + shop.subscriptions).all { it.id.length in 1..ITEM_ID_MAX_LENGTH }, "boutique.json : des identifiants que le contrat accepte")
     }
 
     @Test
@@ -536,6 +559,10 @@ class ContractTest {
             z: String = "128",
             rotation: String = "0",
         ) = """{"requestId":"$requestId","actor":"$actor","buildingType":$type,"x":$x,"z":$z,"rotation":$rotation}"""
+        fun buying(requestId: String = ID, actor: String = krXuid, item: String = "\"mvip\"", gift: String? = null): String {
+            val forXuid = gift?.let { ""","forXuid":$it""" }.orEmpty()
+            return """{"requestId":"$requestId","actor":"$actor","itemId":$item$forXuid}"""
+        }
         val bad = mapOf(
             "heartbeat" to listOf(
                 "{}", "pas du json", """{"serverId":"bds-1"}""", """{"serverId":"bds-1","onlineXuids":["abc"]}""",
@@ -647,6 +674,15 @@ class ContractTest {
                 """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
                 """{"requestId":"$ID","actor":"$stranger"}""",
             ),
+            "buyItem" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""", """{"actor":"$krXuid","itemId":"mvip"}""",
+                """{"requestId":"$ID","itemId":"mvip"}""", buying(requestId = "abc"), buying(actor = "abc"),
+                // Un article vide, trop long ou qui n'est pas du texte ; un destinataire vide, mal formé, trop long ou qui n'est pas du texte.
+                buying(item = "\"\""), buying(item = "\"${"x".repeat(ITEM_ID_MAX_LENGTH + 1)}\""), buying(item = "12"),
+                buying(gift = "\"\""), buying(gift = "\"abc\""), buying(gift = "\"123456789012345678901\""), buying(gift = "2"),
+                // Ce que le service sait et le contrat non : un article que le jeu ne vend pas, un acheteur ou un destinataire inconnus.
+                buying(item = "\"inconnu\""), buying(actor = stranger), buying(gift = "\"$stranger\""),
+            ),
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
@@ -680,10 +716,12 @@ class ContractTest {
                 listOf("0", "-1", "abc", "99", "1.5").map { Triple("upgradeBuilding", "/v1/companies/1/city/buildings/$it", cityBody) } +
                 listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("upgradeBuilding", "$it/city/buildings/1", cityBody) } +
                 listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("placeBuilding", "$it/city/buildings", placing()) }
+        // La boutique : un acteur absent, vide, mal formé, trop long, ou un joueur que le service ne connaît pas.
+        val badCatalogQueries = listOf("", "?actor=", "?actor=abc", "?actor=-1", "?actor=123456789012345678901", "?actor=$stranger")
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
-        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares", "buyZone", "placeBuilding", "upgradeBuilding")
+        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares", "buyZone", "placeBuilding", "upgradeBuilding", "buyItem")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
@@ -692,6 +730,8 @@ class ContractTest {
             dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
         } + cityRequests.map { (opId, url, body) ->
             dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
+        } + badCatalogQueries.map { query ->
+            dynamicTest("catalog : $query") { assertBadRequest(operations.single { it.id == "catalog" }, "/v1/shop/catalog$query", null, seed = "catalog") }
         } + incidentUrls.map { url ->
             dynamicTest("resolveIncident : $url") { assertBadRequest(operations.single { it.id == "resolveIncident" }, url, resolveBody, seed = "resolveIncident") }
         } + badCompanyUrls.map { url ->
@@ -1193,6 +1233,98 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("catalog : les grades dans l'ordre puis le Pilier et le Perso, aux prix de boutique.json ; seul le premier grade est à vendre, le Perso attend Ultime")
+    fun catalog() {
+        val rules = ShopRules(TestDefinitions.loaded)
+        val schema = operations.single { it.id == "catalog" }.responses.getValue(200)!!
+        val ids = (rules.grades + rules.subscriptions).map { it.id }
+        val pilier = rules.subscriptions.single { it.id == ShopRules.PILIER_ID }
+        val perso = rules.subscriptions.single { it.requiredGradeId != null }
+        val kr = Xuid.parse(krXuid)!!
+
+        fun parsed(body: String) = parse(body).jsonArray.map { it.jsonObject }
+        fun flag(entry: JsonObject, name: String) = entry.getValue(name).jsonPrimitive.content.toBoolean()
+
+        withService("catalog") {
+            val response = send("GET", "/v1/shop/catalog?actor=$krXuid")
+            val body = response.bodyAsText()
+            assertEquals(200, response.status.value, body)
+            assertConforms(schema, body, "catalog")
+            val items = parsed(body)
+            assertEquals(ids, items.map { it.getValue("itemId").jsonPrimitive.content }, "l'ordre : les grades, puis les abonnements")
+            assertEquals((rules.grades + rules.subscriptions).map { it.gems }, items.map { it.getValue("gemmes").jsonPrimitive.content.toLong() }, "les prix de boutique.json")
+            assertTrue(items.none { flag(it, "owned") }, "un joueur neuf ne possède rien")
+            assertEquals(listOf(rules.grades.first().id, pilier.id), items.filter { flag(it, "available") }.map { it.getValue("itemId").jsonPrimitive.content }, "le premier grade et le Pilier")
+        }
+        val noon = Instant.parse("2026-11-05T12:00:00Z")
+        withService(
+            "catalog",
+            shopSeed = {
+                it.seedRanks(kr, *rules.grades.map { grade -> grade.id }.toTypedArray())
+                it.seedSubscription(kr, pilier.id, noon.minusSeconds(3600), noon.plusSeconds(3600))
+            },
+        ) {
+            val items = parsed(send("GET", "/v1/shop/catalog?actor=$krXuid").bodyAsText())
+            val byId = items.associateBy { it.getValue("itemId").jsonPrimitive.content }
+            assertTrue(rules.grades.all { flag(byId.getValue(it.id), "owned") && !flag(byId.getValue(it.id), "available") }, "tous les grades possédés, plus rien à vendre")
+            assertTrue(flag(byId.getValue(pilier.id), "owned") && flag(byId.getValue(pilier.id), "available"), "le Pilier qui court se prolonge")
+            assertTrue(!flag(byId.getValue(perso.id), "owned") && flag(byId.getValue(perso.id), "available"), "le Perso s'ouvre avec Ultime")
+        }
+    }
+
+    @Test
+    @DisplayName("buyItem : les soldes de l'acheteur, rejoué à l'identique sans repayer ; DEJA_POSSEDE, GRADE_PRECEDENT_REQUIS, PAS_ASSEZ_DE_GEMMES avec missing")
+    fun buyItem() {
+        val rules = ShopRules(TestDefinitions.loaded)
+        val first = rules.grades[0]
+        val second = rules.grades[1]
+        val third = rules.grades[2]
+        val url = "/v1/shop/purchases"
+        val kr = Xuid.parse(krXuid)!!
+        val spare = 5L
+        fun request(n: Int, item: String) = """{"requestId":"${id(n)}","actor":"$krXuid","itemId":"$item"}"""
+        fun gemmesOf(body: String) = parse(body).jsonObject.getValue("gemmes").jsonPrimitive.content.toLong()
+
+        var shop: InMemoryShopStore? = null
+        withService("buyItem", extraSeed = { it.balances[kr] = Balances(0, first.gems + spare, 0, 0) }, shopSeed = { shop = it }) {
+            val bought = send("POST", url, request(21, first.id))
+            val body = bought.bodyAsText()
+            assertEquals(200, bought.status.value, body)
+            assertConforms(contract.schema("Balances"), body, "buyItem")
+            assertEquals(spare, gemmesOf(body), "le prix du grade est retiré des Gemmes")
+            assertEquals(listOf(first.id), shop!!.ranksOf(kr).map { it.rankId })
+            assertEquals(body, send("POST", url, request(21, first.id)).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+            assertEquals(1, shop!!.purchases.size, "rejoué : un seul achat")
+
+            assertRefusal(send("POST", url, request(22, first.id)), RefusalCodes.ALREADY_OWNED)
+            assertRefusal(send("POST", url, request(23, third.id)), RefusalCodes.PREVIOUS_RANK_REQUIRED)
+            val poor = assertRefusal(send("POST", url, request(24, second.id)), RefusalCodes.NOT_ENOUGH_GEMS)
+            assertEquals((second.gems - spare).toDouble(), parse(poor).jsonObject.getValue("missing").jsonPrimitive.content.toDouble(), "ce qui manque")
+            assertEquals(spare, shop!!.gemmes(kr), "un refus ne retire rien")
+        }
+    }
+
+    @Test
+    @DisplayName("buyItem en cadeau : l'acheteur paie, le destinataire reçoit le grade ; la réponse est le solde de l'acheteur")
+    fun buyItemAsGift() {
+        val rules = ShopRules(TestDefinitions.loaded)
+        val first = rules.grades.first()
+        val kr = Xuid.parse(krXuid)!!
+        val friend = Xuid.parse(other)!!
+        var shop: InMemoryShopStore? = null
+        withService("buyItem", extraSeed = { seedPlayer(it, other, "Patron") }, shopSeed = { shop = it }) {
+            val response = send("POST", "/v1/shop/purchases", """{"requestId":"${id(31)}","actor":"$krXuid","itemId":"${first.id}","forXuid":"$other"}""")
+            val body = response.bodyAsText()
+            assertEquals(200, response.status.value, body)
+            assertConforms(contract.schema("Balances"), body, "buyItem (cadeau)")
+            assertEquals(0L, parse(body).jsonObject.getValue("gemmes").jsonPrimitive.content.toLong(), "l'acheteur a payé")
+            assertEquals(listOf(first.id), shop!!.ranksOf(friend).map { it.rankId }, "le destinataire a le grade")
+            assertTrue(shop!!.ranksOf(kr).isEmpty(), "l'acheteur ne l'a pas")
+            assertEquals(listOf("cadeau"), shop!!.ranksOf(friend).map { it.source })
+        }
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -1221,6 +1353,8 @@ class ContractTest {
             "buyZone" to 200,
             "placeBuilding" to 200,
             "upgradeBuilding" to 200,
+            "catalog" to 200,
+            "buyItem" to 200,
         )
 
         /** Les Lingots du PDG dans les tests de la ville quand le prix n'est pas l'objet du test : de quoi tout payer. */

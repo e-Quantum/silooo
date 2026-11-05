@@ -715,6 +715,13 @@ paths:
   /v1/shop/catalog:
     get:
       summary: Ce qui s'achète en Gemmes en jeu (grades, Pilier, cosmétiques, boosts, pass)
+      description: |
+        Le catalogue vu par le joueur `actor` (un joueur que le service ne connaît pas donne 400), dans l'ordre de la
+        boutique (`definitions/boutique.json`). Les six grades d'abord, dans l'ordre imposé : `owned` si le joueur le
+        possède, `available` pour le seul premier grade qu'il n'a pas encore. Puis `pilier` (`owned` tant que
+        l'abonnement court ; toujours `available`, pour le prolonger), puis `perso` (`available` seulement si le
+        joueur possède le grade Ultime ; `owned` tant que l'abonnement court). Les cosmétiques, les boosts et le pass
+        de saison s'ajouteront ici quand le jeu les vendra.
       operationId: catalog
       parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
       responses:
@@ -740,6 +747,16 @@ paths:
   /v1/shop/purchases:
     post:
       summary: Achète un article en Gemmes, pour soi ou en cadeau
+      description: |
+        L'acteur paie `itemId` (un article de `catalog`) avec ses Gemmes. Avec `forXuid`, l'article va à ce joueur
+        (qui doit être connu du service) et c'est encore l'acteur qui paie ; les vérifications de possession et d'ordre
+        portent alors sur le destinataire. Un `itemId` inconnu ou que le jeu ne vend pas encore, un destinataire
+        inconnu ou un acteur que le service ne connaît pas donnent 400. `DEJA_POSSEDE` pour un grade que le
+        destinataire a déjà ; `GRADE_PRECEDENT_REQUIS` pour un grade qui n'est pas le premier qu'il n'a pas, et pour
+        `perso` quand il n'a pas le grade Ultime ; `PAS_ASSEZ_DE_GEMMES`, avec `missing`, si les Gemmes manquent.
+        409 `CONFLIT_REESSAYER` si le même `requestId` est encore en cours. `pilier` et `perso` durent `jours` de plus
+        à partir du plus tard de maintenant et de la fin de l'abonnement ; chaque achat de `pilier` rend aussitôt ses
+        `gemmesRendues` au destinataire. La réponse donne les soldes de l'acheteur.
       operationId: buyItem
       requestBody:
         required: true
@@ -751,7 +768,7 @@ paths:
                 - type: object
                   required: [itemId]
                   properties:
-                    itemId: { type: string }
+                    itemId: { type: string, minLength: 1, maxLength: 48, example: mvip, description: "identifiant d'un article de `catalog`" }
                     forXuid: { $ref: '#/components/schemas/Xuid' }
       responses:
         '400': { $ref: '#/components/responses/Erreur' }

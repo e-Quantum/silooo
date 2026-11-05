@@ -5,6 +5,9 @@ import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
+import com.silooo.core.shop.DeliveryRelief
+import com.silooo.core.shop.JdbcShopStore
+import com.silooo.core.site.siteModule
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import kotlin.system.exitProcess
@@ -61,17 +64,35 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     Migrations.validate(config.database)
     val database = HikariDatabase.connect(config.database)
     try {
+        val shopStore = JdbcShopStore()
         val dependencies = Dependencies(
             database = database,
             apiKey = config.apiKey,
             definitions = definitions,
+            shopStore = shopStore,
             apiRequestRetention = config.apiRequestRetention,
             incidentTick = INCIDENT_TICK_EVERY,
+            deliveries = DeliveryRelief(database, shopStore),
+            deliveryPoll = config.deliveryPoll,
+            siteMode = config.siteMode,
+            siteUrl = config.siteUrl,
+            discordUrl = config.discordUrl,
+            siteSettings = config.siteSettings,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.
-        embeddedServer(CIO, port = config.port, host = "0.0.0.0") { siloooModule(dependencies) }
-            .start(wait = true)
+        val api = embeddedServer(CIO, port = config.port, host = "0.0.0.0") { siloooModule(dependencies) }
+        // Le site public : un second serveur dans la même JVM, sur son propre port. Les routes de l'API n'existent
+        // pas sur ce port (le Caddy de SileneMC ne joint que lui), et les tests de l'API n'ont pas à changer.
+        val site = embeddedServer(CIO, port = config.sitePort, host = "0.0.0.0") { siteModule(dependencies) }
+        try {
+            site.start(wait = false)
+            log.info("Le site écoute sur le port {} en mode {}.", config.sitePort, config.siteMode.word)
+            api.start(wait = true)
+        } finally {
+            site.stop(1_000, 2_000)
+            api.stop(1_000, 2_000)
+        }
     } finally {
         database.close()
     }

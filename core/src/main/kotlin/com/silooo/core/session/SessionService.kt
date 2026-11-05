@@ -36,10 +36,12 @@ class SessionService(
     private val economy: EconomyFigures,
     private val bootstrap: CompanyBootstrap,
     private val online: OnlinePlayers = OnlinePlayers.NOBODY,
+    private val deliveries: PendingDeliveries = PendingDeliveries.NONE,
 ) {
     /**
-     * Inscrit le joueur, crée son entreprise au premier passage, encaisse l'absence (via [EconomyFigures])
-     * et rend `JoinResponse`. Si le moteur perd contre un autre associé (version de l'entreprise dépassée) ou
+     * Inscrit le joueur, verse les livraisons de Gemmes qui l'attendaient (via [PendingDeliveries]), crée son entreprise au
+     * premier passage, encaisse l'absence (via [EconomyFigures]) et rend `JoinResponse`. Si le moteur perd contre un autre
+     * associé (version de l'entreprise dépassée) ou
      * si la base annule la transaction (blocage), on recommence : tout est relu à neuf. Après
      * [MAX_JOIN_ATTEMPTS] essais, le refus `CONFLIT_REESSAYER` remonte (409).
      */
@@ -86,6 +88,8 @@ class SessionService(
     private fun joinIn(connection: Connection, xuid: Xuid, gamertag: String): JoinResponse {
         // L'ordre compte : la ligne `players` est verrouillée en premier, ce qui range en file les appels du même XUID.
         val entry = store.enterPlayer(connection, xuid, gamertag)
+        // Les Gemmes que le site a vendues à ce joueur avant qu'il ne vienne : versées tout de suite, le solde de la réponse les montre.
+        deliveries.relieve(connection, xuid, gamertag)
 
         var membership = store.membershipOf(connection, xuid)
         var companyCreated = false

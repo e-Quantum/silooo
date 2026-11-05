@@ -41,6 +41,8 @@ USER silooo
 
 # Le service n'écoute que sur le réseau Docker. Le compose ne publie jamais ce port.
 EXPOSE 8080
+# Le port du site public : le Caddy de SileneMC le joint sur le réseau Docker, le compose ne le publie jamais.
+EXPOSE 8081
 
 # Aucun secret dans l'image : la base et la clé arrivent par les variables SILOOO_* du conteneur.
 #   docker run <image>           démarrage normal (definitions/, Flyway validate, puis le service)

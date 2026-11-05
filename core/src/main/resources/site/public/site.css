@@ -1,0 +1,6 @@
+/*
+ * Le point d'entrée du style du site : les jetons de Silooo Atelier (copie exacte de design/tokens.css), puis les
+ * composants et la mise en page du web (atelier.css). Une seule feuille liée par les pages ; elle charge les deux autres.
+ */
+@import url("atelier/tokens.css");
+@import url("atelier.css");

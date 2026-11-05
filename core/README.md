@@ -48,6 +48,15 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
 | `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json, missions.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
+| `SILOOO_DELIVERY_POLL_SECONDS` | Intervalle du relevé des commandes de Gemmes du site (`shop_deliveries`), de 1 à 3600 secondes | non, 30 par défaut |
+| `SILOOO_SITE_PORT` | Port du site public, différent de `SILOOO_PORT` | non, 8081 par défaut |
+| `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
+| `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
+| `SILOOO_SITE_URL_DISCORD` | Le lien Discord affiché sur la page d'accueil et d'attente | non, pas de lien tant qu'elle n'est pas posée |
+| `SILOOO_SITE_ADRESSE_JEU` | L'adresse du serveur de jeu affichée sur l'accueil et Rejoindre (sans port) | non, `play.silooo.com` par défaut |
+| `SILOOO_SITE_PORT_JEU` | Le port du jeu affiché, entier de 1 à 65535 (le défaut est celui de `BDS_PORT` dans `deploy/compose.yml`, ADR 0004) | non, `19142` par défaut |
+| `SILOOO_SITE_URL_BOUTIQUE` | L'adresse où s'achètent les Gemmes, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
+| `SILOOO_SITE_SITES_DE_VOTE` | Les sites de vote, `nom\|url` séparés par des points-virgules (une entrée mal formée arrête le service) | non, aucun site par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
@@ -106,6 +115,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 | `mission/` | `GET /v1/players/{xuid}/missions` : `MissionRoutes`, `MissionService` (la chaîne de missions, l'avancement, la fin), `MissionStore` et `JdbcMissionStore` (`player_missions`, versement des Lingots, événement) ; `CompanyService.collect` l'appelle |
+| `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries`, Gemmes), `ShopFigures` (les bonus de Donar du PDG que le moteur lit) et `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
@@ -566,3 +576,101 @@ de chiffres sont dans `docs/economie.md`, section « La ville côté service » 
   écrit en dur dans le chemin de `buyZone` (le test de contrat vérifie qu'il égale le nombre de zones des définitions) ;
   `CompanyState.city` est facultatif ; le catalogue des missions n'a que `collect`, donc aucune mission de ville ; `SiloooJson` est
   tolérant et accepte un entier entre guillemets.
+
+## La boutique côté service
+
+Deux routes, déjà nommées au contrat (qui reste à 32 opérations), et maintenant écrites : `catalog` (`GET /v1/shop/catalog?actor=`) et
+`buyItem` (`POST /v1/shop/purchases`, corps : `requestId`, `actor`, `itemId`, et `forXuid` pour un cadeau). S'y ajoute le relevé des
+livraisons de Gemmes, qui n'a pas de route : il tourne dans le service. Le service décide de tout (prix, ordre des grades, bonus) ;
+les règles de jeu et les tableaux de chiffres sont dans `docs/economie.md`, section « La boutique : Gemmes, grades et Pilier » ; les
+chiffres eux-mêmes dans `definitions/boutique.json`, que cette tranche n'a pas touché.
+
+- **Le code** est dans `shop/` : `ShopRules` (les règles pures sur `definitions/` : ordre des grades, catalogue, refus, prolongation
+  d'un abonnement, bonus), `ShopService` (`catalog` et `buy`), `ShopRoutes` (la forme des requêtes et `call.idempotent`),
+  `ShopStore` et `JdbcShopStore` (le SQL sur `player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries` et les
+  Gemmes), `ShopFigures` (la boutique vue par le moteur : les bonus du PDG), `DeliveryRelief` (le relevé des livraisons, avec
+  `launchDeliveryPoll`, la boucle que le module lance). `economy/ShopBonusSource` est l'interface que le moteur lit, comme
+  `CityBonusSource` ; `session/PendingDeliveries` est la seule chose que `join` sache du relevé. Sans source, rien ne change.
+- **`catalog`** : les six grades dans l'ordre, puis `pilier` et `perso`, avec `owned` et `available` vus de l'`actor`. Un `actor`
+  absent, mal formé ou inconnu du service : 400, rien d'écrit.
+- **`buyItem`, l'ordre des vérifications** : forme de la requête (400 avant tout : `itemId` vide ou de plus de 48 caractères,
+  `forXuid` mal formé), article inconnu ou pas vendu (400), acheteur ou destinataire inconnu (400), puis les Gemmes de l'acheteur sont
+  verrouillées et lues, puis les refus du jeu (409 : `DEJA_POSSEDE`, `GRADE_PRECEDENT_REQUIS`, `PAS_ASSEZ_DE_GEMMES` avec la somme qui
+  manque), puis seulement les écritures. Un refus n'écrit rien. La réponse est le solde de l'acheteur (`Balances`).
+- **Une seule transaction, celle de l'idempotence** : l'achat dans `shop_purchases` (clé unique sur le `requestId`), le débit des
+  Gemmes (`creditBalance` négatif, motif `boutique`, référence : l'article), puis le grade (`player_ranks`, source `achat` ou
+  `cadeau`) ou l'abonnement prolongé (`player_subscriptions`, `months_total` plus un) avec les Gemmes qu'il rend au destinataire
+  (motif `pilier`). Si une écriture échoue, tout est annulé. Aucun événement n'est écrit pour un achat.
+- **Le relevé des livraisons** (`DeliveryRelief`) verse les lignes de `shop_deliveries` sans `delivered_at` dont le joueur est connu,
+  par XUID puis par pseudo, à intervalle (`Dependencies.deliveries` et `deliveryPoll`, câblés par `Main`) et au `join`
+  (`SessionService.join` l'appelle juste après l'inscription du joueur, dans la même transaction). Une livraison se verse en une
+  transaction : la ligne marquée (`UPDATE ... WHERE delivered_at IS NULL`, qui doit toucher une ligne), les Gemmes (motif
+  `livraison`, référence : la commande), l'événement `GEMMES_RECUES` (`orderId`, `gemmes`, `gemmesTotal`). Un passage vide au plus
+  `DeliveryRelief.BATCH` (100) lignes, chacune dans sa transaction : une qui échoue est notée et retentée au passage suivant. Les
+  tests passent `deliveries = null` : ni relevé ni tâche de fond.
+- **Les bonus** entrent dans le moteur par `economy/EngineFigures` : le multiplicateur global, après celui de la ville, est multiplié
+  par `1 + grade / 100` (le plus haut grade du PDG) puis `1 + Pilier / 100` (tant qu'il court) : `EconomyEngine.withShopBonuses`, qui
+  rend exactement le calcul d'avant quand les deux sont nuls. C'est le PDG de l'entreprise qui compte (`JdbcShopStore.ceoHoldings`).
+  Un achat ne règle pas la production en attente : voir `docs/economie.md`.
+- **Aucune migration** : V1 a déjà `shop_deliveries`, `shop_purchases`, `player_ranks` et `player_subscriptions`.
+- **Les tests** : `shop/ShopRulesTest` (ordre, catalogue, refus, prolongation, bonus), `shop/ShopRoutesTest` (sans base : les deux
+  routes, refus, 400, rejeu, cadeau), `shop/DeliveryReliefTest` (à qui revient une livraison, ce qui reste en attente, versement
+  unique, rattrapage au `join`, tâche de fond du module), `economy/EngineFiguresShopTest` (réponses identiques sans grade ni Pilier,
+  PDG, bonus non cumulés, bonus versés), `ConfigDeliveryPollTest`, `ContractTest` (les deux opérations, toujours 32), et
+  `shop/ShopSqlTest` (MariaDB, CI seulement, ignoré sans Docker) : lignes, journal et solde écrits et annulés ensemble, une
+  livraison versée une fois même relevée deux fois ou en même temps, le rattrapage au `join`, deux achats simultanés du même grade.
+  `shop/InMemoryShopStore` est le faux magasin partagé des tests.
+- **Les manques du contrat** (à traiter avec Kr) : pas de code de refus pour « le Perso demande le grade Ultime » (rendu en
+  `GRADE_PRECEDENT_REQUIS`) ; pas de 404 ni de 403 pour un article, un acheteur ou un destinataire inconnu (rendus en 400
+  `REQUETE_INVALIDE`) ; aucun événement d'achat n'existe, donc l'add-on ne peut apprendre un grade ou un Pilier acheté ailleurs qu'en
+  relisant le catalogue ou en rejoignant ; `Balances` est la seule réponse de `buyItem`, sans le grade ni la fin du Pilier. Le
+  contrat n'a pas encore de section d'écarts à part : ces points sont notés ici, comme pour la ville.
+
+## Le site
+
+Le site public `silooo.com` est un module de silooo-core (ADR 0006), pas un service à part. Le paquet est
+`com.silooo.core.site`, les contenus et les fichiers sont dans `src/main/resources/site/`. Il tourne dans la même JVM que
+l'API, sur son propre port (`SILOOO_SITE_PORT`, 8081 par défaut) : `Main.kt` démarre deux serveurs Ktor, celui de l'API
+(`siloooModule`, `/v1`, la clé du serveur) et celui du site (`siteModule`, des pages HTML et des fichiers, sans clé ni JSON). `/v1`
+n'existe pas sur le port du site, et le Caddy de SileneMC ne joint que celui-là. Le `Dockerfile` déclare `EXPOSE 8081` ; le compose
+ne le publie jamais.
+
+- **Deux modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente et `/mentions/` les mentions.
+  En `ouvert`, `/` est l'accueil et les pages de S2 répondent (voir plus bas). Toute autre adresse répond 404, avec une page Silooo. Le mode
+  `ouvert` n'est écrit dans aucun fichier du dépôt : seul Kr le pose, dans l'environnement du service.
+- **Les contenus** sont des fichiers Markdown de `site/contenu/`, avec un en-tête entre deux lignes `---` : `titre`, `description`,
+  `url` (elle finit par `/`) et `modes` (`[attente, ouvert]`). `SiteContent` les lit et les rend en HTML (commonmark-java, HTML brut
+  escamoté) une seule fois, au démarrage : un en-tête incomplet arrête le démarrage et nomme le fichier. Un contenu neuf demande
+  son nom dans `SiteContent.BUNDLED` et une fonction de rendu dans `site/pages/` (choisie dans `SiteRoutes.kt`).
+- **Les pages** sont écrites en DSL HTML (`kotlinx.html`) : `pages/Gabarit.kt` pose la page entière (en-tête, `main`, pied avec la mention
+  de Mojang et le lien Mentions), `Attente.kt`, `Accueil.kt`, `Mentions.kt` et `Erreur.kt` posent le `h1` et le contenu. Aucun script.
+- **Les pages publiques du mode `ouvert`** (S2) : `/` (accueil), `/rejoindre/`, `/ce-qui-se-vend/`, `/boutique/`, `/vote/`,
+  `/mises-a-jour/`, toutes en 404 en `attente`. Mécanique : un contenu Markdown de `site/contenu/` porte le texte écrit à la main ;
+  un paragraphe seul `{{nom}}` y marque l'endroit d'un bloc que la page Kotlin de `site/pages/` rend depuis les définitions
+  (`Dependencies.definitions.shop`) ou la configuration (`SiteSettings`). **Jamais un chiffre tapé** : prix, bonus, jours,
+  Gemmes viennent du JSON, l'adresse et le port de la configuration, et un test le vérifie. Les entrées de mises à jour sont
+  `site/contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (`titre`, `description`, `date`), listées dans `UpdateEntries.BUNDLED`.
+- **Le wiki** (S3) : `site/contenu/wiki/<sujet>.md` (en-tête des contenus plus `ordre`, entier unique), listés dans
+  `WikiContent.BUNDLED` (un test les compare au dossier), rendus par `pages/Wiki.kt` ; les tableaux sont des blocs `{{nom}}`
+  de `pages/WikiBlocs.kt`, tirés de `Dependencies.definitions`. Ajouter une page : créer le `.md` (url `/wiki/<sujet>/`, `modes:
+  [ouvert]`, un `ordre` libre), l'ajouter à `BUNDLED` et, si elle porte un bloc, à `wikiBlocks`. Le test des chiffres refuse dans
+  ces Markdown un nombre suivi de : Donar, Lingots, Gemmes, %, heures, h, €, joueurs, associés (les dates et « époque 1 » passent).
+- **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
+  copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
+- **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
+  « Lancer »), puis `http://localhost:8081/`. Sans la variable, le site est en `attente`.
+- **Les tests** (sans base) : `site/SiteModuleTest` (les deux modes, `lang`, un seul `h1`, `title`, `description`, `alt`, les
+  en-têtes, le 404, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, et `ConfigTest` pour les variables.
+- **Les textes** vus par les visiteurs passent `tools/anti_ia.py` (contenus Markdown en entier, littéraux du paquet `site`), et chaque
+  texte neuf reste à valider par Kr.
+- **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`) : `public/site.css` est l'unique feuille liée, elle importe
+  `atelier/tokens.css` puis `atelier.css` (composants `sa-*` et mise en page). Les jetons, les textures (`atelier/textures/`), les
+  icônes, Oooscar (`atelier/oooscar/`) et les logos (`logo/`) sont des copies de `design/` ; `SiteAtelierTest` les compare à la
+  source octet pour octet et refuse un `url(...)` sans fichier, un arrondi, un dégradé, un flou ou une largeur fixe au-dessus de
+  360 px. Les polices (`polices/`, `woff2` latin tirés de `@fontsource/*`, licence OFL) sont servies par le site.
+- **Ajouter un composant** : le dessiner d'abord dans `design/` (texture dans `design/textures/`, règle dans `design/composants/`),
+  recopier la texture dans `public/atelier/textures/`, écrire la règle dans `atelier.css` avec le même nom `sa-*` et la même bordure
+  de `border-image` que `bundle.css`, puis ajouter la texture à la liste du test de copie si besoin.
+- **Voir les pages dans un navigateur** sans base : `SILOOO_SITE_RENDER_DIR=/tmp/site ./gradlew test --tests '*SiteRenderToDisk'`
+  écrit les pages rendues et `public/` dans ce dossier ; on le sert avec n'importe quel serveur de fichiers (ce test est ignoré
+  quand la variable n'est pas posée).
