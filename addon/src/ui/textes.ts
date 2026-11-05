@@ -9,7 +9,7 @@
 // tools/anti_ia.py lit les chaînes de ce fichier comme celles de tout addon/src/**/*.ts.
 
 import type { FactoryId, IncidentKindId, MissionId } from "../generated/definitions";
-import type { BuyAmount, RefusalReason, StaffRarity, StaffRole } from "../protocol";
+import type { BuyAmount, MemberRole, RefusalReason, StaffRarity, StaffRole } from "../protocol";
 import { COLOR, EXPRESSION_MARK, type Expression } from "./apparence";
 import { formatAmount } from "./nombres";
 import type { FactoryStatus } from "./usines";
@@ -257,6 +257,8 @@ export const MENU_TEXTES = {
     if (count === 1) return "1 membre";
     return `${count} membres`;
   },
+  /** La tuile qui mène aux associés (ASSOCIES_TEXTES). */
+  associes: "Associés",
 } as const;
 
 export const USINES_TEXTES = {
@@ -681,4 +683,84 @@ export const CINEMATIQUE_TEXTES = {
   ],
   /** La consigne pour passer, dans la bande du bas. */
   passer: "Reste accroupi pour passer.",
+} as const;
+
+// ---------------------------------------------------------------- les associés
+
+/**
+ * L'entreprise partagée : la liste des associés, l'invitation, les parts. Les parts, les noms et les rôles arrivent du
+ * service tels quels. Aucun maximum d'associés n'est écrit ici : c'est le service qui refuse une entreprise pleine.
+ * Les bulles de refus ont leur choix de mots dans ui/associes.ts (associesRefusalBubble), selon l'action.
+ */
+export const ASSOCIES_TEXTES = {
+  titre: "ASSOCIÉS",
+  /** Les rôles du contrat (Member.role), tels que le joueur les lit. */
+  roles: {
+    PDG: "PDG",
+    ASSOCIE: "Associé",
+  } satisfies Record<MemberRole, string>,
+  /** Un membre dans la liste : rôle, nom, part en pourcent telle que le service la donne. */
+  ligne: (role: string, nom: string, part: string): string => `${role} · ${nom} · ${part} %`,
+  /** Marque la ligne du joueur lui-même. */
+  toi: (ligne: string): string => `${ligne} (toi)`,
+  /** Le joueur est seul : il peut inviter jusqu'à ce que le service refuse. */
+  seul: "Tu es seul dans l'entreprise. Invite des joueurs, jusqu'à ce que le service refuse.",
+  inviter: "Inviter",
+  parts: "Parts",
+  retour: "Retour",
+  /** La ligne d'info de la tuile du menu. */
+  tuile: {
+    seul: "Invite des joueurs",
+    nombre: (count: number): string => `${count} associés`,
+  },
+  /** Une invitation reçue : sa ligne dans la liste, sa fenêtre, et la ligne envoyée dans le tchat. */
+  invitation: {
+    titre: "INVITATION",
+    texte: (nom: string, entreprise: string): string => `${nom} t'invite dans ${entreprise}`,
+    consequence: "Tu quittes ton entreprise actuelle. Le PDG fixera ta part.",
+    accepter: "Accepter",
+    plusTard: "Plus tard",
+  },
+  /** Le choix du joueur à inviter. */
+  choix: {
+    titre: "INVITER",
+    phrase: "Choisis un joueur connecté.",
+    aucun: "Aucun autre joueur connecté.",
+    retour: "Retour",
+  },
+  /** Le formulaire des parts : un champ par membre. */
+  formulaire: {
+    titre: "PARTS",
+    champ: (nom: string): string => `Part de ${nom}, en %`,
+    indice: "Un nombre entier",
+    envoyer: "Enregistrer",
+  },
+  bulles: {
+    /** Le service a pris l'invitation. */
+    invitationEnvoyee: say("joie", "Invitation envoyée."),
+    /** Le service a fixé les parts. */
+    partsEnregistrees: say("joie", "Parts enregistrées."),
+    /** Le joueur est entré dans l'entreprise qui l'invitait. */
+    bienvenue: say("joie", "Bienvenue dans l'entreprise."),
+    /** Une invitation arrive (tchat). */
+    invitationRecue: say("joie", "Tu as une invitation."),
+    /** Les parts ont changé (tchat, annonce du service). */
+    partsChangees: say("joie", "Les parts ont changé."),
+    /** Un champ du formulaire n'est pas un pourcentage entier : rien n'est envoyé. */
+    partsInvalides: say("oups", "Écris un pourcentage entier."),
+    /** Le service refuse les parts (400) : leur total n'est pas celui qu'il attend. */
+    partsTotal: say("oups", "Les parts doivent faire 100."),
+    /** Le service ne trouve plus l'invitation (400) : elle a expiré, ou une autre l'a remplacée. */
+    invitationExpiree: say("oups", "Cette invitation a expiré."),
+    /** Le service ne connaît pas le joueur invité (400). */
+    joueurInconnu: say("oups", "Je ne connais pas ce joueur."),
+    /** Inviter un joueur qui est déjà dans l'entreprise (DEJA_POSSEDE). */
+    dejaAssocie: say("oups", "Il est déjà associé."),
+    /** Accepter l'invitation de l'entreprise où l'on est déjà (DEJA_POSSEDE). */
+    tuEsDejaAssocie: say("oups", "Tu es déjà associé ici."),
+    /** Inviter un joueur qui a déjà lancé sa propre entreprise (ENTREPRISE_EN_COURS). */
+    ilALance: say("oups", "Il a déjà lancé son entreprise."),
+    /** Accepter l'invitation d'une entreprise qui s'est remplie depuis (ENTREPRISE_PLEINE). */
+    entreprisePleine: say("oups", "Cette entreprise est pleine."),
+  },
 } as const;

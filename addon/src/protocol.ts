@@ -79,6 +79,23 @@ export interface Staff {
 /** Un membre embauché de `CompanyState.staff` : il a toujours un `staffId`. */
 export type StaffMember = Staff & { staffId: number };
 
+/** Les rôles de `Member.role` : le PDG décide, l'associé entre par invitation. */
+export const MEMBER_ROLES = ["PDG", "ASSOCIE"] as const;
+
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+/**
+ * Un membre de l'entreprise, PDG ou associé (`Member` du contrat). `sharePercent` est sa part du partage des Lingots au
+ * prestige, en pourcent entier : le service les fait toujours sommer à 100, l'add-on les affiche sans les calculer.
+ */
+export interface Member {
+  xuid: Xuid;
+  /** Le gamertag du joueur. */
+  name: string;
+  role: MemberRole;
+  sharePercent: number;
+}
+
 /** Un candidat de `getCandidates` : il a toujours une place, de 1 à 5. Embauché, il porte aussi `staffId`. */
 export type Candidate = Staff & { slot: number };
 
@@ -100,6 +117,8 @@ export interface CompanyState {
   /** Le personnel embauché, affecté ou non. Le contrat ne le marque pas obligatoire : absent, les écrans le lisent comme vide. */
   staff?: StaffMember[];
   version: number;
+  /** Les membres, le PDG d'abord puis les associés dans l'ordre d'arrivée. Facultatif au contrat : absent, les écrans le lisent comme vide. */
+  members?: Member[];
 }
 
 export interface JoinResponse {
@@ -332,6 +351,9 @@ function readCompanyState(value: unknown, path: string): CompanyState {
   if (rec["island"] !== undefined) state.island = readIslandOrigin(rec["island"], `${path}.island`);
   if (rec["staff"] !== undefined) {
     state.staff = list(rec["staff"], `${path}.staff`).map((item, i) => readMember(item, `${path}.staff[${i}]`));
+  }
+  if (rec["members"] !== undefined) {
+    state.members = list(rec["members"], `${path}.members`).map((item, i) => readCompanyMember(item, `${path}.members[${i}]`));
   }
   return state;
 }
@@ -751,4 +773,74 @@ function readCandidate(value: unknown, path: string): Candidate {
  */
 export function parseCandidates(body: unknown): Parsed<Candidate[]> {
   return attempt(() => list(body, "agence").map((item, i) => readCandidate(item, `agence[${i}]`)));
+}
+
+// ---------------------------------------------------------------- phase 4 : l'entreprise partagée
+
+/** Gabarits des chemins de l'entreprise partagée. `invite` (POST) et `setShares` (PUT) partagent le premier. */
+export const MEMBER_PATHS = {
+  members: "/v1/companies/{companyId}/members",
+  accept: "/v1/companies/{companyId}/members/accept",
+} as const;
+
+/** Le chemin d'`invite` (POST) et de `setShares` (PUT). */
+export function membersPath(companyId: number): string {
+  return MEMBER_PATHS.members.replace("{companyId}", companySegment(companyId));
+}
+
+/** Le chemin d'`acceptInvite` : `companyId` est l'entreprise qui a invité, pas celle du joueur. */
+export function acceptInvitePath(companyId: number): string {
+  return MEMBER_PATHS.accept.replace("{companyId}", companySegment(companyId));
+}
+
+/** Vrai pour un XUID du contrat (schéma `Xuid`) : un entier décimal de 1 à 20 chiffres, écrit en chaîne. */
+export function isXuid(value: string): boolean {
+  return XUID_PATTERN.test(value);
+}
+
+/** Corps d'`invite` : l'action, et le joueur invité. */
+export interface InviteBody extends ActionBase {
+  targetXuid: Xuid;
+}
+
+export function inviteBody(action: ActionBase, targetXuid: Xuid): InviteBody {
+  return { requestId: action.requestId, actor: action.actor, targetXuid };
+}
+
+/** La part d'un membre dans `setShares` : un pourcentage entier de 0 à 100. */
+export interface ShareInput {
+  xuid: Xuid;
+  percent: number;
+}
+
+/** Bornes de `percent` dans `setShares`. */
+export const SHARE_MIN = 0;
+export const SHARE_MAX = 100;
+
+/** Vrai pour un pourcentage que le contrat accepte : entier, de 0 à 100. La somme n'est pas vérifiée ici : c'est au service. */
+export function isSharePercent(value: number): boolean {
+  return Number.isInteger(value) && value >= SHARE_MIN && value <= SHARE_MAX;
+}
+
+/** Corps de `setShares` : une part par membre, dans l'ordre donné. */
+export interface SetSharesBody extends ActionBase {
+  shares: ShareInput[];
+}
+
+export function setSharesBody(action: ActionBase, shares: readonly ShareInput[]): SetSharesBody {
+  return {
+    requestId: action.requestId,
+    actor: action.actor,
+    shares: shares.map((share) => ({ xuid: share.xuid, percent: share.percent })),
+  };
+}
+
+/** Un membre de `CompanyState.members`. Le XUID et la part suivent le schéma `Member` du contrat. */
+function readCompanyMember(value: unknown, path: string): Member {
+  const rec = record(value, path);
+  const xuid = str(rec, "xuid", path);
+  if (!XUID_PATTERN.test(xuid)) throw new ShapeError(`${path}.xuid : XUID attendu`);
+  const sharePercent = whole(rec, "sharePercent", path, SHARE_MIN);
+  if (sharePercent > SHARE_MAX) throw new ShapeError(`${path}.sharePercent : ${SHARE_MAX} au plus attendu`);
+  return { xuid, name: str(rec, "name", path), role: oneOf(rec, "role", path, MEMBER_ROLES), sharePercent };
 }

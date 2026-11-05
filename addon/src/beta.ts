@@ -4,7 +4,7 @@
 //
 // Appels bêta de ce fichier :
 //   @minecraft/server-net   : http.request, HttpRequest (uri, method, timeout, headers, body),
-//                             HttpHeader, HttpRequestMethod (Get, Post, Patch, Delete), HttpResponse (status, body)
+//                             HttpHeader, HttpRequestMethod (Get, Post, Put, Patch, Delete), HttpResponse (status, body)
 //   @minecraft/server-admin : secrets.get, variables.get, SecretString (type seulement)
 
 import { secrets, variables, type SecretString } from "@minecraft/server-admin";
@@ -26,10 +26,11 @@ function nativeValue(value: Header["value"]): string | SecretString {
   return typeof value === "string" ? value : (value as unknown as SecretString);
 }
 
-/** Les quatre méthodes du contrat (GET, POST, PATCH, DELETE) et leur nom chez Bedrock. */
+/** Les cinq méthodes du contrat (GET, POST, PUT, PATCH, DELETE) et leur nom chez Bedrock. */
 const NATIVE_METHODS: Readonly<Record<HttpMethod, HttpRequestMethod>> = {
   GET: HttpRequestMethod.Get,
   POST: HttpRequestMethod.Post,
+  PUT: HttpRequestMethod.Put,
   PATCH: HttpRequestMethod.Patch,
   DELETE: HttpRequestMethod.Delete,
 };

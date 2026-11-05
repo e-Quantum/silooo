@@ -558,3 +558,176 @@ describe("fireStaff", () => {
     assert.equal(transport.requests.length, 0);
   });
 });
+
+describe("invite", () => {
+  const rendu = { state: companyState({ version: 2 }), balances: balances() };
+  const cible = "2535428000000002";
+
+  it("envoie un POST vers /members avec l'action et le joueur invité", async () => {
+    const { transport, api } = setup([json(200, rendu)]);
+    const result = await api.invite(7, action, cible);
+    assert.equal(result.kind, "ok");
+    const request = transport.requests[0];
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.url, "http://core:8080/v1/companies/7/members");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), { ...action, targetXuid: cible });
+  });
+
+  it("les refus du contrat gardent leur code : PAS_LE_PDG en 403, les quatre autres en 409", async () => {
+    assert.deepEqual(await setup([json(403, { reason: "PAS_LE_PDG" })]).api.invite(7, action, cible), {
+      kind: "refused",
+      status: 403,
+      reason: "PAS_LE_PDG",
+    });
+    for (const reason of ["ENTREPRISE_PLEINE", "DEJA_POSSEDE", "ENTREPRISE_EN_COURS", "CONFLIT_REESSAYER"]) {
+      assert.deepEqual(await setup([json(409, { reason })]).api.invite(7, action, cible), { kind: "refused", status: 409, reason });
+    }
+  });
+
+  it("un 400 (joueur inconnu) reste une erreur du service, sans refus du jeu", async () => {
+    const { api } = setup([json(400, { reason: "REQUETE_INVALIDE" })]);
+    assert.deepEqual(await api.invite(7, action, cible), { kind: "error", status: 400, reason: "REQUETE_INVALIDE" });
+  });
+
+  it("une écriture n'est jamais rejouée toute seule", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, rendu)]);
+    assert.equal((await api.invite(7, action, cible)).kind, "error");
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("un réseau coupé devient un résultat network", async () => {
+    const { api } = setup([new Error("coupé")]);
+    assert.equal((await api.invite(7, action, cible)).kind, "network");
+  });
+
+  it("une réponse hors contrat devient une erreur lisible", async () => {
+    const { api } = setup([json(200, { state: {} })]);
+    const result = await api.invite(7, action, cible);
+    assert.equal(result.kind, "error");
+    if (result.kind === "error") assert.equal(result.reason, "REPONSE_INATTENDUE");
+  });
+
+  it("un joueur qui n'est pas un XUID, une entreprise ou un acteur illisibles n'envoient aucune requête", async () => {
+    const { transport, api } = setup([json(200, rendu)]);
+    for (const resultat of [
+      await api.invite(7, action, ""),
+      await api.invite(7, action, "Ada"),
+      await api.invite(7, action, "42&x=1"),
+      await api.invite(-3, action, cible),
+      await api.invite(Number.NaN, action, cible),
+    ]) {
+      assert.equal(resultat.kind, "error");
+      if (resultat.kind === "error") assert.equal(resultat.reason, "REQUETE_INVALIDE");
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+describe("setShares", () => {
+  const membres = [
+    { xuid: "2535428000000001", name: "Kr", role: "PDG", sharePercent: 70 },
+    { xuid: "2535428000000002", name: "Ada", role: "ASSOCIE", sharePercent: 30 },
+  ];
+  const rendu = { state: companyState({ version: 3, members: membres as never }), balances: balances() };
+  const parts = [
+    { xuid: "2535428000000001", percent: 70 },
+    { xuid: "2535428000000002", percent: 30 },
+  ];
+
+  it("envoie un PUT vers /members avec l'action et une part par membre", async () => {
+    const { transport, api } = setup([json(200, rendu)]);
+    const result = await api.setShares(7, action, parts);
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.deepEqual(result.body.state.members, membres);
+    const request = transport.requests[0];
+    assert.equal(request?.method, "PUT");
+    assert.equal(request?.url, "http://core:8080/v1/companies/7/members");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), { ...action, shares: parts });
+  });
+
+  it("la somme n'est pas vérifiée dans l'add-on : une liste qui ne fait pas 100 part, et le 400 du service revient tel quel", async () => {
+    const { transport, api } = setup([json(400, { reason: "REQUETE_INVALIDE" })]);
+    const trop = [
+      { xuid: "2535428000000001", percent: 90 },
+      { xuid: "2535428000000002", percent: 90 },
+    ];
+    assert.deepEqual(await api.setShares(7, action, trop), { kind: "error", status: 400, reason: "REQUETE_INVALIDE" });
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("les refus PAS_LE_PDG (403) et CONFLIT_REESSAYER (409) gardent leur code", async () => {
+    assert.deepEqual(await setup([json(403, { reason: "PAS_LE_PDG" })]).api.setShares(7, action, parts), {
+      kind: "refused",
+      status: 403,
+      reason: "PAS_LE_PDG",
+    });
+    assert.deepEqual(await setup([json(409, { reason: "CONFLIT_REESSAYER" })]).api.setShares(7, action, parts), {
+      kind: "refused",
+      status: 409,
+      reason: "CONFLIT_REESSAYER",
+    });
+  });
+
+  it("une écriture n'est jamais rejouée toute seule", async () => {
+    const { transport, api } = setup([new Error("coupé"), json(200, rendu)]);
+    assert.equal((await api.setShares(7, action, parts)).kind, "network");
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("un XUID, un pourcentage ou une entreprise illisibles n'envoient aucune requête", async () => {
+    const { transport, api } = setup([json(200, rendu)]);
+    for (const resultat of [
+      await api.setShares(7, action, [{ xuid: "Kr", percent: 100 }]),
+      await api.setShares(7, action, [{ xuid: "2535428000000001", percent: 101 }]),
+      await api.setShares(7, action, [{ xuid: "2535428000000001", percent: -1 }]),
+      await api.setShares(7, action, [{ xuid: "2535428000000001", percent: 12.5 }]),
+      await api.setShares(-3, action, parts),
+    ]) {
+      assert.equal(resultat.kind, "error");
+      if (resultat.kind === "error") assert.equal(resultat.reason, "REQUETE_INVALIDE");
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+});
+
+describe("acceptInvite", () => {
+  const rendu = { state: companyState({ companyId: 12, version: 5 }), balances: balances() };
+
+  it("envoie un POST vers /members/accept de l'entreprise qui invite, avec l'action seule", async () => {
+    const { transport, api } = setup([json(200, rendu)]);
+    const result = await api.acceptInvite(12, action);
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") assert.equal(result.body.state.companyId, 12);
+    const request = transport.requests[0];
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.url, "http://core:8080/v1/companies/12/members/accept");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), action);
+  });
+
+  it("les refus du contrat gardent leur code", async () => {
+    for (const reason of ["DEJA_POSSEDE", "ENTREPRISE_PLEINE", "ENTREPRISE_EN_COURS", "CONFLIT_REESSAYER"]) {
+      assert.deepEqual(await setup([json(409, { reason })]).api.acceptInvite(12, action), { kind: "refused", status: 409, reason });
+    }
+  });
+
+  it("un 400 (invitation absente ou périmée) reste une erreur du service", async () => {
+    const { api } = setup([json(400, { reason: "REQUETE_INVALIDE" })]);
+    assert.deepEqual(await api.acceptInvite(12, action), { kind: "error", status: 400, reason: "REQUETE_INVALIDE" });
+  });
+
+  it("une écriture n'est jamais rejouée toute seule", async () => {
+    const { transport, api } = setup([json(500, { reason: "ERREUR_INTERNE" }), json(200, rendu)]);
+    assert.equal((await api.acceptInvite(12, action)).kind, "error");
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("une entreprise illisible n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, rendu)]);
+    for (const id of [-1, 1.5, Number.NaN]) {
+      const resultat = await api.acceptInvite(id, action);
+      assert.equal(resultat.kind, "error");
+      if (resultat.kind === "error") assert.equal(resultat.reason, "REQUETE_INVALIDE");
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+});

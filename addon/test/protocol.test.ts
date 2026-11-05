@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import {
+  acceptInvitePath,
   actionBody,
   agencyPath,
   assignStaffBody,
@@ -20,10 +21,16 @@ import {
   heartbeatBody,
   hireBody,
   hirePath,
+  inviteBody,
   isRestoreStep,
+  isSharePercent,
+  isXuid,
   joinBody,
   leaveBody,
   levelsPath,
+  MEMBER_PATHS,
+  MEMBER_ROLES,
+  membersPath,
   MISSIONS_PATH,
   missionsPath,
   parseCandidates,
@@ -44,6 +51,9 @@ import {
   resolveIncidentPath,
   restorePath,
   restoreStepBody,
+  setSharesBody,
+  SHARE_MAX,
+  SHARE_MIN,
   SLOT_MAX,
   SLOT_MIN,
   STAFF_PATHS,
@@ -1022,5 +1032,156 @@ describe("accord avec api/silooo-core.openapi.yaml, personnel", () => {
     const agence = blocOf(STAFF_PATHS.agency);
     assert.match(agence, /ni nouvelle liste contre du Donar/);
     assert.doesNotMatch(yaml, /operationId: (rerollCandidates|refreshAgency|newCandidates)/);
+  });
+});
+
+describe("l'entreprise partagée : chemins, corps et lecture des membres", () => {
+  const action = { requestId: "0197f2a0-0000-7000-8000-000000000001", actor: "9007199254740993123" };
+  const membres = [
+    { xuid: "2535428000000001", name: "Kr", role: "PDG", sharePercent: 60 },
+    { xuid: "2535428000000002", name: "Ada", role: "ASSOCIE", sharePercent: 40 },
+  ];
+
+  it("les chemins : invite et setShares partagent /members, acceptInvite vise l'entreprise qui invite", () => {
+    assert.equal(membersPath(7), "/v1/companies/7/members");
+    assert.equal(acceptInvitePath(12), "/v1/companies/12/members/accept");
+    assert.equal(MEMBER_PATHS.members, "/v1/companies/{companyId}/members");
+    assert.equal(MEMBER_PATHS.accept, "/v1/companies/{companyId}/members/accept");
+  });
+
+  it("une entreprise illisible lève une erreur au lieu de fabriquer un chemin", () => {
+    for (const id of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.throws(() => membersPath(id), RangeError, `entreprise ${id}`);
+      assert.throws(() => acceptInvitePath(id), RangeError, `entreprise ${id}`);
+    }
+  });
+
+  it("inviteBody : l'action et le joueur invité, rien d'autre", () => {
+    assert.deepEqual(inviteBody(action, "2535428000000002"), { ...action, targetXuid: "2535428000000002" });
+  });
+
+  it("setSharesBody : l'action et une part par membre, dans l'ordre donné, sans rien additionner", () => {
+    const shares = [
+      { xuid: "2535428000000001", percent: 70 },
+      { xuid: "2535428000000002", percent: 20 },
+    ];
+    const body = setSharesBody(action, shares);
+    assert.deepEqual(body, { ...action, shares });
+    assert.notEqual(body.shares, shares, "le corps copie la liste");
+    assert.deepEqual(Object.keys(body).sort(), ["actor", "requestId", "shares"]);
+  });
+
+  it("isSharePercent : un entier de 0 à 100, la somme n'est pas son affaire", () => {
+    assert.equal(SHARE_MIN, 0);
+    assert.equal(SHARE_MAX, 100);
+    for (const bon of [0, 1, 50, 99, 100]) assert.equal(isSharePercent(bon), true, `${bon}`);
+    for (const mauvais of [-1, 101, 12.5, Number.NaN, Number.POSITIVE_INFINITY]) assert.equal(isSharePercent(mauvais), false, `${mauvais}`);
+  });
+
+  it("isXuid : un entier décimal de 1 à 20 chiffres, écrit en chaîne", () => {
+    assert.equal(isXuid("2535428000000002"), true);
+    assert.equal(isXuid("42"), true);
+    for (const mauvais of ["", "abc", "42&x=1", "-4", "4.2", "123456789012345678901"]) assert.equal(isXuid(mauvais), false, `« ${mauvais} »`);
+  });
+
+  it("parseCompanyState lit les membres tels que le service les donne, dans son ordre", () => {
+    const parsed = parseCompanyState(companyState({ members: membres as never }));
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    assert.deepEqual(parsed.value.members, membres);
+    assert.deepEqual(MEMBER_ROLES, ["PDG", "ASSOCIE"]);
+  });
+
+  it("members est facultatif : absent, la clé reste absente", () => {
+    const parsed = parseCompanyState(companyState());
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) assert.equal("members" in parsed.value, false);
+  });
+
+  it("un membre mal formé rend toute la réponse illisible, avec le chemin du champ", () => {
+    const abimes: Array<[string, Record<string, unknown>]> = [
+      ["role", { ...membres[0], role: "CHEF" }],
+      ["xuid", { ...membres[0], xuid: "pas-un-xuid" }],
+      ["sharePercent", { ...membres[0], sharePercent: 101 }],
+      ["sharePercent", { ...membres[0], sharePercent: -1 }],
+      ["sharePercent", { ...membres[0], sharePercent: 12.5 }],
+      ["name", { ...membres[0], name: 7 }],
+    ];
+    for (const [champ, membre] of abimes) {
+      const parsed = parseCompanyState({ ...companyState(), members: [membre] });
+      assert.equal(parsed.ok, false, `membre abîmé : ${champ}`);
+      if (!parsed.ok) assert.ok(parsed.problem.includes(`members[0].${champ}`), parsed.problem);
+    }
+    assert.equal(parseCompanyState({ ...companyState(), members: "Kr" }).ok, false);
+  });
+
+  it("parseCompanyUpdated lit aussi les membres de la réponse", () => {
+    const parsed = parseCompanyUpdated({ state: companyState({ members: membres as never }), balances: balances() });
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) assert.deepEqual(parsed.value.state.members, membres);
+  });
+});
+
+/** Le contrat est dans l'OpenAPI : si un chemin, un verbe ou une énumération des membres dérive, ces tests échouent. */
+describe("accord avec api/silooo-core.openapi.yaml, entreprise partagée", () => {
+  const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+
+  function blocOf(chemin: string): string {
+    const debut = yaml.indexOf(`\n  ${chemin}:`);
+    assert.notEqual(debut, -1, `${chemin} absent de l'OpenAPI`);
+    const fin = yaml.indexOf("\n  /v1/", debut + 1);
+    return yaml.slice(debut, fin === -1 ? undefined : fin);
+  }
+
+  it("les gabarits des chemins sont ceux du contrat", () => {
+    assert.ok(yaml.includes(`\n  ${MEMBER_PATHS.members}:`));
+    assert.ok(yaml.includes(`\n  ${MEMBER_PATHS.accept}:`));
+  });
+
+  it("invite est un POST, setShares un PUT, sur le même chemin ; acceptInvite un POST", () => {
+    const membres = blocOf(MEMBER_PATHS.members);
+    assert.match(membres, /\n {4}post:\n/);
+    assert.match(membres, /operationId: invite\n/);
+    assert.match(membres, /\n {4}put:\n/);
+    assert.match(membres, /operationId: setShares\n/);
+    const accepter = blocOf(MEMBER_PATHS.accept);
+    assert.match(accepter, /\n {4}post:\n/);
+    assert.match(accepter, /operationId: acceptInvite\n/);
+  });
+
+  it("invite exige targetXuid, setShares exige shares, avec un percent de 0 à 100", () => {
+    const membres = blocOf(MEMBER_PATHS.members);
+    assert.match(membres, /required: \[targetXuid\]/);
+    assert.match(membres, /required: \[shares\]/);
+    assert.match(membres, /required: \[xuid, percent\]/);
+    assert.match(membres, new RegExp(`minimum: ${SHARE_MIN}, maximum: ${SHARE_MAX}`));
+  });
+
+  it("les rôles lus sont ceux du contrat, ni plus ni moins", () => {
+    const debut = yaml.indexOf("    Member:\n");
+    assert.notEqual(debut, -1);
+    const ligne = yaml.slice(yaml.indexOf("role:", debut), yaml.indexOf("\n", yaml.indexOf("role:", debut)));
+    const valeurs = ligne.slice(ligne.indexOf("enum: [") + "enum: [".length, ligne.indexOf("]")).split(",").map((mot) => mot.trim());
+    assert.deepEqual([...MEMBER_ROLES], valeurs);
+  });
+
+  it("Member : les clés obligatoires sont lues et exigées", () => {
+    const debut = yaml.indexOf("    Member:\n");
+    const ouvre = yaml.indexOf("required: [", debut);
+    const requises = yaml
+      .slice(ouvre + "required: [".length, yaml.indexOf("]", ouvre))
+      .split(",")
+      .map((mot) => mot.trim());
+    assert.deepEqual(requises, ["xuid", "name", "role", "sharePercent"]);
+    const modele: Record<string, unknown> = { xuid: "2535428000000001", name: "Kr", role: "PDG", sharePercent: 100 };
+    for (const cle of requises) {
+      const sans = { ...modele };
+      delete sans[cle];
+      assert.equal(parseCompanyState({ ...companyState(), members: [sans] }).ok, false, `la lecture accepte un Member sans « ${cle} »`);
+    }
+  });
+
+  it("le contrat n'a ni route pour quitter une entreprise ni route pour lister les invitations", () => {
+    assert.doesNotMatch(yaml, /operationId: (leaveCompany|removeMember|kickMember|listInvitations|declineInvite)/);
   });
 });

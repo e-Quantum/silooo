@@ -8,6 +8,8 @@
 //         ├─ PRESTIGE ─────── l'aperçu du service (relu à l'ouverture) ─ Prestige ! ─ l'écran d'après
 //         ├─ PERSONNEL ────── les équipes, un membre à la fois ; AGENCE : les candidats du jour (relus à l'ouverture)
 //         │                   (ces écrans sont dans personnel.ts)
+//         ├─ ASSOCIÉS ─────── les membres de l'entreprise ; Inviter, Parts (le PDG), les invitations reçues
+//         │                   (ces écrans sont dans associes.ts)
 //         └─ Amis : verrouillé, un mot « Bientôt »
 //
 // Les écrans sont des fonctions pures : une vue de l'entreprise (ce que le service a dit) entre, un écran sort
@@ -20,6 +22,7 @@
 
 import { playerXuid } from "../identity";
 import { config } from "../config";
+import { isRejectedRequest } from "./associes";
 import {
   BUY_AMOUNTS,
   RESTORE_STEP_MAX,
@@ -33,6 +36,17 @@ import type { TravelOutcome } from "../monde/voyage";
 import { describeError, type Clock, type Logger } from "../runtime";
 import type { Actions, ActionOutcome, CandidatesOutcome, PreviewOutcome } from "./actions";
 import { COLOR, colored, ICON } from "./apparence";
+import {
+  associesDetail,
+  associesNotice,
+  associesScreen,
+  invitationScreen,
+  inviterScreen,
+  membersOf,
+  partsForm,
+  readShares,
+  type OnlinePlayer,
+} from "./associes";
 import { counterValue } from "./compteur";
 import {
   MAIN,
@@ -49,12 +63,14 @@ import {
   type Target,
 } from "./ecran";
 import type { CompanyView, ViewStore } from "./etat";
-import type { ActionFormSpec, FormAnswer, FormPresenter } from "./formulaires";
+import type { ActionFormSpec, FormAnswer, FormPresenter, ModalFormSpec, ModalAnswer } from "./formulaires";
+import type { Invitations } from "./invitations";
 import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
 import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
 import { playRepair } from "./reparation";
 import {
+  ASSOCIES_TEXTES,
   BULLES,
   CARTE_TEXTES,
   FACTORY_IDS,
@@ -126,6 +142,10 @@ export function mainScreen(view: CompanyView, missions: MissionState | undefined
     {
       text: button(`${ICON.personnel} ${MENU_TEXTES.personnel}`, MENU_TEXTES.nombreMembres((view.state.staff ?? []).length)),
       target: go({ screen: "personnel", page: 0 }),
+    },
+    {
+      text: button(`${ICON.associes} ${MENU_TEXTES.associes}`, associesDetail(view)),
+      target: go({ screen: "associes" }),
     },
     lockedTile(MENU_TEXTES.amis),
   ];
@@ -447,6 +467,12 @@ export function noticeOf(outcome: ActionOutcome, staff = false): Notice | undefi
       return { bubble: BULLES.affectation };
     case "fired":
       return { bubble: BULLES.renvoi };
+    case "invited":
+      return { bubble: ASSOCIES_TEXTES.bulles.invitationEnvoyee };
+    case "sharesSet":
+      return { bubble: ASSOCIES_TEXTES.bulles.partsEnregistrees };
+    case "joined":
+      return { bubble: ASSOCIES_TEXTES.bulles.bienvenue };
     case "refused":
       return { bubble: staff ? staffRefusalBubble(outcome.reason, outcome.missing) : refusalBubble(outcome.reason, outcome.missing) };
     case "failed":
@@ -481,6 +507,10 @@ export interface MenuDeps<P extends MenuPlayer> {
   /** Les missions : lues pour la tuile Objectifs, relues quand le joueur ouvre l'écran des objectifs. */
   readonly missions: Pick<Missions, "get" | "refresh">;
   readonly actions: Actions;
+  /** Les invitations reçues (ui/invitations.ts) : listées dans l'écran des associés, retirées quand le joueur y répond. Absentes, il n'y en a aucune. */
+  readonly invitations?: Pick<Invitations, "list" | "remove" | "clear" | "opened">;
+  /** Les joueurs connectés que le service connaît (le choix de « Inviter »). Absent, la liste est vide. */
+  readonly online?: () => readonly OnlinePlayer[];
   /**
    * Téléporte le joueur sur l'île d'une usine de son entreprise (monde/voyage.ts), d'après l'état que le service a
    * donné. Absent quand le monde n'a pas démarré : la carte répond alors « Pas encore disponible ».
@@ -519,6 +549,10 @@ function parentOf(route: Route): Route {
       return { screen: "agence" };
     case "embauche":
       return { screen: "candidat", slot: route.slot };
+    case "inviter":
+    case "invitation":
+      return { screen: "associes" };
+    case "associes":
     case "personnel":
     case "usines":
     case "silo":
@@ -555,6 +589,33 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       }
       await wait(busyRetrySeconds);
     }
+  }
+
+  /** Montre le formulaire des parts, avec les mêmes règles que `present`. */
+  async function askForm(player: P, spec: ModalFormSpec): Promise<ModalAnswer> {
+    for (let attempt = 0; ; attempt += 1) {
+      const answer = await presenter.ask(player, spec);
+      if (answer.kind !== "busy") return answer;
+      if (attempt >= busyRetries) {
+        log.info(`formulaire de ${player.name} : écran occupé, abandon`);
+        return { kind: "closed" };
+      }
+      await wait(busyRetrySeconds);
+    }
+  }
+
+  /**
+   * Le formulaire des parts : un champ par membre, avec la part du service. Les champs sont lus tels quels (un entier par
+   * champ) et envoyés ; le total est jugé par le service. Rend la bulle d'après sa réponse, ou rien si le joueur ferme.
+   */
+  async function editShares(player: P, xuid: Xuid, view: CompanyView): Promise<Notice | undefined> {
+    const members = membersOf(view);
+    const answer = await askForm(player, partsForm(members));
+    if (answer.kind !== "submitted") return undefined;
+    const shares = readShares(members, answer.values);
+    if (shares === undefined) return { bubble: ASSOCIES_TEXTES.bulles.partsInvalides };
+    const outcome = await actions.setShares(xuid, shares);
+    return associesNotice(outcome, "setShares") ?? noticeOf(outcome);
   }
 
   function screenFor(
@@ -597,6 +658,12 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         return candidatScreen(reads.candidates, route.slot, notice);
       case "embauche":
         return embaucheScreen(view, reads.candidates, route.slot, route.page, tilesPerScreen, notice);
+      case "associes":
+        return associesScreen(view, xuid, deps.invitations?.list(xuid) ?? [], notice);
+      case "inviter":
+        return inviterScreen(deps.online?.() ?? [], xuid, route.page, tilesPerScreen, notice);
+      case "invitation":
+        return invitationScreen(deps.invitations?.list(xuid) ?? [], route.companyId, notice);
     }
   }
 
@@ -614,6 +681,9 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "assign":
       case "fire":
       case "repair":
+      case "invite":
+      case "parts":
+      case "accept":
       case "prestige":
       case "travel":
       case "go":
@@ -629,13 +699,21 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     /** Ce que le menu a lu du service pour ses écrans : l'aperçu du prestige, les candidats de l'agence. */
     const reads: Reads = { preview: undefined, candidates: undefined };
     /** Relit ce que l'écran d'arrivée montre et que le service peut avoir changé depuis la dernière fois. */
-    async function enter(next: Route): Promise<void> {
+    async function enter(next: Route): Promise<Notice | undefined> {
       // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
       if (next.screen === "objectifs") await missions.refresh(xuid);
       // Le prestige aussi : l'aperçu dépend de la production du moment.
       if (next.screen === "prestige") reads.preview = await actions.preview(xuid);
       // Les candidats du jour aussi : un candidat embauché ailleurs, ou une nouvelle liste.
       if (next.screen === "agence") reads.candidates = await actions.candidates(xuid);
+      // Les associés aussi : un joueur a pu accepter, ou le PDG changer les parts, sans que ce joueur ait agi.
+      if (next.screen === "associes") {
+        deps.invitations?.opened(xuid);
+        const refreshed = await actions.refresh(xuid);
+        // La relecture a échoué : l'écran montre la dernière liste connue, et Oooscar dit pourquoi elle n'est pas fraîche.
+        if (refreshed.kind === "failed") return { bubble: failureBubble(refreshed.failure, refreshed.reason) };
+      }
+      return undefined;
     }
     for (;;) {
       const view = views.get(xuid);
@@ -657,7 +735,25 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       notice = undefined;
       if (target.kind === "go") {
         route = target.route;
-        await enter(route);
+        notice = await enter(route);
+      } else if (target.kind === "invite") {
+        const outcome = await actions.invite(xuid, target.targetXuid);
+        notice = associesNotice(outcome, "invite") ?? noticeOf(outcome);
+        if (outcome.kind === "invited") route = { screen: "associes" };
+      } else if (target.kind === "parts") {
+        notice = await editShares(player, xuid, view);
+      } else if (target.kind === "accept") {
+        const outcome = await actions.acceptInvite(xuid, target.companyId);
+        notice = associesNotice(outcome, "acceptInvite") ?? noticeOf(outcome);
+        if (outcome.kind === "joined") {
+          // Le joueur est dans la nouvelle entreprise ; le service périme ses autres invitations.
+          deps.invitations?.clear(xuid);
+          route = { screen: "associes" };
+        } else if (isRejectedRequest(outcome) || (outcome.kind === "refused" && outcome.reason === "DEJA_POSSEDE")) {
+          // Le service ne connaît plus cette invitation, ou le joueur est déjà dans cette entreprise : elle ne sert plus.
+          deps.invitations?.remove(xuid, target.companyId);
+          route = { screen: "associes" };
+        }
       } else if (target.kind === "prestige") {
         const outcome = await actions.prestige(xuid);
         notice = noticeOf(outcome);
