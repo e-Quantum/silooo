@@ -137,8 +137,16 @@ faire monter, des grades payants.
 
 Section tenue par la direction du site, étape par étape ([site-passation.md](site-passation.md)) :
 
-- S0 : le paquet `site/` de silooo-core, le port et les deux modes, la page d'attente, les mentions, où vont les
-  ressources. À écrire quand S0 est sur `main`.
+- S0 : le site est un module de silooo-core, paquet `com.silooo.core.site`. `Main.kt` démarre un second serveur
+  Ktor sur `SILOOO_SITE_PORT` (8081 par défaut), à côté de celui de l'API, dans la même JVM ; `/v1` n'existe pas sur
+  ce port. Deux modes : `SILOOO_SITE_MODE=attente` (le défaut : la page d'attente et les mentions) et `ouvert`
+  (un accueil minimal, que S2 remplace). Les contenus sont des fichiers Markdown à en-tête (`titre`, `description`,
+  `url`, `modes`) dans `core/src/main/resources/site/contenu/`, lus et rendus une fois au démarrage ; les fichiers
+  statiques sont dans `core/src/main/resources/site/public/` (servis sous `/public/`), le logo y est une copie
+  contrôlée de `design/logo/`. Les pages sont écrites en DSL HTML (`pages/Gabarit.kt` pose la page, les autres
+  posent le `h1` et le contenu) ; aucun script, en-têtes de sécurité et de cache posés par le module. Les tests sont
+  dans `core/src/test/kotlin/com/silooo/core/site/` et `ConfigTest` ; `tools/anti_ia.py` relit les contenus et les
+  littéraux du paquet `site`. Détail : `core/README.md`, section « Le site ».
 - S1 : ce que Silooo Atelier devient sur le web. À écrire quand S1 est sur `main`.
 
 ## Ce qui est tranché, provisoirement
