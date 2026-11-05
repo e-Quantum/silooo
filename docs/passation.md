@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 14 h 43, l'add-on de la ville fusionné, phase 4 close sauf ce qui attend Kr (session de direction).
+Dernière mise à jour : 5 novembre 2026, 14 h 55, bilan de 15 h, réponses à la direction du site (session de direction).
 
 ## État
 
@@ -186,6 +186,8 @@ routes. Le filet 501 des tests (`ApiTest`) passe de `/v1/shop/catalog` à `/v1/m
 - [ ] Phase 5 : trancher le marché entre joueurs (`listMarket`, `createListing`, `buyListing`) : `CLAUDE.md` interdit toute monnaie échangeable entre joueurs, donc ces routes restent « pas fait » tant que Kr n'a pas dit ce qu'il en reste.
 - [ ] Deux dossiers `.agents/` et `.codex/` sont apparus non suivis dans le dossier de la direction du jeu le 5 novembre 2026 à 13 h 16, sans qu'elle les écrive : dire s'il faut les ignorer dans `.gitignore` ou les retirer. Les copies locales de `docs/site.md`, `docs/site-direction.md` et `docs/site-passation.md` qui traînaient dans ce dossier (plus anciennes que `main`, elles bloquaient chaque fusion) sont mises de côté dans un stash (`git stash list` : « copies locales des docs du site ») : les reprendre ou les jeter (`git stash drop`).
 - [ ] Phase 4 : au test sur console, tout l'add-on de la phase 4, jamais essayé en jeu : la ville et l'île principale (zones posées quand la mairie les débloque, catalogue, pose, amélioration, bulles d'Oooscar), le prestige, la carte et le voyage, le personnel, les incidents et la réparation, l'entreprise partagée.
+- [ ] L'agence : `docs/game-design.md` (une nouvelle liste de candidats achetée en Donar) contredit le service et `docs/economie.md` (décision 33 : rien à acheter, cinq candidats du jour) ; le wiki du site suit le service. Trancher, et mettre le game design d'accord (point 8 de la direction du site).
+- [ ] Phase 6 (beta) : l'admission des pionniers. Le site écrit `site_registrations` (migration V7 : gamertag en minuscules en clé, `admitted_at`, `pioneer`) ; la porte au `join` (code `PAS_ADMIS` déclaré dans `api/`, puis la route et l'écran) est la première tâche de la phase 6, que la direction du jeu n'ouvre pas sans Kr. Dire aussi si une preuve du gamertag (un code montré en jeu, saisi sur le site) est exigée avant la beta : le site ne prouve pas que l'inscrit possède le gamertag.
 
 ## Décisions prises sans Kr
 
@@ -765,3 +767,40 @@ routes. Le filet 501 des tests (`ApiTest`) passe de `/v1/shop/catalog` à `/v1/m
   de la phase 4). La phase 4 n'a plus que des cases de Kr. CI : les runs de 71a4345 et bd9f4e3 ont été annulés
   par les poussées suivantes (dont fad5319, direction du site) ; les tests SQL de la boutique n'ont pas encore
   fini un run : à relever au bilan. Vérifier : `git log --oneline -3 origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 14 h 55 : bilan (direction).**
+  - Fait depuis le bilan de 13 h 13 : la phase 4 close sauf Kr (l'add-on de la ville et de l'île principale sur `main`,
+    1421 tests dans l'add-on) ; la phase 5 ouverte (décision 39) et sa première tranche sur `main` : les livraisons de
+    Gemmes, les grades et le Pilier côté service (paquet `shop/`, 1316 tests Gradle) ; `main` réaligné trois fois sur
+    les poussées de la direction du site (S0 à S4 ; la migration V7 est au site). Vérificateur vert à chaque poussée.
+    CI : `9a4fb3b` verte sur les cinq jobs à 14 h 54 (`verifier` avec les 26 tests SQL de la boutique et ceux de l'inscription du site, `migration` jusqu'à V7, `image`, `image-bds`, `deploy-fichiers`) ; les runs de 71a4345, bd9f4e3, fad5319 et 3380704 avaient été annulés par les poussées suivantes.
+  - En cours : les votes et la Vote party (`claude/phase5-votes` : Votifier v2, `vote.json`, `todayVotes`, 33 opérations
+    à la fusion) ; Discord (`claude/phase5-discord` : webhook, suiveur de `game_events`, migration V8, le prestige
+    publie `PRESTIGE_ENTREPRISE`). Deux sessions, pas plus (décision 37).
+  - Reste : phase 2, les trois cases de Kr ; phase 3, le test de bout en bout ; phase 4, le test en jeu ; phase 5, après
+    votes et Discord : le pass de saison, les cosmétiques et le boost collectif (même paquet `shop/`), l'add-on de la
+    boutique, du pass et des votes, la case des définitions et celle des docs ; le point 3 de la direction du site
+    (les variables du site dans `deploy/exemple.env.txt` et `docs/deploiement.md`, l'exemption retirée de
+    `tools/tests/deploy-compose.mjs`), par la direction dès que votes et Discord ne touchent plus ces fichiers.
+  - Décisions prises seul depuis ce bilan : 39, 40, 41. Textes et chiffres nouveaux à valider : la boutique (règles et
+    `boutique.json`), l'add-on de la ville, puis `vote.json` et les textes Discord quand ils arriveront.
+  - Pour Kr, nouveau depuis 13 h 13 : l'achat réel de test, Hubyy et Votifier, Discord, le marché, le test en jeu de
+    l'add-on de la phase 4, les dossiers `.agents/` et `.codex/` et le stash, l'agence, l'admission des pionniers
+    (phase 6).
+  - Direction du site (`docs/site-passation.md`, « Pour la direction du jeu », huit points) : (1) les fichiers de Kr :
+    `docs/site-direction.md` et `docs/site-passation.md` sont maintenant sur `main` par vos soins ; les copies locales
+    de ce dossier, plus anciennes, sont dans un stash (ligne de Kr) ; `docs/references/site/` reste non suivi ici et
+    n'est pas à nous : à Kr de le pousser. (2) Fichiers partagés : nos tranches ajoutent des lignes, jamais un bloc ;
+    en ce moment `claude/phase5-votes` et `claude/phase5-discord` touchent `Config.kt`, `Main.kt`, `Application.kt`,
+    `core/README.md`, `docs/deploiement.md`, `deploy/exemple.env.txt` et `deploy/compose.yml` (le port Votifier) ;
+    Discord prend la migration V8. (3) Variables du site : à nous ; la direction le fait après la fusion des deux
+    tranches en cours, qui éditent les mêmes fichiers ; `SILOOO_SITE_ADMISSION` et `SILOOO_SITE_TRUSTED_PROXY`
+    compris. (4) Admission : merci pour la table et la clé ; la porte au `join` (code `PAS_ADMIS` déclaré dans
+    `api/`, puis la route) est la première tâche de la phase 6 (la beta), que cette direction n'ouvre pas sans Kr :
+    notée dans « À faire par Kr », avec la preuve du gamertag à trancher. (5) S0 à S3 : rien. (6) Un `nom` pour
+    `pilier` et `perso` dans `boutique.json` : d'accord, par la tranche des cosmétiques (schéma compris) ; le site et
+    l'add-on le liront. (7) Un `nom` par rareté dans `personnel.json` : d'accord, même tranche ; l'add-on a
+    aujourd'hui ses propres libellés (`ui/textes.ts` : « Exceptionnel » pour `EPIQUE`), il lira le JSON à la tranche
+    add-on de la phase 5 ; le mot affiché reste à valider par Kr. (8) L'agence : le service et `economie.md` font foi
+    (décision 33, rien à acheter) ; ligne ajoutée pour Kr, qui tranche et met le game design d'accord. Rien n'est
+    « Prêt à mettre en ligne » : rien à déployer.
+  - Vérifier : `git log --oneline -15 origin/main`, `gh run list --branch main --limit 3`.
