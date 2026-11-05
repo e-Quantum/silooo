@@ -1,7 +1,8 @@
 // La lecture des événements : le service ne peut pas appeler l'add-on, donc l'add-on vient chercher
 // ce que le service a à dire (GET /v1/events?after=<curseur>), pour tous les joueurs à la fois
-// (règle 8 du socle). Le curseur vit en mémoire et repart de 0 au démarrage du serveur : le service
-// garde les événements, l'add-on ne persiste rien.
+// (règle 8 du socle). Le service garde les événements ; l'add-on ne garde que le curseur, dans un magasin que
+// main.ts branche (la propriété dynamique du monde), pour qu'un redémarrage du serveur ne rejoue pas ce qui a déjà
+// été dit. Sans magasin, ou si le magasin ne rend rien d'exploitable, le curseur part de 0.
 
 import type { CoreApi } from "./api";
 import { config, type EventsSettings } from "./config";
@@ -75,12 +76,21 @@ export function summarizeKinds(events: readonly GameEvent[]): string {
 
 // ---------------------------------------------------------------- la lecture
 
+/** Où le curseur survit au redémarrage du serveur. Les deux appels peuvent lever : le poller s'en protège. */
+export interface CursorStore {
+  /** Le dernier curseur gardé ; 0 quand rien n'a encore été gardé. */
+  load(): number;
+  save(cursor: number): void;
+}
+
 export interface EventPollerDeps {
   readonly api: Pick<CoreApi, "pollEvents">;
   readonly listeners: EventListeners;
   readonly status: StatusLog;
   readonly log: Logger;
   readonly pageSize?: number;
+  /** Absent : le curseur reste en mémoire et repart de 0 au démarrage. */
+  readonly cursorStore?: CursorStore;
 }
 
 export interface EventPoller {
@@ -89,17 +99,46 @@ export interface EventPoller {
   readonly cursor: number;
 }
 
+/** Le curseur gardé : un entier positif, sinon 0. Un magasin qui lève ou rend autre chose ne fait pas tomber le poller. */
+function loadCursor(store: CursorStore | undefined, log: Logger): number {
+  if (store === undefined) return 0;
+  try {
+    const stored = store.load();
+    return Number.isSafeInteger(stored) && stored > 0 ? stored : 0;
+  } catch (error) {
+    log.warn(`curseur des événements illisible, reprise à 0 : ${describeError(error)}`);
+    return 0;
+  }
+}
+
 export function createEventPoller(deps: EventPollerDeps): EventPoller {
   const pageSize = deps.pageSize ?? config.events.pageSize;
-  let cursor = 0;
+  // Lu au premier besoin (la première lecture), pas à la création : le script se charge avant que le monde soit lisible.
+  let loaded: number | undefined;
   let failures = 0;
   let lastPageCount = 0;
+  let saveFailed = false;
+
+  const current = (): number => (loaded ??= loadCursor(deps.cursorStore, deps.log));
+
+  /** Garde le curseur ; l'échec est journalisé à sa première occurrence, jusqu'à la prochaine réussite. */
+  function remember(cursor: number): void {
+    if (deps.cursorStore === undefined) return;
+    try {
+      deps.cursorStore.save(cursor);
+      saveFailed = false;
+    } catch (error) {
+      if (!saveFailed) deps.log.warn(`curseur des événements non gardé (un redémarrage rejouera des annonces) : ${describeError(error)}`);
+      saveFailed = true;
+    }
+  }
 
   return {
     get cursor() {
-      return cursor;
+      return current();
     },
     async pollOnce() {
+      const cursor = current();
       const result = await deps.api.pollEvents(cursor, pageSize);
       if (result.kind !== "ok") {
         failures += 1;
@@ -116,7 +155,11 @@ export function createEventPoller(deps: EventPollerDeps): EventPoller {
       if (page.skipped > 0) deps.log.warn(`${page.skipped} événement(s) illisible(s) ignoré(s)`);
       if (fresh.length > 0) deps.log.info(`${fresh.length} événement(s) : ${summarizeKinds(fresh)}`);
       for (const event of fresh) await deps.listeners.dispatch(event);
-      cursor = advanceCursor(cursor, page);
+      const next = advanceCursor(cursor, page);
+      if (next > cursor) {
+        loaded = next;
+        remember(next);
+      }
       lastPageCount = page.events.length + page.skipped;
       return nextPollDelaySeconds({ failures, lastPageCount, pageSize });
     },

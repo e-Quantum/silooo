@@ -3,12 +3,12 @@
 // - `INVITATION` (adressé à l'invité) : une entreprise l'invite. On garde UNE invitation par entreprise qui invite (une
 //   nouvelle remplace l'ancienne), jusqu'à ce qu'elle expire (`expiresAt`, comparée à l'horloge) ou que le joueur y
 //   réponde. Le joueur est prévenu dans le tchat ; l'invitation attend dans l'écran des associés (ui/associes.ts).
-//   Elle est gardée même si l'invité est hors ligne : le curseur des événements repart de 0 au redémarrage du serveur,
-//   et l'invité peut se connecter après. Le service reste seul juge : il refuse une invitation périmée (400), pleine,
+//   Elle est gardée même si l'invité est hors ligne : l'événement n'est lu qu'une fois (le curseur survit au redémarrage
+//   du serveur) et l'invité peut se connecter après. Le service reste seul juge : il refuse une invitation périmée (400), pleine,
 //   ou qu'une autre acceptation a rendue caduque.
 // - `ANNONCE` de `setShares` (adressée à l'acteur, le PDG) : « Les parts ont changé ». Un drapeau par joueur évite de
-//   répéter la phrase tant qu'il n'a pas rouvert l'écran des associés (qui relit la liste) : un redémarrage du serveur
-//   rejoue d'anciens événements, et un joueur ne doit pas en recevoir dix.
+//   répéter la phrase tant qu'il n'a pas rouvert l'écran des associés (qui relit la liste) : si le curseur est perdu,
+//   d'anciens événements reviennent, et un joueur ne doit pas en recevoir dix.
 //
 // Rien n'est calculé ici : un nom, un nom d'entreprise, une date d'expiration, tels que le service les a donnés.
 

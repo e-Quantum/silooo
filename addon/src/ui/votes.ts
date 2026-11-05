@@ -124,7 +124,7 @@ export function createVotes(deps: VotesDeps): Votes {
         return;
       }
       if (action === "voteParty") {
-        // Le service garde les événements et l'add-on les relit depuis le début quand il redémarre : une Vote party d'un autre jour n'est pas une nouvelle.
+        // Le service garde les événements et l'add-on les relit depuis le début si son curseur gardé est perdu : une Vote party d'un autre jour n'est pas une nouvelle.
         if (event.payload["day"] !== utcDay(clock.now())) return;
         const text = votePartyText(event.payload);
         for (const xuid of online()) tell(xuid, text);

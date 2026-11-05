@@ -15,6 +15,7 @@ import {
   createArrivalWorld,
   createBlockWriter,
   createCinematicStage,
+  createEventsCursorStore,
   createMarkStore,
   createOooscarWorld,
   releaseStaleAreas,
@@ -327,12 +328,15 @@ function main(): void {
     listeners.on("BOOST_COLLECTIF", announcements.onBoost);
     listeners.on("ANNONCE", votes.onAnnonce);
     listeners.on("ANNONCE", announcements.onAnnonce);
-    startEventPolling(
-      scheduler,
-      createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),
+    // Le curseur est gardé dans une propriété dynamique du monde : un redémarrage ne rejoue pas les annonces déjà dites.
+    const poller = createEventPoller({
+      api,
+      listeners,
+      status: createStatusLog(log, "événements"),
       log,
-      config.startupDelaySeconds,
-    );
+      cursorStore: createEventsCursorStore(),
+    });
+    startEventPolling(scheduler, poller, log, config.startupDelaySeconds);
 
     startScreens({
       api,
