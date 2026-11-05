@@ -17,3 +17,5 @@ dist/
 .DS_Store
 Thumbs.db
 __pycache__/
+# Les worktrees des sous-agents de Claude Code
+.claude/worktrees/

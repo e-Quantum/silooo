@@ -145,7 +145,7 @@ les non-admis dans `join` ; migration prise à la fusion ; `tools/verifier.sh` v
 **à valider par Kr** : il reconstruit ce que la décision 37 et le journal du jeu laissent voir (« Pionnier », « Relier
 Discord », « refus des non-admis »), faute des fichiers de Kr.
 
-- [ ] Migration (numéro pris à la fusion, V6 attendu) : table `site_registrations` (gamertag en minuscules en clé,
+- [ ] Migration (numéro pris à la fusion ; V6 est prise par la ville depuis le 5 novembre à 13 h, V7 attendue) : table `site_registrations` (gamertag en minuscules en clé,
   gamertag tel que saisi, identifiant Discord facultatif jamais affiché, `created_at`, `admitted_at` facultatif,
   `pioneer` booléen), index sur `admitted_at` ; `docs/base-de-donnees.md` n'est pas touché par la direction du site :
   la table est décrite dans `core/README.md` et demandée dans « Pour la direction du jeu »
@@ -200,8 +200,8 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    avec l'avertissement « jamais `ouvert` par une session ».
 4. **L'admission (S4).** La table proposée est `site_registrations` (gamertag en minuscules en clé, `admitted_at`
    facultatif, `pioneer` booléen) : « admis » veut dire `admitted_at IS NOT NULL` pour `LOWER(players.gamertag)`.
-   `join` reçoit le gamertag : pas besoin de l'empreinte. Le numéro de migration se prend à la fusion de S4 (V6 si
-   personne ne l'a pris). Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
+   `join` reçoit le gamertag : pas besoin de l'empreinte. Le numéro de migration se prend à la fusion de S4 (V7 si
+   personne ne l'a pris : la ville a pris V6). Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
 5. **Rien à vous demander pour S0 à S3** : contenus, style et wiki ne touchent ni `api/`, ni `addon/`, ni `deploy/`.
 
 ## À faire par Kr
