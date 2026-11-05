@@ -23,11 +23,26 @@ internal fun FlowContent.adresseDuServeur(settings: SiteSettings) {
     }
 }
 
+/** Ce que l'accueil sait des joueurs : le serveur n'a pas battu depuis deux minutes ([Closed]) ou il a [Count] joueurs. */
+internal sealed interface PlayersOnline {
+    data object Closed : PlayersOnline
+
+    data class Count(val count: Int) : PlayersOnline
+}
+
 /**
- * L'emplacement des joueurs en ligne. `null` : la donnée manque, la page ne rend rien (ni zéro, ni phrase d'attente).
- * L'étape S5 branche ici le nombre lu dans la base, avec son cache.
+ * L'emplacement des joueurs en ligne de l'accueil. `null` : la donnée manque, la page ne rend rien (ni zéro, ni phrase d'attente).
+ * Sinon une phrase : le nombre, « Personne en ligne pour l'instant. » ou « Serveur fermé pour l'instant. » (aucun signal de vie récent).
  */
-internal fun FlowContent.joueursEnLigne(count: Int?) {
-    if (count == null) return
-    p(classes = "joueurs") { +if (count == 1) "1 joueur en ligne" else "$count joueurs en ligne" }
+internal fun FlowContent.joueursEnLigne(online: PlayersOnline?) {
+    val text = when (online) {
+        null -> return
+        PlayersOnline.Closed -> "Serveur fermé pour l'instant."
+        is PlayersOnline.Count -> when (online.count) {
+            0 -> "Personne en ligne pour l'instant."
+            1 -> "1 joueur en ligne"
+            else -> "${online.count} joueurs en ligne"
+        }
+    }
+    p(classes = "joueurs") { +text }
 }

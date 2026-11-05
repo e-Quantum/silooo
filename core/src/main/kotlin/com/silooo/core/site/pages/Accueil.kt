@@ -13,9 +13,9 @@ import kotlinx.html.unsafe
  * `accueil.md`, quatre paragraphes au plus), puis l'adresse et le port, l'emplacement des joueurs en ligne, le bouton
  * « Rejoindre », l'emplacement d'une vidéo et d'une capture, et le lien Discord s'il existe (le seul bouton rouge).
  *
- * [onlinePlayers] : le nombre de joueurs en ligne, `null` tant que la donnée manque (S5 le branche).
+ * [onlinePlayers] : ce que les signaux de vie disent des joueurs en ligne (voir `playersOnline`), `null` : rien n'est affiché.
  */
-internal fun HTML.accueil(shell: SiteShell, page: ContentPage, onlinePlayers: Int? = null) =
+internal fun HTML.accueil(shell: SiteShell, page: ContentPage, onlinePlayers: PlayersOnline? = null) =
     gabarit(shell, PageFrame(page.title, page.description, page.url)) {
         div(classes = "presentation") {
             img(src = LOGO_LARGE, alt = LOGO_ALT, classes = "logo-page") {

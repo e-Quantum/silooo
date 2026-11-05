@@ -51,11 +51,13 @@ data class ServiceConfig(
     val discord: DiscordConfig? = null,
     /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For`. */
     val siteTrustedProxy: Boolean = false,
+    /** `SILOOO_PAYNOW_WEBHOOK_SECRET` : la clé de la signature du webhook de PayNow ; `null` : le webhook répond 503. */
+    val payNowWebhookSecret: String? = null,
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy)"
+            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"})"
 }
 
 /**
@@ -82,6 +84,7 @@ object Config {
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
     const val SITE_TRUSTED_PROXY = "SILOOO_SITE_TRUSTED_PROXY"
+    const val PAYNOW_WEBHOOK_SECRET = "SILOOO_PAYNOW_WEBHOOK_SECRET"
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -164,6 +167,7 @@ object Config {
         val siteAdmission = reader.siteAdmission()
         val discord = reader.discord()
         val trustedProxy = reader.trustedProxy()
+        val payNowSecret = env[PAYNOW_WEBHOOK_SECRET]?.trim()?.takeIf { it.isNotEmpty() }
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
@@ -171,6 +175,7 @@ object Config {
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
             siteSettings = checkNotNull(siteSettings),
             siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
+            payNowWebhookSecret = payNowSecret,
         )
     }
 

@@ -5,6 +5,7 @@ import com.silooo.core.TestDefinitions
 import com.silooo.core.db.FakeDatabase
 import com.silooo.core.site.pages.avecInsertions
 import com.silooo.core.site.pages.frenchDate
+import com.silooo.core.site.pages.PlayersOnline
 import com.silooo.core.site.pages.joueursEnLigne
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -149,10 +150,12 @@ class SitePublicPagesTest {
     @DisplayName("L'emplacement des joueurs en ligne ne rend rien sans donnée, et dit le nombre avec une donnée")
     fun onlinePlayersSlot() {
         assertEquals("<div></div>", createHTML(prettyPrint = false).div { joueursEnLigne(null) })
-        val one = createHTML(prettyPrint = false).div { joueursEnLigne(1) }
-        val many = createHTML(prettyPrint = false).div { joueursEnLigne(12) }
+        val one = createHTML(prettyPrint = false).div { joueursEnLigne(PlayersOnline.Count(1)) }
+        val many = createHTML(prettyPrint = false).div { joueursEnLigne(PlayersOnline.Count(12)) }
         assertTrue(one.contains("1 joueur en ligne"), one)
         assertTrue(many.contains("12 joueurs en ligne"), many)
+        assertTrue(createHTML(prettyPrint = false).div { joueursEnLigne(PlayersOnline.Count(0)) }.contains("Personne en ligne pour l'instant."))
+        assertTrue(createHTML(prettyPrint = false).div { joueursEnLigne(PlayersOnline.Closed) }.contains("Serveur fermé pour l'instant."))
     }
 
     @Test
@@ -387,12 +390,12 @@ class SitePublicPagesTest {
     }
 
     @Test
-    @DisplayName("La navigation du mode ouvert montre les pages dans l'ordre, sans Ce qui se vend ni Classements")
+    @DisplayName("La navigation du mode ouvert montre les pages dans l'ordre (Classements depuis S5), sans Ce qui se vend")
     fun navigation() = withSite { client ->
         val html = client.get("/").bodyAsText()
         val labels = Regex("""<a href="[^"]*" class="sa-bouton sa-bouton--fonte sa-bouton--nav"[^>]*>([^<]+)</a>""")
             .findAll(html).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("Accueil", "Rejoindre", "Pionniers", "Wiki", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
+        assertEquals(listOf("Accueil", "Rejoindre", "Pionniers", "Wiki", "Classements", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
     }
 
     @Test
