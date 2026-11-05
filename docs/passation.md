@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 9 h 30, phase 3 close sauf le test de bout en bout de Kr (session de direction).
+Dernière mise à jour : 5 novembre 2026, 9 h 40, le simulateur des treize cibles fusionné (session de direction).
 
 ## État
 
@@ -30,8 +30,9 @@ Dernière mise à jour : 5 novembre 2026, 9 h 30, phase 3 close sauf le test de 
   le menu, la fiche d'usine, le Silo, les mini-îles des usines, l'arrivée, la cinématique, Oooscar et la mission de
   la mairie (tuile Objectifs, 631 tests) ; le pack de ressources.
 - Phase en cours : **4** (la progression). `island`, `prestigePreview`, `prestige` et les missions sont sur `main`
-  (560 tests Gradle, 90 SQL en CI). En cours : le simulateur des treize cibles (`claude/phase4-simulateur`) et le
-  personnel (`claude/phase4-personnel`).
+  et le simulateur des treize cibles les rejoue en CI (toutes dans leur fourchette). En cours : le personnel
+  (`claude/phase4-personnel`), l'écran de prestige et la carte des îles (`claude/phase4-addon-prestige-carte`),
+  les commandes du jour et le Carnet (`claude/phase4-commandes`).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -110,7 +111,7 @@ pack de ressources (décision 28). Le marché (`listMarket`, `createListing`, `b
 que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie ne circule entre joueurs).
 
 - [x] silooo-core : `prestigePreview` et `prestige` (PDG seul, 403 `PAS_LE_PDG` ; 409 `SEUIL_NON_ATTEINT` avec les Donar qui manquent ; seuil, Lingots, rendement décroissant et départ de course lus par `EconomyEngine` dans `economie.json` ; partage selon `share_percent`, reste au PDG ; `prestige_history` ; course suivante : époque, étoiles ; Carrière au niveau de départ, autres usines en ruine ; un événement par membre ; règles **à valider par Kr**, `core/README.md` « Le prestige », décision 31)
-- [ ] silooo-core : simulateur Kotlin qui rejoue les treize cibles du tableur de bout en bout (achats, paliers, prestiges, étoiles) et fait échouer la CI quand un temps sort de sa fourchette
+- [x] silooo-core : simulateur Kotlin (`core/src/test/.../simulation/`, `GameSimulator`, barrière `ThirteenTargetsTest`) qui rejoue les treize cibles du tableur avec la stratégie du tableur (l'achat qui minimise prix / revenu + prix / gain, attente du prix exact, prestige au seuil) ; cibles et fourchettes dans `golden/simulation.json` ; treize temps dans leur fourchette, égaux au tableur ; `docs/economie.md` « Le simulateur » ; décision 32
 - [ ] silooo-core : personnel (`getCandidates`, `hire`, `assignStaff`, `fireStaff`) : candidats du jour, raretés sans tirage payant, salaires comme sortie d'argent, chef d'équipe et plafond hors ligne
 - [ ] silooo-core : incidents (`resolveIncident`) et énergie (`stoppedNoPower`), avec leurs événements
 - [ ] silooo-core : ville (`buyZone`, `placeBuilding`, `upgradeBuilding`) : prix fixes en Lingots de `ville.zonesPrixLingots`, niveau de mairie, bonus des bâtiments seulement une fois chiffrés dans `definitions/`
@@ -130,7 +131,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
 - [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle
-- [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`)
+- [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`). **Le simulateur montre que ce trou compte** : avec une remise en état gratuite, la Scierie et la Mine profonde tombent à 0,08 h, le prestige 2 à 20,9 h, le prestige 3 à 48,5 h, la première étoile à 17,5 h, tous hors cible ; le tableur suppose un rachat payant. Deux cibles ont peu de marge (première amélioration : 13 s ; Mine profonde : 1 min)
+- [ ] La clé `decouverte` de `usines.json` (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`) n'est pas lue par le service : rien ne révèle une usine, rien ne la rachète (pas de route). `EconomyEngine.isDiscovered` la lit maintenant (`apres-<usine>` = usine remise en état, à valider) ; la route de découverte et de rachat reste à écrire une fois le coût fixé
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI, et une clé de lecture du registre `ghcr.io` pour le VPS
@@ -272,6 +274,11 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     du catalogue ; la mission en cours avance quand un `collect` rapporte du Donar, se termine et verse ses Lingots
     dans la même transaction, sans geste du joueur ; un joueur inconnu donne 400. Les textes des missions sont à
     l'add-on. À relire par Kr.
+32. **Le simulateur vit dans les tests du service.** `core/src/test/kotlin/com/silooo/core/simulation/`, pas un
+    outil à part : il n'a besoin que d'`EconomyEngine` et des définitions, et la CI le lance avec les autres tests.
+    Il lit `apres-<usine>` comme « usine remise en état » et suppose la remise en état instantanée, comme le
+    tableur. `EconomyEngine` gagne `companyLevel` et `isDiscovered` (purs, testés), sans changer un calcul existant.
+    À relire par Kr.
 
 ## À valider par Kr
 
@@ -438,3 +445,9 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   déploiement : la direction passe à la phase 4. Une annonce déjà dite, ou d'une mission terminée avant l'arrivée,
   n'est pas redite (le curseur d'événements repart de zéro au redémarrage). Vérifier : `git log --oneline -3
   origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 9 h 40 : direction, le simulateur fusionné.** `claude/phase4-simulateur` (`84bd04e`) fusionnée
+  dans `main` par un commit de fusion (`d1c53ab`). Treize temps mesurés dans leur fourchette, égaux au tableur à
+  1e-14. Deux écarts remontés à Kr : la remise en état gratuite met cinq cibles hors fourchette (le tableur
+  suppose un rachat payant), et `decouverte` n'est pas lue par le service. Décision 32. Lancées : l'écran de prestige
+  et la carte des îles (`claude/phase4-addon-prestige-carte`), les commandes du jour et le Carnet
+  (`claude/phase4-commandes`). Vérifier : `git log --oneline -3 origin/main`, `cd core && ./gradlew test --tests '*ThirteenTargets*'`.
