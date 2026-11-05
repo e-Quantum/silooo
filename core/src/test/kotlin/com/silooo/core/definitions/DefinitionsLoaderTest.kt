@@ -256,6 +256,56 @@ class DefinitionsLoaderTest {
     }
 
     @Test
+    @DisplayName("La commande du jour et la trouvaille sont lues dans economie.json : un autre chiffre là-bas les change, sans toucher au code")
+    fun dailyOrderAndFindingFollowEconomy() {
+        val root = parseJson(economyText)
+        val outside = root.getValue("lingotsHorsPrestige").jsonObject
+        val order = root.getValue("commandeDuJour").jsonObject
+        val changed = JsonObject(
+            root + mapOf(
+                "lingotsHorsPrestige" to JsonObject(outside + mapOf("commandeDuJour" to JsonPrimitive(41), "trouvaille" to JsonPrimitive(43))),
+                "commandeDuJour" to JsonObject(order + mapOf("objectifUnites" to JsonPrimitive(37), "minutesDeProductionParUnite" to JsonPrimitive(2.5))),
+            ),
+        )
+
+        val economy = load(economy = changed.toString()).economy
+        assertEquals(41L, economy.lingotsOutsidePrestige.dailyOrder)
+        assertEquals(43L, economy.lingotsOutsidePrestige.finding)
+        assertEquals(37L, economy.dailyOrder.targetUnits)
+        assertEquals(2.5, economy.dailyOrder.minutesOfIncomePerUnit)
+    }
+
+    @Test
+    @DisplayName("Un objectif de commande sous 1, un prix d'unité nul ou une prime négative est refusé, en disant laquelle")
+    fun dailyOrderFiguresMustMakeSense() {
+        val root = parseJson(economyText)
+        val order = root.getValue("commandeDuJour").jsonObject
+        val outside = root.getValue("lingotsHorsPrestige").jsonObject
+        fun withOrder(key: String, value: JsonElement) = JsonObject(root + ("commandeDuJour" to JsonObject(order + (key to value)))).toString()
+        fun withOutside(key: String, value: JsonElement) = JsonObject(root + ("lingotsHorsPrestige" to JsonObject(outside + (key to value)))).toString()
+
+        val cases = listOf(
+            Triple("commandeDuJour.objectifUnites", withOrder("objectifUnites", JsonPrimitive(0)), "objectifUnites"),
+            Triple("commandeDuJour.minutesDeProductionParUnite", withOrder("minutesDeProductionParUnite", JsonPrimitive(0)), "minutesDeProductionParUnite"),
+            Triple("lingotsHorsPrestige.commandeDuJour", withOutside("commandeDuJour", JsonPrimitive(-1)), "commandeDuJour"),
+            Triple("lingotsHorsPrestige.trouvaille", withOutside("trouvaille", JsonPrimitive(-1)), "trouvaille"),
+        )
+        for ((what, damaged, word) in cases) {
+            val message = assertThrows<DefinitionsException>(what) { load(economy = damaged) }.message!!
+            assertTrue(message.contains(word), message)
+        }
+    }
+
+    @Test
+    @DisplayName("Les ressources du jeu sont les produits de usines.json, une fois chacun, dans l'ordre du fichier")
+    fun resourcesAreTheDistinctProducts() {
+        val loaded = load()
+        val expected = loaded.factories.factories.flatMap { it.products }.distinct()
+        assertEquals(expected, loaded.resources)
+        assertTrue(loaded.resources.isNotEmpty())
+    }
+
+    @Test
     @DisplayName("Une grille de monde sans écart ou sans case par rangée est refusée")
     fun worldGridMustHaveRoom() {
         val root = parseJson(worldText)

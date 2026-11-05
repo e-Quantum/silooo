@@ -135,7 +135,7 @@ class ApiTest {
         suspend fun check(response: HttpResponse) = assertError(response, HttpStatusCode.NotImplemented, ErrorCodes.NOT_DONE)
 
         // join, leave, pollEvents, les routes d'entreprise getCompany, collect, buyLevels, restoreStep et celles du personnel (getCandidates, hire, assignStaff, fireStaff) sont écrits (SessionRoutesTest, EventsRoutesTest, CompanyRoutesTest, StaffRoutesTest) : le filet couvre le reste du contrat.
-        check(client.get("/v1/orders/today") { header(SERVER_KEY_HEADER, key) })
+        // todayOrder, deliverOrder et getFindings sont écrits (OrderRoutesTest, FindingRoutesTest).
         check(
             client.post("/v1/market/listings") {
                 header(SERVER_KEY_HEADER, key)

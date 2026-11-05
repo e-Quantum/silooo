@@ -439,3 +439,42 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `monde.json` : `archipel.ecartEntreCases`, `archipel.casesParRangee`, `archipel.origine` (`x`, `z`) | fichier absent | `600`, `64`, `0` et `0` | `CompanyBootstrap.slotOrigin` pose chaque île neuve sur une grille : colonne `N % casesParRangee`, rangée `N / casesParRangee`. 600 blocs reprend l'espace à prévoir par joueur ([game-design.md](game-design.md), section Technique) ; la largeur de 64 cases et l'origine en (0, 0) sont des valeurs de départ, à recaler quand le monde sera posé. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
 | 5 nov. 2026 | `missions.json` : `missions[]` (`id`, `evenement`, `cible`, `recompense`) | fichier absent | `bienvenue-mairie`, `collect`, `1`, `lingotsHorsPrestige.missionBienvenue` | Le service compte les missions lui-même (`collect` qui rapporte) et les termine tout seul. Le catalogue n'a aucun chiffre d'économie : la récompense est le chemin d'une clé de `economie.json`, dont `lingotsHorsPrestige.missionBienvenue` (10) ne change pas. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
 | 5 nov. 2026 | `personnel.json` : `agence`, `raretes`, `roles`, `postes`, `chefEquipe` | fichier absent | liste de 5 (4 salariés, 1 chef), parts `75`/`20`/`5`, bonus `10`/`25`/`60`, salaires `2,5`/`6`/`15`, prix `1`/`4`/`20` heures de revenu, chef x`2` de prix et x`1,5` de salaire, 1 salarié + 1 par `25` niveaux et 1 chef, chef `+4` h hors ligne | Le contrat décrit l'agence (cinq candidats, trois raretés 75/20/5) sans chiffres de bonus, de salaire ni de prix : le service en a besoin pour embaucher et pour compter les salaires comme sortie d'argent. Valeurs de départ au plus simple, à recaler quand le joueur type embauchera. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'embauche personne). |
+| 5 nov. 2026 | `lingotsHorsPrestige.commandeDuJour`, `lingotsHorsPrestige.trouvaille`, `commandeDuJour` (`objectifUnites`, `minutesDeProductionParUnite`) | absentes | `1`, `1`, `100` et `1` | La commande mondiale du jour et le Carnet de trouvailles ont besoin de quatre chiffres que le game design ne donne pas. Une prime d'un Lingot reste dans l'ordre de `moyenneParHeureDeJeu` (1 par heure) ; 100 unités à une minute de revenu chacune font 100 minutes de revenu pour toute la commande. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent ni la production ni le prestige. |
+
+## Les commandes du jour et le Carnet
+
+Le game design parle d'une commande mondiale par jour que tout le serveur livre ensemble, et le plan de construction d'un
+Carnet de trouvailles, sans donner de règle ni de chiffre. Le service prend la règle la plus simple pour chacun, et elle
+est **à valider par Kr**. Les quatre chiffres sont dans `economie.json` : `commandeDuJour.objectifUnites` (100),
+`commandeDuJour.minutesDeProductionParUnite` (1), `lingotsHorsPrestige.commandeDuJour` (1) et
+`lingotsHorsPrestige.trouvaille` (1). Les ressources sont les produits de `usines.json`.
+
+### La commande du jour
+
+- **Quelle ressource** : la `(jours depuis 1970 mod nombre de ressources)`-ième des ressources du jeu, au jour UTC. Tout
+  le serveur a la même, et chaque ressource revient à son tour. Aucun tirage au sort, aucune ligne en base tant que
+  personne n'a livré.
+- **Ce que coûte une unité** : du Donar de l'entreprise de celui qui livre, au prix de `minutesDeProductionParUnite`
+  minutes de SON revenu par heure. Une minute de revenu pèse autant pour un petit joueur que pour un gros : le temps de
+  jeu est le même, et le Donar d'un gros joueur n'achète pas la commande. La production en attente compte pour payer et
+  est versée dans la même écriture.
+- **Plusieurs livraisons par jour** : un joueur peut livrer plusieurs fois, ses parts s'additionnent. Une livraison qui
+  dépasse le reste est ramenée à ce reste (et ne coûte que ce reste).
+- **La prime** : `lingotsHorsPrestige.commandeDuJour` Lingots, versés une fois à chaque joueur qui a livré, quand la
+  commande atteint l'objectif. Celui qui livre le dernier lot ne prend rien de plus, et personne ne perd sa prime parce
+  qu'il a livré tôt. Chaque participant reçoit aussi un événement `COMMANDE_TERMINEE`. Le game design parle de jetons ;
+  V1 récompense en Lingots ([glossaire.md](glossaire.md), ligne Jetons).
+- **Après la fin** : une livraison sur une commande terminée ne prend rien et n'écrit rien. Le service répond 200 avec la
+  commande finie, faute de code de refus au contrat.
+- **Pas de hasard, pas de pari, aucune monnaie échangée entre joueurs** : on livre des unités contre du Donar, on reçoit
+  des Lingots du jeu.
+
+### Le Carnet de trouvailles
+
+- **Une trouvaille est une ressource du jeu.** Elle entre dans le Carnet du joueur au premier encaissement qui rapporte
+  du Donar alors qu'une de ses usines en marche la produit. Une usine en ruine ou en remise en état ne trouve rien.
+- **Chaque trouvaille paie une fois** `lingotsHorsPrestige.trouvaille` Lingots, et le Carnet ne se vide pas au prestige :
+  il est au joueur, pas à l'entreprise. Au plus une prime par ressource du jeu, une fois pour toutes.
+- **Le Carnet est celui de qui encaisse** : un associé qui encaisse remplit le sien.
+- `GET /v1/players/{xuid}/findings` rend les ressources trouvées (identifiant et instant), le nombre de ressources du jeu
+  et la prime de chacune.

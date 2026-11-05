@@ -33,7 +33,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
   (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
   (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
   journal de l'étape « Vérifier le dépôt » et cherche `SKIPPED` avant de conclure que tout est vert.
-- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 30 opérations. Quand une
+- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 31 opérations. Quand une
   session écrit une route, elle l'ajoute à `WRITTEN` et branche ses faux dans `contractDependencies()`.
 - Rapport complet : `core/build/reports/tests/test/index.html`.
 
@@ -327,3 +327,76 @@ test de contrat, puis code.
   associés, ville, marché, boutique) : elles se servent du moteur et de `CompanyService` comme les quatre premières.
 - Un coût de remise en état dans `definitions/`, et des types d'événement propres dans l'OpenAPI.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).
+
+## La commande du jour
+
+`GET /v1/orders/today` (`todayOrder`) rend la commande mondiale du jour ; `POST /v1/orders/today/deliveries`
+(`deliverOrder`) livre des unités pour l'entreprise de l'acteur. Le code est dans `orders/` : `OrderPlan` (ce que dit
+le jour), `OrderService` (lire, livrer, payer), `OrderStore` et `JdbcOrderStore` (le SQL sur `world_orders` et
+`world_order_contributions`, déjà dans V1) et `OrderRoutes`. Aucun chiffre du jeu n'est dans le code :
+`economie.json` donne `commandeDuJour.objectifUnites`, `commandeDuJour.minutesDeProductionParUnite` et
+`lingotsHorsPrestige.commandeDuJour`, et `usines.json` donne les ressources (`Definitions.resources` : les produits des
+usines, une fois chacun, dans l'ordre du fichier).
+
+- **La commande du jour** : le jour est la date UTC de l'horloge du service (`Dependencies.clock`). La ressource
+  est la `(jours depuis 1970 mod nombre de ressources)`-ième : la même pour tout le serveur, sans tirage au sort, et
+  tout le monde parcourt les ressources dans le même ordre. Tant que personne n'a livré, la commande n'est écrite
+  nulle part : `todayOrder` la rend d'après le plan et n'écrit rien. Avec `?xuid=`, `mine` est la part déjà livrée par
+  ce joueur ; sans, `mine` vaut 0.
+- **Livrer, dans l'ordre** : (1) l'acteur a une entreprise ; (2) la commande du jour est écrite si besoin et
+  verrouillée (`SELECT ... FOR UPDATE`) AVANT la lecture de l'entreprise, pour que deux livraisons de la même entreprise
+  se suivent et que la seconde lise l'entreprise déjà débitée ; (3) sur une commande terminée, rien n'est pris ni
+  écrit et la réponse est un 200 avec la commande finie, sinon la quantité est ramenée au reste à livrer ; (4) le prix est
+  `unités x minutesDeProductionParUnite / 60 x revenu par heure de l'entreprise` en Donar (le revenu vient du moteur,
+  comme pour `buyLevels`), pris sur la caisse avec la production en attente ; s'il ne la couvre pas, refus
+  `PAS_ASSEZ_DE_DONAR` avec `missing` ; (5) l'entreprise est écrite par le verrou optimiste, en une seule écriture avec
+  la production versée, puis la part du joueur, la commande et un événement `ANNONCE` (`payload.action =
+  "deliverOrder"`, avec `day`, `resourceId` et `quantity`).
+- **La fin** : quand la commande atteint l'objectif, chaque joueur qui a livré touche `lingotsHorsPrestige.commandeDuJour`
+  Lingots, une fois (`creditBalance`, motif `commande`, `ref_id` = `commande-<jour>`, `rewarded_at` posé sur sa part) et
+  reçoit un événement `COMMANDE_TERMINEE` (`day`, `resourceId`, `rewardLingots`). Celui qui livre le dernier lot ne
+  prend rien de plus. Tout est dans la transaction de la dernière livraison : si une écriture échoue, la livraison est
+  annulée avec la prime.
+- **Idempotence et conflits** : `deliverOrder` passe par `call.idempotent` (point d'entrée `deliverOrder`) : un
+  `requestId` rejoué rend la réponse gardée, y compris un refus. Une version d'entreprise dépassée donne 409
+  `CONFLIT_REESSAYER`. La ligne de la commande est chaude (toutes les livraisons du jour la modifient) : sous
+  l'isolation par instantané de MariaDB 12, deux joueurs qui livrent au même instant peuvent voir l'un d'eux recevoir
+  `CONFLIT_REESSAYER` (l'erreur 1020 est déjà traduite par `Idempotency`) ; l'add-on réessaie avec le même `requestId`.
+- **Les cas que le contrat ne nomme pas** : `quantity` sous 1 ou non entière, acteur sans entreprise et `xuid` mal formé
+  de `todayOrder` donnent 400 `REQUETE_INVALIDE`. Une livraison sur une commande déjà terminée n'a pas de code de refus
+  au contrat : elle répond 200, `order.completed` vrai, sans rien prendre. Un code de refus propre aurait cassé les deux
+  tests de l'add-on qui comparent ses codes à `Refused.reason`, et cette tranche ne touche pas à `addon/` : à reprendre
+  avec la session de l'add-on si Kr préfère un refus.
+- **Règles à valider par Kr** : le game design dit « une commande par jour que tout le serveur livre ensemble » sans dire
+  comment la ressource est choisie, ce que coûte une unité, ni qui est payé ; le service tranche ainsi
+  ([economie.md](../docs/economie.md), section Les commandes du jour et le Carnet) : ressource par rang du jour,
+  objectif de 100 unités, prix en minutes de revenu de l'entreprise du joueur, plusieurs livraisons par jour permises,
+  prime en Lingots hors prestige à chaque participant à la fin (le game design parle de jetons, V1 de Lingots).
+- **Les tests** : `orders/OrderRoutesTest` (sans base : prix, rognage, fin, refus, rejeu, conflit, 400),
+  `ContractTest` (`todayOrder` et `deliverOrder` sont dans `WRITTEN`), `DefinitionsLoaderTest` pour les clés, et
+  `orders/OrderSqlTest` (MariaDB, CI) : tout écrit ensemble, annulé ensemble, des livraisons simultanées qui gardent la
+  commande cohérente.
+
+## Le Carnet de trouvailles
+
+`GET /v1/players/{xuid}/findings` (`getFindings`) rend les ressources que le joueur a trouvées, leur nombre possible et la
+prime de chacune. Le code est dans `findings/` : `FindingService`, `FindingStore` et `JdbcFindingStore` (le SQL sur
+`player_findings`, migration V3), `FindingRoutes`. Le plan de construction cite le Carnet sans le décrire : le service
+prend la règle la plus simple.
+
+- **Une trouvaille = une ressource du jeu** (un produit de `usines.json`). Il n'y a pas de route pour en réclamer une :
+  `CompanyService.collect` appelle `FindingService.record` dans sa transaction, quand l'encaissement rapporte du Donar.
+  Chaque ressource que produit une usine en marche (`ACTIVE`) de l'entreprise entre dans le Carnet de celui qui
+  encaisse, si elle n'y est pas. Aucun hasard : la première fois qu'une usine produit, c'est trouvé.
+- **Chaque trouvaille paie une fois** `lingotsHorsPrestige.trouvaille` Lingots (`creditBalance`, motif `trouvaille`,
+  `ref_id` = la ressource) et publie un événement `ANNONCE` (`payload.action = "trouvaille"`, avec `resourceId` et
+  `rewardLingots`). La clé primaire `(xuid, finding_id)` tranche si deux encaissements se croisent : `INSERT IGNORE`
+  dit lequel a gagné, et lui seul paie.
+- **Le Carnet est au joueur, pas à l'entreprise** : un prestige ne l'efface pas, un associé qui encaisse inscrit dans le
+  sien, et ce que le PDG a trouvé n'est pas à lui.
+- **Les cas que le contrat ne nomme pas** : un `xuid` mal formé ou d'un joueur que le service ne connaît pas donne 400
+  `REQUETE_INVALIDE`, comme `getMissions`. `getFindings` est une opération de plus au contrat (31).
+- **Les tests** : `findings/FindingRoutesTest` (sans base : Carnet vide, inscription par `collect`, une seule prime,
+  usines en ruine, un Carnet par joueur), `ContractTest` (`getFindings` est dans `WRITTEN`), un cas de
+  `CompanyRoutesTest` (le solde du PDG compte les primes du Carnet) et `findings/FindingSqlTest` (MariaDB, CI) : lignes,
+  solde, journal et événements écrits et annulés ensemble, la clé primaire.

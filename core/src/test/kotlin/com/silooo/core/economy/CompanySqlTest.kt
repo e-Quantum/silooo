@@ -21,6 +21,7 @@ import com.silooo.core.economy.EngineFixture.Companion.OTHER
 import com.silooo.core.economy.EngineFixture.Companion.START
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.findings.FindingService
 import com.silooo.core.mission.MissionService
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
@@ -69,6 +70,9 @@ class CompanySqlTest {
     private val engine = EconomyEngine(definitions)
     private val offline = definitions.economy.offline
     private val start = definitions.economy.prestige.courseStart
+
+    /** Les produits de l'usine de départ : le premier encaissement qui rapporte les inscrit au Carnet, un événement chacun. */
+    private val starterProducts = definitions.factories.factories.single { it.id == start.factoryId }.products
     private val store = JdbcSessionStore()
     private val clock = MutableClock(START)
 
@@ -270,12 +274,17 @@ class CompanySqlTest {
         assertEquals(clock.instant(), lastCollectAt(id))
         assertEquals(1L, version(id))
 
-        // Un événement pour le collect, et celui de la mission de bienvenue que ce premier encaissement termine.
+        // Un événement pour le collect, celui de la mission de bienvenue que ce premier encaissement termine, puis un par
+        // produit de l'usine de départ que le Carnet inscrit : tous de type ANNONCE, tous pour l'acteur.
+        val expectedEvents = 2 + starterProducts.size
         assertEquals(1L, eventCount(CompanyService.ACTION_COLLECT))
-        assertEquals(2L, eventCount())
-        assertEquals(listOf(CompanyService.ACTION_COLLECT, MissionService.ACTION), eventValues("action"))
-        assertEquals(List(2) { CompanyService.EVENT_KIND.name }, MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"))
-        assertEquals(List(2) { KR.text }, MariaDbSupport.strings("SELECT CAST(xuid AS CHAR) FROM game_events ORDER BY id"))
+        assertEquals(expectedEvents.toLong(), eventCount())
+        assertEquals(
+            listOf(CompanyService.ACTION_COLLECT, MissionService.ACTION) + List(starterProducts.size) { FindingService.ACTION },
+            eventValues("action"),
+        )
+        assertEquals(List(expectedEvents) { CompanyService.EVENT_KIND.name }, MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"))
+        assertEquals(List(expectedEvents) { KR.text }, MariaDbSupport.strings("SELECT CAST(xuid AS CHAR) FROM game_events ORDER BY id"))
         assertEquals(listOf(id.toString()), eventValues("companyId", CompanyService.ACTION_COLLECT))
         assertGolden(earned, eventValues("collected", CompanyService.ACTION_COLLECT).single()!!.toDouble(), "Donar encaissé dans l'événement")
 
@@ -283,7 +292,7 @@ class CompanySqlTest {
         val replay = collect(id)
         assertEquals(firstBody, replay.bodyAsText())
         assertEquals(1L, version(id))
-        assertEquals(2L, eventCount())
+        assertEquals(expectedEvents.toLong(), eventCount())
 
         // Un autre appel, sans temps écoulé : rien à encaisser, ni écriture ni événement.
         val nothing = SiloooJson.decodeFromString(CollectResponse.serializer(), collect(id, n = 2).bodyAsText())
@@ -291,7 +300,7 @@ class CompanySqlTest {
         assertEquals(0.0, nothing.offlineHours)
         assertGolden(earned, donar(id), "donar après l'appel à vide")
         assertEquals(1L, version(id))
-        assertEquals(2L, eventCount())
+        assertEquals(expectedEvents.toLong(), eventCount())
         assertEquals(clock.instant(), lastCollectAt(id))
     }
 

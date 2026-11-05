@@ -98,6 +98,12 @@ export type EconomieDefinitions = {
   readonly lingotsHorsPrestige: {
     readonly missionBienvenue: number;
     readonly moyenneParHeureDeJeu: number;
+    readonly commandeDuJour: number;
+    readonly trouvaille: number;
+  };
+  readonly commandeDuJour: {
+    readonly objectifUnites: number;
+    readonly minutesDeProductionParUnite: number;
   };
   readonly ville: {
     readonly zonesPrixLingots: readonly number[];
