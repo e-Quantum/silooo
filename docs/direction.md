@@ -43,11 +43,20 @@ Garde au plus 3 sessions en même temps : elles partagent le quota de Kr.
 
 ## Quand t'arrêter
 
-- À 7 h, heure de Paris, ou plus tôt si les phases 0 et 1 sont finies et que la phase 2 attend Kr
-  (base, port, DNS).
-- Avant de t'arrêter : toutes les sessions lancées sont finies ou notées, `main` est vert, et
-  `docs/passation.md` contient le bilan de la nuit : ce qui est fait, ce qui reste, les décisions prises
-  seul, et la liste « À faire par Kr ».
+- Tu enchaînes les phases du plan dans l'ordre, 0, 1, 2, 3, 4 puis 5, avec au plus 3 sessions à la fois
+  (cloud et PC). Au début de chaque phase, tu écris sa liste de tâches cochables dans `docs/passation.md`
+  à partir de `docs/plan-construction.md`. Une phase est finie quand toutes ses cases sont cochées et que
+  sa condition de sortie est remplie.
+- Si la condition de sortie demande Kr (base de données, port, DNS, test sur console, achat réel) : note-la
+  dans « À faire par Kr », coche tout ce qui ne dépend pas de lui, et passe à la phase suivante pour tout
+  ce qui avance sans lui (code, tests, pack de ressources, docs), sans rien déployer qui en dépende.
+- Tu ne commences jamais la phase 6 (bêta avec des joueurs) ni la phase 7 (ouverture) : elles demandent Kr.
+- Toutes les 2 heures environ, et avant de t'arrêter, écris un bilan dans `docs/passation.md` (ce qui est
+  fait, ce qui reste, les décisions prises seul, la liste « À faire par Kr »), commite et pousse.
+- Condition de fin : les phases 0 à 5 sont cochées dans `docs/passation.md` sur `main`, sauf les cases
+  notées « À faire par Kr » ; le dernier bilan est poussé ; `main` est vert ; `git status` est propre ;
+  aucune session lancée n'est encore en cours. Avant de t'arrêter, toutes les sessions lancées sont finies
+  ou notées dans le journal.
 
 ## Ce que tu ne fais jamais
 
