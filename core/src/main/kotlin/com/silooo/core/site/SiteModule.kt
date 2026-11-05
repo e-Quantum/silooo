@@ -84,7 +84,12 @@ fun Application.siteModule(
     }
 
     routing {
-        siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") })
+        val clock = dependencies.clock
+        siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") }) { playersOnline(dependencies.serverPresence, clock) }
+        // Les classements et les fiches d'entreprise : le mode ouvert seulement (la page n'existe pas en attente).
+        pages.firstOrNull { it.name == RANKING_PAGE }?.let { statsRoutes(dependencies, shell, it) }
+        // Le webhook de PayNow répond dans les deux modes : une commande payée avant l'ouverture doit être écrite.
+        payNowRoutes(dependencies)
         // Les pionniers : en mode ouvert la case des règles mène au wiki, en attente aux mentions (le wiki n'y existe pas).
         pages.firstOrNull { it.name == PIONEERS_PAGE }?.let { page ->
             val rules = if (pages.any { it.url == RULES_URL }) RULES_URL else "/mentions/"

@@ -336,6 +336,11 @@ main { margin-bottom: var(--pas-6); }
 .offre__detail { flex: 0 1 auto; }
 /* Sur le papier, la Gemme prend la couleur du texte : papier sur papier ne se lirait pas. */
 .lecture .sa-monnaie--gemmes { color: var(--fonte-900); }
+/* Idem pour les Lingots d'un classement : or-lingot sur papier ne se lirait pas, seule l'icône porte l'or ; la valeur garde la taille du tableau. */
+.lecture .sa-monnaie--lingots { color: var(--fonte-900); }
+.tableau .sa-monnaie { font-family: inherit; font-size: inherit; line-height: inherit; white-space: nowrap; vertical-align: middle; }
+.tableau thead th { white-space: nowrap; }
+.tableau a { color: inherit; }
 .lecture ul:not(.offres):not(.liens) { margin: 0 0 var(--pas-4); padding-left: var(--pas-6); }
 
 /* Les boutons d'une liste (sites de vote). */
