@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 16 h 51, cosmétiques, boost collectif et titre du pionnier fusionnés (migration V9) ; le pass refusionne (session de direction).
+Dernière mise à jour : 5 novembre 2026, 17 h 17, bilan de 17 h : le pass fusionné, le D2 du Discord (V10) fusionné, le service de la phase 5 complet, l'add-on lancé (session de direction).
 
 ## État
 
@@ -9,9 +9,10 @@ Dernière mise à jour : 5 novembre 2026, 16 h 51, cosmétiques, boost collectif
   CI, hooks, trois recettes) et, dans `core/`, le squelette de silooo-core (Gradle, Ktor, Flyway, clé
   `X-Silooo-Key`, heartbeat, filet 501, Dockerfile) avec les données dorées du tableur
   (`core/src/test/resources/golden/`), les routes de session (`join`, `leave`, `GET /v1/events`,
-  idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 32 opérations) et le moteur
-  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Dix
-  fichiers de définitions : \1`incidents`, `ville`, `vote`.
+  idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 33 opérations) et le moteur
+  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Onze
+  fichiers de définitions du jeu : `usines`, `economie`, `boutique`, `monde`, `iles`, `missions`, `personnel`,
+  `incidents`, `ville`, `vote`, `pass` ; `discord.json` est à la direction du Discord.
 - `main` est vert : `tools/verifier.sh` passe sur le PC (tests Gradle compris, tests Docker ignorés) et
   la CI passe (jobs `verifier` avec les deux tests Testcontainers, `migration`, `image`).
 - Sur le VPS : `/var/www/silooo` existe avec un fichier d'environnement posé par Kr. La base `silooo`
@@ -40,8 +41,10 @@ Dernière mise à jour : 5 novembre 2026, 16 h 51, cosmétiques, boost collectif
   5 novembre 2026 (décision 39) ; sur `main` : les livraisons de Gemmes, les grades et le Pilier côté service
   (paquet `shop/`), les votes et la Vote party (paquet `vote/`, Votifier v2, `todayVotes` : 33 opérations), les événements que le bot Discord lira (`PRESTIGE_ENTREPRISE`, `ANNONCE` `sansCourant`,
   payloads dans l'OpenAPI ; le bot Oooscar lui-même est à la direction du Discord, `docs/discord-passation.md`) ;
-  les cosmétiques, le boost collectif et le titre du pionnier (paquet `shop/`, migration V9 `server_boosts`) ; en cours :
-  le pass de saison (`claude/phase5-pass`, rendu, refusionne `main` et déclare ses cosmétiques dans `boutique.json`).
+  les cosmétiques, le boost collectif et le titre du pionnier (paquet `shop/`, migration V9 `server_boosts`), le pass de
+  saison (paquet `pass/`, `pass.json`, `getPass`, `claimPass`, `pass-premium`) ; en cours : l'add-on de la boutique, du
+  pass et des votes (`claude/phase5-addon`). La direction du Discord a posé D2 sur `main` (`definitions/discord.json`,
+  migration V10) ; le jeu prend V11 et la suite.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -149,12 +152,12 @@ définitions et la doc avancent sans attendre, et rien de ce qui en dépend n'es
 
 - [x] silooo-core : livraison des Gemmes (paquet `shop/` : `DeliveryRelief` relève `shop_deliveries` toutes les `SILOOO_DELIVERY_POLL_SECONDS` secondes, 30 par défaut ; joueur retrouvé par `xuid` puis par gamertag ; une seule transaction : `delivered_at` posé s'il est encore nul, crédit, journal `livraison`, événement `GEMMES_RECUES` ; pseudo inconnu laissé en attente et rattrapé au `join` par `session/PendingDeliveries`) ; grades à vie et Pilier (`catalog` et `buyItem` : six grades dans l'ordre, un seul `available` à la fois, `pilier` prolongé de 28 jours à partir du plus tard de maintenant et de sa fin, 50 Gemmes rendues à chaque achat, `perso` réservé à Ultime, cadeau par `forXuid` payé par l'acteur, idempotence par `requestId` et `shop_purchases.request_id`) ; bonus de Donar du PDG (grade le plus haut, Pilier actif) lus dans `boutique.json` par `economy/ShopBonusSource` et multipliés comme le commerce de la ville ; sans grade, les treize cibles sont inchangées ; 108 tests neufs dont 26 SQL en CI, 1316 tests Gradle ; pas de migration ; `docs/economie.md` « La boutique », `docs/base-de-donnees.md` « Les livraisons de Gemmes », `core/README.md` ; règles **à valider par Kr** ; décision 40
 - [x] silooo-core : le reste de la boutique en jeu (paquet `shop/` prolongé : `catalog` liste les grades, les abonnements, seize cosmétiques par catégorie et le boost collectif avec ce que le joueur possède ; `buyItem` écrit `player_cosmetics` (`source` = `boutique`, cadeau compris), refuse le doublon, et pour le boost écrit `server_boosts` (migration V9 : `bought_by`, `starts_at`, `ends_at`, `bonus_percent`), un boost acheté pendant un boost actif commence à la fin du précédent, publie `BOOST_COLLECTIF` pour tout le serveur ; le moteur applique le boost actif à toute la production (`boostPercent`), hors ligne compris, treize cibles du simulateur inchangées ; le titre du pionnier d'après `site_registrations.pioneer` au `join` (`shop/PioneerTitle`, `session/PendingTitles`, `player_cosmetics` `source` = `site`, `ANNONCE` `pionnier` une fois) ; les livraisons rapprochées par la clé du site (`SiteRegistrations.key`) ; `boutique.json` (`cosmetiques`, `boostCollectif`, un `nom` par abonnement) et `personnel.json` (un `nom` par rareté) avec schémas, cas invalides et types générés ; `JoinResponse.cosmetics` et les charges `BOOST_COLLECTIF` et `pionnier` décrites dans l'OpenAPI, toujours 33 opérations ; 67 tests neufs dont 23 SQL en CI ; `docs/economie.md`, `core/README.md`, `docs/base-de-donnees.md` (avec `site_registrations`) ; décision 44 ; chiffres et noms **à valider par Kr**)
-- [ ] silooo-core : pass de saison (`getPass`, `claimPass`) : paliers gratuits et premium, points et saison dans `definitions/pass.json` (nouveau, avec son schéma et ses cas invalides), `season_pass`, `season_claims`, le premium acheté en Gemmes par `buyItem`
+- [x] silooo-core : pass de saison (paquet `pass/` : `PassRules`, `PassService`, `PassRoutes`, `PassStore`, `JdbcPassStore` ; `definitions/pass.json` (saison, prix du premium, points, dix paliers à deux pistes) avec schéma, huit cas invalides, `PassDefinitions` et types générés ; des points à chaque prestige (chaque associé), commande du jour livrée (chaque contributeur) et mission terminée, dans `season_pass`, pendant la saison seulement ; `getPass` (`PassState`) et `claimPass` (`PassClaimed`, Lingots par `creditBalance` raison `pass` ou cosmétique `source` = `pass`, une transaction, idempotent) ; `pass-premium` par `buyItem` et dans `catalog` ; quatre codes `Refused` déclarés dans `api/` (`PALIER_NON_ATTEINT`, `DEJA_RECLAME`, `PREMIUM_REQUIS`, `SAISON_INACTIVE`) et leurs bulles dans l'add-on ; les cinq cosmétiques de saison déclarés hors vente dans `boutique.json`, le chargeur et le vérificateur refusent un cosmétique du pass absent ou vendu ; `buyItem` refuse en 400 tout article `achetable: false`, cadeau compris ; toujours 33 opérations ; aucune migration ; 1723 tests Gradle sur la branche (0 échec), dont 71 du pass : `PassRulesTest` 14, `PassRoutesTest` 27, `PassPointsTest` 9, `PassSqlTest` 21 en CI ; `docs/economie.md` « Le pass de saison », `core/README.md` ; décision 45 ; chiffres et noms **à valider par Kr**)
 - [x] silooo-core : votes et Vote party (paquet `vote/` : `VotifierProtocol` (décodage et signature HMAC-SHA256 en fonctions pures), `VotifierServer` (TCP, éteint sans `SILOOO_VOTIFIER_TOKEN`, port `SILOOO_VOTIFIER_PORT` 8192, publié par le compose au même numéro), `VoteRules`, `VoteService`, `JdbcVoteStore`, `VoteRoutes` ; une ligne `server_votes` par vote, `xuid` retrouvé par gamertag, Lingots hors prestige (`creditBalance`, raison `vote`), série de jours UTC avec bonus à chaque multiple de `serie.jours`, Vote party au vote de rang `voteParty.votesParJour` pour les présents, `ANNONCE` (`action` vote, voteParty) ; pseudo inconnu rattrapé au `join` par `session/PendingVotes` ; `definitions/vote.json` (1 Lingot par vote, série de 7 jours, +2, fête à 10 votes, 1 Lingot par présent, site `hubyy`) avec schéma, cas invalides et types générés ; `GET /v1/votes/today` (`todayVotes`) : le contrat passe à 33 opérations ; environ 100 tests neufs dont 16 SQL en CI ; pas de migration, pas de dépendance ; `docs/economie.md` « Les votes », `core/README.md`, `docs/deploiement.md` (port, jeton, Hubyy) ; chiffres et règles **à valider par Kr** ; décision 42) ; les sites de vote autres que Hubyy plus tard, par le même chemin
 - [x] silooo-core : Discord, réduit le 5 novembre à ce que le service publie (décision 43 : le bot Oooscar est à la direction du Discord, `docs/discord-passation.md`, qui lit `game_events` avec son propre curseur) : le prestige publie `PRESTIGE_ENTREPRISE` pour tout le serveur (`xuid` nul, en plus de l'`ANNONCE` par membre), le moteur publie `ANNONCE` `sansCourant` au joueur dont une usine manque de courant (constaté par comparaison avant et après la dernière étape de remise en état, une fois par passage, pas d'état stocké), `ANNONCE` `voteParty` (votes) et `BOOST_COLLECTIF` (cosmétiques) complètent la liste ; payloads décrits dans `api/silooo-core.openapi.yaml` ; 1517 tests Gradle, 7 neufs dans `CompanyRoutesTest` ; aucune variable `SILOOO_DISCORD_*` côté jeu
 - [ ] add-on : boutique (catalogue, achat, cadeau, grades et Pilier, titre et objet Pionnier, bulle d'Oooscar à l'arrivée des Gemmes `GEMMES_RECUES`), pass de saison (progression, réclamer un palier), rappel de vote et Vote party, annonce du boost collectif ; textes **à valider par Kr**
-- [ ] `definitions/` : `boutique.json` complété (cosmétiques, effet de prestige, boost collectif), `pass.json`, `vote.json`, avec leurs schémas, leurs cas invalides et les types générés
-- [ ] docs : `docs/economie.md` « La boutique », « Le pass de saison », « Les votes » ; `core/README.md` ; `docs/deploiement.md` : ce que Kr branche (Votifier, Discord)
+- [x] `definitions/` : `boutique.json` complété (cosmétiques, effet de prestige, boost collectif, noms des abonnements, cosmétiques de saison hors vente), `pass.json`, `vote.json`, `personnel.json` (noms des raretés), avec leurs schémas, leurs cas invalides et les types générés (`node tools/generer_types.mjs`)
+- [x] docs : `docs/economie.md` « La boutique », « Le pass de saison », « Les votes » ; `core/README.md` (boutique, votes, pass, Discord côté service) ; `docs/deploiement.md` : ce que Kr branche (Votifier par la tranche des votes, les variables du bot par la direction du Discord) ; `docs/base-de-donnees.md` (V7, V9 ; V10 par la direction du Discord)
 
 Tranches prévues, deux à la fois au plus (décision 37) : gemmes-grades et votes ; puis pass, boutique-cosmetiques
 (après gemmes-grades, même paquet `shop/`) et discord ; puis l'add-on de la boutique, du pass et des votes, après les
@@ -192,10 +195,11 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 - [ ] Deux dossiers `.agents/` et `.codex/` sont apparus non suivis dans le dossier de la direction du jeu le 5 novembre 2026 à 13 h 16, sans qu'elle les écrive : dire s'il faut les ignorer dans `.gitignore` ou les retirer. Les copies locales de `docs/site.md`, `docs/site-direction.md` et `docs/site-passation.md` qui traînaient dans ce dossier (plus anciennes que `main`, elles bloquaient chaque fusion) sont mises de côté dans un stash (`git stash list` : « copies locales des docs du site ») : les reprendre ou les jeter (`git stash drop`). Depuis ddf698f (direction du site), `docs/references/site/` est sur `main`, octet pour octet identique à la copie non suivie qui bloquait la fusion : cette copie est dans un second stash (`stash@{0}`, 16 h 45) ; les deux stashs peuvent être jetés (`git stash drop`), rien n'y manque à `main`.
 - [ ] Phase 4 : au test sur console, tout l'add-on de la phase 4, jamais essayé en jeu : la ville et l'île principale (zones posées quand la mairie les débloque, catalogue, pose, amélioration, bulles d'Oooscar), le prestige, la carte et le voyage, le personnel, les incidents et la réparation, l'entreprise partagée.
 - [ ] L'agence : `docs/game-design.md` (une nouvelle liste de candidats achetée en Donar) contredit le service et `docs/economie.md` (décision 33 : rien à acheter, cinq candidats du jour) ; le wiki du site suit le service. Trancher, et mettre le game design d'accord (point 8 de la direction du site).
-- [ ] Phase 6 (beta) : l'admission des pionniers. Le site écrit `site_registrations` (migration V7 : gamertag en minuscules en clé, `admitted_at`, `pioneer`) ; la porte au `join` (code `PAS_ADMIS` déclaré dans `api/`, puis la route et l'écran) est la première tâche de la phase 6, que la direction du jeu n'ouvre pas sans Kr. Dire aussi si une preuve du gamertag (un code montré en jeu, saisi sur le site) est exigée avant la beta : le site ne prouve pas que l'inscrit possède le gamertag.
+- [ ] Phase 6 (beta) : l'admission des pionniers. Le site écrit `site_registrations` (migration V7) et dessinera `beta_access` (kit de Kr) ; la porte au `join` en mode `beta` du site (code `PAS_ADMIS` déclaré dans `api/`, puis la route et l'écran) est la première tâche de la phase 6, que la direction du jeu n'ouvre pas sans Kr. **À trancher par Kr : le sens du code de liaison Discord.** Le kit du site dit un code de six caractères donné par Discord et tapé en jeu (`POST /v1/links/discord`, envoyé par l'add-on) ; la direction du Discord, d'après la critique, dit un code montré en jeu et tapé sur Discord (`/lier`, D3). Une seule route ira au contrat, et un seul écran dans l'add-on, quand les deux directions ou Kr l'auront écrit.
 - [ ] Phase 5 : Docker publie le port Votifier (`SILOOO_VOTIFIER_PORT`, 8192/tcp) en passant à côté d'ufw : vérifier le pare-feu du VPS et, si possible, n'ouvrir ce port qu'à Hubyy.
 - [ ] Mise en ligne du site : suspendue le 5 novembre 2026 à 15 h 48 par la deuxième direction du site (révision de S0 à S5 contre le kit de Kr, `docs/site-revision.md`, worktree `silooo-site`). Rien n'est demandé à Kr pour le site (DNS, bloc Caddy, variables, mentions) tant que `docs/site-passation.md` ne redit pas « Prêt à mettre en ligne » ; le jeu peut se déployer sans lui (site en `attente`, port non publié). La base `silooo` reste à confirmer.
-- [ ] Site : `PioneerRoutesTest` « Jeton absent, falsifié ou périmé » échoue dans la CI de `main` depuis le premier run complet après S5 (69d98b1 : 303 au lieu de 400 après onze minutes) et passe sur le PC ; le paquet `site/` est à la direction du site, qui corrige dans sa révision ; `main` ne se déploie pas tant que la CI est rouge.
+- [ ] Site : `PioneerRoutesTest` « Jeton absent, falsifié ou périmé » a échoué dans trois runs de la CI de `main` (69d98b1, ddf698f, 870b196 : 303 au lieu de 400 après onze minutes) puis passé au quatrième (234793f, 17 h 02) sans que le paquet `site/` change : intermittent ; à la direction du site, qui le regarde dans sa révision.
+- [ ] Sur le PC, quand `claude/site-socle` sera sur `main` : `npm ci` à la racine, puis `npx playwright install chromium` (environ 150 Mo ; le disque a 20 Go libres) pour que `tools/verifier.sh` joue l'étape « Site : pages dans Chromium » au lieu de l'ignorer ; la CI la joue de toute façon.
 
 ## Décisions prises sans Kr
 
@@ -432,6 +436,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     commence à la fin du précédent, sans cumul des pourcentages, et son bonus s'applique à toute la période, joueur
     hors ligne compris ; le titre `pionnier` est hors catalogue (400) et ne vient que de `site_registrations` ; le
     chargeur refuse un `personnel.json` sans `nom` par rareté. À relire par Kr.
+45. **Le pass : des points en saison seulement, une réclamation possible après, un premium par saison et par
+    joueur, aucun événement.** Tranché par la tranche du pass : les points ne tombent que du premier au dernier jour
+    de la saison (`pass.json`), mais un palier atteint se réclame encore après ; le premium se vend en saison
+    seulement, une fois par joueur, cadeau compris ; un cosmétique déjà possédé ne bloque pas le palier (il est
+    simplement déjà là) ; le pass ne publie aucun événement (l'add-on relit `getPass`) ; `Dependencies.pass` est
+    facultatif (501 sans lui) ; les cosmétiques de saison sont déclarés dans `boutique.json` hors vente, comme le
+    titre du pionnier, et rien d'`achetable: false` ne s'achète ni ne s'offre. À relire par Kr.
 
 ## À valider par Kr
 
@@ -517,6 +528,14 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   Pionnier, hors vente, et Contremaître 120) ; le boost collectif à 150 Gemmes, +25 % pendant 60 minutes ; les noms
   d'abonnements « Pilier » et « Préfixe perso » ; les noms de raretés « Ordinaire », « Rare », « Exceptionnel »
   (`personnel.json`) ; et les règles de la décision 44.
+- Le pass de saison (`pass.json`, `docs/economie.md` « Le pass de saison ») : « Saison 1 » du 5 novembre 2026 au
+  31 janvier 2027, premium à 250 Gemmes, 100 points par prestige, 20 par commande livrée, 10 par mission, dix paliers
+  de 40 à 1 300 points, 1 à 5 Lingots sur la piste gratuite, cinq cosmétiques de saison sur la piste premium
+  (`s1-fanion`, `s1-lanterne`, `s1-chat-livreur`, `s1-sillage-dore`, `s1-titre-fondateur`, et leurs noms dans
+  `boutique.json`) ; les quatre bulles d'Oooscar des refus du pass (`addon/src/ui/textes.ts`, tableau
+  d'`addon/README.md`) ; et les règles de la décision 45.
+- `docs/game-design.md`, l'agence : « nouvelle liste en Donar » retiré, le texte suit la décision 33 et `docs/economie.md`
+  (rien à acheter pour changer la liste du jour), contradiction relevée par la direction du site.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -929,3 +948,63 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   quatre codes de refus ajoutés à l'add-on) refusionne `main` et déclare ses cinq cosmétiques de saison dans
   `boutique.json` (hors vente) avant sa relecture. Vérifier : `git log --oneline -3 origin/main`,
   `cd core && ./gradlew test --tests '*Shop*'`.
+- **5 novembre 2026, 17 h 17 : direction, le pass fusionné, le D2 du Discord fusionné ; add-on lancé.**
+  `claude/phase5-pass` (99804a1, la branche contenait `main`) en avance rapide : paquet `pass/`, `pass.json`,
+  `getPass`, `claimPass`, `pass-premium`, quatre codes de refus (déclarés dans `api/`, bulles dans l'add-on), les
+  cinq cosmétiques de saison déclarés hors vente dans `boutique.json` et refusés à l'achat comme tout
+  `achetable: false` ; 1723 tests Gradle sur la branche (0 échec), dont 71 du pass : `PassRulesTest` 14, `PassRoutesTest` 27, `PassPointsTest` 9, `PassSqlTest` 21 en CI. Relu : aucun fichier interdit (dans `addon/src`, les
+  deux fichiers autorisés), aucun test affaibli (les lignes retirées sont le constructeur `Definitions` et les
+  dépendances du contrat élargis au pass), 33 opérations, aucune migration, quatorze fichiers `@minecraft`, aucun
+  secret. La poussée a buté sur `origin/main`, avancé par la direction du Discord (2323dd9, 82689a6 : D2,
+  `definitions/discord.json`, migration V10 ; V8 reste un trou) : fusionné, un conflit d'une ligne dans
+  `core/README.md` (les deux lignes gardées), vérificateur vert. Décision 45 ; `pass.json` et les bulles recopiés
+  dans « À valider par Kr » ; onze fichiers de définitions du jeu (82844d0). Réparé : la phrase des fichiers de
+  définitions de l'état portait un `\1` depuis 990dcb5 (un script de 15 h 35), et disait 32 opérations. Les cases
+  « definitions » et « docs » de la phase 5 cochées. Lancée : l'add-on de la boutique, du pass et des votes
+  (`claude/phase5-addon`, recette `silooo-ecran`, partie de 99804a1). Vérifier : `git log --oneline -4 origin/main`,
+  `cd core && ./gradlew test --tests '*Pass*'`.
+- **5 novembre 2026, 17 h 17 : bilan (direction).**
+  - Fait depuis le bilan de 15 h : les votes (33 opérations, décision 42) ; Discord réduit à ce que le service publie
+    et fusionné (décision 43 : le bot Oooscar est à la direction du Discord) ; les treize variables du site dans
+    `deploy/exemple.env.txt` et `docs/deploiement.md` (point 3 du site) ; les cosmétiques, le boost collectif et le
+    titre du pionnier (V9, décision 44) ; le pass de saison (décision 45) ; la CI de `main`, rouge depuis 69d98b1
+    (deux tests SQL du prestige, corrigés ; un test du site, intermittent), verte à 234793f (17 h 02, cinq jobs).
+    Le service de la phase 5 est complet : ses cinq cases, les définitions et les docs sont cochées.
+  - En cours : l'add-on de la boutique, du pass et des votes (`claude/phase5-addon`), seule session lancée.
+  - Reste : phase 2, les trois cases de Kr ; phase 3, le test de bout en bout ; phase 4, le test en jeu ; phase 5,
+    l'add-on, puis la condition de sortie qui demande Kr (achat réel de test, Hubyy et le port Votifier, le jeton du
+    bot Discord). Les phases 6 et 7 ne s'ouvrent pas.
+  - Décisions prises seul depuis 15 h : 42, 43, 44, 45. À valider : `vote.json`, les cosmétiques et leurs prix, les
+    noms d'abonnements et de raretés, `pass.json`, les bulles des refus du pass, l'agence du game design ; puis les
+    textes de l'add-on.
+  - Pour Kr, nouveau depuis 15 h : le pare-feu du port Votifier ; la mise en ligne du site suspendue par sa deuxième
+    direction (rien à lui demander pour le site) ; le déploiement du bot Discord (`a-blanc` puis `oui`) quand le QG
+    sera prêt et le jeton posé ; `PioneerRoutesTest` intermittent ; les deux stashs à jeter ; le sens du code de
+    liaison Discord à trancher (phase 6) ; Chromium de Playwright sur le PC.
+  - Direction du site (« Pour la direction du jeu », relu sur `claude/site-socle`, 7e6cb6e, pas encore sur `main`) :
+    la suspension du 15 h 48 est lue, rien ne sera demandé à Kr pour le site, le jeu se déploiera avec le site en
+    `attente` ; la copie non suivie de `docs/references/site/` est dans un stash, identique à `main`, les fusions
+    passent. (1) noté : chaque variable qui change passe par `deploy/exemple.env.txt` et `docs/deploiement.md`, le
+    test `deploy-compose.mjs` l'exige. (2) `POST /v1/links/discord` et le refus `PAS_ADMIS` au `join` en mode `beta`
+    sont la porte de la phase 6, que cette direction n'ouvre pas : notés dans « À faire par Kr » ; le sens du code se
+    contredit entre votre kit (donné par Discord, tapé en jeu) et la direction du Discord (montré en jeu, tapé sur
+    Discord, D3) : une seule route au contrat, après l'accord écrit des deux directions ou le choix de Kr ; attendu
+    aussi : le dessin de `beta_access`. (3) le titre du pionnier est crédité au premier `join` d'un inscrit
+    (`PioneerTitle`, `player_cosmetics` `source` = `site`, une fois) ; le drapeau V7 est lu mais vrai par défaut,
+    donc tout inscrit l'a, comme le kit le veut ; le mot `evenement` et l'abandon du drapeau viendront avec la
+    migration que vous dessinez (une ligne dans `PioneerTitle`) ; l'objet de déco attend Kr. (4) d'accord, à vous,
+    sur `claude/site-guide` depuis `main` après 99804a1 (`boutique.json` et `pass.json` y ont changé) :
+    `definitions/` et ses schémas seulement, champs facultatifs tant que tout n'est pas écrit, types régénérés par
+    `node tools/generer_types.mjs`, textes à valider par Kr ; aucune tranche du jeu n'y travaille (l'add-on en
+    cours ne touche pas `definitions/`). (5) (a) fait ; (b) à vous (`shop_deliveries.xuid`), le rapprochement par
+    la clé du site reste ; (c) fait (`personnel.json`, `boutique.json`) ; (d) fait (`docs/base-de-donnees.md`).
+    (6) nos tranches ajoutent des lignes, jamais un bloc (le pass : `Application.kt`, `Main.kt`, `core/README.md`) ;
+    l'add-on en cours ne touche pas `core/`. (7) `docs/game-design.md` mis d'accord avec la décision 33 (rien à
+    acheter pour changer la liste), à valider par Kr. (8) lu : après votre fusion, `npm ci` à la racine et l'étape
+    Chromium ignorée sur ce poste tant que Kr n'a pas installé Chromium (ligne de Kr) ; la CI la joue.
+  - Direction du Discord (« Pour la direction du jeu », relu sur `claude/discord-d2`) : D0 et D2 sont lus et D2 est
+    fusionné ici. (1) le pass a ajouté des lignes dans `Application.kt`, `Main.kt` et `core/README.md` (une ligne en
+    conflit avec D2, les deux gardées) ; l'add-on en cours ne touche pas `core/`. (2) V10 lue : V8 reste un trou,
+    rien à faire pour Flyway, le jeu prend V11 et la suite ; la note V8 du journal de 16 h 5x est caduque. (3) à (7) :
+    réponses de 15 h 46, inchangées ; (7) est fait dans `design/README.md`. (8) noté, ligne de Kr réécrite.
+  - Vérifier : `git log --oneline -12 origin/main`, `gh run list --branch main --limit 3`.
