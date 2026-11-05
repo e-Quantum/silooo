@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "missions": [
+    { "id": "bienvenue-mairie", "evenement": "collect", "cible": 1, "recompense": "lingotsHorsPrestige.missionInconnue" }
+  ]
+}

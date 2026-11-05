@@ -233,7 +233,44 @@ function controlesBoutique(fichier, d) {
   });
 }
 
-const CONTROLES = { usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique };
+/** Suit un chemin « a.b.c » dans un objet ; undefined si un maillon manque. */
+function valeurAuChemin(objet, chemin) {
+  let courant = objet;
+  for (const cle of chemin.split(".")) {
+    if (courant === null || typeof courant !== "object" || Array.isArray(courant) || !Object.hasOwn(courant, cle)) {
+      return undefined;
+    }
+    courant = courant[cle];
+  }
+  return courant;
+}
+
+function controlesMissions(fichier, d, dossier) {
+  const missions = liste(d.missions);
+  doublons(fichier, "$.missions", missions, "la mission");
+  // Les récompenses sont des références dans economie.json : le chemin doit y mener à un nombre entier de Lingots.
+  const fichierEconomie = join(dossier, "economie.json");
+  if (!existsSync(fichierEconomie)) return;
+  let economie;
+  try {
+    economie = JSON.parse(readFileSync(fichierEconomie, "utf8").replace(/^﻿/, ""));
+  } catch {
+    return; // economie.json illisible : sa propre vérification le dit, il n'y a rien à croiser
+  }
+  missions.forEach((m, i) => {
+    const chemin = texte(m?.recompense);
+    if (chemin === null) return;
+    const valeur = valeurAuChemin(economie, chemin);
+    if (valeur === undefined) {
+      signaler(fichier, `$.missions[${i}].recompense`, `« ${chemin} » n'existe pas dans economie.json`);
+    } else if (!Number.isInteger(valeur) || valeur < 0) {
+      signaler(fichier, `$.missions[${i}].recompense`,
+        `« ${chemin} » doit mener à un nombre entier de Lingots, 0 au moins ; economie.json y met ${extrait(valeur)}`);
+    }
+  });
+}
+
+const CONTROLES = { usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions };
 
 // ---------------------------------------------------------------- programme
 
@@ -291,7 +328,7 @@ function main() {
       }
     }
     if (donnees !== null && typeof donnees === "object" && CONTROLES[nom]) {
-      CONTROLES[nom](affiche, donnees);
+      CONTROLES[nom](affiche, donnees, dossier);
     }
   }
 
