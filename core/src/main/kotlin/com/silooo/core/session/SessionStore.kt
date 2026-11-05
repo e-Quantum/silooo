@@ -71,7 +71,7 @@ interface SessionStore {
 
     /**
      * Crée l'entreprise [baseName] (suffixée si le nom est pris) avec sa case d'archipel, le joueur
-     * comme PDG, et les usines de départ de [bootstrap].
+     * comme PDG, le plafond hors ligne de départ et les usines de départ de [bootstrap].
      */
     fun createCompany(connection: Connection, owner: Xuid, baseName: String, bootstrap: CompanyBootstrap): Membership
 
@@ -80,6 +80,12 @@ interface SessionStore {
     fun loadZones(connection: Connection, companyId: Long): List<Int>
     fun loadBalances(connection: Connection, xuid: Xuid): Balances
     fun loadProfile(connection: Connection, xuid: Xuid): PlayerProfile
+
+    /**
+     * Les Lingots détenus par chaque membre de l'entreprise, un par membre : la matière de la moyenne qui fixe
+     * le multiplicateur de production. Un membre sans ligne de soldes compte pour zéro.
+     */
+    fun loadMemberLingots(connection: Connection, companyId: Long): List<Long>
 
     /** Fige `players.last_seen_at` à maintenant. Rend faux si le joueur est inconnu. */
     fun markLeft(connection: Connection, xuid: Xuid): Boolean

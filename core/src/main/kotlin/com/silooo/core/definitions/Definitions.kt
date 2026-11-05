@@ -4,7 +4,7 @@ package com.silooo.core.definitions
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique. Chargé une fois au démarrage
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde. Chargé une fois au démarrage
  * ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
@@ -15,9 +15,10 @@ class Definitions(
     val economy: EconomyDefinitions,
     val factories: FactoriesDefinitions,
     val shop: ShopDefinitions,
+    val world: WorldDefinitions,
 ) {
     init {
-        val problems = DefinitionsChecks.problems(economy, factories)
+        val problems = DefinitionsChecks.problems(economy, factories, world)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -26,7 +27,7 @@ class Definitions(
 
 /** Les contrôles de sens que la forme du JSON ne garantit pas. Les messages citent la clé du fichier. */
 internal object DefinitionsChecks {
-    fun problems(economy: EconomyDefinitions, factories: FactoriesDefinitions): List<String> {
+    fun problems(economy: EconomyDefinitions, factories: FactoriesDefinitions, world: WorldDefinitions): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
             if (!ok) problems += message()
@@ -48,6 +49,9 @@ internal object DefinitionsChecks {
                 "economie.json : prestige.seuils[$index].course vaut ${threshold.course}, attendu ${index + 1} (les courses se suivent depuis 1)"
             }
             check(threshold.donar.isFinite() && threshold.donar > 0.0) { "economie.json : prestige.seuils[$index].donar doit être positif" }
+        }
+        check(prestige.nextThresholdFactor.isFinite() && prestige.nextThresholdFactor > 1.0) {
+            "economie.json : prestige.facteurSeuilSuivant doit être un nombre au-dessus de 1"
         }
         check(prestige.lingotsConversion.coefficient > 0.0) { "economie.json : prestige.conversionLingots.coefficient doit être positif" }
         check(prestige.lingotsConversion.referenceDivisor > 0.0) { "economie.json : prestige.conversionLingots.diviseurReference doit être positif" }
@@ -78,6 +82,10 @@ internal object DefinitionsChecks {
         check(prestige.courseStart.factoryId in ids) {
             "economie.json : prestige.departDeCourse.usine « ${prestige.courseStart.factoryId} » n'est pas une usine de usines.json"
         }
+
+        val grid = world.archipelago
+        check(grid.slotSpacing >= 1) { "monde.json : archipel.ecartEntreCases doit être au moins 1" }
+        check(grid.slotsPerRow >= 1) { "monde.json : archipel.casesParRangee doit être au moins 1" }
         return problems
     }
 }

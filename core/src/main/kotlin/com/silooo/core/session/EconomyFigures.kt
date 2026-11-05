@@ -24,12 +24,16 @@ class CompanyFigures(
  * `docs/economie.md` ; ils ne vivent pas dans les routes de session (un chiffre du jeu vit dans
  * `definitions/` et nulle part ailleurs).
  *
- * La direction branche ici le moteur de la session « économie » : une classe qui implémente cette interface
- * et se passe à `Dependencies(economyFigures = ...)`. D'ici là, [NotYetComputed] rend zéro partout.
+ * L'implémentation du service est `com.silooo.core.economy.EngineFigures` ; les tests de routes passent leurs
+ * faux à `Dependencies(economyFigures = ...)`. Il n'existe pas d'implémentation « tout à zéro » : un état sans
+ * production n'est pas un état de jeu.
  */
 interface EconomyFigures {
-    /** Les chiffres de [company] et de ses [factories] à cet instant. Lecture seule. */
-    fun forCompany(company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures
+    /**
+     * Les chiffres de [company] et de ses [factories] à cet instant. Lecture seule, dans la transaction de
+     * [connection] : le multiplicateur lit les Lingots détenus par les membres.
+     */
+    fun forCompany(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures
 
     /**
      * Encaisse la production de l'absence (plafond hors ligne appliqué) et rend le Donar encaissé : c'est
@@ -39,21 +43,8 @@ interface EconomyFigures {
      * Le moteur écrit dans la transaction de [connection], avec le verrou optimiste (`updateCompany`
      * avec `company.version`) : si le `join` échoue ensuite, rien n'est encaissé. [playerLastSeenAt] est
      * l'heure de départ figée par le dernier `leave` de CE joueur (`null` s'il n'a jamais été vu) ;
-     * `company.lastCollectAt` est le dernier calcul de production de l'entreprise. Au moteur de choisir
-     * lequel des deux compte quand les associés se relaient.
+     * `company.lastCollectAt` est le dernier calcul de production de l'entreprise. L'implémentation du
+     * service compte l'absence depuis `company.lastCollectAt` seul (voir `EngineFigures.settleOffline`).
      */
     fun settleOffline(connection: Connection, company: CompanyRecord, playerLastSeenAt: Instant?): Double
-}
-
-/**
- * L'implémentation par défaut, tant que le moteur n'est pas branché : TOUT vaut zéro (revenu, multiplicateur,
- * seuil, prix, palier, Donar hors ligne) et rien n'est encaissé. Un `join` rend donc un état conforme
- * au contrat mais sans production affichée. Ce n'est pas un état de jeu : c'est le trou que le moteur comble.
- */
-object NotYetComputed : EconomyFigures {
-    private val NOTHING = CompanyFigures(ratePerHour = 0.0, multiplier = 0.0, threshold = 0.0, factories = emptyMap())
-
-    override fun forCompany(company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = NOTHING
-
-    override fun settleOffline(connection: Connection, company: CompanyRecord, playerLastSeenAt: Instant?): Double = 0.0
 }

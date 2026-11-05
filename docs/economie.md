@@ -1,8 +1,9 @@
 # Économie : formules, paliers, prestige, notation
 
 Les chiffres du jeu vivent dans [definitions/economie.json](../definitions/economie.json),
-[definitions/usines.json](../definitions/usines.json) et
-[definitions/boutique.json](../definitions/boutique.json). Le tableur
+[definitions/usines.json](../definitions/usines.json),
+[definitions/boutique.json](../definitions/boutique.json) et [definitions/monde.json](../definitions/monde.json)
+(où se posent les îles). Le tableur
 [silooo-equilibrage-v2.xlsx](references/silooo-equilibrage-v2.xlsx) simule un joueur type et
 vérifie treize cibles de rythme. Ce fichier explique les mécanismes et renvoie aux clés ; il ne
 recopie aucune valeur. Pour changer un chiffre, suis la recette `silooo-equilibrage` et ajoute une
@@ -54,8 +55,14 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
 
 - La production continue pendant l'absence, jusqu'à un plafond en heures : clé
   `horsLigne.plafondHeures` au départ, puis la colonne `companies.offline_cap_hours` quand les
-  améliorations du chef d'équipe et du Silo l'ont étendu.
+  améliorations du chef d'équipe et du Silo l'ont étendu. La création de l'entreprise recopie la clé dans la
+  colonne ; à partir de là, la colonne fait foi et le moteur lui applique sa formule.
 - Elle est comptée à efficacité réduite : clé `horsLigne.efficacite`.
+- L'absence se compte depuis `companies.last_collect_at`, le dernier calcul de production de l'entreprise, et non
+  depuis le départ du joueur (`players.last_seen_at`) : la production appartient à l'entreprise, et deux associés
+  qui se relaient ne doivent pas se faire payer la même heure deux fois. `join` encaisse l'absence puis remet
+  `last_collect_at` à maintenant ; le surplus au-delà du plafond est perdu. Le revenu est celui d'aujourd'hui,
+  multiplicateur de maintenant compris. **À valider par Kr.**
 - L'opération `collect` applique le plafond et renvoie `offlineHours`, les heures retenues. À
   l'arrivée, `JoinResponse.offlineCollected` donne ce qui a été encaissé pendant l'absence.
 - Sans chef d'équipe, une usine s'arrête quand son stock est plein. Jamais de grève ni d'incident
@@ -65,7 +72,8 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
 
 - Le prestige est permis quand les Donar gagnés dans la course atteignent le seuil de la course :
   clé `prestige.seuils`, une entrée par course, et `CompanyState.threshold` côté API. Au-delà des
-  seuils listés, la clé `prestige.etoilesSuivantes` dit comment calculer les suivants.
+  seuils listés, chaque seuil vaut le précédent multiplié par la clé `prestige.facteurSeuilSuivant`
+  (`prestige.etoilesSuivantes` en garde le texte).
 - Les Lingots gagnés suivent la clé `prestige.conversionLingots` :
 
   ```
@@ -129,9 +137,10 @@ des JSON dorés et rien d'autre. Pour y arriver, il applique les règles suivant
   gardés tels quels, fractionnaires (le joueur type du tableur en garde la moitié).
 - Époque de la course = min(course, plus grande époque de `usines.json`) ; étoiles = course moins cette
   époque, jamais négatif.
-- Les seuils n'existent que pour les courses de `prestige.seuils` (9 en phase 1). Au-delà, `prestigeThreshold`
-  lève une erreur au lieu d'inventer un chiffre : la clé `etoilesSuivantes` reste du texte à traduire en
-  formule quand Kr aura tranché.
+- Les seuils de `prestige.seuils` (9 en phase 1) sont ceux du tableur. Au-delà, `prestigeThreshold` multiplie le
+  dernier seuil par `prestige.facteurSeuilSuivant` à chaque course de plus (le texte de `etoilesSuivantes` parlait
+  d'un facteur à recaler pendant l'alpha ; la clé le chiffre). Un seuil qui sortirait des doubles vaut
+  `Double.MAX_VALUE`, pour que l'état d'une entreprise reste toujours calculable. **À valider par Kr.**
 - Affichage : trois chiffres au plus, virgule, décimale tronquée (le tableur écrit « 195.5 M », la charte
   veut « 195 M »). Sous 1 000, entier arrondi à l'unité la plus proche.
 
@@ -160,3 +169,5 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | Date | Clé | Avant | Après | Pourquoi |
 | --- | --- | --- | --- | --- |
 | 5 nov. 2026 | `prestige.departDeCourse` (`usine`, `niveau`) | absente | `carriere`, niveau `1` | Le tableur démarre chaque course avec la Carrière au niveau 1 (Paramètres!B17), jamais à zéro : règle du jeu sans clé, dont le moteur a besoin. **À valider par Kr** (point 2 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, le rejeu des tests dorés les retrouve. |
+| 5 nov. 2026 | `prestige.facteurSeuilSuivant` | absente (le texte `etoilesSuivantes` parlait d'un facteur à recaler) | `1000` | Le moteur doit donner un seuil à toute course, et `join` ne peut pas tomber au-delà de la 9e : la clé chiffre le texte. **À valider par Kr** (point 5 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, aucune course listée ne change. |
+| 5 nov. 2026 | `monde.json` : `archipel.ecartEntreCases`, `archipel.casesParRangee`, `archipel.origine` (`x`, `z`) | fichier absent | `600`, `64`, `0` et `0` | `CompanyBootstrap.slotOrigin` pose chaque île neuve sur une grille : colonne `N % casesParRangee`, rangée `N / casesParRangee`. 600 blocs reprend l'espace à prévoir par joueur ([game-design.md](game-design.md), section Technique) ; la largeur de 64 cases et l'origine en (0, 0) sont des valeurs de départ, à recaler quand le monde sera posé. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |

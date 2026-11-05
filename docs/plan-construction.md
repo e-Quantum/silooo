@@ -65,7 +65,7 @@ silooo/
 ### Choix techniques à épingler en phase 0
 
 - **Serveur Bedrock** : BDS officiel, même version que les clients (26.60 au 5 novembre). Mise à jour à la main, jamais automatique : une version de Bedrock peut casser l'add-on.
-- **Add-on** : TypeScript strict, compilé par esbuild en un seul `scripts/main.js`. `@minecraft/server` en version stable ; `@minecraft/server-net` et `server-admin` n'existent que sur BDS, leur statut (bêta ou stable) est à relever pour la version épinglée.
+- **Add-on** : TypeScript strict, compilé par esbuild en un seul `scripts/main.js`. `@minecraft/server` en version stable ; `@minecraft/server-net` et `server-admin` n'existent que sur BDS ; en 26.60 ils sont en bêta (`1.0.0-beta`) et demandent l'option « Beta APIs » sur le monde (relevé du 5 novembre 2026, `docs/bedrock.md`).
 - **silooo-core** : la pile du site SileneMC (Kotlin, Ktor, Gradle en Kotlin DSL), pour réutiliser l'outillage et les habitudes. Flyway pour la base, Testcontainers avec MariaDB 12.3 pour les tests.
 - **Pack de ressources** : les textures et la police sortent du design system Silooo Atelier ; les écrans passent par `server_form.json` et `hud_screen.json`.
 - **Définitions** : JSON vérifié par schéma. silooo-core les charge au démarrage ; un script en tire les types TypeScript de l'add-on, jamais écrits à la main.

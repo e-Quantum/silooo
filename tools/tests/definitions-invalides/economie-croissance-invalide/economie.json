@@ -65,6 +65,7 @@
       }
     ],
     "etoilesSuivantes": "seuil precedent x 1000 (a recaler pendant l'alpha)",
+    "facteurSeuilSuivant": 1000,
     "conversionLingots": {
       "coefficient": 10,
       "diviseurReference": 1000,

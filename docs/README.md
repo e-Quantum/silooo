@@ -48,7 +48,7 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 
 ## Le socle, hors de `docs/`
 
-- `definitions/` : les chiffres du jeu (usines, économie, boutique) et leurs schémas dans `definitions/schemas/`.
+- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles) et leurs schémas dans `definitions/schemas/`.
 - `api/silooo-core.openapi.yaml` : le contrat entre l'add-on et silooo-core, 29 opérations.
 - `core/src/main/resources/db/migration/` : les migrations Flyway, V1 en tête.
 - `design/` : le design system Silooo Atelier (charte, composants, textures, icônes, Oooscar, logo).

@@ -53,8 +53,13 @@ data class OfflineDefinition(
 data class PrestigeDefinition(
     /** Un seuil par course, dans l'ordre : la course 1 d'abord. */
     @SerialName("seuils") val thresholds: List<PrestigeThresholdDefinition>,
-    /** Texte : les seuils au-delà de la dernière course listée. Le moteur ne le lit pas (point 5 du README doré). */
+    /** Texte, pour les humains : les seuils au-delà de la dernière course listée. Le moteur lit [nextThresholdFactor]. */
     @SerialName("etoilesSuivantes") val nextStars: String,
+    /**
+     * Au-delà de la dernière course listée dans [thresholds], chaque seuil vaut le précédent multiplié par ce
+     * facteur : la lecture chiffrée de [nextStars]. À valider par Kr.
+     */
+    @SerialName("facteurSeuilSuivant") val nextThresholdFactor: Double,
     @SerialName("conversionLingots") val lingotsConversion: LingotsConversionDefinition,
     /** Facteur de production gagné à chaque étoile. */
     @SerialName("productionParEtoile") val productionPerStar: Double,

@@ -1,0 +1,1 @@
+$.archipel.ecartEntreCases: doit être au moins 1, reçu 0

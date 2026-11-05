@@ -359,6 +359,10 @@ const reponse = await http.request(req); // reponse.status, reponse.body
 - Contenu de `server.properties` et de `config/default/permissions.json` livrés avec 1.26.62.1 : lire le zip
   dans la CI ou sur le PC, puis corriger ce fichier.
 - Procédure pour activer « Beta APIs » sur un monde de BDS, faute de page officielle.
+- Une source de XUID pour l'add-on : la Script API 2.11.0 n'en donne pas (`Player.id` est un identifiant opaque
+  propre au monde). En attendant, `addon/src/identity.ts` envoie une empreinte du gamertag (décision 25 de
+  `docs/passation.md`). Pistes : le journal de BDS (« Player connected: …, xuid: … »), `allowlist.json` rempli
+  par BDS, une version future de l'API.
 - Comportement des erreurs réseau et des délais, format de `allowed_uris`, accès aux noms d'hôte Docker.
 - Taille maximale d'un pack et nombre d'entités avant ralentissement sur Switch et vieux mobiles.
 - Texte officiel des notes de version 26.60 et page de téléchargement, inaccessibles depuis ici.

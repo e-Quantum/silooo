@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de la phase 2 (session de direction).
+Dernière mise à jour : 5 novembre 2026, 7 h 50, bilan de la nuit : phase 1 close, phases 2 et 3 en cours (session de direction).
 
 ## État
 
@@ -10,17 +10,22 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
   `X-Silooo-Key`, heartbeat, filet 501, Dockerfile) avec les données dorées du tableur
   (`core/src/test/resources/golden/`), les routes de session (`join`, `leave`, `GET /v1/events`,
   idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 29 opérations) et le moteur
-  d'économie avec ses tests dorés. Le branchement du moteur sur `join` est en cours (sous-agent).
+  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Quatre
+  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`.
 - `main` est vert : `tools/verifier.sh` passe sur le PC (tests Gradle compris, tests Docker ignorés) et
   la CI passe (jobs `verifier` avec les deux tests Testcontainers, `migration`, `image`).
 - Sur le VPS : `/var/www/silooo` existe avec un fichier d'environnement posé par Kr. La base `silooo`
   n'est pas confirmée. Le VPS n'a pas d'accès GitHub.
 - Sur le PC de Kr : Node 24, Java 17, uv (Python géré), Docker Desktop installé mais pas lancé. Pas de
   Gradle global (le wrapper suffit ; Gradle 9.8 est en cache).
-- Phase en cours : **1**, à une case de la fin (le branchement du moteur). Condition de sortie : toutes les
-  cases cochées, `tools/verifier.sh` vert sur `main` (tests Gradle compris), CI verte, image de silooo-core
-  publiée depuis `main` (fait : run `image` vert sur `main`). La phase **2** est ouverte en parallèle pour ce
-  qui ne dépend pas de la phase 1 : le relevé des faits Bedrock (sous-agent).
+- Phase **1 close** le 5 novembre 2026 à 6 h 40 : toutes les cases cochées, `tools/verifier.sh` vert sur `main`
+  (tests Gradle compris), CI verte, image de silooo-core publiée depuis `main`. Ce qui n'est pas de la phase 1
+  et reste pour la phase 3 : les routes d'économie (`getCompany`, `collect`, `buyLevels`, …) et la mécanique
+  d'énergie (`stoppedNoPower` toujours faux).
+- Phase en cours : **2** (Bedrock). Le relevé est fait, `addon/` est sur `main` (client `server-net`, heartbeat,
+  `join`, `leave`, événements, types générés, `.mcpack`). `deploy/` est écrit sur `claude/phase2-deploy` et attend
+  une reprise : minecraft.net refuse le téléchargement du zip de BDS à tout client qui n'est pas un navigateur
+  (décision 26). La phase **3** est ouverte en parallèle côté service (routes d'économie) et côté add-on (écrans).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -48,7 +53,7 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
 - [x] Données dorées extraites du tableur (`core/src/test/resources/golden/`) et script d'extraction rejouable
 - [x] Moteur d'économie (prix des niveaux, production, paliers, prestige, notation) et tests dorés
 - [x] Tests de contrat sur les 29 opérations de l'OpenAPI (les routes pas faites répondent 501)
-- [ ] Brancher le moteur sur `join` (`EconomyFigures` : revenu, multiplicateur, seuil, hors ligne ; `CompanyBootstrap` : la Carrière de départ et la grille des cases) : sous-agent en cours, branche `claude/phase1-branchement`
+- [x] Brancher le moteur sur `join` (`EngineFigures` : revenu, multiplicateur, seuil, hors ligne compté depuis `last_collect_at` ; `DefinitionsBootstrap` : la Carrière de départ, le plafond hors ligne et la grille des cases de `monde.json`) ; tests SQL `EngineFiguresSqlTest` passés dans la CI
 - [x] Contrat : le 409 `CONFLIT_REESSAYER` est déclaré sur les six opérations qui peuvent le rendre (`join`, `collect`, `resolveIncident`, `fireStaff`, `assignStaff`, `deliverOrder`) ; `KNOWN_409_GAPS` est vide dans le test de contrat
 - [x] Image Docker de silooo-core construite par la CI, publiée sur le registre GitHub depuis `main`
 
@@ -57,21 +62,43 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
 Condition de sortie (plan) : un joueur sur console rejoint `play.silooo.com` et apparaît sur son île ;
 mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : voir « À faire par Kr ».
 
-- [ ] `docs/bedrock.md` : les faits « à relever » relevés pour la version épinglée (modules et versions, fichier de permissions, téléchargement de BDS, réseau, limites), avec leurs sources : sous-agent en cours, branche `claude/phase2-releve`
+- [x] `docs/bedrock.md` : les faits « à relever » relevés pour la version épinglée (modules et versions, fichier de permissions, téléchargement de BDS, réseau, limites), avec leurs sources et leur fiabilité ; reste une courte liste « Reste à relever » (fichiers livrés dans le zip, activation de « Beta APIs », erreurs réseau), à vider sur le BDS de test
 - [ ] `deploy/bds/` : image BDS épinglée (version et somme contrôlées), utilisateur non root, monde dans un volume, `config/default/permissions.json` qui autorise `server-net` et `server-admin`, gabarit de `server.properties` (port de l'ADR 0004)
 - [ ] `deploy/compose.yml` : projet `silooo`, services `silooo-migrate`, `silooo-core` (512 Mo) et `silooo-bds` (1,5 Gio), réseau de SileneMC rejoint en externe, secrets lus dans le fichier d'environnement non versionné
 - [ ] `deploy/scripts/deploy.sh <tag>` : sauvegarde, tirage des images, migration, redémarrage, test de fumée, retour arrière ; `docs/deploiement.md` mis à jour
-- [ ] `addon/` : projet TypeScript strict, esbuild vers un seul `scripts/main.js`, manifest aux versions de modules relevées, tests de la logique pure, paquet `.mcpack` construit
-- [ ] `addon/` : client `server-net` vers silooo-core (clé par `server-admin`, en-tête `X-Silooo-Key`, délai, codes `Erreur` traités d'un bloc), heartbeat périodique, `join` à l'arrivée, `leave` au départ, interrogation de `GET /v1/events` avec curseur
-- [ ] `tools/` : générateur des types TypeScript de l'add-on tirés de `definitions/`, et contrôle « types à jour » dans `tools/verifier.sh`
-- [ ] `tools/verifier.sh` et CI : `addon/` vérifié (compilation stricte, tests, paquet) ; image BDS construite par la CI et publiée depuis `main`
+- [x] `addon/` : projet TypeScript strict, esbuild vers un seul `scripts/main.js`, manifest aux versions de modules relevées, tests de la logique pure (`node --test`, 111 tests), paquet `.mcpack` construit
+- [x] `addon/` : client `server-net` vers silooo-core (clé par `server-admin`, en-tête `X-Silooo-Key`, délai, codes `Erreur` traités d'un bloc), heartbeat périodique, `join` à l'arrivée, `leave` au départ, interrogation de `GET /v1/events` avec curseur ; tous les appels bêta dans `addon/src/beta.ts`
+- [x] `tools/` : générateur des types TypeScript de l'add-on tirés de `definitions/` (`tools/generer_types.mjs`, parcourt le dossier), et contrôle « Types de l'add-on à jour » dans `tools/verifier.sh`
+- [x] `tools/verifier.sh` et CI : `addon/` vérifié (compilation stricte, tests, paquet ; la CI lance le vérificateur)
+- [ ] CI : image BDS construite et publiée depuis `main` : sous-agent `deploy/` en cours, branche `claude/phase2-deploy`
 - [ ] Déploiement sur le VPS, test depuis une console : un joueur rejoint `play.silooo.com` et apparaît sur son île (**À faire par Kr** : base, port, DNS, puis le test)
 - [ ] Mesure de la mémoire réelle des conteneurs sur le VPS (**après le déploiement**, donc après Kr)
+
+## Phase 3 : la première heure
+
+Condition de sortie (plan) : la première heure du storyboard se joue de bout en bout. Le test de bout en bout
+demande un BDS déployé (phase 2, « À faire par Kr ») ; tout le reste avance sans Kr. Ouverte le 5 novembre 2026
+pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (décision 24).
+
+- [ ] silooo-core : `getCompany` (l'état `CompanyState` d'après le moteur : revenu, multiplicateur, seuil, usines avec prix du niveau suivant et prochain palier)
+- [ ] silooo-core : `collect` (production depuis `last_collect_at`, plafond hors ligne, Donar crédité à l'entreprise, événement publié)
+- [ ] silooo-core : `buyLevels` (`1`, `10`, `palier`, `max` par `BuyAmount`, prix du moteur, refus quand le Donar manque, paliers ×2, événement publié)
+- [ ] silooo-core : `restoreStep` (les quatre étapes de remise en état d'une usine `EN_RUINE` puis `REMISE_EN_ETAT` jusqu'à `ACTIVE`, événement publié)
+- [ ] silooo-core : tests SQL sur MariaDB pour ces quatre routes, `WRITTEN` du test de contrat étendu, idempotence et verrou optimiste sur chacune
+- [ ] add-on : les usines de l'époque 1 posées sur l'île du joueur, compteur de Donar qui défile entre deux réponses du service (affichage seul, le service reste la vérité à chaque `collect`)
+- [ ] add-on : HUD en trois étages (`docs/design.md`), menu à tuiles et fiches d'usine (`server-ui`), achat de niveaux et paliers ×2 affichés
+- [ ] add-on : le Silo (collecte et plafond hors ligne) et la remise en état d'une usine en quatre étapes
+- [ ] add-on et pack de ressources : cinématique d'arrivée, Oooscar en entité, première mission de la mairie (textes et visuels **à valider par Kr**)
+- [ ] Test de bout en bout de la première heure sur le BDS de test (**après le déploiement**, donc après Kr)
 
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
-- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir en UDP et TCP
+- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (le compose de `deploy/` propose 19143 à 19174 pour 32 joueurs ; `docs/adr/0004-port-bedrock.md`)
+- [ ] Télécharger `bedrock-server-1.26.62.1.zip` dans un navigateur (minecraft.net refuse `curl`, même avec un User-Agent honnête, depuis le PC comme depuis les runners GitHub), calculer `sha256sum`, écrire la somme dans `deploy/bds/bds.sha256`, poser le zip dans `/var/www/silooo/bds/` sur le VPS (décision 26)
+- [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
+- [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
+- [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI, et une clé de lecture du registre `ghcr.io` pour le VPS
@@ -145,18 +172,54 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
     cases par rangée et l'origine de la grille sont des chiffres du jeu (`docs/game-design.md` : « au moins
     600 × 600 blocs par joueur ») : ils vont dans `definitions/`, pas dans le code. Au-delà des neuf seuils de
     prestige listés, le seuil suivant vaut le précédent × 1000 (prose `etoilesSuivantes`) : clé numérique
-    `prestige.facteurSeuilSuivant`. Les deux à valider par Kr (en cours, sous-agent de branchement).
+    `prestige.facteurSeuilSuivant` = 1000. Les deux sont sur `main`, à valider par Kr.
 20. **Phase 2 ouverte avant la fin de la phase 1.** Le relevé des faits Bedrock ne dépend pas du
     branchement du moteur : il part en parallèle, dans la limite de trois sessions à la fois.
+21. **Build BDS épinglé : 1.26.62.1.** La version 26.60 a reçu deux correctifs (26.61, 26.62) sans changement
+    de protocole ni de modules stables ; les consoles sont déjà à jour. On installe le dernier correctif de la
+    ligne 26.60, et `docs/bedrock.md` garde « 26.60 » comme version de la ligne. La somme SHA-256 du zip se
+    calcule une fois et s'épingle dans `deploy/` (Mojang ne publie qu'un en-tête `Content-MD5`).
+22. **Option « Beta APIs » acceptée.** `server-net` et `server-admin` sont en bêta en 26.60 et l'exigent sur le
+    monde ; sans `server-net`, l'add-on ne parle pas à silooo-core. Le coût est connu : à chaque version de
+    Bedrock, les deux modules peuvent changer de numéro ; `docs/bedrock.md` garde la procédure. La méthode pour
+    activer l'option sur un monde de BDS reste à trouver (question à Kr, voir « À faire par Kr »).
+23. **NetherNet seul.** BDS 26.60 refuse RakNet ; le compose publie le port TCP de signalisation et une plage
+    UDP, dimensionnée sur `max-players`, sous la forme « IP publique:port ». ADR 0004 mis à jour (toujours
+    « Proposée »).
+24. **Phase 3 ouverte côté service pendant la phase 2.** Les routes d'économie de silooo-core (`getCompany`,
+    `collect`, `buyLevels`, `restoreStep`) ne dépendent ni de `deploy/` ni de `addon/`, et la phase 2 ne peut
+    pas se fermer sans Kr (base, port, DNS). Même règle que la décision 20 : trois sessions au plus, chacune
+    dans son dossier (`core/` pour celle-ci). Le côté add-on de la phase 3 attend la fusion de `addon/`.
+25. **Identité provisoire des joueurs : une empreinte du gamertag.** La Script API 2.11.0 ne donne pas le XUID ;
+    `Player.id` est opaque et propre au monde chargé (un monde recréé pendant l'alpha changerait tous les joueurs
+    d'identité), et `players.xuid` est un `BIGINT UNSIGNED`. L'add-on envoie donc, dans le champ `xuid`, une
+    empreinte FNV-1a 64 bits du gamertag en minuscules (`addon/src/identity.ts`, seul fichier qui le décide) :
+    elle passe le schéma `Xuid`, tient dans la colonne, survit au monde, et le site SileneMC connaît les joueurs
+    par leur gamertag. Coût : un gamertag changé est un joueur neuf tant qu'une vraie source de XUID n'existe pas.
+    Ni le contrat, ni la base, ni le service ne changent. À valider par Kr.
+26. **BDS téléchargé au premier démarrage, pas dans l'image.** minecraft.net ne répond pas à `curl`, même avec un
+    User-Agent honnête (0 octet puis délai dépassé, depuis le PC et depuis les runners GitHub) ; on ne déguise pas le
+    client en navigateur, et les conditions de BDS interdisent d'héberger le zip nous-mêmes. L'image `silooo-bds`
+    contient Ubuntu, l'add-on et `start.sh` ; au démarrage, `start.sh` prend le zip posé par Kr dans le volume
+    `/data/bds` (ou tente le téléchargement), contrôle la somme SHA-256 épinglée dans `deploy/bds/bds.sha256` (ou,
+    tant qu'elle n'est pas épinglée, le MD5 publié par Mojang, et journalise la somme à épingler), puis décompresse
+    une fois dans le volume. La version reste épinglée et contrôlée, comme le plan le veut ; seul le lieu du
+    téléchargement change. À relire par Kr.
 
 ## À valider par Kr
 
 - Les huit points d'interprétation du tableur et la règle d'arrondi des Lingots
   (`core/src/test/resources/golden/README.md`) : le moteur suit le tableur en attendant.
 - Le nom d'entreprise provisoire « Entreprise de <gamertag> » (`core/.../session/CompanyNaming.kt`), premier
-  texte vu par les joueurs. Aucun autre texte de joueur n'a été écrit.
-- Les valeurs de `definitions/monde.json` (écart entre les cases, cases par rangée, origine) et
-  `prestige.facteurSeuilSuivant` dans `definitions/economie.json`, une fois la branche de branchement fusionnée.
+  texte vu par les joueurs.
+- Le nom du pack « Silooo » et sa description « Pack de comportement du jeu Silooo. » (`addon/manifest.json`),
+  visibles dans la liste des packs du monde. Aucun autre texte de joueur n'a été écrit.
+- L'identité provisoire des joueurs par empreinte du gamertag (décision 25).
+- Les valeurs de `definitions/monde.json` (`ecartEntreCases` 600, `casesParRangee` 64, `origine` (0, 0)) et
+  `prestige.facteurSeuilSuivant` = 1000 dans `definitions/economie.json` (`docs/economie.md`, historique du 5 nov.).
+- Trois règles du hors ligne prises par le branchement (`docs/economie.md`) : l'absence se compte depuis
+  `last_collect_at` de l'entreprise et non depuis le départ du joueur ; la colonne `offline_cap_hours` fait foi
+  (recopiée de `horsLigne.plafondHeures` à la création) ; le surplus au-delà du plafond est perdu.
 
 ## Journal
 
@@ -194,3 +257,41 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
   routes (`verifier`, `migration`, `image` publiée) ; celle d'après en cours. Deux sous-agents lancés : le
   branchement du moteur sur `join` (`claude/phase1-branchement`) et le relevé Bedrock de la phase 2
   (`claude/phase2-releve`). Vérifier : `gh run list --branch main`, `git log --oneline -12 origin/main`.
+- **5 novembre 2026, 6 h 05 : direction, contrat complété et relevé Bedrock fusionné.** Le 409
+  `CONFLIT_REESSAYER` est déclaré sur les six opérations qui peuvent le rendre et le test de contrat n'a plus
+  de trou connu. Le relevé Bedrock est sur `main` (`docs/bedrock.md`, 252 lignes : modules `server` 2.11.0 et
+  `server-ui` 2.3.0 stables, `server-net` et `server-admin` 1.0.0-beta avec « Beta APIs », permissions de BDS,
+  `secrets.json` lu par `server-admin`, API `server-net`, URL de téléchargement testée pour 1.26.60.6, 1.26.61.1
+  et 1.26.62.1, NetherNet obligatoire avec signalisation TCP et plage UDP, chien de garde, manifeste). ADR 0004
+  et plan mis à jour en conséquence. Décisions 21 à 23. Deux sous-agents de phase 2 lancés : `deploy/`
+  (image BDS, compose, `deploy.sh`, `claude/phase2-deploy`) et `addon/` (projet TypeScript, client
+  `server-net`, heartbeat, `join`, `leave`, événements, types générés, `claude/phase2-addon`) ; le branchement
+  du moteur (phase 1) est toujours en cours. Vérifier : `git log --oneline -6 origin/main`.
+- **5 novembre 2026, 6 h 45 : direction, phase 1 close.** Le branchement du moteur sur `join` est fusionné en
+  avance rapide (`4a9428a`, deux commits, 42 fichiers : `EngineFigures`, `DefinitionsBootstrap`,
+  `WorldDefinitions`, `definitions/monde.json` et son schéma, six fichiers de tests dont `EngineFiguresSqlTest`
+  sur MariaDB). `tools/verifier.sh` vert sur le PC, CI verte sur la branche avant fusion. Dernière case de la
+  phase 1 cochée ; `docs/README.md` cite `monde.json`. Vérifier : `git log --oneline -3 origin/main`,
+  `gh run list --branch main --limit 2`.
+- **5 novembre 2026, 7 h 00 : direction, phase 3 ouverte côté service.** Liste de la phase 3 écrite d'après le
+  plan ; troisième sous-agent lancé sur les routes d'économie (`claude/phase3-economie-routes`, `core/` seul),
+  à côté des deux de la phase 2. Décision 24.
+- **5 novembre 2026, 7 h 25 : direction, add-on de la phase 2 fusionné.** `claude/phase2-addon` en avance rapide
+  (`f4535dd` : `addon/` complet, `tools/generer_types.mjs`, étape « Types de l'add-on à jour », 106 tests Node) ;
+  `tools/verifier.sh` vert avec `npm ci`, `npm test`, `npm run build` et le `.mcpack`. Le sous-agent a relevé que
+  l'API de script ne donne pas le XUID : décision 25 (empreinte du gamertag dans `addon/src/identity.ts`, 5 tests
+  de plus), question posée à Kr, piste notée dans `docs/bedrock.md`. Quatre cases de la phase 2 cochées ; restent
+  `deploy/` (sous-agent en cours), l'image BDS dans la CI, et les deux cases qui attendent Kr. Vérifier :
+  `git log --oneline -4 origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 7 h 50 : bilan de la nuit (direction).**
+  - Fait depuis le bilan de 5 h 40 : contrat complété (409 déclaré partout), relevé Bedrock fusionné et reporté dans
+    l'ADR 0004 et le plan, moteur branché sur `join` (phase 1 close), `addon/` et le générateur de types fusionnés,
+    identité provisoire des joueurs (décision 25), liste de la phase 3 écrite. `main` : vérificateur et CI verts.
+  - En cours : `deploy/` (reprise après la décision 26, `claude/phase2-deploy`), routes d'économie
+    (`claude/phase3-economie-routes`), écrans de l'add-on (`claude/phase3-addon-ecrans`).
+  - Reste pour la phase 2 : fusionner `deploy/`, l'image BDS verte dans la CI ; puis Kr (base, port, zip de BDS,
+    DNS, monde « Beta APIs », test console, mesure de la mémoire). Phase 3 : les routes, les écrans, puis la
+    cinématique, Oooscar, la mission de la mairie et le JSON UI du pack de ressources.
+  - Décisions prises seul depuis 5 h 40 : 21 à 26. Textes nouveaux à valider : nom du pack, description du pack,
+    nom du serveur « Silooo » (`BDS_SERVER_NAME`), et ceux que la tranche d'écrans apportera.
+  - Vérifier : `git log --oneline -8 origin/main`, `gh run list --branch main --limit 3`.

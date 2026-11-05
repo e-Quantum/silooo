@@ -88,7 +88,7 @@ class JdbcSessionStore : SessionStore {
 
     override fun createCompany(connection: Connection, owner: Xuid, baseName: String, bootstrap: CompanyBootstrap): Membership {
         val slotIndex = allocateSlot(connection, bootstrap)
-        val companyId = insertCompany(connection, baseName, slotIndex)
+        val companyId = insertCompany(connection, baseName, slotIndex, bootstrap.startingOfflineCapHours())
 
         connection.prepareStatement("INSERT INTO company_members (company_id, xuid, role, share_percent) VALUES (?, ?, ?, ?)").use {
             it.setLong(1, companyId)
@@ -138,13 +138,17 @@ class JdbcSessionStore : SessionStore {
     }
 
     /** Le nom est unique : s'il est pris, on essaie « nom 2 », « nom 3 »… */
-    private fun insertCompany(connection: Connection, baseName: String, slotIndex: Long): Long {
+    private fun insertCompany(connection: Connection, baseName: String, slotIndex: Long, offlineCapHours: Double): Long {
         var lastDuplicate: SQLException? = null
         for (attempt in 1..MAX_NAME_ATTEMPTS) {
             try {
-                return connection.prepareStatement("INSERT INTO companies (name, slot_index) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS).use {
+                return connection.prepareStatement(
+                    "INSERT INTO companies (name, slot_index, offline_cap_hours) VALUES (?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS,
+                ).use {
                     it.setString(1, CompanyNaming.candidate(baseName, attempt))
                     it.setLong(2, slotIndex)
+                    it.setDouble(3, offlineCapHours)
                     it.executeUpdate()
                     it.generatedKeys.use { keys ->
                         check(keys.next()) { "companies : aucun identifiant rendu" }
@@ -245,6 +249,17 @@ class JdbcSessionStore : SessionStore {
             }
         return PlayerProfile(rank, pilierUntil)
     }
+
+    override fun loadMemberLingots(connection: Connection, companyId: Long): List<Long> =
+        // Lecture simple, sans verrou : on ne bloque pas les soldes des autres associés pour un chiffre d'affichage.
+        // LEFT JOIN : un membre sans ligne de soldes (pas encore passé par join) compte pour zéro.
+        connection.prepareStatement(
+            "SELECT COALESCE(b.lingots, 0) FROM company_members m LEFT JOIN player_balances b ON b.xuid = m.xuid " +
+                "WHERE m.company_id = ? ORDER BY m.xuid",
+        ).use {
+            it.setLong(1, companyId)
+            it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
+        }
 
     override fun markLeft(connection: Connection, xuid: Xuid): Boolean =
         connection.prepareStatement("UPDATE players SET last_seen_at = UTC_TIMESTAMP(3) WHERE xuid = ?").use {

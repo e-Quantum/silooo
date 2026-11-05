@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "zones": [
+    { "id": "plaine", "prix": 1 },
+    { "id": "foret-sombre", "prix": 2, "voisines": ["plaine"] },
+    { "id": "plaine", "prix": 3 }
+  ],
+  "etiquettes": { "a": "b" },
+  "mode": "jour"
+}

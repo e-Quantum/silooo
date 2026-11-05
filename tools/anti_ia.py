@@ -46,8 +46,9 @@ TEXTES_JOUEURS = [
     "world/**/*.json",
 ]
 
-# Dossiers qu'on ne parcourt jamais en mode --tout (code généré, dépendances).
-DOSSIERS_IGNORES = {"node_modules", "build", "dist", "out", ".gradle", ".git"}
+# Dossiers qu'on ne parcourt jamais en mode --tout (code généré, dépendances). « generated » : les types
+# de l'add-on tirés de definitions/, dont les identifiants sont déjà contrôlés dans leur fichier d'origine.
+DOSSIERS_IGNORES = {"node_modules", "build", "dist", "out", ".gradle", ".git", "generated"}
 
 # Clés JSON qui portent des notes pour les développeurs, pas du texte pour les joueurs : on saute
 # leur contenu. Exemple : economie.json y met « aa = 1e12, ab = 1e15, ... » (notation.apresMd).
