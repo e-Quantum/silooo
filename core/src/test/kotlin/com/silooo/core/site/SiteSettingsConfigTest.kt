@@ -5,6 +5,7 @@ import com.silooo.core.ConfigException
 import com.silooo.core.TestDefinitions
 import java.nio.file.Files
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
@@ -24,24 +25,28 @@ class SiteSettingsConfigTest {
     private fun settings(vararg extra: Pair<String, String>): SiteSettings = Config.service(complete + extra).siteSettings
 
     @Test
-    @DisplayName("Sans variable : play.silooo.com, le port du compose, pas de boutique, pas de site de vote")
+    @DisplayName("Sans variable : play.silooo.com, le port du compose, pas de boutique, pas de site de vote, pas de site frère")
     fun defaults() {
         val settings = settings()
         assertEquals("play.silooo.com", settings.gameAddress)
         assertEquals(Config.DEFAULT_GAME_PORT_SHOWN, settings.gamePort)
         assertNull(settings.shopUrl)
         assertTrue(settings.voteSites.isEmpty())
+        assertNull(settings.sileneMcUrl)
+        assertNull(settings.hubyyUrl)
         assertEquals(SiteSettings(), settings)
     }
 
     @Test
-    @DisplayName("Les variables sont lues : adresse, port, boutique, sites de vote dans l'ordre donné")
+    @DisplayName("Les variables sont lues : adresse, port, boutique, sites de vote dans l'ordre donné, sites frères du pied de page")
     fun variablesAreRead() {
         val settings = settings(
             Config.SITE_GAME_ADDRESS to " jeu.exemple.test ",
             Config.SITE_GAME_PORT to "20000",
             Config.SITE_SHOP_URL to "https://boutique.exemple.test/gemmes/",
             Config.SITE_VOTE_SITES to "Premier|https://un.exemple.test/vote ; Second|https://deux.exemple.test/ ;",
+            Config.SITE_URL_SILENEMC to "https://silenemc.exemple.test/",
+            Config.SITE_URL_HUBYY to " https://hubyy.exemple.test ",
         )
         assertEquals("jeu.exemple.test", settings.gameAddress)
         assertEquals(20000, settings.gamePort)
@@ -50,6 +55,9 @@ class SiteSettingsConfigTest {
             listOf(VoteSite("Premier", "https://un.exemple.test/vote"), VoteSite("Second", "https://deux.exemple.test/")),
             settings.voteSites,
         )
+        // Lues comme la boutique : blancs et barre finale retirés.
+        assertEquals("https://silenemc.exemple.test", settings.sileneMcUrl)
+        assertEquals("https://hubyy.exemple.test", settings.hubyyUrl)
     }
 
     @Test
@@ -73,6 +81,21 @@ class SiteSettingsConfigTest {
             assertTrue(error.message!!.contains(Config.SITE_GAME_ADDRESS))
         }
         assertTrue(assertThrows<ConfigException> { settings(Config.SITE_SHOP_URL to "boutique.test") }.message!!.contains(Config.SITE_SHOP_URL))
+    }
+
+    @Test
+    @DisplayName("Une adresse de site frère vide reste absente ; sans http, elle est refusée avec le nom de sa variable")
+    fun sisterSiteUrls() {
+        val blank = settings(Config.SITE_URL_SILENEMC to "   ", Config.SITE_URL_HUBYY to "")
+        assertNull(blank.sileneMcUrl)
+        assertNull(blank.hubyyUrl)
+        for ((variable, other) in listOf(Config.SITE_URL_SILENEMC to Config.SITE_URL_HUBYY, Config.SITE_URL_HUBYY to Config.SITE_URL_SILENEMC)) {
+            for (bad in listOf("silenemc.exemple.test", "www.exemple.test", "ftp://exemple.test", "//exemple.test")) {
+                val error = assertThrows<ConfigException>("$variable = $bad") { settings(variable to bad) }
+                assertTrue(error.message!!.contains(variable), "${error.message}")
+                assertFalse(error.message!!.contains(other), "le message ne nomme que la variable en cause : ${error.message}")
+            }
+        }
     }
 
     @Test

@@ -1,22 +1,12 @@
 package com.silooo.core.site.pages
 
 import com.silooo.core.site.ContentPage
-import kotlinx.html.FlowContent
 import kotlinx.html.HTML
 import kotlinx.html.MAIN
 import kotlinx.html.a
 import kotlinx.html.div
 import kotlinx.html.h1
 import kotlinx.html.img
-import kotlinx.html.p
-
-internal const val OOOSCAR_JOIE = "/public/atelier/oooscar/oooscar-joie.png"
-internal const val OOOSCAR_ALT = "Oooscar, la mascotte de Silooo, content"
-internal const val OOOSCAR_BULLE = "Le serveur ouvre bientôt !"
-/** Le visage « oups » de la charte, pour la page introuvable ; la bulle est celle du kit de Kr. */
-internal const val OOOSCAR_OUPS = "/public/atelier/oooscar/oooscar-oups.png"
-internal const val OOOSCAR_OUPS_ALT = "Oooscar, la mascotte de Silooo, surpris"
-internal const val OOOSCAR_OUPS_BULLE = "Cette page s'est envolée."
 
 /** Le logo, le nom sur une plaque, le texte du contenu : la présentation, commune à l'attente et à l'accueil minimal. */
 internal fun MAIN.presentation(page: ContentPage, shell: SiteShell) {
@@ -33,25 +23,10 @@ internal fun MAIN.presentation(page: ContentPage, shell: SiteShell) {
 }
 
 /**
- * Oooscar en bas de page avec sa bulle : une image lisse (une illustration, pas du pixel art) et six mots au plus.
- * [width] est la largeur à 120 px de haut du visage choisi (les PNG de design/mascotte/ font 512 px de haut).
- */
-internal fun FlowContent.oooscar(image: String = OOOSCAR_JOIE, alt: String = OOOSCAR_ALT, bulle: String = OOOSCAR_BULLE, width: String = "109") {
-    div(classes = "oooscar") {
-        img(src = image, alt = alt, classes = "sa-oooscar") {
-            this.width = width
-            height = "120"
-        }
-        p(classes = "sa-bulle") { +bulle }
-    }
-}
-
-/**
- * La page d'attente : le jeu en une phrase et « Le serveur ouvre bientôt. » (dans le contenu), avec Oooscar sous le
- * titre. Ni adresse de serveur ni date tant que Kr n'a rien annoncé.
+ * La page d'attente : le jeu en une phrase, et Oooscar en bas de page qui dit « On construit. Reviens vite ! »
+ * (la bulle de la maquette SiteAttente, posée par le gabarit). Ni adresse de serveur ni date tant que Kr n'a rien annoncé.
  */
 internal fun HTML.attente(shell: SiteShell, page: ContentPage) =
     gabarit(shell, PageFrame(page.title, page.description, page.url)) {
         presentation(page, shell)
-        oooscar()
     }

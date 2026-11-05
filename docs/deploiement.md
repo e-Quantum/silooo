@@ -91,6 +91,8 @@ chiffres du jeu : le jeu reste dans `definitions/`. Le modèle est `deploy/exemp
 | `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU` | `silooo-core` (par `env_file`) | `play.silooo.com`, `19142` | l'adresse et le port du jeu affichés sur l'accueil et Rejoindre ; le port est celui de `BDS_PORT` |
 | `SILOOO_SITE_URL_BOUTIQUE` | `silooo-core` (par `env_file`) | vide | l'adresse de la boutique de Gemmes (PayNow) ; vide : pas de lien |
 | `SILOOO_SITE_SITES_DE_VOTE` | `silooo-core` (par `env_file`) | vide | les sites de vote affichés, `nom\|url` séparés par des points-virgules ; une entrée mal formée arrête le service |
+| `SILOOO_SITE_URL_SILENEMC` | `silooo-core` (par `env_file`) | vide | le site de SileneMC, dans « Voir aussi » au pied de chaque page ; vide : pas de lien |
+| `SILOOO_SITE_URL_HUBYY` | `silooo-core` (par `env_file`) | vide | le site de Hubyy, à côté ; vide : pas de lien |
 | `SILOOO_SITE_ADMISSION` | `silooo-core` (par `env_file`) | `discord` | l'admission des pionniers : `discord` (admis quand le compte Discord est relié) ou `tous` (dès l'inscription, pour l'ouverture) |
 | `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET` | `silooo-core` (par `env_file`) | vides | l'application Discord du bouton « Relier Discord » du site (OAuth ; ce n'est pas le bot de `docs/discord.md`) ; les deux ensemble, une seule arrête le service ; absentes : pas de bouton ; le secret ne se commite jamais |
 | `SILOOO_SITE_TRUSTED_PROXY` | `silooo-core` (par `env_file`) | `false` | `true` : l'adresse du visiteur se lit dans `X-Forwarded-For`, posé par Caddy ; à passer à `true` derrière le Caddy de SileneMC |

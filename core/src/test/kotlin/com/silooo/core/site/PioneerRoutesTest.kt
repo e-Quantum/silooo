@@ -99,7 +99,7 @@ class PioneerRoutesTest {
     private fun location(response: HttpResponse): String = response.headers[HttpHeaders.Location] ?: error("pas de Location")
 
     @Test
-    @DisplayName("Les deux modes rendent /pionniers/ : texte, formulaire, un seul bouton rouge, aucun script")
+    @DisplayName("Les deux modes rendent /pionniers/ : texte, formulaire, un seul bouton rouge, seulement les scripts du site")
     fun bothModesRenderTheForm() {
         for (mode in SiteMode.entries) {
             withRig(mode) { rig ->
@@ -111,7 +111,7 @@ class PioneerRoutesTest {
                 assertTrue(html.contains("""method="post""""), mode.word)
                 assertEquals(1, Regex("""class="sa-bouton"""").findAll(html).count(), "un seul bouton rouge")
                 assertTrue(html.contains(">M'inscrire<") || html.contains(">M'inscrire<"))
-                assertFalse(html.contains("<script", ignoreCase = true))
+                assertOnlySiteScripts(html, "/pionniers/ (${mode.word})")
                 assertTrue(html.contains("Aucun pionnier inscrit pour l'instant.") || html.contains("Aucun pionnier inscrit pour l'instant."))
                 assertEquals(HttpStatusCode.MovedPermanently, rig.get("/pionniers").status)
             }
@@ -406,7 +406,7 @@ class PioneerRoutesTest {
     }
 
     @Test
-    @DisplayName("Les en-têtes du site restent : politique sans script, pas de cache")
+    @DisplayName("Les en-têtes du site restent : politique sans script écrit dans la page, pas de cache")
     fun headersKept() = withRig { rig ->
         val response = rig.get("/pionniers/")
         assertEquals(CONTENT_SECURITY_POLICY, response.headers["Content-Security-Policy"])

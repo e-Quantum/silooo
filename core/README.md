@@ -57,6 +57,8 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_SITE_PORT_JEU` | Le port du jeu affiché, entier de 1 à 65535 (le défaut est celui de `BDS_PORT` dans `deploy/compose.yml`, ADR 0004) | non, `19142` par défaut |
 | `SILOOO_SITE_URL_BOUTIQUE` | L'adresse où s'achètent les Gemmes, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
 | `SILOOO_SITE_SITES_DE_VOTE` | Les sites de vote, `nom\|url` séparés par des points-virgules (une entrée mal formée arrête le service) | non, aucun site par défaut |
+| `SILOOO_SITE_URL_SILENEMC` | Le site de SileneMC, dans « Voir aussi » au pied de chaque page, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
+| `SILOOO_SITE_URL_HUBYY` | Le site de Hubyy, à côté, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
 | `SILOOO_SITE_ADMISSION` | La règle d'admission des pionniers : `discord` (admis quand le compte Discord est relié) ou `tous` (admis dès l'inscription, pour l'ouverture) ; toute autre valeur arrête le service | non, `discord` par défaut |
 | `SILOOO_DISCORD_CLIENT_ID` | L'identifiant de l'application Discord de « Relier Discord » ; va avec le secret (une seule des deux arrête le service) | non, pas de bouton « Relier Discord » sans elle |
 | `SILOOO_DISCORD_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
@@ -859,11 +861,23 @@ ne le publie jamais.
   construction (`processResources` de `build.gradle.kts` ; l'image Docker reçoit `design/` à côté de `core/`), et `SiteAtelierTest`
   compare chaque copie à sa source octet pour octet. `robots.txt` et `sitemap.xml` (les pages du mode, une fois chacune) ont une
   heure de cache.
+- **Le gabarit** (`pages/Gabarit.kt`, d'après les maquettes de Kr) : l'en-tête (la marque, un bouton Menu qui replie la navigation
+  sous 700 px, la navigation du mode listée dans `pages/Navigation.kt`, une entrée seulement si le mode rend la page), le bandeau
+  direct en mode ouvert, le panneau de fonte du contenu, la scène d'Oooscar sur le sol (`pages/Oooscar.kt` : les cinq visages, la
+  bulle d'arrivée de chaque adresse, les textes des réactions posés sur `data-textes`), le pied sombre. Trois scripts, tous des
+  fichiers de `public/` (la politique de sécurité interdit un script écrit dans la page) : `menu.js` (synchrone, pose `html.js` et
+  fait agir le bouton), `oooscar.js` (charge `public/oooscar.svg`, remplace le PNG par le SVG articulé et joue les réactions ; sans
+  script ou sans le SVG, le PNG et la bulle restent) et `direct.js` (en mode ouvert, relit `GET /site/direct.json` toutes les
+  trente secondes, cache le bandeau si le service ne répond pas, et lance l'événement `silooo:voteparty` quand la Vote party
+  passe atteinte). `/site/direct.json` (`SiteDirect.kt`) est une route du site, hors du contrat OpenAPI : la présence et les votes
+  du jour, `version` et `dernierPrestige` à `null` tant que le jeu ne les donne pas, trente secondes de cache. Aucun texte lu par
+  un visiteur n'est dans un script : tout vient du Kotlin, que `tools/anti_ia.py` relit.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
   « Lancer »), puis `http://localhost:8081/`. Sans la variable, le site est en `attente`.
 - **Les tests** (sans base) : `site/SiteModuleTest` (les deux modes, `lang`, un seul `h1`, `title`, `description`, `alt`, les
-  en-têtes, le 404, `robots.txt` et `sitemap.xml`, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, `site/SiteAtelierTest`,
-  `site/EmpreinteTest`, et `ConfigTest` pour les variables.
+  en-têtes, le 404, `robots.txt` et `sitemap.xml`, `/v1` absent), `site/SiteGabaritTest` (la scène, le menu, les scripts, le pied,
+  le bandeau en mode ouvert seulement), `site/SiteDirectTest` (`/site/direct.json` fermé et ouvert), `site/SiteContentTest`,
+  `site/SiteLogoTest`, `site/SiteAtelierTest`, `site/EmpreinteTest`, et `ConfigTest` pour les variables.
 - **Les textes** vus par les visiteurs passent `tools/anti_ia.py` (contenus Markdown en entier, littéraux du paquet `site`), et chaque
   texte neuf reste à valider par Kr.
 - **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`, « Style ») : `public/site.css` est l'unique feuille liée, elle
