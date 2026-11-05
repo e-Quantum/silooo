@@ -795,3 +795,271 @@ describe("les candidats du jour", () => {
     assert.deepEqual(api.calls, []);
   });
 });
+
+const CIBLE = "2535428000000002";
+const PARTS = [
+  { xuid: XUID, percent: 70 },
+  { xuid: CIBLE, percent: 30 },
+];
+
+describe("inviter un joueur", () => {
+  it("envoie le joueur invité avec un requestId neuf, range l'état rendu", async () => {
+    const { actions, api, views } = setup({ invite: [ok(updated(2, 3))] });
+    assert.deepEqual(await actions.invite(XUID, CIBLE), { kind: "invited" });
+    assert.deepEqual(api.calls, [{ op: "invite", companyId: 7, action: { requestId: "id-1", actor: XUID }, targetXuid: CIBLE }]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+  });
+
+  it("les refus du contrat sont rendus tels quels, l'état ne bouge pas, rien n'est rejoué", async () => {
+    for (const reason of ["PAS_LE_PDG", "ENTREPRISE_PLEINE", "DEJA_POSSEDE", "ENTREPRISE_EN_COURS"]) {
+      const { actions, api, views } = setup({ invite: [refused(reason)] });
+      assert.deepEqual(await actions.invite(XUID, CIBLE), { kind: "refused", reason });
+      assert.equal(views.get(XUID)?.state.version, 1);
+      assert.equal(api.calls.length, 1);
+    }
+  });
+
+  it("un 400 (joueur inconnu) est un échec « error » REQUETE_INVALIDE, journalisé", async () => {
+    const { actions, log } = setup({ invite: [failure(400, "REQUETE_INVALIDE")] });
+    assert.deepEqual(await actions.invite(XUID, CIBLE), { kind: "failed", failure: "error", reason: "REQUETE_INVALIDE" });
+    assert.match(log.warns.join(" "), /invite/);
+  });
+
+  it("CONFLIT_REESSAYER : recharge l'état, rejoue une fois avec le même requestId", async () => {
+    const { actions, api } = setup({
+      invite: [refused("CONFLIT_REESSAYER"), ok(updated(6, 3))],
+      getCompany: [ok(companyState({ version: 5 }))],
+    });
+    assert.deepEqual(await actions.invite(XUID, CIBLE), { kind: "invited" });
+    const envois = api.calls.flatMap((call) => (call.op === "invite" ? [call.action] : []));
+    assert.equal(envois.length, 2);
+    assert.deepEqual(envois[0], envois[1]);
+    assert.ok(api.calls.some((call) => call.op === "getCompany"));
+  });
+
+  it("réseau coupé : échec « network », l'état ne bouge pas", async () => {
+    const { actions, views } = setup({ invite: [unreachable()] });
+    assert.deepEqual(await actions.invite(XUID, CIBLE), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.invite("999", CIBLE), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+});
+
+describe("fixer les parts", () => {
+  it("envoie les parts telles quelles avec un requestId neuf, range l'état rendu", async () => {
+    const { actions, api, views } = setup({ setShares: [ok(updated(2, 3))] });
+    assert.deepEqual(await actions.setShares(XUID, PARTS), { kind: "sharesSet" });
+    assert.deepEqual(api.calls, [{ op: "setShares", companyId: 7, action: { requestId: "id-1", actor: XUID }, shares: PARTS }]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+  });
+
+  it("n'additionne rien : des parts qui ne font pas 100 partent quand même, le 400 du service est rendu", async () => {
+    const trop = [
+      { xuid: XUID, percent: 90 },
+      { xuid: CIBLE, percent: 90 },
+    ];
+    const { actions, api, views } = setup({ setShares: [failure(400, "REQUETE_INVALIDE")] });
+    assert.deepEqual(await actions.setShares(XUID, trop), { kind: "failed", failure: "error", reason: "REQUETE_INVALIDE" });
+    assert.deepEqual(api.calls.length, 1);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("PAS_LE_PDG : rendu tel quel, l'état ne bouge pas", async () => {
+    const { actions, views } = setup({ setShares: [refused("PAS_LE_PDG")] });
+    assert.deepEqual(await actions.setShares(XUID, PARTS), { kind: "refused", reason: "PAS_LE_PDG" });
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("CONFLIT_REESSAYER : un seul rejeu, avec le même requestId", async () => {
+    const { actions, api } = setup({
+      setShares: [refused("CONFLIT_REESSAYER"), ok(updated(6, 3))],
+      getCompany: [ok(companyState({ version: 5 }))],
+    });
+    assert.deepEqual(await actions.setShares(XUID, PARTS), { kind: "sharesSet" });
+    const envois = api.calls.flatMap((call) => (call.op === "setShares" ? [call.action] : []));
+    assert.equal(envois.length, 2);
+    assert.deepEqual(envois[0], envois[1]);
+  });
+});
+
+describe("accepter une invitation", () => {
+  const autre = (version: number): CompanyUpdated => ({
+    state: companyState({ companyId: 12, version, donar: 500, ratePerHour: 1_800, factories: [factory({ level: 1 })] }),
+    balances: balances({ lingots: 3 }),
+  });
+
+  function joining(script: Script, afterJoin?: (xuid: string) => void | Promise<void>) {
+    const clock = fakeClock(0);
+    const store = storeWith({ ...BASE, factories: [...BASE.factories] });
+    const views = createViewStore({ players: store, clock });
+    const api = fakeCompany(script);
+    const log = recordingLogger();
+    const actions = createActions({
+      api,
+      views,
+      newRequestId: sequentialIds(),
+      log,
+      ...(afterJoin === undefined ? {} : { afterJoin }),
+    });
+    return { actions, api, views, log };
+  }
+
+  it("vise l'entreprise de l'invitation, pas celle du joueur, et prend l'état de la réponse", async () => {
+    const { actions, api, views } = joining({ acceptInvite: [ok(autre(2))] });
+    assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "joined" });
+    assert.deepEqual(api.calls, [{ op: "acceptInvite", companyId: 12, action: { requestId: "id-1", actor: XUID } }]);
+    const view = views.get(XUID);
+    assert.equal(view?.state.companyId, 12);
+    assert.equal(view?.state.version, 2);
+    assert.equal(view?.balances.lingots, 3);
+  });
+
+  it("appelle afterJoin avec le joueur, une fois la vue changée, et l'attend", async () => {
+    const vus: Array<{ xuid: string; companyId: number | undefined }> = [];
+    let fini = false;
+    const { actions, views } = joining({ acceptInvite: [ok(autre(2))] }, async (xuid) => {
+      await Promise.resolve();
+      vus.push({ xuid, companyId: views.get(xuid)?.state.companyId });
+      fini = true;
+    });
+    await actions.acceptInvite(XUID, 12);
+    assert.equal(fini, true);
+    assert.deepEqual(vus, [{ xuid: XUID, companyId: 12 }]);
+  });
+
+  it("une exception d'afterJoin est journalisée et ne change pas le résultat", async () => {
+    const { actions, log, views } = joining({ acceptInvite: [ok(autre(2))] }, () => {
+      throw new Error("hud cassé");
+    });
+    assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "joined" });
+    assert.equal(views.get(XUID)?.state.companyId, 12);
+    assert.match(log.warns.join(" "), /hud cassé/);
+  });
+
+  it("afterJoin n'est appelé ni pour un refus, ni pour un 400, ni pour une panne", async () => {
+    for (const reponse of [refused("DEJA_POSSEDE"), refused("ENTREPRISE_PLEINE"), failure(400, "REQUETE_INVALIDE"), unreachable<CompanyUpdated>()]) {
+      let appels = 0;
+      const { actions, views } = joining({ acceptInvite: [reponse] }, () => {
+        appels += 1;
+      });
+      const outcome = await actions.acceptInvite(XUID, 12);
+      assert.notEqual(outcome.kind, "joined");
+      assert.equal(appels, 0);
+      assert.equal(views.get(XUID)?.state.companyId, 7, "le joueur reste dans son entreprise");
+    }
+  });
+
+  it("les refus du contrat sont rendus tels quels", async () => {
+    for (const reason of ["DEJA_POSSEDE", "ENTREPRISE_PLEINE", "ENTREPRISE_EN_COURS"]) {
+      const { actions } = joining({ acceptInvite: [refused(reason)] });
+      assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "refused", reason });
+    }
+  });
+
+  it("un 400 (invitation absente ou périmée) est un échec « error » REQUETE_INVALIDE", async () => {
+    const { actions } = joining({ acceptInvite: [failure(400, "REQUETE_INVALIDE")] });
+    assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "failed", failure: "error", reason: "REQUETE_INVALIDE" });
+  });
+
+  it("CONFLIT_REESSAYER : rejoue une fois avec le même requestId, sans relire l'entreprise du joueur", async () => {
+    const { actions, api, views } = joining({ acceptInvite: [refused("CONFLIT_REESSAYER"), ok(autre(2))] });
+    assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "joined" });
+    const envois = api.calls.flatMap((call) => (call.op === "acceptInvite" ? [call] : []));
+    assert.equal(envois.length, 2);
+    assert.deepEqual(envois[0]?.action, envois[1]?.action);
+    assert.equal(envois[1]?.companyId, 12);
+    assert.equal(api.calls.some((call) => call.op === "getCompany"), false);
+    assert.equal(views.get(XUID)?.state.companyId, 12);
+  });
+
+  it("un second conflit est rendu tel quel : un seul rejeu", async () => {
+    const { actions, api } = joining({ acceptInvite: [refused("CONFLIT_REESSAYER"), refused("CONFLIT_REESSAYER")] });
+    assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "refused", reason: "CONFLIT_REESSAYER" });
+    assert.equal(api.calls.length, 2);
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = joining({});
+    assert.deepEqual(await actions.acceptInvite("999", 12), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+});
+
+describe("relire l'entreprise (refresh)", () => {
+  it("lit l'entreprise du joueur et range l'état rendu", async () => {
+    const membres = [{ xuid: XUID, name: GAMERTAG, role: "PDG" as const, sharePercent: 100 }];
+    const { actions, api, views } = setup({ getCompany: [ok(companyState({ version: 4, members: membres }))] });
+    assert.deepEqual(await actions.refresh(XUID), { kind: "refreshed" });
+    assert.deepEqual(api.calls, [{ op: "getCompany", companyId: 7 }]);
+    assert.deepEqual(views.get(XUID)?.state.members, membres);
+  });
+
+  it("une relecture plus ancienne que la vue ne la remplace pas", async () => {
+    const { actions, views } = setup({ getCompany: [ok(companyState({ version: 0, donar: 999 }))] });
+    assert.deepEqual(await actions.refresh(XUID), { kind: "refreshed" });
+    assert.equal(views.get(XUID)?.state.donar, 100);
+  });
+
+  it("un échec est rendu et journalisé, la vue ne bouge pas", async () => {
+    const { actions, views, log } = setup({ getCompany: [unreachable()] });
+    assert.deepEqual(await actions.refresh(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.equal(views.get(XUID)?.state.version, 1);
+    assert.match(log.warns.join(" "), /getCompany/);
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.refresh("999"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+});
+
+describe("les actions de l'entreprise partagée respectent le verrou du joueur", () => {
+  it("une invitation pendant un encaissement rend « occupé » sans appel", async () => {
+    let finir: (value: ApiResult<CollectResponse>) => void = () => undefined;
+    const attente = new Promise<ApiResult<CollectResponse>>((resolve) => {
+      finir = resolve;
+    });
+    const store = storeWith({ ...BASE, factories: [...BASE.factories] });
+    const views = createViewStore({ players: store, clock: fakeClock(0) });
+    const appels: string[] = [];
+    const actions = createActions({
+      api: {
+        ...INUTILES,
+        getCompany: () => Promise.reject(new Error("inutile")),
+        collect: () => attente,
+        buyLevels: () => Promise.reject(new Error("inutile")),
+        restoreStep: () => Promise.reject(new Error("inutile")),
+        prestige: () => Promise.reject(new Error("inutile")),
+        prestigePreview: () => Promise.reject(new Error("inutile")),
+        invite: () => {
+          appels.push("invite");
+          return Promise.reject(new Error("ne doit pas partir"));
+        },
+        setShares: () => {
+          appels.push("setShares");
+          return Promise.reject(new Error("ne doit pas partir"));
+        },
+        acceptInvite: () => {
+          appels.push("acceptInvite");
+          return Promise.reject(new Error("ne doit pas partir"));
+        },
+      },
+      views,
+      newRequestId: sequentialIds(),
+      log: recordingLogger(),
+    });
+    const encaissement = actions.collect(XUID);
+    assert.deepEqual(await actions.invite(XUID, CIBLE), { kind: "busy" });
+    assert.deepEqual(await actions.setShares(XUID, PARTS), { kind: "busy" });
+    assert.deepEqual(await actions.acceptInvite(XUID, 12), { kind: "busy" });
+    assert.deepEqual(appels, []);
+    finir(ok({ collected: 1, offlineHours: 0, state: companyState({ version: 2 }) }));
+    assert.equal((await encaissement).kind, "collected");
+  });
+});

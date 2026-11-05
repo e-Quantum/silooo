@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
-import { REFUSAL_REASONS, STAFF_RARITIES, STAFF_ROLES } from "../src/protocol";
+import { MEMBER_ROLES, REFUSAL_REASONS, STAFF_RARITIES, STAFF_ROLES } from "../src/protocol";
 import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, RARITY_COLOR, colored } from "../src/ui/apparence";
 import { formatAmount } from "../src/ui/nombres";
 import {
   AGENCE_TEXTES,
+  ASSOCIES_TEXTES,
   BOUSSOLE_TEXTES,
   BULLES,
   CARTE_TEXTES,
@@ -63,6 +64,7 @@ function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
     }
   }
   for (const [id, textes] of Object.entries(MISSION_TEXTES)) liste.push({ nom: `fin de ${id}`, bulle: textes.fin });
+  for (const [cle, bulle] of Object.entries(ASSOCIES_TEXTES.bulles)) liste.push({ nom: `associés ${cle}`, bulle });
   // L'indice d'Oooscar à chaque étape du mini-jeu de réparation, pour chaque sorte et pour le mini-jeu général.
   for (const kind of [...INCIDENT_TEXTES_KINDS, null]) {
     repairSteps(kind).forEach((step, index) => liste.push({ nom: `réparation ${kind ?? "générale"} étape ${index + 1}`, bulle: step.erreur }));
@@ -185,6 +187,7 @@ const TOUS = [
   ...feuilles(CARTE_TEXTES, "CARTE_TEXTES"),
   ...feuilles(PERSONNEL_TEXTES, "PERSONNEL_TEXTES"),
   ...feuilles(AGENCE_TEXTES, "AGENCE_TEXTES"),
+  ...feuilles(ASSOCIES_TEXTES, "ASSOCIES_TEXTES"),
   ...feuilles(INCIDENT_TEXTES, "INCIDENT_TEXTES"),
   ...feuilles(REPARATION_TEXTES, "REPARATION_TEXTES"),
   ...Object.entries(MISSION_TEXTES).flatMap(([id, t]) => [
@@ -228,6 +231,10 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
       SILO_TEXTES.titre,
       PRESTIGE_TEXTES.titre,
       CARTE_TEXTES.titre,
+      ASSOCIES_TEXTES.titre,
+      ASSOCIES_TEXTES.invitation.titre,
+      ASSOCIES_TEXTES.choix.titre,
+      ASSOCIES_TEXTES.formulaire.titre,
     ]) {
       assert.match(titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
     }
@@ -729,5 +736,84 @@ describe("textes du mini-jeu de réparation", () => {
     for (const kind of sortes) {
       for (const etape of repairSteps(kind)) assert.doesNotMatch([etape.consigne, ...etape.choix].join(" "), /\d/, etape.consigne);
     }
+  });
+});
+
+// ---------------------------------------------------------------- l'entreprise partagée
+
+describe("textes de l'entreprise partagée", () => {
+  it("un nom de rôle par rôle du contrat, et rien d'autre", () => {
+    assert.deepEqual(Object.keys(ASSOCIES_TEXTES.roles).sort(), [...MEMBER_ROLES].sort());
+    const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+    const debut = yaml.indexOf("    Member:\n");
+    assert.notEqual(debut, -1);
+    const ligne = yaml.slice(yaml.indexOf("role:", debut), yaml.indexOf("\n", yaml.indexOf("role:", debut)));
+    const contrat = ligne
+      .slice(ligne.indexOf("enum: [") + "enum: [".length, ligne.indexOf("]"))
+      .split(",")
+      .map((mot) => mot.trim());
+    assert.deepEqual(Object.keys(ASSOCIES_TEXTES.roles).sort(), [...contrat].sort());
+  });
+
+  it("une ligne de membre pose le rôle, le nom et la part tels que le service les donne", () => {
+    assert.equal(ASSOCIES_TEXTES.ligne("PDG", "Alex", "60"), "PDG · Alex · 60 %");
+    assert.equal(ASSOCIES_TEXTES.toi("PDG · Alex · 60 %"), "PDG · Alex · 60 % (toi)");
+  });
+
+  it("la tuile du menu : une phrase pour le joueur seul, un nombre sinon", () => {
+    assert.equal(ASSOCIES_TEXTES.tuile.seul, "Invite des joueurs");
+    assert.equal(ASSOCIES_TEXTES.tuile.nombre(2), "2 associés");
+    assert.equal(ASSOCIES_TEXTES.tuile.nombre(7), "7 associés");
+  });
+
+  it("l'add-on n'affiche aucun maximum d'associés : c'est le service qui refuse", () => {
+    for (const { chemin, texte } of feuilles(ASSOCIES_TEXTES, "ASSOCIES_TEXTES")) {
+      assert.doesNotMatch(texte, /maximum|au plus|limite|jusqu'à \d|\d+ associés? (au|maximum)/i, `${chemin} : ${texte}`);
+    }
+    assert.doesNotMatch(ASSOCIES_TEXTES.seul, /\d/);
+    assert.doesNotMatch(ASSOCIES_TEXTES.tuile.seul, /\d/);
+  });
+
+  it("l'invitation dit qui invite dans quelle entreprise, et ce que le joueur quitte", () => {
+    assert.equal(ASSOCIES_TEXTES.invitation.texte("Bea", "Les Forges"), "Bea t'invite dans Les Forges");
+    assert.match(ASSOCIES_TEXTES.invitation.consequence, /quittes/);
+  });
+
+  it("le formulaire des parts : un champ par membre, par son nom, et un indice qui demande un entier", () => {
+    assert.equal(ASSOCIES_TEXTES.formulaire.champ("Ada"), "Part de Ada, en %");
+    assert.match(ASSOCIES_TEXTES.formulaire.indice, /entier/);
+  });
+
+  it("les boutons sont courts et sans ponctuation finale", () => {
+    const boutons = [
+      MENU_TEXTES.associes,
+      ASSOCIES_TEXTES.inviter,
+      ASSOCIES_TEXTES.parts,
+      ASSOCIES_TEXTES.retour,
+      ASSOCIES_TEXTES.invitation.accepter,
+      ASSOCIES_TEXTES.invitation.plusTard,
+      ASSOCIES_TEXTES.choix.retour,
+      ASSOCIES_TEXTES.formulaire.envoyer,
+    ];
+    for (const bouton of boutons) {
+      assert.ok(mots(bouton).length >= 1 && mots(bouton).length <= 3, bouton);
+      assert.doesNotMatch(bouton, /[.!?]$/, bouton);
+    }
+  });
+
+  it("les bulles du refus d'un total à cent et d'une invitation périmée sont des « oups », celles qui réussissent des « joie »", () => {
+    const { bulles } = ASSOCIES_TEXTES;
+    for (const bulle of [bulles.partsInvalides, bulles.partsTotal, bulles.invitationExpiree, bulles.joueurInconnu, bulles.dejaAssocie, bulles.tuEsDejaAssocie, bulles.ilALance, bulles.entreprisePleine]) {
+      assert.equal(bulle.expression, "oups", bulle.text);
+    }
+    for (const bulle of [bulles.invitationEnvoyee, bulles.partsEnregistrees, bulles.bienvenue, bulles.invitationRecue, bulles.partsChangees]) {
+      assert.equal(bulle.expression, "joie", bulle.text);
+    }
+  });
+
+  it("le refus d'une entreprise pleine a sa bulle de refus ; l'autre refus (déjà associé) est dit par les associés", () => {
+    assert.equal(refusalBubble("ENTREPRISE_PLEINE").text, "Ton entreprise est pleine.");
+    assert.ok(REFUSAL_BUBBLE_REASONS.includes("DEJA_POSSEDE"));
+    assert.equal(ASSOCIES_TEXTES.bulles.dejaAssocie.text, "Il est déjà associé.");
   });
 });

@@ -172,3 +172,46 @@ describe("observeApi", () => {
     }
   });
 });
+
+describe("ViewStore : changer d'entreprise", () => {
+  it("apply ignore une réponse d'une autre entreprise, même plus récente : elle ne remplace pas la vue", () => {
+    const views = createViewStore({ players: storeWith({ companyId: 7, version: 1, donar: 10 }), clock: fakeClock() });
+    assert.equal(views.apply(XUID, { state: companyState({ companyId: 12, version: 9, donar: 999 }) }), false);
+    assert.equal(views.get(XUID)?.state.companyId, 7);
+    assert.equal(views.get(XUID)?.state.donar, 10);
+  });
+
+  it("switchCompany prend l'état de l'autre entreprise sans comparer les versions", () => {
+    const clock = fakeClock(0);
+    const views = createViewStore({ players: storeWith({ companyId: 7, version: 40, donar: 10 }, { lingots: 4 }), clock });
+    clock.advance(3_000);
+    const nouvelle = companyState({ companyId: 12, version: 2, donar: 500, ratePerHour: 1_800 });
+    assert.equal(views.switchCompany(XUID, { state: nouvelle, balances: balances({ lingots: 8 }) }), true);
+    const view = views.get(XUID);
+    assert.equal(view?.state.companyId, 12);
+    assert.equal(view?.state.version, 2);
+    assert.equal(view?.balances.lingots, 8);
+    assert.deepEqual(view?.anchor, { donar: 500, ratePerHour: 1_800, atMs: 3_000 });
+  });
+
+  it("switchCompany garde les soldes quand la réponse n'en a pas", () => {
+    const views = createViewStore({ players: storeWith({ companyId: 7 }, { lingots: 4 }), clock: fakeClock() });
+    assert.equal(views.switchCompany(XUID, { state: companyState({ companyId: 12, version: 1 }) }), true);
+    assert.equal(views.get(XUID)?.balances.lingots, 4);
+  });
+
+  it("après le changement, apply accepte les réponses de la nouvelle entreprise et refuse celles de l'ancienne", () => {
+    const views = createViewStore({ players: storeWith({ companyId: 7, version: 5 }), clock: fakeClock() });
+    views.switchCompany(XUID, { state: companyState({ companyId: 12, version: 2 }) });
+    assert.equal(views.apply(XUID, { state: companyState({ companyId: 12, version: 3, donar: 77 }) }), true);
+    assert.equal(views.get(XUID)?.state.donar, 77);
+    assert.equal(views.apply(XUID, { state: companyState({ companyId: 7, version: 99, donar: 1 }) }), false);
+    assert.equal(views.get(XUID)?.state.companyId, 12);
+  });
+
+  it("switchCompany ne connaît pas un joueur qui n'a pas eu de réponse de join", () => {
+    const views = createViewStore({ players: storeWith(), clock: fakeClock() });
+    assert.equal(views.switchCompany("999", { state: companyState({ companyId: 12 }) }), false);
+    assert.equal(views.get("999"), undefined);
+  });
+});

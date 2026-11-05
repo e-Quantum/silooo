@@ -217,3 +217,43 @@ describe("createCoreClient : PATCH et DELETE", () => {
     assert.deepEqual(await core.delete("/v1/x"), { kind: "refused", status: 403, reason: "PAS_LE_PDG" });
   });
 });
+
+describe("createCoreClient : PUT", () => {
+  it("PUT : envoie le corps en JSON avec les mêmes en-têtes", async () => {
+    const { core, transport } = client([json(200, {})]);
+    await core.put("/v1/companies/7/members", { shares: [{ xuid: "42", percent: 100 }] });
+    const [request] = transport.requests;
+    assert.equal(request?.method, "PUT");
+    assert.equal(request?.url, "http://silooo-core:8080/v1/companies/7/members");
+    assert.equal(request?.body, '{"shares":[{"xuid":"42","percent":100}]}');
+    assert.deepEqual(
+      request?.headers.map((h) => h.name),
+      ["Content-Type", "X-Silooo-Key"],
+    );
+    assert.equal(request?.timeoutSeconds, 5);
+  });
+
+  it("un PUT n'est jamais rejoué tout seul, ni après une panne réseau ni après un 500", async () => {
+    const reseau = client([new Error("coupé"), json(200, {})]);
+    assert.equal((await reseau.core.put("/v1/x", {})).kind, "network");
+    assert.equal(reseau.transport.requests.length, 1);
+    const serveur = client([json(500, { reason: "ERREUR_INTERNE" }), json(200, {})]);
+    assert.equal((await serveur.core.put("/v1/x", {})).kind, "error");
+    assert.equal(serveur.transport.requests.length, 1);
+  });
+
+  it("un 400 d'un PUT est une erreur de requête (pas un refus du jeu), un 403 et un 409 sont des refus", async () => {
+    const quatreCents = client([json(400, { reason: "REQUETE_INVALIDE" })]);
+    assert.deepEqual(await quatreCents.core.put("/v1/x", {}), { kind: "error", status: 400, reason: "REQUETE_INVALIDE" });
+    assert.deepEqual(await client([json(403, { reason: "PAS_LE_PDG" })]).core.put("/v1/x", {}), {
+      kind: "refused",
+      status: 403,
+      reason: "PAS_LE_PDG",
+    });
+    assert.deepEqual(await client([json(409, { reason: "CONFLIT_REESSAYER" })]).core.put("/v1/x", {}), {
+      kind: "refused",
+      status: 409,
+      reason: "CONFLIT_REESSAYER",
+    });
+  });
+});

@@ -79,6 +79,12 @@ function readInvitation(event: GameEvent): Invitation | undefined {
   return { companyId, companyName, invitedBy, invitedByName, expiresAtMs };
 }
 
+/** L'invitation seule, sans les notes internes de l'entrée. */
+function plain(entry: Entry): Invitation {
+  const { companyId, companyName, invitedBy, invitedByName, expiresAtMs } = entry;
+  return { companyId, companyName, invitedBy, invitedByName, expiresAtMs };
+}
+
 /** Le texte du tchat : la bulle d'Oooscar, puis qui invite dans quelle entreprise. */
 export function invitationText(invitation: Invitation): string {
   const line = colored(COLOR.muted, ASSOCIES_TEXTES.invitation.texte(invitation.invitedByName, invitation.companyName));
@@ -114,9 +120,12 @@ export function createInvitations(deps: InvitationsDeps): Invitations {
   }
 
   return {
-    list: (xuid) => [...(live(xuid)?.values() ?? [])],
+    list: (xuid) => [...(live(xuid)?.values() ?? [])].map(plain),
 
-    find: (xuid, companyId) => live(xuid)?.get(companyId),
+    find(xuid, companyId) {
+      const entry = live(xuid)?.get(companyId);
+      return entry === undefined ? undefined : plain(entry);
+    },
 
     remove(xuid, companyId) {
       live(xuid)?.delete(companyId);

@@ -13,6 +13,7 @@ import type {
   CollectResponse,
   CompanyState,
   CompanyUpdated,
+  GameEvent,
   JoinResponse,
   MissionState,
   PrestigePreview,
@@ -302,4 +303,26 @@ export function plain(spec: ActionFormSpec): string {
 /** Le texte brut d'une chaîne, sans les codes de couleur. */
 export function bare(text: string): string {
   return text.replaceAll(/§./g, "");
+}
+
+// ---------------------------------------------------------------- l'entreprise partagée
+
+/** L'instant où commencent les tests des invitations : un jour avant l'expiration de celles de `invitationEvent`. */
+export const T0 = Date.parse("2026-11-05T12:00:00Z");
+
+/** L'événement `INVITATION` tel que le service le publie : adressé à l'invité. */
+export function invitationEvent(id: number, xuid: Xuid | null, payload: Record<string, unknown> = {}): GameEvent {
+  return {
+    id,
+    xuid,
+    kind: "INVITATION",
+    payload: {
+      companyId: 12,
+      companyName: "Les Forges",
+      invitedBy: "2535428000000002",
+      invitedByName: "Bea",
+      expiresAt: "2026-11-06T12:00:00Z",
+      ...payload,
+    },
+  };
 }
