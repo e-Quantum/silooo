@@ -147,7 +147,44 @@ Section tenue par la direction du site, étape par étape ([site-passation.md](s
   posent le `h1` et le contenu) ; aucun script, en-têtes de sécurité et de cache posés par le module. Les tests sont
   dans `core/src/test/kotlin/com/silooo/core/site/` et `ConfigTest` ; `tools/anti_ia.py` relit les contenus et les
   littéraux du paquet `site`. Détail : `core/README.md`, section « Le site ».
-- S1 : ce que Silooo Atelier devient sur le web. À écrire quand S1 est sur `main`.
+- S1 : Silooo Atelier devient un style web, écrit à la main dans `core/src/main/resources/site/public/` (voir ci-dessous).
+  - **Une seule feuille liée** par les pages, `site.css`, qui importe `atelier/tokens.css` (copie de `design/tokens.css`)
+    puis `atelier.css` (les composants et la mise en page, écrits à la main d'après `design/composants/bundle.css`).
+    Les composants gardent leurs noms `sa-*` : `sa-panneau` (et `--laiton`), `sa-plaque` (`--rouge`, `--petite`),
+    `sa-bouton` (rouge, `--laiton`, `--fonte`, état appuyé, focus visible), `sa-ticket`, `sa-monnaie`, `sa-icone`,
+    `sa-puce`, `sa-bulle`, `sa-oooscar`. Les `border-image` pointent vers les textures 9-slice copiées, avec la même
+    bordure fixe que la charte (15, 12 ou 6 pixels) pour que les coins gardent leur taille de 5 pixels de texture
+    à ×3. Le pixel art s'affiche en `image-rendering: pixelated`, Oooscar et le logo restent lisses, à hauteur fixe.
+  - **Ce qui est copié de `design/`** : `tokens.css`, les douze textures utiles de `textures/`, les quatorze icônes,
+    `oooscar-joie.png`, le logo (SVG, PNG de 512, de 128 et de 64 pixels). `SiteAtelierTest` compare chaque copie à sa
+    source octet pour octet : on change `design/`, puis on recopie, jamais l'inverse. Un composant neuf se dessine
+    d'abord dans `design/`, puis se recopie ici.
+  - **Les polices** sont servies par le site, pas par un tiers : les `woff2` du sous-ensemble latin de Jersey 10 (400),
+    Pixelify Sans (400 et 600) et Silkscreen (400), tirés des paquets npm `@fontsource/*` (version 5.3.0, licence OFL 1.1),
+    avec leur licence et un `LISEZ-MOI.md` dans `public/polices/<police>/`. Les `@font-face` ont `font-display: swap` et
+    les secours de `tokens.css` prennent le relais. La politique de sécurité ajoute `font-src 'self'` et rien d'autre.
+  - **Les tailles** : le corps fait 20 px sur 27 px d'interligne (1,35), sur téléphone aussi. Le titre `h1` est une
+    plaque en `affiche-titre` (50 px), les `h2`, le nom du site et le bouton rouge sont en `affiche-chiffre` (40 px) : deux
+    tailles d'affiche par page, pas une de plus. Les légendes (la mention de Mojang du pied) sont en `etiquette` (16 px,
+    la grille de Silkscreen). Les liens de navigation sont en corps gras de 20 px pour que huit tiennent sur un téléphone.
+    Les espacements sont les `--pas-N`, donc des multiples de 3 px ; les tailles de police sont celles de la charte.
+  - **Le fond des pages de lecture** (mentions, erreurs, plus tard le wiki) : texte `--fonte-900` sur un bloc de
+    `--papier`, dans le panneau de fonte. Le contraste est de 15,8 contre 6,6 pour `--papier` sur `--fonte-500` : les deux
+    passent la charte, mais un texte long se lit mieux sur le papier. La page d'attente, courte, garde le texte `--papier`
+    sur le panneau de fonte, comme les fenêtres du jeu. Les liens des pages de lecture sont en `--email-bleu` sur
+    `--papier` (7,9 contre 1), survolés en `--email-rouge-sombre` (9,5 contre 1).
+  - **Mobile** : à 360 px de large, pas de défilement horizontal (aucune largeur fixe de plus de 360 px, les `width` des
+    images sont des plafonds), liens de navigation, boutons et liens du pied de 60 px au moins. Un seul bouton rouge par
+    page : le Discord sur l'attente, le retour à l'accueil sur la page introuvable.
+  - **Ce que la charte bannit et que `SiteAtelierTest` refuse dans le CSS** : `border-radius`, les dégradés (`linear-`,
+    `radial-` et `conic-gradient`), `blur(`, `backdrop-filter`, toute `width:` fixe au-dessus de 360 px (hors `max-width`),
+    toute adresse d'un autre hôte, tout fichier cité par `url(...)` qui n'existe pas dans les ressources. Les seules
+    ombres sont `ombre-pixel` et `ombre-texte`.
+  - **Le gabarit** (`pages/Gabarit.kt`) : lien d'évitement, en-tête (logo SVG, nom, navigation), `<main>` en panneau de fonte, pied
+    (mention de Mojang, Mentions, Discord s'il est configuré). La navigation est une liste d'adresses ordonnée
+    (`pages/Navigation.kt`) filtrée par les pages que `SiteContent` rend pour le mode : seulement Mentions en `attente`,
+    sans lien mort en `ouvert`. `<head>` : `og:title`, `og:description`, `og:image` absolu (`SILOOO_SITE_URL` et le logo de
+    512 px), `theme-color` du ciel, icône du site.
 
 ## Ce qui est tranché, provisoirement
 

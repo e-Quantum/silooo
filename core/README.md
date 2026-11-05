@@ -596,5 +596,15 @@ ne le publie jamais.
 - **Les tests** (sans base) : `site/SiteModuleTest` (les deux modes, `lang`, un seul `h1`, `title`, `description`, `alt`, les
   en-têtes, le 404, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, et `ConfigTest` pour les variables.
 - **Les textes** vus par les visiteurs passent `tools/anti_ia.py` (contenus Markdown en entier, littéraux du paquet `site`), et chaque
-  texte neuf reste à valider par Kr. Le CSS de cette étape ne fait que reprendre les couleurs de `design/tokens.css` ; le style Silooo
-  Atelier arrive en S1.
+  texte neuf reste à valider par Kr.
+- **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`) : `public/site.css` est l'unique feuille liée, elle importe
+  `atelier/tokens.css` puis `atelier.css` (composants `sa-*` et mise en page). Les jetons, les textures (`atelier/textures/`), les
+  icônes, Oooscar (`atelier/oooscar/`) et les logos (`logo/`) sont des copies de `design/` ; `SiteAtelierTest` les compare à la
+  source octet pour octet et refuse un `url(...)` sans fichier, un arrondi, un dégradé, un flou ou une largeur fixe au-dessus de
+  360 px. Les polices (`polices/`, `woff2` latin tirés de `@fontsource/*`, licence OFL) sont servies par le site.
+- **Ajouter un composant** : le dessiner d'abord dans `design/` (texture dans `design/textures/`, règle dans `design/composants/`),
+  recopier la texture dans `public/atelier/textures/`, écrire la règle dans `atelier.css` avec le même nom `sa-*` et la même bordure
+  de `border-image` que `bundle.css`, puis ajouter la texture à la liste du test de copie si besoin.
+- **Voir les pages dans un navigateur** sans base : `SILOOO_SITE_RENDER_DIR=/tmp/site ./gradlew test --tests '*SiteRenderToDisk'`
+  écrit les pages rendues et `public/` dans ce dossier ; on le sert avec n'importe quel serveur de fichiers (ce test est ignoré
+  quand la variable n'est pas posée).
