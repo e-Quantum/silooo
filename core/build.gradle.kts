@@ -1,0 +1,55 @@
+// silooo-core : le service Kotlin qui décide de tout (ADR 0002). Versions dans gradle/libs.versions.toml.
+
+plugins {
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    application
+}
+
+group = "com.silooo"
+version = "0.1.0"
+
+kotlin {
+    // JDK 17 partout : PC de Kr, CI (Temurin 17) et image Docker (eclipse-temurin:17).
+    jvmToolchain(17)
+}
+
+application {
+    mainClass.set("com.silooo.core.MainKt")
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.status.pages)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
+
+    implementation(libs.hikari)
+    implementation(libs.mariadb.jdbc)
+    implementation(libs.flyway.core)
+    implementation(libs.flyway.mysql)
+
+    implementation(libs.logback.classic)
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.testcontainers.mariadb)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.test {
+    useJUnitPlatform()
+    testLogging {
+        // Un test ignoré (Docker absent) doit se voir : jamais de réussite à vide.
+        events("passed", "skipped", "failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
