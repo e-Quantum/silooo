@@ -137,7 +137,12 @@ function fakePlayer(name: string, failing = false): { player: HudPlayerLike; sen
   };
 }
 
-function hudFor(players: () => HudPlayerLike[], titleChannel: boolean, link: "ok" | "down" = "ok") {
+function hudFor(
+  players: () => HudPlayerLike[],
+  titleChannel: boolean,
+  link: "ok" | "down" = "ok",
+  silenced?: (player: HudPlayerLike) => boolean,
+) {
   const clock = fakeClock(0);
   const log = recordingLogger();
   const views = createViewStore({ players: storeWith({ donar: 10, ratePerHour: 3_600 }), clock });
@@ -149,6 +154,7 @@ function hudFor(players: () => HudPlayerLike[], titleChannel: boolean, link: "ok
     status: createStatusLog(log, "HUD"),
     titleChannel,
     titleStaySeconds: 4,
+    ...(silenced === undefined ? {} : { silenced }),
   });
   return { hud, log, clock };
 }
@@ -226,6 +232,46 @@ describe("createHud", () => {
     const { hud, log } = hudFor(() => [], true);
     hud.refresh();
     assert.deepEqual(log.all(), []);
+  });
+});
+
+describe("createHud, joueur silencieux (arrivée et cinématique)", () => {
+  it("n'envoie rien à un joueur silencieux, ni titre ni barre d'action, et continue pour les autres", () => {
+    const occupe = fakePlayer("Occupe");
+    const libre = fakePlayer(GAMERTAG);
+    const { hud, log } = hudFor(() => [occupe.player, libre.player], true, "ok", (player) => player.name === "Occupe");
+    hud.refresh();
+    assert.equal(occupe.sent.title, undefined);
+    assert.deepEqual(occupe.sent.actionBars, []);
+    assert.equal(libre.sent.actionBars.length, 1);
+    assert.ok(libre.sent.title !== undefined);
+    assert.deepEqual(log.all(), []);
+  });
+
+  it("reprend dès que le joueur n'est plus silencieux", () => {
+    const joueur = fakePlayer(GAMERTAG);
+    let occupe = true;
+    const { hud } = hudFor(() => [joueur.player], false, "ok", () => occupe);
+    hud.refresh();
+    hud.refresh();
+    assert.equal(joueur.sent.actionBars.length, 0);
+    occupe = false;
+    hud.refresh();
+    assert.equal(joueur.sent.actionBars.length, 1);
+  });
+
+  it("un joueur silencieux qui ne répondrait plus n'est pas compté comme un échec", () => {
+    const parti = fakePlayer("Parti", true);
+    const { hud, log } = hudFor(() => [parti.player], false, "ok", () => true);
+    hud.refresh();
+    assert.deepEqual(log.all(), []);
+  });
+
+  it("sans règle de silence, tout le monde reçoit le HUD", () => {
+    const joueur = fakePlayer(GAMERTAG);
+    const { hud } = hudFor(() => [joueur.player], false);
+    hud.refresh();
+    assert.equal(joueur.sent.actionBars.length, 1);
   });
 });
 
