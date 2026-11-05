@@ -68,6 +68,20 @@ else
   ko "TypeScript : trouvaille attendue ligne 2 seulement" "$sortie"
 fi
 
+sortie="$(anti_ia tools/tests/anti-ia/signaler/mot-banni--litteral.kt 2>&1)"
+if printf '%s\n' "$sortie" | grep -q "litteral.kt:2: mot-banni" && printf '%s\n' "$sortie" | grep -q "litteral.kt:5: mot-banni" \
+  && ! printf '%s\n' "$sortie" | grep -Eq "litteral.kt:[134]:"; then
+  ok "Kotlin : les littéraux des lignes 2 et 5 (chaîne brute) sont signalés, pas les autres"
+else
+  ko "Kotlin : trouvailles attendues lignes 2 et 5 seulement" "$sortie"
+fi
+sortie="$(anti_ia tools/tests/anti-ia/signaler/majuscules-d-insistance--mention-modifiee.txt 2>&1)"
+if printf '%s\n' "$sortie" | grep -q "majuscules-d-insistance"; then
+  ok "la mention de Mojang modifiée est signalée : l'exception ne couvre que le texte exact"
+else
+  ko "la mention de Mojang modifiée devrait être signalée" "$sortie"
+fi
+
 if anti_ia tools/tests/anti-ia/grade-ultime/boutique.json >/dev/null 2>&1; then ok "le grade Ultime de la boutique est accepté"; else ko "le grade Ultime devrait passer"; fi
 if anti_ia tools/tests/anti-ia/ultime-hors-boutique/boutique.json >/dev/null 2>&1; then ko "« Pack Ultime » devrait être signalé"; else ok "« Pack Ultime » reste signalé"; fi
 if anti_ia definitions/boutique.json definitions/usines.json definitions/economie.json >/dev/null 2>&1; then ok "les vraies définitions passent"; else ko "les vraies définitions devraient passer"; fi
@@ -75,6 +89,7 @@ if anti_ia definitions/boutique.json definitions/usines.json definitions/economi
 # ------------------------------------------------------------------ anti_ia.py : hook et --tout
 echo "anti_ia.py --hook : seuls les textes des joueurs sont lus"
 mkdir -p "$TMP/docs" "$TMP/definitions/schemas" "$TMP/addon/src" "$TMP/resource-pack/texts" "$TMP/world/ile"
+mkdir -p "$TMP/core/src/main/resources/site/contenu" "$TMP/core/src/main/kotlin/com/silooo/core/site" "$TMP/core/src/main/kotlin/com/silooo/core/economy"
 mauvais_json='{ "nom": "Plonge dans l'"'"'aventure" }'
 printf '%s\n' "Plonge dans une aventure épique !!" > "$TMP/docs/mauvais.md"
 printf '%s\n' "$mauvais_json" > "$TMP/definitions/mauvais.json"
@@ -82,6 +97,9 @@ printf '%s\n' '{ "nom": "Scierie" }' > "$TMP/definitions/propre.json"
 printf '%s\n' "$mauvais_json" > "$TMP/definitions/schemas/mauvais.json"
 printf '%s\n' 'const t = "Une expérience unique";' > "$TMP/addon/src/ecran.ts"
 printf '%s\n' "$mauvais_json" > "$TMP/world/ile/infos.json"
+printf '%s\n' "Plonge dans une aventure épique !!" > "$TMP/core/src/main/resources/site/contenu/mauvais.md"
+printf '%s\n' 'val t = "Une expérience unique"' > "$TMP/core/src/main/kotlin/com/silooo/core/site/X.kt"
+printf '%s\n' 'val t = "Une expérience unique"' > "$TMP/core/src/main/kotlin/com/silooo/core/economy/X.kt"
 printf '%s\n' 'silooo.titre=SCIERIE' 'silooo.epique.cle=Scierie' 'silooo.msg=Plonge dans le jeu' > "$TMP/resource-pack/texts/fr_FR.lang"
 
 # hook <chemin tel que Claude Code l'écrit> [racine] : rend le code de sortie, stderr dans $TMP/stderr
@@ -107,6 +125,9 @@ attendre_hook 0 "definitions/schemas/ est hors motif" "$TMP_NATIF/definitions/sc
 attendre_hook 2 "addon/src/*.ts : littéral signalé" "$TMP_NATIF/addon/src/ecran.ts" "expérience"
 attendre_hook 2 "world/**/*.json : valeur signalée" "$TMP_NATIF/world/ile/infos.json" "mot-banni"
 attendre_hook 2 "resource-pack/**/texts/** (.lang) : ligne 3 signalée" "$TMP_NATIF/resource-pack/texts/fr_FR.lang" "fr_FR.lang:3:"
+attendre_hook 2 "core/src/main/resources/site/contenu/*.md : texte entier relu" "$TMP_NATIF/core/src/main/resources/site/contenu/mauvais.md" "mot-banni"
+attendre_hook 2 "core/.../site/*.kt : littéral signalé" "$TMP_NATIF/core/src/main/kotlin/com/silooo/core/site/X.kt" "expérience"
+attendre_hook 0 "core/.../economy/X.kt : seul le paquet site est un texte de joueur" "$TMP_NATIF/core/src/main/kotlin/com/silooo/core/economy/X.kt"
 attendre_hook 0 "un fichier qui n'existe pas est ignoré" "$TMP_NATIF/definitions/absent.json"
 if command -v cygpath >/dev/null 2>&1; then
   attendre_hook 2 "chemin Windows avec des antislashs" "$(cygpath -w "$TMP/definitions/mauvais.json")" "mot-banni"

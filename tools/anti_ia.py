@@ -29,14 +29,15 @@ from pathlib import Path
 
 # Les lecteurs JSON et TypeScript vivent dans tools/lib/ (fichiers de 400 lignes au plus).
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from anti_ia_lecteurs import litteraux_ts, valeurs_json  # noqa: E402
+from anti_ia_lecteurs import litteraux_kt, litteraux_ts, valeurs_json  # noqa: E402
 
 # ----------------------------------------------------------------------------------------------
 # Où sont les textes des joueurs ? Motifs relatifs à la racine du dépôt. « * » ne franchit pas un
 # dossier, « ** » en franchit. Jamais docs/ ni design/ : ils citent les mots bannis en exemple.
 # Pour un .json on lit les valeurs de chaînes seulement (pas les clés), pour un .ts les chaînes
-# entre guillemets (le code a des « ... » et des « !! » qui ne sont pas du texte), pour un .lang la
-# partie après le « = », pour le reste le texte entier.
+# entre guillemets (le code a des « ... » et des « !! » qui ne sont pas du texte), pour un .kt les chaînes
+# entre guillemets doubles et les chaînes brutes, pour un .lang la partie après le « = », pour le reste
+# le texte entier.
 # ----------------------------------------------------------------------------------------------
 TEXTES_JOUEURS = [
     "definitions/*.json",
@@ -44,6 +45,10 @@ TEXTES_JOUEURS = [
     "resource-pack/**/texts/**",
     "addon/src/**/*.ts",
     "world/**/*.json",
+    # Le site public (docs/site.md) : les contenus en Markdown (texte entier) et les pages en Kotlin (littéraux).
+    # Seul le paquet « site » compte : le reste de core/ est du code, pas du texte de joueur.
+    "core/src/main/resources/site/**/*.md",
+    "core/src/main/kotlin/com/silooo/core/site/**/*.kt",
 ]
 
 # Dossiers qu'on ne parcourt jamais en mode --tout (code généré, dépendances). « generated » : les types
@@ -87,6 +92,14 @@ SIGLES = {
     "HTTP", "HTTPS", "POST", "PATCH", "HEAD", "DELETE", "OPTIONS", "UUID", "XUID", "HTML",
     "ASCII", "NULL", "TRUE", "FALSE", "TODO", "FIXME", "NOTE", "BDS",
 }
+
+# Les seules phrases en capitales qui échappent à la règle des majuscules d'insistance. Mojang l'exige
+# de tout serveur indépendant, mot pour mot et en capitales : c'est une mention légale, pas une façon
+# d'insister. Le texte est masqué (remplacé par des espaces, les positions ne bougent pas) avant cette règle
+# seulement ; toutes les autres règles le regardent. Ne rien ajouter ici sans une obligation du même ordre.
+MENTIONS_PERMISES = (
+    "NOT AN OFFICIAL MINECRAFT SERVICE. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.",
+)
 
 # ----------------------------------------------------------------------------------------------
 # Les règles
@@ -190,7 +203,10 @@ def analyser_segment(texte: str, ligne_depart: int, fichier: str, *, nom_ou_id_b
     # Un titre ou une étiquette tout en capitales (SCIERIE, NIV. 47 · ÉPOQUE 1) est voulu par le
     # design system : on ne regarde les capitales qu'au milieu d'une phrase qui a des minuscules.
     if RE_MINUSCULE.search(texte):
-        for m in RE_MAJUSCULES.finditer(texte):
+        masque = texte
+        for mention in MENTIONS_PERMISES:
+            masque = masque.replace(mention, " " * len(mention))
+        for m in RE_MAJUSCULES.finditer(masque):
             if m.group(0) not in SIGLES:
                 ajouter("majuscules-d-insistance", m.start(), m.end())
     return trouvailles
@@ -211,6 +227,9 @@ def analyser_texte(contenu: str, nom: str, affiche: str) -> list[Trouvaille]:
             trouvailles += analyser_segment(valeur, ligne, affiche, nom_ou_id_boutique=boutique)
     elif suffixe == ".ts":
         for ligne, valeur in litteraux_ts(contenu):
+            trouvailles += analyser_segment(valeur, ligne, affiche, code=True)
+    elif suffixe == ".kt":
+        for ligne, valeur in litteraux_kt(contenu):
             trouvailles += analyser_segment(valeur, ligne, affiche, code=True)
     else:
         for numero, ligne in enumerate(contenu.split("\n"), start=1):
