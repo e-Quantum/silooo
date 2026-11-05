@@ -80,6 +80,8 @@ export type EconomieDefinitions = {
       readonly donar: number;
     }[];
     readonly etoilesSuivantes: string;
+    /** Au-delà de la dernière course listée dans seuils, chaque seuil vaut le précédent multiplié par ce facteur (la lecture chiffrée de etoilesSuivantes). */
+    readonly facteurSeuilSuivant: number;
     readonly conversionLingots: {
       readonly coefficient: number;
       readonly diviseurReference: number;
@@ -103,6 +105,25 @@ export type EconomieDefinitions = {
   readonly notation: {
     readonly apresMd: string;
     readonly limiteDouble: string;
+  };
+};
+
+// ---- monde.json
+
+/** Forme de definitions/monde.json. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type MondeDefinitions = {
+  readonly version: number;
+  /** La grille des archipels dans le monde unique : une case par entreprise, rangées de gauche à droite puis de rangée en rangée. */
+  readonly archipel: {
+    /** Distance en blocs entre les origines de deux cases voisines, sur x comme sur z : la place réservée à chaque archipel. */
+    readonly ecartEntreCases: number;
+    /** Nombre de cases d'une rangée (le long de x) avant de passer à la rangée suivante (le long de z). */
+    readonly casesParRangee: number;
+    /** Coordonnées en blocs de la case d'indice 0. */
+    readonly origine: {
+      readonly x: number;
+      readonly z: number;
+    };
   };
 };
 
