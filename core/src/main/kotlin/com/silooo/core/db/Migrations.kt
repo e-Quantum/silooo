@@ -25,7 +25,7 @@ object Migrations {
     fun migrate(config: DatabaseConfig, target: String = "latest"): Int =
         flyway(config, target).migrate().migrationsExecuted
 
-    /** Lève `FlywayValidateException` si la base n'est pas exactement à jour avec les fichiers. */
+    /** Lève une `FlywayException` si la base n'est pas exactement à jour avec les fichiers. */
     fun validate(config: DatabaseConfig) {
         flyway(config, "latest").validate()
     }
