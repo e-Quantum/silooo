@@ -4,6 +4,7 @@ import com.silooo.core.api.Refusal
 import com.silooo.core.api.RefusalCodes
 import io.ktor.http.HttpStatusCode
 import java.sql.Connection
+import java.sql.SQLException
 
 /** Les monnaies personnelles (`player_balances`). Les noms sont ceux de l'énumération `currency_ledger.currency`. */
 enum class Currency(val column: String) {
@@ -37,6 +38,9 @@ class InsufficientBalance(val currency: Currency, val missing: Long) :
 
 private const val REASON_MAX = 32 // currency_ledger.reason VARCHAR(32)
 private const val REF_ID_MAX = 64 // currency_ledger.ref_id VARCHAR(64)
+
+/** `ER_NO_REFERENCED_ROW_2` : la clé étrangère ne trouve pas la ligne parente (le joueur). */
+private const val NO_REFERENCED_ROW = 1452
 
 /**
  * Change un solde personnel de [delta] (positif : gain, négatif : dépense) et l'écrit dans le journal,
@@ -104,9 +108,15 @@ private fun lockBalance(connection: Connection, xuid: Xuid, currency: Currency):
 
     read()?.let { return it }
     // INSERT IGNORE : une autre transaction a pu créer la ligne entre-temps ; la relecture verrouillée tranche.
-    connection.prepareStatement("INSERT IGNORE INTO player_balances (xuid) VALUES (?)").use {
-        it.setXuid(1, xuid)
-        it.executeUpdate()
+    // Joueur inconnu : la clé étrangère refuse la ligne (en erreur, ou en simple avertissement avec IGNORE selon
+    // la version) ; dans les deux cas la relecture ne trouve rien et l'erreur est celle de plus bas.
+    try {
+        connection.prepareStatement("INSERT IGNORE INTO player_balances (xuid) VALUES (?)").use {
+            it.setXuid(1, xuid)
+            it.executeUpdate()
+        }
+    } catch (e: SQLException) {
+        if (e.errorCode != NO_REFERENCED_ROW) throw e
     }
     return read() ?: throw IllegalArgumentException("Joueur inconnu : $xuid")
 }

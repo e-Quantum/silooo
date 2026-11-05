@@ -248,7 +248,7 @@ class SessionRoutesTest {
 
         assertEquals(HttpStatusCode.Conflict, response.status)
         assertEquals(RefusalCodes.CONFLICT_RETRY, SiloooJson.decodeFromString(RefusedBody.serializer(), response.bodyAsText()).reason)
-        assertEquals(3, attempts, "trois essais avant de rendre le conflit")
+        assertEquals(MAX_JOIN_ATTEMPTS, attempts, "tous les essais sont faits avant de rendre le conflit")
     }
 
     @Test
