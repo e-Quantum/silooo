@@ -61,6 +61,9 @@ section « HUD, menus, cinématiques, Vote party ». Ils valent pour le jeu, le 
 
 ## Deux points que le game design laisse ouverts
 
+Les deux sont dans « À faire par Kr » de [passation.md](passation.md) ; rien ne s'écrit dessus avant sa
+réponse.
+
 - Le game design cite encore des lootbox avec des clés achetables. Les règles du dépôt interdisent
   le hasard payant. Tant que Kr n'a pas tranché, aucun écran ni aucune route de lootbox ne s'écrit :
   à confirmer par Kr.

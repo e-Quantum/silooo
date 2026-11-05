@@ -43,7 +43,7 @@ fichier dit qui parle à qui et résume les dix règles du socle.
 | Add-on | silooo-core | `POST /v1/server/heartbeat` | Dire que le serveur tourne et qui est en ligne |
 | silooo-core | MariaDB de SileneMC | Compte applicatif, base `silooo` | Lire et écrire l'état du jeu |
 | silooo-migrate | MariaDB de SileneMC | Compte migrateur, Flyway | Appliquer les migrations |
-| silooo-core | Redis de SileneMC | Clés préfixées `silooo:` | Cache et compteurs ; usage précis à relever en phase 1 |
+| silooo-core | Redis de SileneMC | Clés préfixées `silooo:` | Pas encore utilisé : la présence des joueurs (`ServerPresence`) est en mémoire du service ; Redis la recevra si plusieurs instances l'exigent |
 | Site de SileneMC | MariaDB de SileneMC | `INSERT` sur `shop_deliveries`, rien d'autre | Déposer une commande de Gemmes payée |
 | silooo-core | Sites de vote | Appels sortants | Relever les votes, voir [design/composants/VoteParty.md](../design/composants/VoteParty.md) |
 | silooo-core | Discord (plus tard) | Bot | Alertes privées : silo plein, commande qui expire |
@@ -82,6 +82,9 @@ Chaque règle est détaillée dans [socle.md](socle.md), section « Règles à g
   personnel, prestige, associés, ville, commande mondiale, marché, boutique, pass, événements.
 - Un refus renvoie un code stable listé dans la réponse `Refused` de l'OpenAPI (`PAS_ASSEZ_DE_DONAR`,
   `PAS_LE_PDG`, `SEUIL_NON_ATTEINT`). L'add-on choisit l'icône et la bulle d'Oooscar.
+- Une erreur technique, hors du jeu, renvoie la réponse `Erreur` (`REQUETE_INVALIDE`, `CLE_INVALIDE`,
+  `ERREUR_INTERNE`, `PAS_FAIT`), déclarée sur toutes les opérations. L'add-on les traite d'un bloc :
+  réessayer, ou dire qu'Oooscar ne répond pas. Une route pas encore écrite répond `PAS_FAIT`.
 - Les événements ont un type listé dans le schéma `GameEvent` (`GEMMES_RECUES`, `INCIDENT`,
   `BOOST_COLLECTIF`). Un nouveau type s'ajoute d'abord à l'OpenAPI.
 - Une route change d'abord dans l'OpenAPI, puis dans son test de contrat, puis dans le code.
@@ -91,17 +94,37 @@ Chaque règle est détaillée dans [socle.md](socle.md), section « Règles à g
 | Dossier | Contenu | État |
 | --- | --- | --- |
 | `api/` | [silooo-core.openapi.yaml](../api/silooo-core.openapi.yaml), le contrat | présent |
-| `core/` | silooo-core : Kotlin, Ktor, Gradle, migrations Flyway | squelette de la phase 1 : clé, heartbeat, Flyway, filet 501 ; voir `core/README.md` |
-| `addon/` | Pack de comportement : TypeScript strict, compilé par esbuild en un seul fichier | à créer en phase 2 |
-| `resource-pack/` | Textures du design system, JSON UI, police, entité Oooscar | à créer en phase 2 |
+| `core/` | silooo-core : Kotlin, Ktor, Gradle, Flyway ; routes de session, moteur d'économie, routes `getCompany`, `collect`, `buyLevels` et `restoreStep` ; les autres routes répondent `PAS_FAIT` | présent, voir [core/README.md](../core/README.md) |
+| `addon/` | Pack de comportement : TypeScript strict, esbuild, client `server-net`, HUD, menu, fiche d'usine, Silo, mini-îles, arrivée, cinématique, Oooscar | présent, voir [addon/README.md](../addon/README.md) |
+| `resource-pack/` | Textures copiées de `design/`, JSON UI du HUD, Oooscar côté client | présent ; formulaires et police bitmap à faire, voir [design.md](design.md) |
 | `definitions/` | Les chiffres du jeu et leurs schémas | présent |
-| `deploy/` | Compose, image BDS, scripts de déploiement | à créer en phase 2 |
-| `tools/` | Vérificateur, anti-IA, simulateur, générateur de types | en cours |
+| `deploy/` | Compose `silooo`, image `silooo-bds` (sans BDS dedans), scripts de déploiement et de sauvegarde | présent, voir [deploy/README.md](../deploy/README.md) |
+| `tools/` | `verifier.sh`, vérification des définitions et du pack, générateur de types, anti-IA, hooks, tests de l'outillage | présent ; le simulateur des treize cibles vient en phase 4 |
 
 L'arborescence complète est dans [plan-construction.md](plan-construction.md), section
 « Arborescence du dépôt ». Les limites de la Script API sont dans [bedrock.md](bedrock.md), les
 tables dans [base-de-donnees.md](base-de-donnees.md), le déploiement dans
 [deploiement.md](deploiement.md).
+
+## Ce que le code a précisé depuis le socle
+
+Chaque point est une décision numérotée de [passation.md](passation.md), section « Décisions prises
+sans Kr », en attente de sa relecture.
+
+- **Identité provisoire des joueurs** (décision 25). La Script API ne donne pas le XUID. L'add-on
+  envoie dans le champ `xuid` une empreinte 64 bits du gamertag, calculée dans `addon/src/identity.ts`.
+  Le contrat, la base et le service n'en changent pas ; un gamertag changé est un joueur neuf.
+- **Réponses techniques** (décision 10). La réponse `Erreur` sépare les pannes et les routes pas
+  faites des refus du jeu.
+- **L'île vient du service** (décisions 29 et 30). `CompanyState.island` donne l'origine de la case de
+  l'archipel, calculée depuis `archipelago_slots` et `definitions/monde.json` ; l'add-on y pose l'île et
+  les mini-îles d'après `definitions/iles.json`, sans rien calculer.
+- **Deux régimes de production** (décision 27). Revenu plein tant qu'un membre est connecté, formule hors
+  ligne sinon : [economie.md](economie.md), section « Hors ligne ».
+- **La présence** : `heartbeat` remplit `ServerPresence` en mémoire ; `join` s'en sert pour choisir le
+  régime. Un serveur qui ne bat plus n'a plus de joueurs en ligne.
+- **BDS hors de l'image** (décision 26). Le zip du serveur est posé par Kr et contrôlé au démarrage :
+  [deploiement.md](deploiement.md).
 
 ## Plus tard
 

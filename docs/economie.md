@@ -165,14 +165,13 @@ le service tranche ainsi, **à valider par Kr** :
 
 La feuille « Synthèse » du tableur compare, pour un joueur type, le temps calculé à une fourchette
 cible pour treize étapes : première amélioration, deuxième usine, première zone de ville, Mine
-profonde, les trois prestiges, puis les six premières étoiles. Les tests dorés de silooo-core,
-écrits en phase 1, rejoueront ces treize étapes ; un chiffre qui sort d'une cible fera échouer la CI. La feuille
+profonde, les trois prestiges, puis les six premières étoiles. Les tests dorés de silooo-core (`core/src/test/resources/golden/`) rejouent les valeurs du tableur, course par course ; le simulateur qui enchaîne les treize étapes de bout en bout, et fait échouer la CI quand un temps sort de sa fourchette, vient en phase 4. La feuille
 « Paramètres » liste les réglages, dans le même ordre que `economie.json`. Le tableur portait
 encore le nom UrbaFactory : c'est le même fichier.
 
 ### Ce que le moteur de la phase 1 a dû trancher
 
-Le moteur (`core/.../economy/`) rejoue le tableur à 1e-14 près en relatif, soit l'arrondi à 15 chiffres
+Le moteur (`core/src/main/kotlin/com/silooo/core/economy/`) rejoue le tableur à 1e-14 près en relatif, soit l'arrondi à 15 chiffres
 des JSON dorés et rien d'autre. Pour y arriver, il applique les règles suivantes, toutes **à valider par Kr**
 (points 1, 2, 4, 5 et 6 de `core/src/test/resources/golden/README.md`) :
 

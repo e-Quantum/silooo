@@ -69,7 +69,7 @@ Le détail et la procédure pas à pas sont dans [deploy/README.md](../deploy/RE
 | `deploy/scripts/commun.sh` | Les réglages communs des deux scripts, et les interdits écrits en commentaire |
 
 Le dossier de projet de Compose est la racine (`/var/www/silooo`), pas `deploy/` : Compose y lit le fichier
-d'environnement, pour les `${...}` du compose et pour `env_file`. Les scripts le passent avec
+d'environnement, pour les `${VARIABLE}` du compose et pour `env_file`. Les scripts le passent avec
 `--project-directory`. `deploy/.tag-courant` (le tag en place, pour le retour arrière) et `sauvegardes/`
 sont ignorés par git.
 

@@ -38,6 +38,11 @@ Les salariés ordinaires n'ont pas de ligne : ils se déduisent du niveau de l'u
 personnel nommé (chefs, directeurs, recrues de l'agence) est dans `staff`. La décoration libre de la
 ville vit dans le monde, pas en base.
 
+Le XUID rangé dans `players.xuid` est, pour l'instant, une empreinte du gamertag calculée par l'add-on : la
+Script API ne donne pas le XUID (décision 25 de [passation.md](passation.md), à valider par Kr). Le schéma, le
+contrat et le service n'en changent pas. `players.last_seen_at` se fige au départ du joueur ; le calcul hors
+ligne ne part pas de lui mais de `companies.last_collect_at`, qui appartient à l'entreprise.
+
 ## Les monnaies et leurs types
 
 | Monnaie | Où | Type | Pourquoi |
@@ -64,15 +69,15 @@ semaine. Le Donar n'a pas de journal ligne à ligne : il change à chaque encais
 Chaque appel qui modifie quelque chose porte un `requestId` (UUID), dans le corps `ActionBase` ou
 en paramètre pour le `DELETE`. silooo-core garde la réponse dans `api_requests`, clé `request_id`.
 Un appel rejoué après une coupure ou un nouvel essai de l'add-on retrouve la réponse gardée et ne
-refait pas l'action. `shop_purchases.request_id` est unique pour la même raison. Les lignes
-anciennes de `api_requests` se purgent par date : la durée de rétention est à fixer en phase 1.
+refait pas l'action. `shop_purchases.request_id` est unique pour la même raison. Les lignes anciennes de `api_requests` se purgent par lots, une fois par heure ; la durée de garde est un réglage technique du service, variable `SILOOO_API_REQUESTS_RETENTION_HOURS`, valeur par défaut dans [core/README.md](../core/README.md).
 
 ## Le verrou optimiste
 
 `companies.version` et `player_balances.version` changent à chaque écriture. Une écriture qui porte
 une version dépassée est refusée avec le code `CONFLIT_REESSAYER` ; l'add-on relit l'état et rejoue.
 C'est ce qui permet à plusieurs associés de jouer en même temps sans verrou long en base. Le champ
-`CompanyState.version` de l'API transporte cette valeur.
+`CompanyState.version` de l'API transporte cette valeur. Sur MariaDB 12, l'erreur « ligne changée depuis la
+lecture » de l'isolation par instantané est traitée comme un conflit de version : même code, même rejeu.
 
 ## Les livraisons de Gemmes
 
@@ -84,6 +89,9 @@ l'événement `GEMMES_RECUES`. Un pseudo inconnu laisse la ligne en attente.
 ## La règle des migrations
 
 - Une migration appliquée ne se modifie jamais. Une table change par une nouvelle migration.
+- Deux modes pour silooo-core : `migrate` applique les migrations et sort (service `silooo-migrate`, compte
+  migrateur) ; le démarrage normal vérifie seulement que la base est au niveau attendu et refuse de démarrer
+  sinon. Jamais de remise à zéro de la base : elle est partagée.
 - Le numéro suivant se prend dans l'ordre et s'annonce dans [passation.md](passation.md). Nom de
   fichier : `V<numéro>__<sujet-court>.sql`.
 - Chaque migration reste compatible avec la version précédente du service, pour que le retour

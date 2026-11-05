@@ -28,15 +28,17 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 | XUID | `players.xuid`, schéma `Xuid` | Identifiant Xbox du joueur. Entier 64 bits en base, chaîne dans le JSON. |
 | Gamertag | `players.gamertag` | Le pseudo Xbox du joueur. |
 | UUID Floodgate | `players.floodgate_uuid` | L'UUID que Floodgate déduit du XUID sur SileneMC, gardé pour relier les comptes un jour. |
+| Empreinte du gamertag | `addon/src/identity.ts`, champ `xuid` du contrat | Identité provisoire : la Script API ne donne pas le XUID, l'add-on envoie une empreinte 64 bits du gamertag en minuscules. Un gamertag changé est un joueur neuf. À valider par Kr (décision 25 de la passation). |
 | Entreprise | `companies`, `CompanyState` | L'unité de jeu : un nom, un archipel, une course de Donar, des usines, une ville. Un joueur n'appartient qu'à une entreprise. |
+| Nom provisoire | `CompanyNaming` dans `core/` | « Entreprise de <gamertag> » tant que le contrat n'a pas de route pour nommer l'entreprise. Texte à valider par Kr. |
 | PDG | `company_members.role` = `PDG` | Le fondateur de l'entreprise. Seul lui lance le prestige, invite des associés et fixe les parts. |
 | Associé | `company_members.role` = `ASSOCIE` | Un membre invité par le PDG. Il gère au quotidien et reçoit sa part des Lingots au prestige. |
 | Part | `company_members.share_percent`, `setShares` | Pourcentage des Lingots du prestige attribué à chaque membre par le PDG. |
 | Invitation | `company_invites`, `invite`, événement `INVITATION` | Proposition de rejoindre une entreprise, avec une date d'expiration. |
-| Case de l'archipel | `archipelago_slots`, `companies.slot_index` | La position de l'archipel d'une entreprise sur la grille du monde unique. |
+| Case de l'archipel | `archipelago_slots`, `companies.slot_index`, `CompanyState.island`, `definitions/monde.json` | La position de l'archipel d'une entreprise sur la grille du monde unique. Le service calcule l'origine de la case avec les clés `archipel` de `monde.json` et la renvoie dans `island` ; l'add-on ne la calcule jamais. |
 | Archipel | (pas de table : la case et les usines) | L'île principale et les îles d'usines d'une entreprise. |
-| Île principale | `city_zones` | La grande île verrouillée au départ, débloquée zone par zone, qui devient la ville. |
-| Île d'usine | `company_factories` | La petite île qui porte une usine. Elle ne se charge que quand quelqu'un s'y trouve. |
+| Île principale | `city_zones` | La grande île verrouillée au départ, débloquée zone par zone, qui devient la ville. Elle n'est pas posée en phase 3. |
+| Île d'usine, mini-île | `company_factories`, `definitions/iles.json`, `addon/src/monde/` | La petite île qui porte une usine. L'add-on la pose d'après l'état du service (en ruine ou entière) avec les chiffres de `iles.json`, dans une zone chargée le temps du chantier. |
 | Identité d'entreprise | `companies.slogan`, `logo_id`, `colors` | Nom, logo, couleurs et slogan, visibles sur les enseignes, les véhicules et la fiche publique. |
 | Réputation | `companies.reputation` | Monte avec les livraisons à temps et les votes sur la ville ; améliore contrats et candidats. |
 | Amis | `friends` | Liste d'amis en jeu ; un ami invité peut emménager dans la ville. |
@@ -55,8 +57,9 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 | Palier ×2 | `Factory.nextMilestone`, clé `niveaux.paliersX2` | Niveau où la production d'une usine double. Le bouton « palier » monte jusqu'au prochain. |
 | Revenu par heure | `Factory.ratePerHour`, `CompanyState.ratePerHour` | Production de Donar par heure, salaires déduits, multiplicateurs appliqués. L'add-on anime le compteur à partir de lui. |
 | Multiplicateur | `CompanyState.multiplier` | Regroupe les bonus : Lingots détenus, grade, Pilier, étoiles, bâtiments, boosts. La façon de les combiner est celle du tableur. |
-| Encaisser | `collect`, `companies.last_collect_at` | Calcul de la production depuis le dernier passage, hors ligne compris. |
+| Encaisser | `collect`, `companies.last_collect_at` | Versement de la production depuis le dernier calcul de l'entreprise, en régime en ligne ou hors ligne. |
 | Hors ligne | `companies.offline_cap_hours`, clé `horsLigne` | Production pendant l'absence, plafonnée en heures et à efficacité réduite. Jamais de grève ni d'incident pendant l'absence. |
+| Régime en ligne, régime hors ligne | `collect.offlineHours`, `JoinResponse.offlineCollected`, `ServerPresence` | Tant qu'un membre de l'entreprise est connecté, la production se paie au revenu plein ; entre le départ du dernier membre et l'arrivée du suivant, c'est la formule hors ligne. Voir [economie.md](economie.md). À valider par Kr. |
 | En ruine | `state` = `EN_RUINE` | Usine révélée sur la carte mais pas encore rachetée ni remise en état. |
 | Remise en état | `state` = `REMISE_EN_ETAT`, `restore_step`, `restoreStep` | Les quatre étapes après le rachat : dialogue, tâches, livraison, recrutement. |
 | Notaire | (PNJ de l'add-on) | Le personnage auprès duquel on rachète une usine. |
@@ -78,13 +81,15 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 | Mot du jeu | Dans le code | Définition |
 | --- | --- | --- |
 | Course | `companies.course_number` | La période entre deux prestiges. Le Donar repart de zéro à chaque course. |
+| Départ de course | clé `prestige.departDeCourse` | L'usine et le niveau avec lesquels chaque course commence. |
 | Époque | `companies.era`, `CompanyState.era` | Le style et le catalogue d'usines d'une course : artisanale, vapeur, moderne, futuriste. Le prestige passe à la suivante. |
 | Seuil de prestige | `CompanyState.threshold`, clé `prestige.seuils` | Donar à gagner dans la course pour avoir le droit de faire un prestige. |
+| Facteur du seuil suivant | clé `prestige.facteurSeuilSuivant` | Au-delà des seuils listés, chaque seuil vaut le précédent multiplié par ce facteur. |
 | Prestige | `prestige`, `prestigePreview`, `prestige_history`, événement `PRESTIGE_ENTREPRISE` | Revente des usines par le PDG : Donar et usines à zéro, époque suivante ou étoile, Lingots partagés. La ville reste. |
 | Aperçu du prestige | `PrestigePreview` | Ce qu'un prestige rapporterait maintenant, avec la part de chacun et l'effet du rendement décroissant. |
 | Conversion | clé `prestige.conversionLingots` | Formule qui transforme les Donar gagnés d'une course en Lingots. Voir [economie.md](economie.md). |
 | Étoile | `companies.stars`, `PrestigePreview.next` = `ETOILE` | Après la dernière époque, chaque prestige donne une étoile et un bonus permanent de production, sans fin. |
-| Mission | `player_missions` | Objectif court (quête quotidienne, mission de la mairie, remise en état). Les définitions des missions sont à écrire. |
+| Mission | `player_missions` | Objectif court (quête quotidienne, mission de la mairie, remise en état). Une route de lecture et un fichier `definitions/missions.json` sont prévus (décision 29 de la passation), pas encore sur `main`. |
 | Bingo | (à définir) | Carte d'objectifs renouvelée chaque semaine. Pas encore dans les contrats. |
 | Carnet de trouvailles | (à définir, phase 4 du plan) | Mentionné dans [plan-construction.md](plan-construction.md) ; aucun contrat encore. |
 | Classement hebdomadaire | (calculé depuis `currency_ledger`) | Mesure les Lingots gagnés dans la semaine, pas la richesse totale. |
@@ -146,11 +151,15 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 
 | Mot du jeu | Dans le code | Définition |
 | --- | --- | --- |
-| Oooscar | entité et textures du pack | La mascotte : un petit silo maladroit, cinq expressions. Voir [design.md](design.md). |
+| Oooscar | entité `silooo:oooscar` (`addon/pack/entities/`, côté client dans `resource-pack/`), images dans `resource-pack/textures/ui/silooo/oooscar/` | La mascotte : un petit silo maladroit, cinq expressions. Une par joueur, retirée à son départ. Voir [design.md](design.md). |
 | Bulle | composant `sa-bulle` | Ce que dit Oooscar : six mots au plus. |
 | Carte | écran de l'add-on | Montre l'archipel, les usines possédées et les « ????? », avec téléportation. |
 | Compteur | composant `sa-compteur` | Le Donar affiché en cylindres mécaniques, animé à partir du revenu par heure. |
 | HUD | `hud_screen.json` | Les trois étages d'information autour de la barre d'inventaire. |
+| Canal de titre | `config.ui.hud.titleChannel`, préfixes `silooo:hud` et `silooo:consigne` suivis d'une barre verticale | Le titre et le sous-titre de Bedrock servent de canal de données au HUD : le pack masque le préfixe et redessine le reste. Coupé tant qu'un vrai client n'a pas confirmé le rendu. |
+| Menu | `addon/src/ui/menu.ts` | Les tuiles Silo, Usines, Carte, Objectifs, Amis ; une tuile verrouillée dit « Bientôt ». Textes à valider par Kr. |
+| Boussole | `addon/src/ui/boussole.ts`, `config.ui.menuItem` | L'objet donné à l'arrivée, qui ouvre le menu à tuiles. |
+| Cinématique d'arrivée | clé `cinematique.plans` de `iles.json`, `addon/src/monde/cinematique.ts` | Les plans de caméra joués au premier passage, sous-titrés par Oooscar, passables en restant accroupi. |
 | Fiche | composant `sa-fiche` | Le détail d'une usine, d'un bâtiment ou d'un article, toujours dans le même ordre. |
 | Barre d'actions | composant `sa-barre` | Les cinq grandes fenêtres : Carte, Usines, Ville, Marché, Boutique. |
 | Code de refus | réponse `Refused.reason` | Code stable renvoyé par le service (`PAS_ASSEZ_DE_DONAR`, `PAS_LE_PDG`). L'add-on choisit l'icône et la bulle. |
@@ -164,12 +173,19 @@ l'[ADR 0005](adr/0005-langues-du-code.md). Un mot absent d'ici se cherche dans
 | Pack de ressources | `resource-pack/` | Textures, interface JSON UI, police, modèle d'Oooscar. |
 | BDS | conteneur `silooo-bds` | Le serveur Bedrock officiel, version épinglée. |
 | Clé serveur | en-tête `X-Silooo-Key` | Le secret partagé entre l'add-on et silooo-core. Jamais dans le code. |
+| Erreur technique | réponse `Erreur` : `REQUETE_INVALIDE`, `CLE_INVALIDE`, `ERREUR_INTERNE`, `PAS_FAIT` | Un code hors du jeu, déclaré sur toutes les opérations. L'add-on les traite d'un bloc. |
 | Battement | `heartbeat` | Le serveur Bedrock dit qu'il tourne et qui est en ligne. |
+| Présence | `ServerPresence`, rempli par `heartbeat` | Qui est connecté d'après le dernier battement, en mémoire du service. `join` s'en sert pour choisir le régime de production. |
 | Événement de jeu | `game_events`, `GameEvent`, `pollEvents` | Ce que le service a à dire au jeu ; l'add-on vient le chercher avec un curseur. |
 | Curseur | `pollEvents.after`, réponse `cursor` | Le dernier identifiant d'événement reçu. |
 | Idempotence | `api_requests`, `ActionBase.requestId` | Un appel rejoué renvoie la réponse gardée sans refaire l'action. |
 | Verrou optimiste | `companies.version`, `player_balances.version` | Numéro qui change à chaque écriture ; un conflit renvoie `CONFLIT_REESSAYER`. |
 | Définitions | `definitions/` | Les chiffres du jeu, vérifiés par schéma, chargés par le service et traduits en types pour l'add-on. |
+| Types générés | `addon/src/generated/definitions.ts`, `tools/generer_types.mjs` | Les types TypeScript tirés de `definitions/`. Jamais édités à la main ; le vérificateur échoue s'ils sont périmés. |
+| Moteur d'économie | `core/src/main/kotlin/com/silooo/core/economy/` | Prix des niveaux, production, paliers, prestige, notation, d'après `definitions/`. |
+| Données dorées | `core/src/test/resources/golden/` | Les valeurs du tableur extraites en JSON ; les tests du moteur les rejouent. |
+| Zone chargée | ticking area, `addon/src/monde/constructeur.ts` | Zone du monde maintenue chargée par l'add-on le temps de poser une île. |
+| Vérificateur | `tools/verifier.sh` | La commande unique qui vérifie tout le dépôt ; la CI lance la même. |
 | Migration | `core/src/main/resources/db/migration/` | Un changement de schéma, numéroté, jamais modifié après coup. |
 | Hubyy | (hors dépôt) | L'annuaire de serveurs par lequel arrivent les joueurs. |
 | SileneMC | (hors dépôt) | Le serveur voisin sur le même VPS, dont Silooo réutilise MariaDB, Redis, la boutique et les grades. |

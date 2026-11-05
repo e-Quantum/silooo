@@ -364,7 +364,7 @@ const reponse = await http.request(req); // reponse.status, reponse.body
 - Procédure pour activer « Beta APIs » sur un monde de BDS, faute de page officielle.
 - Une source de XUID pour l'add-on : la Script API 2.11.0 n'en donne pas (`Player.id` est un identifiant opaque
   propre au monde). En attendant, `addon/src/identity.ts` envoie une empreinte du gamertag (décision 25 de
-  `docs/passation.md`). Pistes : le journal de BDS (« Player connected: …, xuid: … »), `allowlist.json` rempli
+  `docs/passation.md`). Pistes : le journal de BDS (« Player connected: <nom>, xuid: <xuid> »), `allowlist.json` rempli
   par BDS, une version future de l'API.
 - Comportement des erreurs réseau et des délais, format de `allowed_uris`, accès aux noms d'hôte Docker.
 - Taille maximale d'un pack et nombre d'entités avant ralentissement sur Switch et vieux mobiles.

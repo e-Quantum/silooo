@@ -41,7 +41,8 @@ qui ressemble à un tableau de bord SaaS n'est pas dans Silooo. Les règles de d
   nom affiché de cette rareté, lui, est un texte de joueur, et il est à confirmer par Kr.
 
 Pour la documentation du dépôt, la même liste s'applique, par hygiène : un fichier de `docs/` ne
-contient ni points de suspension, ni emoji, ni mot de réclame.
+contient ni points de suspension, ni emoji, ni mot de réclame. L'outil ne lit pas `docs/` ; c'est la
+relecture qui s'en charge.
 
 ## La règle de l'avant / après
 
@@ -55,18 +56,29 @@ contient ni points de suspension, ni emoji, ni mot de réclame.
 
 ## Le hook `tools/anti_ia.py`
 
-Une autre session écrit cet outil, adapté de celui de SileneMC. Ce que ce fichier en dit se limite à
-son rôle ; ses options se liront dans son en-tête quand il existera.
+L'outil est [tools/anti_ia.py](../tools/anti_ia.py), adapté de celui de SileneMC. Ses règles sont celles
+de la charte : mots-réclame, questions de pub, « que tu sois », points de suspension, tirets cadratins,
+séries de points d'exclamation, emoji, majuscules d'insistance. Son en-tête dit comment l'appeler.
 
-- Il relit les textes vus par les joueurs et signale les tics de la liste : mots bannis, tournures,
-  ponctuation, emoji.
-- Il tourne trois fois : en hook après chaque écriture d'une session Claude (réglé dans
-  [.claude/settings.json](../.claude/settings.json) une fois l'outil en place), dans
-  `tools/verifier.sh`, et dans la CI, où il bloque la fusion.
+- Il lit les textes des joueurs, et seulement eux : les valeurs de chaîne de `definitions/*.json` (pas
+  les clés), les chaînes entre guillemets de `addon/src/**/*.ts`, les fichiers `.lang` et `texts/` du
+  pack de ressources, les JSON de `world/`. Jamais `docs/` ni `design/`, qui citent les mots bannis en
+  exemple ; jamais le code généré ni les dépendances.
+- Il connaît deux exceptions : un mot banni qui suit « grade » ou qui est le nom d'un grade dans
+  `boutique.json` (Légende, Ultime), et les identifiants en kebab-case, qui ne sont pas du texte lu.
+  Quelques sigles (HUD, PDG, VIP, XUID) ne comptent pas comme majuscules d'insistance.
+- Il tourne trois fois. En hook après chaque écriture d'une session Claude :
+  [.claude/settings.json](../.claude/settings.json) lance [tools/hooks/anti_ia_hook.sh](../tools/hooks/anti_ia_hook.sh),
+  qui appelle `anti_ia.py --hook` ; une trouvaille sort en code 2 et la session la voit. Dans
+  `tools/verifier.sh`, par `anti_ia.py --tout`. Et dans la CI, qui lance le vérificateur et bloque la fusion.
+- Sans Python sur le poste, le hook prévient et laisse passer ; le vérificateur, lui, échoue.
 - Il signale, il ne corrige pas : la session réécrit, puis relance.
-- Il ne connaît pas le contexte : un faux positif (le grade Légende, une citation dans un ADR) se
-  traite en réécrivant la phrase ou, si l'outil le prévoit, par une exception explicite et visible.
-  Jamais en désactivant le contrôle.
+- Un faux positif se traite en réécrivant la phrase, jamais en désactivant le contrôle. Ses tests sont
+  dans `tools/tests/anti-ia/` : un cas qui doit passer et un cas qui doit être signalé par règle.
+
+Les deux autres hooks de `.claude/settings.json` : `tools/etat.sh` au démarrage de la session (branche,
+dernier commit, état du dépôt) et `tools/hooks/rappel_verifier.sh` à la fin, qui rappelle de lancer le
+vérificateur quand des fichiers ont changé.
 
 ## Comment corriger un texte signalé
 
