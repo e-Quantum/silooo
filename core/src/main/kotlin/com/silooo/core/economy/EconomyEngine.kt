@@ -197,6 +197,15 @@ class EconomyEngine(private val definitions: Definitions) {
      */
     fun factoryRate(factoryId: String, level: Int, crew: List<CrewMember>): Double = withCrew(factoryRate(factory(factoryId), level), crew)
 
+    /**
+     * La même production, ralentie par un incident ouvert : celle de [factoryRate] avec son équipe fois [slowdown], le facteur de
+     * l'incident (strictement entre 0 et 1, voir `incidents.json`). Un facteur de 1 rend exactement la production sans incident.
+     */
+    fun factoryRate(factoryId: String, level: Int, crew: List<CrewMember>, slowdown: Double): Double {
+        val rate = factoryRate(factoryId, level, crew)
+        return if (slowdown == NO_SLOWDOWN) rate else rate * slowdown
+    }
+
     private fun withCrew(rate: Double, crew: List<CrewMember>): Double =
         if (crew.isEmpty()) rate else rate + rate * crewNetPercent(crew) / PERCENT
 
@@ -206,8 +215,16 @@ class EconomyEngine(private val definitions: Definitions) {
      * l'ordre d'usines.json, donc au même résultat bit pour bit à chaque appel. `crews` donne l'équipe de chaque
      * usine par identifiant (bonus de production moins salaires, voir [crewNetPercent]) ; une usine absente de `crews`
      * n'a personne, et sans aucune équipe le résultat est celui d'avant le personnel, bit pour bit.
+     *
+     * `slowdowns` donne, par identifiant, le facteur d'un incident ouvert (voir [factoryRate]) : la production de l'usine, équipe
+     * comprise, est multipliée par ce facteur. Une usine absente de `slowdowns` n'a pas d'incident, et sans aucun incident le
+     * résultat est celui d'avant les incidents, bit pour bit.
      */
-    fun baseRate(levels: Map<String, Int>, crews: Map<String, List<CrewMember>> = emptyMap()): Double {
+    fun baseRate(
+        levels: Map<String, Int>,
+        crews: Map<String, List<CrewMember>> = emptyMap(),
+        slowdowns: Map<String, Double> = emptyMap(),
+    ): Double {
         val unknown = levels.keys.firstOrNull { it !in factoriesById }
         require(unknown == null) { "Usine inconnue : $unknown" }
         var total = 0.0
@@ -215,9 +232,14 @@ class EconomyEngine(private val definitions: Definitions) {
             val level = levels[factory.id] ?: 0
             if (level > 0) {
                 val rate = factoryRate(factory, level)
-                total += rate
                 val crew = crews[factory.id]
-                if (!crew.isNullOrEmpty()) total += rate * crewNetPercent(crew) / PERCENT
+                val slowdown = slowdowns[factory.id]
+                if (slowdown == null || slowdown == NO_SLOWDOWN) {
+                    total += rate
+                    if (!crew.isNullOrEmpty()) total += rate * crewNetPercent(crew) / PERCENT
+                } else {
+                    total += withCrew(rate, crew.orEmpty()) * slowdown
+                }
             }
         }
         return total
@@ -225,10 +247,40 @@ class EconomyEngine(private val definitions: Definitions) {
 
     /**
      * Le revenu en Donar par heure de jeu : [baseRate] fois `multiplier` (voir [globalMultiplier]). Avec des équipes
-     * ([baseRate]), c'est le revenu net : bonus de production en plus, salaires en moins.
+     * ([baseRate]), c'est le revenu net : bonus de production en plus, salaires en moins. Avec des `slowdowns`, c'est celui
+     * des usines que des incidents ralentissent.
      */
-    fun ratePerHour(levels: Map<String, Int>, multiplier: Double, crews: Map<String, List<CrewMember>> = emptyMap()): Double =
-        multiplier * baseRate(levels, crews)
+    fun ratePerHour(
+        levels: Map<String, Int>,
+        multiplier: Double,
+        crews: Map<String, List<CrewMember>> = emptyMap(),
+        slowdowns: Map<String, Double> = emptyMap(),
+    ): Double = multiplier * baseRate(levels, crews, slowdowns)
+
+    // ---------------------------------------------------------------- incidents et électricité
+
+    /**
+     * Les usines qui s'arrêtent faute de courant. À partir de l'époque `electricite.aPartirDeEpoque` de l'entreprise, une usine qui
+     * produit (`producing` : son niveau par identifiant, celles qui sont `ACTIVE`) et dont `usines.json` dit qu'elle dépend de
+     * l'électricité s'arrête tant que l'entreprise n'a aucune Centrale (`electricite.usineCentrale`) qui produise, au niveau 1 au
+     * moins. Avant cette époque, ou avec une Centrale, personne ne s'arrête. Une usine inconnue de `usines.json` ne s'arrête pas
+     * (elle ne compte déjà pas). **À valider par Kr** : la règle est celle de la description du contrat, à son plus simple.
+     */
+    fun stoppedNoPower(era: Int, producing: Map<String, Int>): Set<String> {
+        val electricity = definitions.incidents.electricity
+        if (era < electricity.fromEra) return emptySet()
+        if ((producing[electricity.powerPlantId] ?: 0) > 0) return emptySet()
+        return producing.keys.filter { factoriesById[it]?.needsElectricity == true }.toSet()
+    }
+
+    /**
+     * La récompense d'une réparation, en Donar : `recompense.minutesDeRevenu` minutes du revenu de l'usine sans ralentissement,
+     * [nominalRatePerHour] (net, multiplicateur compris). Un revenu nul (usine à l'arrêt) ne rapporte rien. **À valider par Kr.**
+     */
+    fun incidentReward(nominalRatePerHour: Double): Double {
+        require(nominalRatePerHour >= 0.0) { "Un revenu n'est pas négatif : $nominalRatePerHour" }
+        return nominalRatePerHour * definitions.incidents.reward.revenueMinutes / MINUTES_PER_HOUR
+    }
 
     // ---------------------------------------------------------------- personnel
 
@@ -482,6 +534,12 @@ class EconomyEngine(private val definitions: Definitions) {
 
         /** Un pourcent est un centième : constante de la nature. */
         private const val PERCENT = 100.0
+
+        /** Une heure : constante de la nature. */
+        private const val MINUTES_PER_HOUR = 60.0
+
+        /** Le facteur d'une usine sans incident : toute sa production. */
+        private const val NO_SLOWDOWN = 1.0
 
         /**
          * L'écart relatif sous lequel un résultat flottant compte pour l'entier voisin. 1e-9 est loin au-dessus

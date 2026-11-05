@@ -4,13 +4,15 @@ import com.silooo.core.MutableClock
 import com.silooo.core.db.Xuid
 import java.time.Duration
 import java.time.Instant
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /**
- * `ServerPresence.isOnline` : la source de présence de `join` (le régime en ligne ou hors ligne de la période).
+ * `ServerPresence.isOnline` : la source de présence de `join` (le régime en ligne ou hors ligne de la période), et `onlineXuids`,
+ * la liste que le minuteur des incidents parcourt.
  * Les routes du signal de vie sont dans `ApiTest`.
  */
 class ServerPresenceTest {
@@ -77,5 +79,36 @@ class ServerPresenceTest {
         clock.advance(Duration.ofSeconds(6))
 
         assertFalse(strict.isOnline(kr))
+    }
+
+    @Test
+    @DisplayName("onlineXuids : sans signal de vie, personne ; avec des signaux frais, l'union des joueurs de tous les serveurs, une fois chacun")
+    fun onlineXuidsIsTheUnionOfFreshBeats() {
+        assertEquals(emptySet<Xuid>(), presence.onlineXuids())
+
+        presence.record("serveur-1", listOf(kr.text, other.text))
+        presence.record("serveur-2", listOf(other.text))
+
+        assertEquals(setOf(kr, other), presence.onlineXuids())
+    }
+
+    @Test
+    @DisplayName("onlineXuids : un signal de vie périmé ne compte plus, et la liste suit isOnline joueur par joueur")
+    fun onlineXuidsDropsStaleBeats() {
+        presence.record("serveur-1", listOf(kr.text))
+        clock.advance(Duration.ofSeconds(20))
+        presence.record("serveur-2", listOf(other.text))
+        clock.advance(Duration.ofSeconds(20))
+
+        assertEquals(setOf(other), presence.onlineXuids())
+        for (xuid in listOf(kr, other)) assertEquals(presence.isOnline(xuid), xuid in presence.onlineXuids())
+    }
+
+    @Test
+    @DisplayName("onlineXuids : un XUID mal formé dans un signal de vie est ignoré sans faire tomber la liste")
+    fun onlineXuidsIgnoresMalformedXuids() {
+        presence.record("serveur-1", listOf("pas-un-xuid", kr.text, ""))
+
+        assertEquals(setOf(kr), presence.onlineXuids())
     }
 }

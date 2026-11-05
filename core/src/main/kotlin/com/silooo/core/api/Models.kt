@@ -40,6 +40,7 @@ data class Factory(
     val nextCost: Double,
     val nextMilestone: Int,
     val incidentId: Long? = null,
+    val incidentKind: String? = null,
     val stoppedNoPower: Boolean = false,
 )
 

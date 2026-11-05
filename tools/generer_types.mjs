@@ -32,6 +32,7 @@ const NOMS_IDENTIFIANTS = {
   "boutique.grades": "ShopGradeId",
   "boutique.abonnements": "ShopSubscriptionId",
   "missions.missions": "MissionId",
+  "incidents.sortes": "IncidentKindId",
 };
 
 // ---------------------------------------------------------------- arguments

@@ -43,6 +43,12 @@ class ServerPresence(
         return beats.values.any { beat -> !beat.receivedAt.isBefore(oldest) && beat.onlineXuids.any { Xuid.parse(it) == xuid } }
     }
 
+    /** Les joueurs connectés en ce moment : l'union des derniers signaux de vie assez récents. Un XUID mal formé est ignoré. */
+    fun onlineXuids(): Set<Xuid> {
+        val oldest = clock.instant().minus(maxBeatAge)
+        return beats.values.filter { !it.receivedAt.isBefore(oldest) }.flatMap { it.onlineXuids }.mapNotNull { Xuid.parse(it) }.toSet()
+    }
+
     companion object {
         /**
          * Trois signaux de vie manqués : l'add-on bat toutes les 10 secondes (`heartbeatIntervalSeconds`, addon/src/config.ts).

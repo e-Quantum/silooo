@@ -30,6 +30,12 @@ import org.slf4j.LoggerFactory
  *
  * Les Lingots des membres viennent de [store] (`player_balances`), dans la transaction du `join`. L'horloge
  * est injectable : un test avance le temps sans attendre.
+ *
+ * Deux règles décident ici quelles usines produisent et à quel rythme, sans toucher aux formules du moteur :
+ *  - l'électricité : une usine qui en dépend s'arrête quand l'entreprise n'a pas de Centrale active
+ *    ([EconomyEngine.stoppedNoPower]). À l'arrêt, elle ne produit rien, son équipe ne coûte rien, à tout régime ;
+ *  - les incidents : une usine qui a un incident ouvert produit son facteur de ralentissement, mais seulement
+ *    en [Regime.ONLINE]. L'absence ne se ralentit pas, puisque aucun incident ne s'ouvre pendant une absence.
  */
 class EngineFigures(
     private val engine: EconomyEngine,
@@ -42,29 +48,47 @@ class EngineFigures(
         val known = withoutUnknown(company, factories)
         val multiplier = multiplierOf(connection, company)
         val staff = store.loadStaff(connection, company.id)
-        val crews = crewsOf(known, staff)
+        val stopped = stoppedNoPower(company, known)
+        // Seules les usines qui tournent comptent : une usine à l'arrêt faute de courant ne rapporte rien, ni ne coûte de salaire.
+        val running = known.filter { it.state.produces() && it.factoryId !in stopped }
+        val crews = crewsOf(running, staff)
+        // L'affichage est celui du jeu en ligne : le joueur qui le lit est là, l'incident ralentit l'usine.
+        val slowdowns = slowdownsOf(running)
         return CompanyFigures(
-            ratePerHour = engine.ratePerHour(producingLevels(known), multiplier, crews),
+            ratePerHour = engine.ratePerHour(producingLevels(running), multiplier, crews, slowdowns),
             multiplier = multiplier,
             threshold = engine.prestigeThreshold(company.courseNumber),
             factories = known.associate { factory ->
+                val crew = crews[factory.factoryId].orEmpty()
+                val works = factory in running
                 factory.factoryId to FactoryFigures(
                     // Même multiplicateur que le total : la somme des usines qui produisent redonne le revenu de l'entreprise.
-                    ratePerHour = if (factory.state.produces()) {
-                        multiplier * engine.factoryRate(factory.factoryId, factory.level, crews[factory.factoryId].orEmpty())
+                    ratePerHour = if (works) {
+                        multiplier * engine.factoryRate(factory.factoryId, factory.level, crew, slowdowns[factory.factoryId] ?: NO_SLOWDOWN)
                     } else {
                         0.0
                     },
                     nextCost = engine.nextLevelCost(factory.factoryId, factory.level),
                     nextMilestone = engine.nextMilestone(factory.level),
-                    // Pas encore de mécanique d'énergie : aucune usine ne s'arrête faute de courant.
-                    stoppedNoPower = false,
+                    stoppedNoPower = factory.factoryId in stopped,
+                    nominalRatePerHour = if (works) multiplier * engine.factoryRate(factory.factoryId, factory.level, crew) else 0.0,
                 )
             },
-            staff = staff.map { member -> staffView(member, known, multiplier) },
+            staff = staff.map { member -> staffView(member, running, multiplier, slowdowns) },
             members = store.loadMembers(connection, company.id).map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
         )
     }
+
+    /**
+     * Les usines qui s'arrêtent faute de courant parmi celles de [known] (voir [EconomyEngine.stoppedNoPower]) : l'époque est
+     * celle de l'entreprise, et la Centrale compte si elle produit. Vide avant l'époque de l'électricité.
+     */
+    private fun stoppedNoPower(company: CompanyRecord, known: List<FactoryRecord>): Set<String> =
+        engine.stoppedNoPower(company.era, producingLevels(known.filter { it.state.produces() }))
+
+    /** Le facteur de chaque usine de [factories] qui a un incident ouvert ; les autres n'y figurent pas. */
+    private fun slowdownsOf(factories: List<FactoryRecord>): Map<String, Double> =
+        factories.filter { it.openIncidentId != null }.associate { it.factoryId to it.incidentSlowdown }
 
     /**
      * Le personnel qui travaille, par usine : seuls comptent les membres affectés à une usine qui produit (`ACTIVE`, connue
@@ -83,8 +107,9 @@ class EngineFigures(
     }
 
     /** Un membre du personnel tel que le contrat le montre : ses pourcents, et ce que son salaire coûte par heure maintenant. */
-    private fun staffView(member: StaffRecord, known: List<FactoryRecord>, multiplier: Double): Staff {
-        val workplace = known.firstOrNull { it.factoryId == member.factoryId && it.state.produces() }
+    private fun staffView(member: StaffRecord, running: List<FactoryRecord>, multiplier: Double, slowdowns: Map<String, Double>): Staff {
+        // Une usine à l'arrêt n'est pas dans [running] : son équipe ne coûte rien. Ralentie, la production baisse et le salaire avec elle.
+        val workplace = running.firstOrNull { it.factoryId == member.factoryId }
         return Staff(
             staffId = member.id,
             name = member.name,
@@ -93,7 +118,11 @@ class EngineFigures(
             rarity = member.rarity,
             bonusPercent = engine.staffBonusPercent(member.rarity),
             salaryPercent = engine.staffSalaryPercent(member.role, member.rarity),
-            salaryPerHour = if (workplace == null) 0.0 else engine.salaryPerHour(workplace.factoryId, workplace.level, member.role, member.rarity, multiplier),
+            salaryPerHour = if (workplace == null) {
+                0.0
+            } else {
+                engine.salaryPerHour(workplace.factoryId, workplace.level, member.role, member.rarity, multiplier) * (slowdowns[workplace.factoryId] ?: NO_SLOWDOWN)
+            },
             factoryId = member.factoryId,
         )
     }
@@ -144,9 +173,13 @@ class EngineFigures(
         val awayHours = awayMillis.toDouble() / MILLIS_PER_HOUR
         val known = withoutUnknown(company, factories)
         val multiplier = multiplierOf(connection, company)
-        val crews = crewsOf(known, store.loadStaff(connection, company.id))
-        val producing = producingLevels(known)
-        val ratePerHour = engine.ratePerHour(producing, multiplier, crews)
+        val stopped = stoppedNoPower(company, known)
+        val running = known.filter { it.state.produces() && it.factoryId !in stopped }
+        val crews = crewsOf(running, store.loadStaff(connection, company.id))
+        val producing = producingLevels(running)
+        // Un incident ne s'ouvre que pendant qu'un membre est connecté : l'absence, elle, ne se ralentit jamais.
+        val slowdowns = if (regime == Regime.ONLINE) slowdownsOf(running) else emptyMap()
+        val ratePerHour = engine.ratePerHour(producing, multiplier, crews, slowdowns)
         return when (regime) {
             // Le salaire est déjà retiré du revenu net : en ligne comme hors ligne, il se paie au rythme du revenu.
             Regime.ONLINE -> Production(earned = engine.onlineEarnings(ratePerHour, awayHours), countedHours = awayHours, at = now)
@@ -218,6 +251,9 @@ class EngineFigures(
 
     private companion object {
         val log = LoggerFactory.getLogger(EngineFigures::class.java)
+
+        /** Le facteur d'une usine sans incident : toute sa production. */
+        const val NO_SLOWDOWN = 1.0
 
         /** Les millisecondes d'une heure : une constante de la nature, pas un chiffre d'équilibrage. */
         val MILLIS_PER_HOUR: Double = TimeUnit.HOURS.toMillis(1).toDouble()

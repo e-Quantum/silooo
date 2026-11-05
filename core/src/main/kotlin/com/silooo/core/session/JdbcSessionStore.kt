@@ -197,23 +197,27 @@ class JdbcSessionStore : SessionStore {
 
     override fun loadFactories(connection: Connection, companyId: Long): List<FactoryRecord> =
         connection.prepareStatement(
-            "SELECT f.factory_id, f.state, f.restore_step, f.level, " +
-                "(SELECT MIN(i.id) FROM factory_incidents i " +
-                "WHERE i.company_id = f.company_id AND i.factory_id = f.factory_id AND i.resolved_at IS NULL) AS incident_id " +
-                "FROM company_factories f WHERE f.company_id = ? ORDER BY f.factory_id",
+            "SELECT f.factory_id, f.state, f.restore_step, f.level, i.id AS incident_id, i.kind AS incident_kind, i.slowdown AS incident_slowdown " +
+                "FROM company_factories f LEFT JOIN factory_incidents i ON i.id = " +
+                "(SELECT MIN(o.id) FROM factory_incidents o " +
+                "WHERE o.company_id = f.company_id AND o.factory_id = f.factory_id AND o.resolved_at IS NULL) " +
+                "WHERE f.company_id = ? ORDER BY f.factory_id",
         ).use {
             it.setLong(1, companyId)
             it.executeQuery().use { rows ->
                 buildList {
                     while (rows.next()) {
                         val incident = rows.getLong("incident_id")
+                        val open = !rows.wasNull()
                         add(
                             FactoryRecord(
                                 factoryId = rows.getString("factory_id"),
                                 state = FactoryState.valueOf(rows.getString("state")),
                                 restoreStep = rows.getInt("restore_step"),
                                 level = rows.getInt("level"),
-                                openIncidentId = if (rows.wasNull()) null else incident,
+                                openIncidentId = if (open) incident else null,
+                                incidentSlowdown = if (open) rows.getDouble("incident_slowdown") else 1.0,
+                                incidentKind = if (open) rows.getString("incident_kind") else null,
                             ),
                         )
                     }

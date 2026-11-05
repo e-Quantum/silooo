@@ -11,8 +11,10 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -33,6 +35,7 @@ class DefinitionsLoaderTest {
     private val worldText = TestDefinitions.text(DefinitionsLoader.WORLD_FILE)
     private val missionsText = TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE)
     private val personnelText = TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE)
+    private val incidentsText = TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
@@ -43,10 +46,11 @@ class DefinitionsLoaderTest {
         world: String = worldText,
         missions: String = missionsText,
         personnel: String = personnelText,
-    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel)
+        incidents: String = incidentsText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents)
 
     @Test
-    @DisplayName("Les six fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les sept fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
@@ -56,6 +60,7 @@ class DefinitionsLoaderTest {
         assertEquals(fromText.world, fromDirectory.world)
         assertEquals(fromText.missions, fromDirectory.missions)
         assertEquals(fromText.personnel, fromDirectory.personnel)
+        assertEquals(fromText.incidents, fromDirectory.incidents)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -240,6 +245,81 @@ class DefinitionsLoaderTest {
             root.getValue("raretes").jsonObject.getValue("RARE").jsonObject.getValue("bonusProductionPourcent").toString().toDouble(),
             loaded.rarity(StaffRarity.RARE).productionBonusPercent,
         )
+    }
+
+    @Test
+    @DisplayName("Retirer n'importe quelle clé de incidents.json fait échouer le chargement")
+    fun everyIncidentsKeyIsRequired() {
+        val root = parseJson(incidentsText)
+        val paths = root.keyPaths()
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("incidents.json sans ${path.joinToString(".")}") { load(incidents = damaged) }
+            assertTrue(error.message!!.contains("incidents.json"), error.message)
+        }
+    }
+
+    /** incidents.json avec la valeur au chemin [path] remplacée par [value]. */
+    private fun incidentsWith(path: List<String>, value: JsonElement): String {
+        fun replace(node: JsonObject, rest: List<String>): JsonObject =
+            JsonObject(node + (rest.first() to if (rest.size == 1) value else replace(node.getValue(rest.first()).jsonObject, rest.drop(1))))
+        return replace(parseJson(incidentsText), path).toString()
+    }
+
+    /** incidents.json dont la première sorte a la clé [key] remplacée par [value]. */
+    private fun firstKindWith(key: String, value: JsonElement): String {
+        val root = parseJson(incidentsText)
+        val kinds = root.getValue("sortes").jsonArray
+        val changed = JsonObject(kinds.first().jsonObject + (key to value))
+        return JsonObject(root + ("sortes" to JsonArray(listOf<JsonElement>(changed) + kinds.drop(1)))).toString()
+    }
+
+    @Test
+    @DisplayName("Des incidents qui n'ont pas de sens sont refusés : créneau qui ne divise pas le jour, chance hors bornes, ralentissement nul ou trop précis, Centrale inconnue ou dépendante du courant")
+    fun incidentsMustMakeSense() {
+        fun refused(text: String, expected: String) {
+            val message = assertThrows<DefinitionsException>(expected) { load(incidents = text) }.message!!
+            assertTrue(message.contains("incidents.json") && message.contains(expected), message)
+        }
+
+        refused(incidentsWith(listOf("frequence", "creneauMinutes"), JsonPrimitive(25)), "frequence.creneauMinutes")
+        refused(incidentsWith(listOf("frequence", "creneauMinutes"), JsonPrimitive(0)), "frequence.creneauMinutes")
+        refused(incidentsWith(listOf("frequence", "chancePourcent"), JsonPrimitive(0)), "frequence.chancePourcent")
+        refused(incidentsWith(listOf("frequence", "chancePourcent"), JsonPrimitive(101)), "frequence.chancePourcent")
+        refused(incidentsWith(listOf("sortes"), JsonArray(emptyList())), "sortes ne doit pas être vide")
+        refused(firstKindWith("ralentissement", JsonPrimitive(0)), ".ralentissement")
+        refused(firstKindWith("ralentissement", JsonPrimitive(1)), ".ralentissement")
+        refused(firstKindWith("ralentissement", JsonPrimitive(0.555)), "plus de deux décimales")
+        refused(firstKindWith("poids", JsonPrimitive(0)), ".poids")
+        refused(firstKindWith("id", JsonPrimitive("Incendie")), "kebab-case")
+        refused(firstKindWith("id", JsonPrimitive("une-sorte-bien-trop-longue")), "16 caractères")
+        refused(incidentsWith(listOf("recompense", "minutesDeRevenu"), JsonPrimitive(0)), "recompense.minutesDeRevenu")
+        refused(incidentsWith(listOf("electricite", "aPartirDeEpoque"), JsonPrimitive(0)), "electricite.aPartirDeEpoque")
+        refused(incidentsWith(listOf("electricite", "usineCentrale"), JsonPrimitive("usine-fantome")), "n'est pas une usine de usines.json")
+        refused(incidentsWith(listOf("electricite", "usineCentrale"), JsonPrimitive("verrerie")), "dépend elle-même de l'électricité")
+
+        // Deux sortes qui portent le même identifiant.
+        val kinds = parseJson(incidentsText).getValue("sortes").jsonArray
+        val twice = JsonArray(listOf(kinds.first(), kinds.first()))
+        refused(incidentsWith(listOf("sortes"), twice), "deux sortes ont le même id")
+    }
+
+    @Test
+    @DisplayName("Les sortes d'incident, la cadence, la récompense et l'électricité sont lues comme elles sont écrites")
+    fun incidentsAreReadAsWritten() {
+        val loaded = load().incidents
+        val root = parseJson(incidentsText)
+        assertEquals(root.getValue("sortes").jsonArray.map { it.jsonObject.getValue("id").jsonPrimitive.content }, loaded.kinds.map { it.id })
+        assertEquals(
+            root.getValue("frequence").jsonObject.getValue("chancePourcent").jsonPrimitive.double,
+            loaded.frequency.chancePercent,
+        )
+        assertEquals(
+            root.getValue("electricite").jsonObject.getValue("usineCentrale").jsonPrimitive.content,
+            loaded.electricity.powerPlantId,
+        )
+        assertTrue(loaded.kinds.all { it.slowdown > 0.0 && it.slowdown < 1.0 })
     }
 
     @Test
@@ -441,6 +521,10 @@ class DefinitionsLoaderTest {
         assertTrue(noPersonnel.message!!.contains(DefinitionsLoader.PERSONNEL_FILE), noPersonnel.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.PERSONNEL_FILE), personnelText)
+        val noIncidents = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noIncidents.message!!.contains(DefinitionsLoader.INCIDENTS_FILE), noIncidents.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.INCIDENTS_FILE), incidentsText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
     }
 }

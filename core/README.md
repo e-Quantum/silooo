@@ -401,6 +401,71 @@ prend la règle la plus simple.
   `CompanyRoutesTest` (le solde du PDG compte les primes du Carnet) et `findings/FindingSqlTest` (MariaDB, CI) : lignes,
   solde, journal et événements écrits et annulés ensemble, la clé primaire.
 
+## Les incidents
+
+`POST /v1/companies/{companyId}/incidents/{incidentId}/resolve` (`resolveIncident`) répare une usine ; le service ouvre
+lui-même les incidents. Le code est dans `incident/` : `IncidentDraw` (le tirage), `IncidentService` (ouvrir et réparer),
+`IncidentTicker` (le minuteur), `IncidentStore` et `JdbcIncidentStore` (le SQL sur `factory_incidents`, déjà dans V1),
+`IncidentRoutes`. Un incident ralentit une usine et ne fait jamais rien perdre : ni Donar, ni niveau, ni personnel.
+
+- **Tous les chiffres sont dans `definitions/incidents.json`** : `frequence` (un créneau de `creneauMinutes`, une chance
+  de `chancePourcent` par créneau), `sortes` (`id`, `ralentissement`, `poids`), `recompense.minutesDeRevenu`, et
+  `electricite` (voir plus bas). Le service n'a aucun chiffre du jeu ; l'add-on écrit les textes.
+- **Le tirage est figé** : `IncidentDraw` ne dépend que de l'entreprise, du jour (UTC) et du rang du créneau dans ce
+  jour (`SplitMix64`, comme l'agence d'emploi). Même créneau, même résultat, sur toutes les machines, et rien n'est
+  écrit pour s'en souvenir. Aucune relance, aucun tirage payant : un test rejoue la suite.
+- **Qui l'ouvre** : un minuteur du service (`incidentTick`, 30 s en production, `null` dans les tests) lit les joueurs
+  connectés (`ServerPresence.onlineXuids()`, les signaux de vie frais du serveur Bedrock). Il ne tire que pour les
+  entreprises dont un membre est connecté depuis deux passages de suite, pour qu'un joueur qui vient d'arriver ait déjà
+  reçu l'argent de son absence (`join` le verse) : **aucun incident pendant une absence**. Une erreur ou un conflit de
+  verrou sur une entreprise est noté et ne retarde pas les autres ; le tirage ne change pas dans le créneau, le passage
+  suivant le rejoue.
+- **Ce que le tirage frappe** : au plus un incident par entreprise et par créneau, au plus un ouvert par usine, sur une
+  usine `ACTIVE` de niveau 1 au moins, connue de `usines.json`, qui n'est pas à l'arrêt faute de courant (choisie parmi
+  celles-là, par identifiant, d'après le nombre brut du tirage). L'ouverture verse d'abord la production en attente au
+  rythme d'avant : le ralentissement ne touche que ce qui vient ensuite. Un événement `INCIDENT` (`payload.action =
+  "opened"`, avec `incidentId`, `factoryId`, `kind`, `slowdown`) part vers chaque membre connecté.
+- **Dans l'économie** : l'usine produit sa production multipliée par le `ralentissement` de la sorte, **en ligne
+  seulement**. Hors ligne, rien n'est ralenti (`EngineFigures`), puisqu'aucun incident ne s'ouvre pendant une absence.
+  `Factory.incidentId` et `Factory.incidentKind` disent quoi réparer, `Factory.ratePerHour` est déjà ralenti. Le
+  ralentissement porte aussi sur le salaire de l'équipe de l'usine : le net reste la même part de la production. Sans
+  incident, tous les chiffres d'avant sont inchangés, bit pour bit.
+- **Réparer** : l'add-on lance le mini-jeu et envoie `resolveIncident` quand il est gagné. Le service verse la production
+  en attente (au rythme ralenti), puis la récompense (`recompense.minutesDeRevenu` minutes du revenu de l'usine sans
+  ralentissement, comptées dans le Donar gagné de la course), ferme l'incident, relance l'usine, le tout en une écriture
+  de l'entreprise. Un événement `INCIDENT` (`action = "resolved"`, avec `reward` et `resolvedBy`) part vers les membres
+  connectés et l'acteur. N'importe quel membre peut réparer.
+- **Les cas que le contrat ne nomme pas** : un incident inconnu de l'entreprise ou d'une autre entreprise, un acteur
+  qui n'en est pas membre, un `requestId` mal formé donnent 400 `REQUETE_INVALIDE`. Réparer un incident déjà clos (par un
+  associé, par un prestige, ou un double envoi) répond 200 avec l'état d'aujourd'hui, sans récompense ni écriture : le
+  contrat n'a pas de code de refus pour cela, et en ajouter un aurait touché `addon/`. À reprendre si Kr préfère un refus
+  `INCIDENT_CLOS`. Un prestige clôt les incidents ouverts de l'entreprise (`restartFactories`).
+- **Règles tranchées au plus simple, à valider par Kr** : le tirage par créneau de 30 minutes, 20 % de chance, les trois
+  sortes (incendie x0,5, panne x0,6, courroie x0,7), la récompense de 10 minutes de revenu, un seul incident par créneau
+  ([economie.md](../docs/economie.md), section Les incidents d'usine).
+- **Les tests** : `incident/IncidentDrawTest` (la suite figée, les parts), `economy/EngineIncidentTest` et
+  `economy/EngineFiguresIncidentTest` (ralentissement en ligne seulement, récompense), `incident/IncidentServiceTest`,
+  `incident/IncidentTickerTest` (les deux passages, les absents, les pannes), `incident/IncidentRoutesTest` (la route
+  sans base : une écriture, les événements, le rejeu, le conflit), `contract/ContractTest` (`resolveIncident` est dans
+  `WRITTEN`) et `incident/IncidentSqlTest` (MariaDB, CI) : lignes, jointure des usines, prestige, minuteur, réparation
+  et réparations simultanées.
+
+## L'électricité
+
+À partir de l'époque `electricite.aPartirDeEpoque` de l'entreprise, une usine dont `usines.json` dit
+`"electricite": true` s'arrête tant que l'entreprise n'a aucune Centrale (`electricite.usineCentrale`) qui produise, au
+niveau 1 au moins. La règle est dans `EconomyEngine.stoppedNoPower` ; `EngineFigures` la branche.
+
+- **À l'arrêt** : l'usine ne produit rien (`Factory.ratePerHour` = 0, `Factory.stoppedNoPower` = true), son équipe ne coûte
+  aucun salaire, à tout régime, en ligne et hors ligne. Elle garde son niveau, son état et son personnel : rien n'est perdu,
+  et la production reprend dès qu'une Centrale tourne.
+- **Dans le tirage** : une usine à l'arrêt n'est jamais frappée par un incident, et réparer une usine arrêtée rapporte 0
+  (la récompense suit son revenu).
+- **Les cas** : avant l'époque 3, ou avec une Centrale active, personne ne s'arrête ; une usine inconnue de `usines.json`
+  ne s'arrête pas (elle ne compte déjà pas). Une Centrale en ruine, en remise en état ou au niveau 0 ne compte pas.
+- **Les tests** : `economy/EngineIncidentTest` (qui s'arrête), `economy/EngineFiguresIncidentTest` (revenu nul, salaire
+  absent, deux régimes) et `incident/IncidentServiceTest` (le tirage laisse les usines arrêtées tranquilles).
+
 ## L'entreprise partagée
 
 Le PDG invite des associés, l'invité accepte, le PDG fixe les parts de chacun. Trois routes : `POST /v1/companies/{companyId}/members`
@@ -449,3 +514,4 @@ deux tables de V1 suffisent. Le prestige et le partage des Lingots (`PrestigeSha
   `ContractTest` (`invite`, `acceptInvite` et `setShares` sont dans `WRITTEN`), `DefinitionsLoaderTest` pour les clés, et
   `members/MemberSqlTest` (MariaDB, CI) : lignes, événements et version écrits et annulés ensemble, le plafond de membres et
   un invité pris par deux entreprises sous concurrence.
+

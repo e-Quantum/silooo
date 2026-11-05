@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "frequence": {
+    "creneauMinutes": 30,
+    "chancePourcent": 20
+  },
+  "sortes": [
+    { "id": "incendie", "ralentissement": 0.5, "poids": 1 },
+    { "id": "panne", "ralentissement": 0.6, "poids": 2 },
+    { "id": "courroie", "ralentissement": 0.7, "poids": 2 }
+  ],
+  "recompense": {
+    "minutesDeRevenu": 10
+  },
+  "electricite": {
+    "aPartirDeEpoque": 3,
+    "usineCentrale": "centrale"
+  }
+}

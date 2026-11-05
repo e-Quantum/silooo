@@ -29,6 +29,7 @@ import com.silooo.core.events.EVENTS_MAX_LIMIT
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.events.InMemoryEventStore
 import com.silooo.core.findings.InMemoryFindingStore
+import com.silooo.core.incident.InMemoryIncidentStore
 import com.silooo.core.members.InMemoryMemberStore
 import com.silooo.core.members.Invitation
 import com.silooo.core.mission.InMemoryMissionStore
@@ -56,6 +57,7 @@ import io.ktor.server.testing.testApplication
 import java.lang.reflect.Modifier
 import java.net.URLEncoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -123,6 +125,7 @@ class ContractTest {
         sessions: InMemorySessionStore,
         economy: TestEconomy,
         missions: InMemoryMissionStore,
+        incidents: InMemoryIncidentStore,
         members: InMemoryMemberStore,
     ): Dependencies {
         val database = RecordingDatabase()
@@ -141,6 +144,7 @@ class ContractTest {
             findingStore = InMemoryFindingStore(sessions),
             clock = MutableClock(sessions.now),
             staffStore = InMemoryStaffStore(sessions),
+            incidentStore = incidents,
             memberStore = members,
         )
     }
@@ -157,12 +161,13 @@ class ContractTest {
     ) = testApplication {
         val sessions = InMemorySessionStore()
         val economy = TestEconomy(sessions)
+        val incidents = InMemoryIncidentStore(sessions)
         val members = InMemoryMemberStore(sessions)
-        if (operationId != null) seedFor(operationId, sessions, economy, members)
+        if (operationId != null) seedFor(operationId, sessions, economy, incidents, members)
         extraSeed(sessions)
         val missions = InMemoryMissionStore(sessions)
         inspect(sessions, missions)
-        application { siloooModule(contractDependencies(sessions, economy, missions, members)) }
+        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members)) }
         block()
     }
 
@@ -171,7 +176,7 @@ class ContractTest {
      * contrat), son PDG [krXuid], et l'usine `factoryId` d'exemple du contrat, dans l'état que chaque opération veut
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
-    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy, members: InMemoryMemberStore) {
+    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy, incidents: InMemoryIncidentStore, members: InMemoryMemberStore) {
         if (operationId == "getMissions" || operationId == "getFindings") {
             // Un joueur déjà inscrit, sans entreprise : les missions et le Carnet ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
@@ -185,7 +190,7 @@ class ContractTest {
                 Invitation(1, Xuid.parse(krXuid)!!, Xuid.parse(other)!!, sessions.now.plusSeconds(3600))
             return
         }
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "deliverOrder", "invite", "setShares")
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "deliverOrder", "resolveIncident", "invite", "setShares")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
@@ -216,6 +221,11 @@ class ContractTest {
             }
             // Le joueur invité par l'exemple du contrat, avec son entreprise de départ (la 2) : intacte, donc invitable.
             "invite" -> seedPlayer(sessions, other, "Invité")
+            // Un incident ouvert, le numéro 1 : l'usine d'exemple du contrat est ralentie, la requête minimale la répare.
+            "resolveIncident" -> {
+                sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
+                incidents.seedOpen(companyId, factoryId, "panne", 0.6, sessions.now)
+            }
             // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
             "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
                 .copy(donarEarned = EconomyEngine(TestDefinitions.loaded).prestigeThreshold(1) * 4)
@@ -530,6 +540,11 @@ class ContractTest {
                 """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":50},{"xuid":"$krXuid","percent":50}]}""",
                 """{"requestId":"$ID","actor":"$stranger","shares":[{"xuid":"$krXuid","percent":100}]}""",
             ),
+            "resolveIncident" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+                """{"requestId":"$ID","actor":"$stranger"}""",
+            ),
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
@@ -551,16 +566,22 @@ class ContractTest {
                 listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("fireStaff", "$it/staff/1?$fireQuery", null) } +
                 listOf("", "?requestId=$ID", "?actor=$krXuid", "?requestId=abc&actor=$krXuid", "?requestId=$ID&actor=abc", "?requestId=$ID&actor=$stranger")
                     .map { Triple("fireStaff", "/v1/companies/1/staff/1$it", null) }
+        // Les incidents : un incident ou une entreprise qui n'existent pas, ou que le chemin ne sait pas lire.
+        val resolveBody = """{"requestId":"$ID","actor":"$krXuid"}"""
+        val incidentUrls = listOf("0", "-1", "abc", "99", "1.5").map { "/v1/companies/1/incidents/$it/resolve" } +
+            listOf("0", "-1", "abc", "99").map { "/v1/companies/$it/incidents/1/resolve" }
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
-        val seeded = setOf("hire", "assignStaff", "invite", "acceptInvite", "setShares")
+        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
             }
         } + staffRequests.map { (opId, url, body) ->
             dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
+        } + incidentUrls.map { url ->
+            dynamicTest("resolveIncident : $url") { assertBadRequest(operations.single { it.id == "resolveIncident" }, url, resolveBody, seed = "resolveIncident") }
         } + badCompanyUrls.map { url ->
             dynamicTest("getCompany : $url") { assertBadRequest(operations.single { it.id == "getCompany" }, url, null) }
         } + badCompanyUrls.map { url ->
@@ -837,18 +858,18 @@ class ContractTest {
     fun invite() {
         val url = "/v1/companies/1/members"
         withService("invite") {
-            val invited = send("POST", url, """{"requestId":"${id(10)}","actor":"$krXuid","targetXuid":"$other"}""")
+            val invited = send("POST", url, """{"requestId":"${id(20)}","actor":"$krXuid","targetXuid":"$other"}""")
             val body = invited.bodyAsText()
             assertEquals(200, invited.status.value, body)
             assertConforms(contract.responseSchema("CompanyUpdated"), body, "invite")
             val members = parse(body).jsonObject.getValue("state").jsonObject.getValue("members").jsonArray
             assertEquals(listOf(krXuid), members.map { it.jsonObject.getValue("xuid").jsonPrimitive.content }, "inviter ne fait entrer personne")
-            assertEquals(200, send("POST", url, """{"requestId":"${id(11)}","actor":"$krXuid","targetXuid":"$other"}""").status.value, "réinviter renouvelle")
+            assertEquals(200, send("POST", url, """{"requestId":"${id(21)}","actor":"$krXuid","targetXuid":"$other"}""").status.value, "réinviter renouvelle")
         }
         withService("invite", extraSeed = { sessions ->
             sessions.members[Xuid.parse(other)!!] = Membership(1, Role.ASSOCIE)
         }) {
-            val notCeo = send("POST", url, """{"requestId":"${id(12)}","actor":"$other","targetXuid":"$stranger"}""")
+            val notCeo = send("POST", url, """{"requestId":"${id(22)}","actor":"$other","targetXuid":"$stranger"}""")
             val body = notCeo.bodyAsText()
             assertEquals(403, notCeo.status.value, body)
             assertConforms(refused, body, "invite (403)")
@@ -857,7 +878,7 @@ class ContractTest {
         withService("invite", extraSeed = { sessions ->
             sessions.companies[2] = sessions.companies.getValue(2).copy(stars = 1)
         }) {
-            val underway = send("POST", url, """{"requestId":"${id(13)}","actor":"$krXuid","targetXuid":"$other"}""")
+            val underway = send("POST", url, """{"requestId":"${id(23)}","actor":"$krXuid","targetXuid":"$other"}""")
             val body = underway.bodyAsText()
             assertEquals(409, underway.status.value, body)
             assertConforms(refused, body, "invite (409)")
@@ -869,7 +890,7 @@ class ContractTest {
     @DisplayName("acceptInvite : l'invité entre comme associé à 0 %, les parts font toujours 100, rejoué à l'identique ; sans invitation 400 ; entreprise lancée 409 ENTREPRISE_EN_COURS")
     fun acceptInvite() {
         val url = "/v1/companies/1/members/accept"
-        val request = """{"requestId":"${id(14)}","actor":"$krXuid"}"""
+        val request = """{"requestId":"${id(24)}","actor":"$krXuid"}"""
         withService("acceptInvite") {
             val accepted = send("POST", url, request)
             val body = accepted.bodyAsText()
@@ -880,7 +901,7 @@ class ContractTest {
             assertEquals(listOf("PDG", "ASSOCIE"), members.map { it.getValue("role").jsonPrimitive.content })
             assertEquals(listOf(100, 0), members.map { it.getValue("sharePercent").jsonPrimitive.content.toInt() })
             assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
-            assertEquals(400, send("POST", url, """{"requestId":"${id(15)}","actor":"$krXuid"}""").status.value, "l'invitation est consommée")
+            assertEquals(400, send("POST", url, """{"requestId":"${id(25)}","actor":"$krXuid"}""").status.value, "l'invitation est consommée")
         }
         withService("acceptInvite", extraSeed = { sessions ->
             sessions.companies[2] = sessions.companies.getValue(2).copy(courseNumber = 2)
@@ -897,7 +918,7 @@ class ContractTest {
     @DisplayName("setShares : les parts du PDG et de l'associé dans CompanyState.members, rejoué à l'identique ; un associé reçoit 403 PAS_LE_PDG")
     fun setShares() {
         val url = "/v1/companies/1/members"
-        val request = """{"requestId":"${id(16)}","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":60},{"xuid":"$other","percent":40}]}"""
+        val request = """{"requestId":"${id(26)}","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":60},{"xuid":"$other","percent":40}]}"""
         val partner = { sessions: InMemorySessionStore -> sessions.members[Xuid.parse(other)!!] = Membership(1, Role.ASSOCIE) }
         withService("setShares", extraSeed = partner) {
             val set = send("PUT", url, request)
@@ -909,12 +930,39 @@ class ContractTest {
             assertEquals(body, send("PUT", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
         }
         withService("setShares", extraSeed = partner) {
-            val notCeo = send("PUT", url, """{"requestId":"${id(17)}","actor":"$other","shares":[{"xuid":"$krXuid","percent":60},{"xuid":"$other","percent":40}]}""")
+            val notCeo = send("PUT", url, """{"requestId":"${id(27)}","actor":"$other","shares":[{"xuid":"$krXuid","percent":60},{"xuid":"$other","percent":40}]}""")
             val body = notCeo.bodyAsText()
             assertEquals(403, notCeo.status.value, body)
             assertConforms(refused, body, "setShares (403)")
             assertEquals(RefusalCodes.NOT_THE_CEO, reason(parse(body)))
         }
+    }
+
+    @Test
+    @DisplayName("resolveIncident : CompanyUpdated sans incident sur l'usine, rejoué à l'identique ; un incident déjà clos rend le même 200 sans nouvelle récompense")
+    fun resolveIncident() = withService("resolveIncident") {
+        val url = "/v1/companies/1/incidents/1/resolve"
+        val request = """{"requestId":"${id(9)}","actor":"$krXuid"}"""
+        fun donar(body: String) = parse(body).jsonObject.getValue("state").jsonObject.getValue("donar").jsonPrimitive.content.toDouble()
+
+        val first = send("POST", url, request)
+        val body = first.bodyAsText()
+        assertEquals(200, first.status.value, body)
+        assertConforms(contract.responseSchema("CompanyUpdated"), body, "resolveIncident")
+        val factories = parse(body).jsonObject.getValue("state").jsonObject.getValue("factories").jsonArray.map { it.jsonObject }
+        val repaired = factories.single { it.getValue("factoryId").jsonPrimitive.content == "scierie" }
+        assertTrue(repaired["incidentId"].let { it == null || it is JsonNull }, "l'incident est clos : l'usine n'en porte plus")
+        assertTrue(repaired["incidentKind"].let { it == null || it is JsonNull }, "la sorte part avec l'incident")
+        assertTrue(donar(body) > 0.0, "la réparation rapporte une petite récompense")
+        assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+
+        val closed = send("POST", url, """{"requestId":"${id(10)}","actor":"$krXuid"}""")
+        val closedBody = closed.bodyAsText()
+        assertEquals(200, closed.status.value, closedBody)
+        assertConforms(contract.responseSchema("CompanyUpdated"), closedBody, "resolveIncident (déjà clos)")
+        // Les faux ne gardent pas l'écriture de l'entreprise (la connexion note l'UPDATE) : la réponse d'un incident clos est l'état
+        // d'avant, sans la récompense que la première réponse montre. Les montants exacts sont dans IncidentRoutesTest.
+        assertEquals(0.0, donar(closedBody), "un incident déjà clos ne rapporte rien")
     }
 
     @Test
@@ -942,6 +990,7 @@ class ContractTest {
             "invite" to 200,
             "acceptInvite" to 200,
             "setShares" to 200,
+            "resolveIncident" to 200,
         )
 
         /** Plus de Donar que n'importe quelle embauche n'en coûte au revenu fictif de `TestEconomy` (11 par heure). */

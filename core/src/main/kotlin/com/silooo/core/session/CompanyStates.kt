@@ -39,6 +39,7 @@ fun buildCompanyState(
             nextCost = numbers.nextCost,
             nextMilestone = numbers.nextMilestone,
             incidentId = factory.openIncidentId,
+            incidentKind = factory.incidentKind,
             stoppedNoPower = numbers.stoppedNoPower,
         )
     },

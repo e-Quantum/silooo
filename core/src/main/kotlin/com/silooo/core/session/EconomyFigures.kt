@@ -5,8 +5,18 @@ import com.silooo.core.api.Staff
 import java.sql.Connection
 import java.time.Instant
 
-/** Les chiffres d'une usine que le contrat demande (schéma `Factory`). */
-data class FactoryFigures(val ratePerHour: Double, val nextCost: Double, val nextMilestone: Int, val stoppedNoPower: Boolean = false)
+/**
+ * Les chiffres d'une usine que le contrat demande (schéma `Factory`). [nominalRatePerHour] est le revenu de l'usine sans le
+ * ralentissement d'un incident (le même que [ratePerHour] quand il n'y en a pas) : la récompense d'une réparation en dépend.
+ * Une usine à l'arrêt faute de courant ([stoppedNoPower]) rapporte zéro, nominalement aussi.
+ */
+data class FactoryFigures(
+    val ratePerHour: Double,
+    val nextCost: Double,
+    val nextMilestone: Int,
+    val stoppedNoPower: Boolean = false,
+    val nominalRatePerHour: Double = ratePerHour,
+)
 
 /**
  * Les chiffres d'une entreprise (schéma `CompanyState`), avec ceux de chacune de ses usines et de son personnel.
