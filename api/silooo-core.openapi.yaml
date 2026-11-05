@@ -491,6 +491,16 @@ paths:
   /v1/companies/{companyId}/city/zones/{zoneIndex}:
     post:
       summary: Achète la zone suivante de la ville, en Lingots (prix fixe)
+      description: |
+        Achète la zone `zoneIndex` de la ville, au prix de `definitions/economie.json` (`ville.zonesPrixLingots`), en
+        Lingots de celui qui agit : associé ou PDG, les Lingots sont personnels. Les zones s'achètent dans l'ordre, de 1
+        à 16. `DEJA_POSSEDE` si la zone est déjà à l'entreprise. `ZONE_VERROUILLEE` si ce n'est pas la zone suivante,
+        si la mairie n'a pas le niveau que la zone demande, ou, pour la première zone, si l'entreprise n'a pas assez
+        d'usines actives (`definitions/ville.json`, `zones`). `PAS_ASSEZ_DE_LINGOTS`, avec `missing`, si les Lingots
+        manquent. Un `zoneIndex` qui n'est pas une zone du jeu, comme un acteur qui n'est pas membre, donnent 400.
+        409 `CONFLIT_REESSAYER` si l'entreprise a changé entre-temps. La production en attente est versée avant le
+        débit, au multiplicateur d'avant : les Lingots détenus le font bouger. L'achat de la première zone pose la mairie,
+        gratuite, à son emplacement de départ. L'achat publie un événement `ANNONCE` dont `payload.action` vaut `buyZone`.
       operationId: buyZone
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -507,6 +517,17 @@ paths:
   /v1/companies/{companyId}/city/buildings:
     post:
       summary: Pose un bâtiment préfabriqué (outil de construction)
+      description: |
+        Pose un bâtiment du catalogue (`definitions/ville.json`, `batiments`, ceux que le joueur pose) sur la parcelle
+        dont le coin est `(x, z)`, en blocs depuis le coin de l'île principale ; une parcelle fait un chunk. Le
+        bâtiment est posé au niveau 1, au prix de ce niveau, en Lingots de celui qui agit. Un type inconnu ou que le
+        joueur ne pose pas, une parcelle hors de l'île ou qui ne tombe pas sur la grille des parcelles, comme un acteur
+        qui n'est pas membre, donnent 400. `ZONE_VERROUILLEE` si la parcelle est dans une zone que l'entreprise n'a pas,
+        ou si la mairie n'a pas le niveau que le bâtiment demande. `EMPLACEMENT_OCCUPE` si un bâtiment est déjà sur la
+        parcelle. `DEJA_POSSEDE` si l'entreprise a déjà autant de ce bâtiment que le catalogue le permet.
+        `PAS_ASSEZ_DE_LINGOTS`, avec `missing`, si les Lingots manquent. 409 `CONFLIT_REESSAYER` si l'entreprise a
+        changé entre-temps. La production en attente est versée avant le débit. La pose publie un événement `ANNONCE`
+        dont `payload.action` vaut `placeBuilding`.
       operationId: placeBuilding
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody:
@@ -519,9 +540,9 @@ paths:
                 - type: object
                   required: [buildingType, x, z, rotation]
                   properties:
-                    buildingType: { type: string }
-                    x: { type: integer }
-                    z: { type: integer }
+                    buildingType: { type: string, minLength: 1, maxLength: 32, example: maison, description: "identifiant du catalogue des bâtiments (`definitions/ville.json`)" }
+                    x: { type: integer, minimum: 0, example: 128, description: "coin de la parcelle (plus petit x), en blocs depuis le coin de l'île principale" }
+                    z: { type: integer, minimum: 0, example: 128, description: "coin de la parcelle (plus petit z), en blocs depuis le coin de l'île principale" }
                     rotation: { type: integer, enum: [0, 90, 180, 270] }
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
@@ -534,6 +555,14 @@ paths:
   /v1/companies/{companyId}/city/buildings/{buildingId}:
     post:
       summary: Améliore un bâtiment d'un niveau
+      description: |
+        Passe un bâtiment de l'entreprise au niveau suivant, au prix de ce niveau (`definitions/ville.json`), en
+        Lingots de celui qui agit. Pour la mairie, c'est ce qui ouvre les zones et les niveaux des autres bâtiments.
+        `DEJA_POSSEDE` si le bâtiment est déjà à son dernier niveau. `ZONE_VERROUILLEE` si la mairie n'a pas le niveau
+        que ce niveau demande. `PAS_ASSEZ_DE_LINGOTS`, avec `missing`, si les Lingots manquent. Un `buildingId` inconnu
+        ou d'une autre entreprise, comme un acteur qui n'est pas membre, donnent 400. 409 `CONFLIT_REESSAYER` si
+        l'entreprise a changé entre-temps. La production en attente est versée avant le débit. L'amélioration publie un
+        événement `ANNONCE` dont `payload.action` vaut `upgradeBuilding`.
       operationId: upgradeBuilding
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -945,6 +974,9 @@ components:
         threshold: { $ref: '#/components/schemas/Donar' }
         factories: { type: array, items: { $ref: '#/components/schemas/Factory' } }
         zonesOwned: { type: array, items: { type: integer } }
+        city:
+          allOf: [ { $ref: '#/components/schemas/CityState' } ]
+          description: "la ville de l'entreprise : niveau de la mairie, prochaine zone, bâtiments et bonus. Le service la calcule, l'add-on l'affiche"
         staff:
           type: array
           description: "le personnel embauché de l'entreprise, affecté ou non : l'add-on y lit l'équipe de chaque usine, il ne la calcule pas"
@@ -1009,6 +1041,64 @@ components:
         salaryPerHour: { $ref: '#/components/schemas/Donar' }
         hireCost: { $ref: '#/components/schemas/Donar' }
         factoryId: { type: string, nullable: true }
+        housed: { type: boolean, description: "vrai si un logement de la ville l'héberge : son salaire est réduit, `salaryPercent` et `salaryPerHour` le disent déjà" }
+    CityState:
+      type: object
+      description: |
+        La ville de l'entreprise, telle que le service la calcule : l'add-on en lit les zones à acheter, les bâtiments
+        et ce qu'ils donnent, il ne calcule aucun prix ni aucun bonus. Les chiffres viennent de `definitions/ville.json`
+        et de `definitions/economie.json` (`ville.zonesPrixLingots`).
+      required: [mairieLevel, buildings, bonuses]
+      properties:
+        mairieLevel: { type: integer, minimum: 1, description: "niveau de la mairie ; il ouvre les zones et les niveaux des bâtiments" }
+        nextZone:
+          type: object
+          nullable: true
+          description: "la prochaine zone à acheter ; nul quand toutes les zones sont à l'entreprise"
+          required: [zoneIndex, priceLingots, mairieLevelRequired, activeFactoriesRequired]
+          properties:
+            zoneIndex: { type: integer, minimum: 1, maximum: 16 }
+            priceLingots: { type: integer, format: int64 }
+            mairieLevelRequired: { type: integer, minimum: 1 }
+            activeFactoriesRequired: { type: integer, minimum: 0, description: "usines actives qu'il faut avoir ; 0 sauf pour la première zone" }
+        buildings: { type: array, items: { $ref: '#/components/schemas/CityBuilding' } }
+        bonuses: { $ref: '#/components/schemas/CityBonuses' }
+    CityBuilding:
+      type: object
+      description: |
+        Un bâtiment de la ville. `bonusType` et `bonus` disent ce qu'il donne à son niveau (nuls pour la mairie et les
+        routes) ; `nextLevel` dit ce que coûte le niveau suivant et ce qu'il demande, et il est nul au dernier niveau.
+      required: [buildingId, buildingType, level, maxLevel, zoneIndex, x, z, rotation]
+      properties:
+        buildingId: { type: integer, format: int64 }
+        buildingType: { type: string, example: maison, description: "identifiant du catalogue des bâtiments (`definitions/ville.json`) ; l'add-on en tire le nom et l'aspect" }
+        level: { type: integer, minimum: 1 }
+        maxLevel: { type: integer, minimum: 1 }
+        zoneIndex: { type: integer, minimum: 1, maximum: 16 }
+        x: { type: integer, minimum: 0, description: "coin de la parcelle, en blocs depuis le coin de l'île principale" }
+        z: { type: integer, minimum: 0 }
+        rotation: { type: integer, enum: [0, 90, 180, 270] }
+        bonusType: { type: string, enum: [LOGEMENTS, PRODUCTION_DONAR, LIVRAISON_VITESSE], nullable: true }
+        bonus: { type: number, nullable: true, description: "ce que ce bâtiment donne à son niveau : des places pour LOGEMENTS, des pourcents pour les autres types" }
+        nextLevel:
+          type: object
+          nullable: true
+          required: [priceLingots, mairieLevelRequired]
+          properties:
+            priceLingots: { type: integer, format: int64 }
+            mairieLevelRequired: { type: integer, minimum: 1 }
+    CityBonuses:
+      type: object
+      description: |
+        Ce que les bâtiments donnent ensemble, plafonds de `definitions/ville.json` appliqués. Aucun bonus ne donne de
+        Lingots. `donarProductionPercent` est déjà dans `multiplier` ; `deliverySpeedPercent` est pour les camions de
+        livraison, que l'add-on affiche.
+      required: [housingPlaces, housedStaff, donarProductionPercent, deliverySpeedPercent]
+      properties:
+        housingPlaces: { type: integer, minimum: 0, description: "places de logement (maisons, immeubles)" }
+        housedStaff: { type: integer, minimum: 0, description: "membres du personnel logés ; jamais plus que les places" }
+        donarProductionPercent: { type: number, minimum: 0, description: "production de Donar en plus, en pourcent, pour toute l'entreprise" }
+        deliverySpeedPercent: { type: number, minimum: 0, description: "vitesse des camions de livraison en plus, en pourcent" }
     PrestigePreview:
       type: object
       required: [allowed, lingotsTotal, shares, next]

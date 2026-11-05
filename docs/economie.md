@@ -244,8 +244,8 @@ Le service tranche ainsi, **à valider par Kr** :
   `ville.zonesPrixLingots`, une entrée par zone, dans l'ordre. L'opération `buyZone` vérifie le
   niveau de mairie et le solde de l'associé qui paie.
 - Les bonus des bâtiments restent petits et plafonnés. Ils jouent sur le Donar, le recrutement et la
-  logistique, jamais sur les Lingots. Leurs valeurs ne sont pas encore dans `definitions/` : à
-  calibrer avec le tableur avant la phase 4.
+  logistique, jamais sur les Lingots. Leurs valeurs sont dans `definitions/ville.json` : voir la section
+  La ville côté service, plus bas.
 
 ## La notation des grands nombres
 
@@ -441,6 +441,7 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `personnel.json` : `agence`, `raretes`, `roles`, `postes`, `chefEquipe` | fichier absent | liste de 5 (4 salariés, 1 chef), parts `75`/`20`/`5`, bonus `10`/`25`/`60`, salaires `2,5`/`6`/`15`, prix `1`/`4`/`20` heures de revenu, chef x`2` de prix et x`1,5` de salaire, 1 salarié + 1 par `25` niveaux et 1 chef, chef `+4` h hors ligne | Le contrat décrit l'agence (cinq candidats, trois raretés 75/20/5) sans chiffres de bonus, de salaire ni de prix : le service en a besoin pour embaucher et pour compter les salaires comme sortie d'argent. Valeurs de départ au plus simple, à recaler quand le joueur type embauchera. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'embauche personne). |
 | 5 nov. 2026 | `lingotsHorsPrestige.commandeDuJour`, `lingotsHorsPrestige.trouvaille`, `commandeDuJour` (`objectifUnites`, `minutesDeProductionParUnite`) | absentes | `1`, `1`, `100` et `1` | La commande mondiale du jour et le Carnet de trouvailles ont besoin de quatre chiffres que le game design ne donne pas. Une prime d'un Lingot reste dans l'ordre de `moyenneParHeureDeJeu` (1 par heure) ; 100 unités à une minute de revenu chacune font 100 minutes de revenu pour toute la commande. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent ni la production ni le prestige. |
 | 5 nov. 2026 | `incidents.json` : `frequence` (`creneauMinutes`, `chancePourcent`), `sortes[]` (`id`, `ralentissement`, `poids`), `recompense.minutesDeRevenu`, `electricite` (`aPartirDeEpoque`, `usineCentrale`) | fichier absent | créneau de `30` minutes, `20` % de chances, incendie x`0,5` (poids `1`), panne x`0,6` (poids `2`), courroie x`0,7` (poids `2`), `10` minutes de revenu, électricité dès l'époque `3`, Centrale `centrale` | Le contrat décrit l'incident (ralentit, réparation par mini-jeu, récompense en Donar) et l'électricité (époque 3 et plus, Centrale) sans chiffres : le service en a besoin pour tirer, ralentir et payer. Valeurs de départ au plus simple (voir la section Les incidents d'usine). **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le simulateur ne joue pas les incidents). |
+| 5 nov. 2026 | `ville.json` : `ile`, `zones` (`colonnes`, `tailleChunks`, `premiere`, `ordre[]`), `mairie.emplacementDepart`, `logement.reductionSalairePourcent`, `plafonds`, `batiments[]` | fichier absent (`ville.zonesPrixLingots` seule, pour les prix des zones) | île de 4 x 4 zones de 8 chunks, parcelle d'un chunk ; première zone dès `2` usines actives ; mairie posée en (192, 192) ; salaire d'un logé `-20` % ; plafonds `60` places, `10` % de production, `40` % de vitesse ; mairie de `16` niveaux, route, maison, immeuble, commerce et garage (prix, mairie requise et bonus par niveau dans la section La ville côté service) | Le contrat décrit `buyZone`, `placeBuilding` et `upgradeBuilding` et le game design promet des bonus « visibles, petits, plafonnés », sans chiffre. Le service en a besoin pour décider. Valeurs de départ au plus simple, aucune ne donne de Lingots. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'achète aucune zone ni aucun bâtiment, donc aucun bonus). |
 
 ## Les commandes du jour et le Carnet
 
@@ -558,3 +559,97 @@ Les deux chiffres sont dans `monde.json`, bloc `entreprise` : `membresMax` (4, P
   comme ceux de tout associé.
 - **Pas de hasard, pas de pari, aucune monnaie échangée entre joueurs** : on invite, on accepte, on règle des parts.
 
+## La ville côté service
+
+Le game design promet des zones qu'on achète, des bâtiments qu'on pose et une mairie qui monte, avec des bonus « visibles,
+petits, plafonnés ». Le service décide de tout (qui peut acheter, ce que ça coûte, ce que ça donne) ; l'add-on n'affiche que ce
+qu'il lui rend (`CompanyState.city`). Les chiffres sont dans `definitions/ville.json` (valeurs de départ, **à valider par Kr**) et,
+pour le prix des zones, dans `economie.json` (`ville.zonesPrixLingots`). Les tableaux ci-dessous sont recopiés le 5 novembre 2026 :
+le JSON fait foi.
+
+### Les zones
+
+L'île principale est une grille de 4 x 4 zones, chacune de 8 x 8 chunks (128 blocs de côté). Les zones se numérotent de 1 à 16
+dans l'ordre où on les achète : on commence près du centre, on remplit le carré du milieu, puis on fait le tour de l'île.
+
+| Zone | Colonne, rangée | Mairie requise | Prix (Lingots) | Zone | Colonne, rangée | Mairie requise | Prix (Lingots) |
+|---|---|---|---|---|---|---|---|
+| 1 | 1, 1 | 1 | 5 | 9 | 3, 2 | 9 | 75 |
+| 2 | 2, 1 | 2 | 10 | 10 | 3, 3 | 10 | 90 |
+| 3 | 2, 2 | 3 | 15 | 11 | 2, 3 | 11 | 110 |
+| 4 | 1, 2 | 4 | 20 | 12 | 1, 3 | 12 | 130 |
+| 5 | 1, 0 | 5 | 30 | 13 | 0, 3 | 13 | 150 |
+| 6 | 2, 0 | 6 | 40 | 14 | 0, 2 | 14 | 180 |
+| 7 | 3, 0 | 7 | 50 | 15 | 0, 1 | 15 | 200 |
+| 8 | 3, 1 | 8 | 60 | 16 | 0, 0 | 16 | 235 |
+
+- **Dans l'ordre.** On n'achète que la zone suivante, jamais une zone plus loin ni une zone de moins : refus `ZONE_VERROUILLEE`.
+- **Le niveau de la mairie ouvre la zone** : la zone N demande une mairie de niveau N (colonne « Mairie requise »).
+- **La première zone** demande en plus `zones.premiere.usinesActivesMin` (2) usines actives : un joueur qui n'a que sa Carrière de
+  départ n'a pas encore de ville. Les autres zones ne demandent pas d'usines.
+- **La première zone pose la mairie**, au niveau 1, gratuitement, à `mairie.emplacementDepart` (192, 192), dans la zone 1.
+- **Le prix est fixe et connu à l'avance.** Il se paie en Lingots, jamais en Donar.
+
+### Les bâtiments
+
+Une parcelle fait un chunk (16 x 16 blocs) ; un bâtiment en occupe une, et une parcelle n'a qu'un bâtiment. Les coordonnées sont
+en blocs depuis le coin de l'île principale, et se posent sur la grille des parcelles. Un bâtiment se pose au niveau 1 et monte
+niveau par niveau. Chaque ligne donne, par niveau : le prix en Lingots pour y arriver, la mairie requise, le bonus total du bâtiment.
+
+| Bâtiment | Au plus | Bonus | Niveau 1 | Niveau 2 | Niveau 3 | Niveau 4 |
+|---|---|---|---|---|---|---|
+| Route | 200 | aucun | 1 L, mairie 1 | 2 L, mairie 3 | | |
+| Maison | 12 | `LOGEMENTS` | 3 L, mairie 1, 1 place | 6 L, mairie 3, 2 places | 12 L, mairie 5, 3 places | |
+| Immeuble | 6 | `LOGEMENTS` | 10 L, mairie 3, 4 places | 20 L, mairie 5, 6 places | 35 L, mairie 8, 8 places | 60 L, mairie 11, 10 places |
+| Commerce | 4 | `PRODUCTION_DONAR` | 8 L, mairie 2, 0,5 % | 15 L, mairie 4, 1 % | 30 L, mairie 7, 1,5 % | 55 L, mairie 10, 2,5 % |
+| Garage | 3 | `LIVRAISON_VITESSE` | 12 L, mairie 4, 5 % | 25 L, mairie 6, 10 % | 45 L, mairie 9, 15 % | |
+
+- **La mairie** n'est pas posable : elle vient avec la première zone. Elle a 16 niveaux ; passer du niveau N au niveau N + 1 coûte
+  le prix du niveau N + 1 (2, 3, 4, 6, 8, 10, 12, 15, 18, 22, 26, 30, 35, 40, 45 Lingots), sans mairie requise de plus. Son niveau
+  vit dans `companies.mairie_level`.
+- **Les routes** ne donnent rien : c'est le décor qui relie les bâtiments.
+- **Les refus** : une parcelle prise donne `EMPLACEMENT_OCCUPE` ; une zone que l'entreprise n'a pas achetée, ou une mairie trop
+  basse pour le bâtiment ou son niveau, donne `ZONE_VERROUILLEE` ; autant d'exemplaires que le catalogue le permet, ou un bâtiment
+  déjà au dernier niveau, donne `DEJA_POSSEDE`. Le contrat n'a pas de code plus précis (voir le dossier d'écart plus bas).
+
+### Ce que les bonus donnent
+
+Aucun bonus ne donne de Lingots, ni ne touche au prestige ou à ses seuils. Les bonus d'un même type s'additionnent, puis se
+plafonnent (`plafonds`).
+
+| Type | Ce que ça fait | Plafond |
+|---|---|---|
+| `LOGEMENTS` | des places pour loger du personnel ; un salarié logé coûte 20 % de salaire en moins (`logement.reductionSalairePourcent`) | 60 places |
+| `PRODUCTION_DONAR` | multiplie le multiplicateur global de production par `1 + pourcent / 100`, donc toute la production de l'entreprise | 10 % |
+| `LIVRAISON_VITESSE` | un pourcentage de vitesse pour les camions de livraison ; montré dans l'état de la ville, appliqué quand le jeu aura des livraisons | 40 % |
+
+- **Le logement** : le nombre de places est la partie entière de la somme des bonus `LOGEMENTS`. Les membres du personnel sont logés
+  dans l'ordre de leur identifiant (les premiers embauchés d'abord), jusqu'à ce qu'il n'y ait plus de place ; un membre sans usine
+  prend une place comme un autre. Un membre logé coûte `salaire x (1 - 20 / 100)`. `Staff.housed` le dit à l'add-on, et
+  `Staff.salaryPercent` et `Staff.salaryPerHour` portent déjà le salaire réduit.
+- **Le bonus de production** s'applique au multiplicateur global (celui des Lingots détenus et des étoiles), donc il touche le revenu
+  de chaque usine et la somme des usines redonne toujours le revenu de l'entreprise. Sans commerce, le calcul est celui d'avant la
+  ville, bit pour bit.
+- **Sans bâtiment à bonus, ou sans aucune ville, rien ne change** : multiplicateur, revenu, salaires et production versée sont ceux
+  d'avant. Treize cibles du tableur : inchangées, le joueur type n'achète ni zone ni bâtiment.
+- **La ville ne se remet pas à zéro au prestige.** Zones, bâtiments et niveau de la mairie sont la durée de vie de l'entreprise, pas
+  d'une course ; le prestige ne touche pas aux tables de la ville.
+
+### Qui paie
+
+Les Lingots sont personnels (un solde par joueur, jamais celui de l'entreprise). **Tout membre de l'entreprise, PDG ou associé, peut
+acheter, poser et améliorer, et paie avec ses propres Lingots.** Les Lingots du PDG ne couvrent pas un associé à court : le refus
+`PAS_ASSEZ_DE_LINGOTS` donne la somme qui manque à celui qui agit. Le journal des monnaies garde un motif par action : `zone`,
+`batiment`, `amelioration`. Aucune action de la ville n'échange de Lingots entre joueurs.
+
+### À valider par Kr
+
+- Tous les chiffres de `ville.json` (zones, mairie, prix, niveaux, bonus, plafonds) sont des valeurs de départ au plus simple.
+- Les zones s'achètent dans l'ordre, avec une mairie de niveau égal au numéro de la zone : le plan n'a pas fixé ce lien.
+- La première zone demande deux usines actives et pose la mairie niveau 1 gratuitement.
+- Tout membre peut acheter, avec ses Lingots ; le PDG n'a pas de droit particulier ici.
+- Le logement porte sur les premiers embauchés, et ne dépend pas de leur poste.
+- La ville survit au prestige.
+- Le contrat n'a pas de code pour « bâtiment pas encore permis par la mairie » ni « quantité maximale » ni « dernier niveau » : le
+  service rend `ZONE_VERROUILLEE` et `DEJA_POSSEDE`, faute de mieux.
+- Le bonus de vitesse des livraisons est calculé et montré, mais aucun camion ne l'utilise encore.

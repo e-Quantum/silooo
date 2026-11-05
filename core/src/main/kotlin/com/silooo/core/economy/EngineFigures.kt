@@ -1,5 +1,6 @@
 package com.silooo.core.economy
 
+import com.silooo.core.api.CityState
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Member
 import com.silooo.core.api.Staff
@@ -36,22 +37,29 @@ import org.slf4j.LoggerFactory
  *    ([EconomyEngine.stoppedNoPower]). À l'arrêt, elle ne produit rien, son équipe ne coûte rien, à tout régime ;
  *  - les incidents : une usine qui a un incident ouvert produit son facteur de ralentissement, mais seulement
  *    en [Regime.ONLINE]. L'absence ne se ralentit pas, puisque aucun incident ne s'ouvre pendant une absence.
+ *
+ * La ville ([city], facultative) donne deux bonus : un pourcentage de production en plus sur le multiplicateur global, et
+ * des logements qui baissent le salaire des premiers membres du personnel (par identifiant). Sans source de ville, ou sans
+ * bâtiment à bonus, le calcul est celui d'avant la ville, bit pour bit.
  */
 class EngineFigures(
     private val engine: EconomyEngine,
     private val store: SessionStore,
     private val clock: Clock = Clock.systemUTC(),
+    private val city: CityBonusSource? = null,
 ) : EconomyFigures {
     private val knownFactories: Set<String> = engine.factoryIds().toSet()
 
     override fun forCompany(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures {
         val known = withoutUnknown(company, factories)
-        val multiplier = multiplierOf(connection, company)
         val staff = store.loadStaff(connection, company.id)
+        val cityState = city?.of(connection, company, staff.size)
+        val multiplier = multiplierOf(connection, company, cityState)
+        val housed = housedIds(staff, cityState)
         val stopped = stoppedNoPower(company, known)
         // Seules les usines qui tournent comptent : une usine à l'arrêt faute de courant ne rapporte rien, ni ne coûte de salaire.
         val running = known.filter { it.state.produces() && it.factoryId !in stopped }
-        val crews = crewsOf(running, staff)
+        val crews = crewsOf(running, staff, housed)
         // L'affichage est celui du jeu en ligne : le joueur qui le lit est là, l'incident ralentit l'usine.
         val slowdowns = slowdownsOf(running)
         return CompanyFigures(
@@ -74,10 +82,18 @@ class EngineFigures(
                     nominalRatePerHour = if (works) multiplier * engine.factoryRate(factory.factoryId, factory.level, crew) else 0.0,
                 )
             },
-            staff = staff.map { member -> staffView(member, running, multiplier, slowdowns) },
+            staff = staff.map { member -> staffView(member, running, multiplier, slowdowns, member.id in housed, cityState != null) },
+            city = cityState,
             members = store.loadMembers(connection, company.id).map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
         )
     }
+
+    /**
+     * Les membres logés : les premiers du personnel, par identifiant, jusqu'à ce que les logements de la ville en hébergent
+     * ([CityState.bonuses]). Vide sans ville. Un membre sans usine est logé comme un autre : le logement ne dépend pas du poste.
+     */
+    private fun housedIds(staff: List<StaffRecord>, cityState: CityState?): Set<Long> =
+        if (cityState == null || cityState.bonuses.housedStaff <= 0) emptySet() else staff.take(cityState.bonuses.housedStaff).map { it.id }.toSet()
 
     /**
      * Les usines qui s'arrêtent faute de courant parmi celles de [known] (voir [EconomyEngine.stoppedNoPower]) : l'époque est
@@ -95,19 +111,26 @@ class EngineFigures(
      * de `usines.json`). Un membre sans usine, ou dans une usine en ruine, ne rapporte rien et ne coûte rien. L'ordre est
      * celui de [StaffRecord.id], donc le même à chaque calcul.
      */
-    private fun crewsOf(known: List<FactoryRecord>, staff: List<StaffRecord>): Map<String, List<CrewMember>> {
+    private fun crewsOf(known: List<FactoryRecord>, staff: List<StaffRecord>, housed: Set<Long>): Map<String, List<CrewMember>> {
         if (staff.isEmpty()) return emptyMap()
         val producing = known.filter { it.state.produces() }.map { it.factoryId }.toSet()
         val crews = LinkedHashMap<String, MutableList<CrewMember>>()
         for (member in staff) {
             val factoryId = member.factoryId ?: continue
-            if (factoryId in producing) crews.getOrPut(factoryId) { mutableListOf() } += CrewMember(member.role, member.rarity)
+            if (factoryId in producing) crews.getOrPut(factoryId) { mutableListOf() } += CrewMember(member.role, member.rarity, member.id in housed)
         }
         return crews
     }
 
     /** Un membre du personnel tel que le contrat le montre : ses pourcents, et ce que son salaire coûte par heure maintenant. */
-    private fun staffView(member: StaffRecord, running: List<FactoryRecord>, multiplier: Double, slowdowns: Map<String, Double>): Staff {
+    private fun staffView(
+        member: StaffRecord,
+        running: List<FactoryRecord>,
+        multiplier: Double,
+        slowdowns: Map<String, Double>,
+        housed: Boolean,
+        showHoused: Boolean,
+    ): Staff {
         // Une usine à l'arrêt n'est pas dans [running] : son équipe ne coûte rien. Ralentie, la production baisse et le salaire avec elle.
         val workplace = running.firstOrNull { it.factoryId == member.factoryId }
         return Staff(
@@ -117,13 +140,16 @@ class EngineFigures(
             role = member.role,
             rarity = member.rarity,
             bonusPercent = engine.staffBonusPercent(member.rarity),
-            salaryPercent = engine.staffSalaryPercent(member.role, member.rarity),
+            salaryPercent = engine.staffSalaryPercent(member.role, member.rarity, housed),
             salaryPerHour = if (workplace == null) {
                 0.0
             } else {
-                engine.salaryPerHour(workplace.factoryId, workplace.level, member.role, member.rarity, multiplier) * (slowdowns[workplace.factoryId] ?: NO_SLOWDOWN)
+                engine.salaryPerHour(workplace.factoryId, workplace.level, member.role, member.rarity, multiplier, housed) *
+                    (slowdowns[workplace.factoryId] ?: NO_SLOWDOWN)
             },
             factoryId = member.factoryId,
+            // Sans ville, le champ n'est pas écrit : la réponse est celle d'avant la ville, octet pour octet.
+            housed = housed.takeIf { showHoused },
         )
     }
 
@@ -172,10 +198,12 @@ class EngineFigures(
 
         val awayHours = awayMillis.toDouble() / MILLIS_PER_HOUR
         val known = withoutUnknown(company, factories)
-        val multiplier = multiplierOf(connection, company)
+        val staff = store.loadStaff(connection, company.id)
+        val cityState = city?.of(connection, company, staff.size)
+        val multiplier = multiplierOf(connection, company, cityState)
         val stopped = stoppedNoPower(company, known)
         val running = known.filter { it.state.produces() && it.factoryId !in stopped }
-        val crews = crewsOf(running, store.loadStaff(connection, company.id))
+        val crews = crewsOf(running, staff, housedIds(staff, cityState))
         val producing = producingLevels(running)
         // Un incident ne s'ouvre que pendant qu'un membre est connecté : l'absence, elle, ne se ralentit jamais.
         val slowdowns = if (regime == Regime.ONLINE) slowdownsOf(running) else emptyMap()
@@ -223,9 +251,14 @@ class EngineFigures(
         )
     }
 
-    /** Le multiplicateur global : la moyenne des Lingots détenus par les membres, et les étoiles de l'entreprise. */
-    private fun multiplierOf(connection: Connection, company: CompanyRecord): Double =
-        engine.globalMultiplier(engine.averageHeldLingots(store.loadMemberLingots(connection, company.id)), company.stars)
+    /**
+     * Le multiplicateur global : la moyenne des Lingots détenus par les membres, les étoiles de l'entreprise, et le bonus de
+     * production des bâtiments de la ville (rien sans ville ou sans bâtiment à bonus).
+     */
+    private fun multiplierOf(connection: Connection, company: CompanyRecord, cityState: CityState?): Double {
+        val base = engine.globalMultiplier(engine.averageHeldLingots(store.loadMemberLingots(connection, company.id)), company.stars)
+        return if (cityState == null) base else engine.withCityBonus(base, cityState.bonuses.donarProductionPercent)
+    }
 
     /** Le niveau des usines qui produisent, par identifiant : la matière du revenu de l'entreprise. */
     private fun producingLevels(factories: List<FactoryRecord>): Map<String, Int> =

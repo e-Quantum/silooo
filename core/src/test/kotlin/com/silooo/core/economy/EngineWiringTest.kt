@@ -7,6 +7,7 @@ import com.silooo.core.api.Idempotency
 import com.silooo.core.api.JoinResponse
 import com.silooo.core.api.SERVER_KEY_HEADER
 import com.silooo.core.api.SiloooJson
+import com.silooo.core.city.InMemoryCityStore
 import com.silooo.core.db.NeverUsedApiRequestStore
 import com.silooo.core.db.PassThroughDatabase
 import com.silooo.core.session.InMemorySessionStore
@@ -25,8 +26,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /**
- * Le câblage de l'application : sans rien lui passer d'autre que les définitions et un dépôt en mémoire,
- * `Dependencies` doit brancher le moteur d'économie. Il n'existe plus de « tout à zéro » par défaut.
+ * Le câblage de l'application : sans rien lui passer d'autre que les définitions et des dépôts en mémoire (la session, et la ville
+ * que les chiffres de `join` lisent pour ses bonus), `Dependencies` doit brancher le moteur d'économie. Il n'existe plus de « tout à
+ * zéro » par défaut.
  */
 class EngineWiringTest {
     private val key = "cle-de-test"
@@ -46,6 +48,7 @@ class EngineWiringTest {
                     apiKey = key,
                     idempotency = Idempotency(database, NeverUsedApiRequestStore),
                     sessionStore = store,
+                    cityStore = InMemoryCityStore(store),
                 ),
             )
         }

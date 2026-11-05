@@ -217,6 +217,9 @@ class OpenApi private constructor(private val root: Map<String, Any?>) {
                 (shape.raw["maxLength"] as Number?)?.let { max ->
                     if (text.codePointCount(0, text.length) > max.toInt()) found += "$at : plus de $max caractères"
                 }
+                (shape.raw["minLength"] as Number?)?.let { min ->
+                    if (text.codePointCount(0, text.length) < min.toInt()) found += "$at : moins de $min caractères"
+                }
                 val pattern = shape.raw["pattern"] as String?
                 if (pattern != null && !Regex(pattern).containsMatchIn(text)) found += "$at : « $text » ne suit pas le motif $pattern"
                 when (shape.raw["format"]) {
@@ -291,7 +294,7 @@ class OpenApi private constructor(private val root: Map<String, Any?>) {
         private val UUID_FORMAT = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\$")
         private val KNOWN_KEYWORDS = setOf(
             "type", "format", "enum", "required", "properties", "items", "allOf", "nullable", "description",
-            "example", "default", "minimum", "maximum", "maxLength", "pattern", "additionalProperties",
+            "example", "default", "minimum", "maximum", "minLength", "maxLength", "pattern", "additionalProperties",
         )
 
         /** Le chemin du contrat : on remonte depuis le dossier de travail des tests jusqu'à `api/silooo-core.openapi.yaml`. */

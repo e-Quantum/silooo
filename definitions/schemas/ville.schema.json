@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/ville.schema.json",
+  "title": "Ville de Silooo",
+  "description": "Forme de definitions/ville.json : les zones de l'île principale, la mairie, les bâtiments et leurs bonus. Les prix des zones restent dans economie.json (ville.zonesPrixLingots). Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "commentaire", "ile", "zones", "mairie", "logement", "plafonds", "batiments"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "commentaire": { "type": "string" },
+    "ile": {
+      "description": "Le quadrillage de l'île principale : un chunk fait blocsParChunk blocs de côté, une parcelle (la place d'un bâtiment) parcelleChunks chunks.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blocsParChunk", "parcelleChunks"],
+      "properties": {
+        "blocsParChunk": { "description": "Blocs sur le côté d'un chunk (16 dans Minecraft).", "type": "integer", "minimum": 1 },
+        "parcelleChunks": { "description": "Chunks sur le côté d'une parcelle : un bâtiment en occupe une.", "type": "integer", "minimum": 1 }
+      }
+    },
+    "zones": {
+      "description": "Les zones de la ville : un quadrillage de colonnes × colonnes zones carrées, achetées dans l'ordre de la liste.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["colonnes", "tailleChunks", "premiere", "ordre"],
+      "properties": {
+        "colonnes": { "description": "Zones sur un côté de l'île (4 : seize zones).", "type": "integer", "minimum": 1 },
+        "tailleChunks": { "description": "Chunks sur le côté d'une zone (8).", "type": "integer", "minimum": 1 },
+        "premiere": {
+          "description": "Ce qu'il faut pour acheter la première zone, en plus de son prix.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["usinesActivesMin"],
+          "properties": {
+            "usinesActivesMin": { "description": "Usines actives qu'il faut avoir (la deuxième usine ouvre la ville).", "type": "integer", "minimum": 0 }
+          }
+        },
+        "ordre": {
+          "description": "Les zones dans l'ordre où on les achète : la première entrée est la zone 1, la deuxième la zone 2. Autant d'entrées que de prix dans economie.json (ville.zonesPrixLingots).",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/zone" }
+        }
+      }
+    },
+    "mairie": {
+      "description": "La mairie est posée toute seule à l'achat de la première zone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["emplacementDepart"],
+      "properties": {
+        "emplacementDepart": { "$ref": "#/$defs/emplacement" }
+      }
+    },
+    "logement": {
+      "description": "Ce que rapporte un salarié logé.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reductionSalairePourcent"],
+      "properties": {
+        "reductionSalairePourcent": {
+          "description": "Réduction du salaire d'un membre logé, en pourcent de son salaire.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "plafonds": {
+      "description": "Le plus que les bâtiments donnent ensemble pour chaque type de bonus : les bonus restent petits. LOGEMENTS en places, les autres en pourcent.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["LOGEMENTS", "PRODUCTION_DONAR", "LIVRAISON_VITESSE"],
+      "properties": {
+        "LOGEMENTS": { "type": "number", "exclusiveMinimum": 0 },
+        "PRODUCTION_DONAR": { "type": "number", "exclusiveMinimum": 0 },
+        "LIVRAISON_VITESSE": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "batiments": {
+      "description": "Le catalogue des bâtiments. Le niveau 1 est celui qu'on pose, les suivants s'achètent un par un.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/batiment" }
+    }
+  },
+  "$defs": {
+    "typeBonus": {
+      "description": "Ce qu'un bâtiment donne. LOGEMENTS : des places pour loger des salariés (leur salaire baisse). PRODUCTION_DONAR : un pourcentage de production de Donar en plus, pour toute l'entreprise. LIVRAISON_VITESSE : un pourcentage de vitesse en plus pour les camions de livraison. Jamais de Lingots.",
+      "enum": ["LOGEMENTS", "PRODUCTION_DONAR", "LIVRAISON_VITESSE"]
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["colonne", "rangee", "niveauMairieRequis"],
+      "properties": {
+        "colonne": { "description": "Colonne de la zone, depuis 0 au plus petit x.", "type": "integer", "minimum": 0 },
+        "rangee": { "description": "Rangée de la zone, depuis 0 au plus petit z.", "type": "integer", "minimum": 0 },
+        "niveauMairieRequis": { "description": "Niveau de mairie qu'il faut avoir pour acheter la zone.", "type": "integer", "minimum": 1 }
+      }
+    },
+    "emplacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "z", "rotation"],
+      "properties": {
+        "x": { "description": "Blocs depuis le coin de l'île, sur une parcelle entière.", "type": "integer", "minimum": 0 },
+        "z": { "description": "Blocs depuis le coin de l'île, sur une parcelle entière.", "type": "integer", "minimum": 0 },
+        "rotation": { "type": "integer", "enum": [0, 90, 180, 270] }
+      }
+    },
+    "batiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "posable", "quantiteMax", "niveaux"],
+      "properties": {
+        "id": {
+          "description": "Identifiant en kebab-case, 32 caractères au plus (colonne city_buildings.building_type). Il ne change plus une fois le bâtiment posé chez un joueur.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "maxLength": 32
+        },
+        "posable": { "description": "Vrai si le joueur le pose avec l'outil de construction ; faux pour la mairie, posée toute seule.", "type": "boolean" },
+        "quantiteMax": { "description": "Combien d'exemplaires une entreprise peut en avoir.", "type": "integer", "minimum": 1 },
+        "typeBonus": { "$ref": "#/$defs/typeBonus" },
+        "niveaux": {
+          "description": "Un niveau par entrée : la première est le niveau 1. Sans typeBonus, aucun niveau n'a de bonus ; avec lui, tous en ont un.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/niveau" }
+        }
+      }
+    },
+    "niveau": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prixLingots", "niveauMairieRequis"],
+      "properties": {
+        "prixLingots": { "description": "Prix en Lingots pour poser le bâtiment (niveau 1) ou pour passer à ce niveau.", "type": "integer", "minimum": 0 },
+        "niveauMairieRequis": { "description": "Niveau de mairie qu'il faut avoir pour poser le bâtiment ou passer à ce niveau.", "type": "integer", "minimum": 1 },
+        "bonus": { "description": "Le bonus total que donne le bâtiment à ce niveau, dans l'unité de son typeBonus.", "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

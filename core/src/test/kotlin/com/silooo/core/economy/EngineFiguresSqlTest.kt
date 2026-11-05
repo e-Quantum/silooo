@@ -107,6 +107,7 @@ class EngineFiguresSqlTest {
             TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE),
             TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE),
             TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE),
+            TestDefinitions.text(DefinitionsLoader.CITY_FILE),
         )
 
         val response = runBlocking { service(changed).join(KR, "Kr") }
