@@ -140,3 +140,4 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 
 | Date | Clé | Avant | Après | Pourquoi |
 | --- | --- | --- | --- | --- |
+| 5 nov. 2026 | `prestige.departDeCourse` (`usine`, `niveau`) | absente | `carriere`, niveau `1` | Le tableur démarre chaque course avec la Carrière au niveau 1 (Paramètres!B17), jamais à zéro : règle du jeu sans clé, dont le moteur a besoin. **À valider par Kr** (point 2 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, le rejeu des tests dorés les retrouve. |

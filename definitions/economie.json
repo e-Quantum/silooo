@@ -71,7 +71,11 @@
       "formule": "lingots = coefficient * cbrt(donarGagnes / (seuil / diviseurReference))"
     },
     "productionParEtoile": 300,
-    "bonusParLingotDetenu": 0.01
+    "bonusParLingotDetenu": 0.01,
+    "departDeCourse": {
+      "usine": "carriere",
+      "niveau": 1
+    }
   },
   "lingotsHorsPrestige": {
     "missionBienvenue": 10,

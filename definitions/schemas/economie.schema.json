@@ -46,7 +46,7 @@
       "additionalProperties": false,
       "required": [
         "seuils", "etoilesSuivantes", "conversionLingots",
-        "productionParEtoile", "bonusParLingotDetenu"
+        "productionParEtoile", "bonusParLingotDetenu", "departDeCourse"
       ],
       "properties": {
         "seuils": {
@@ -75,7 +75,17 @@
           }
         },
         "productionParEtoile": { "type": "number", "exclusiveMinimum": 0 },
-        "bonusParLingotDetenu": { "type": "number", "minimum": 0 }
+        "bonusParLingotDetenu": { "type": "number", "minimum": 0 },
+        "departDeCourse": {
+          "description": "L'usine qui est déjà là au début de chaque course, et son niveau ; les autres usines repartent à zéro.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["usine", "niveau"],
+          "properties": {
+            "usine": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+            "niveau": { "type": "integer", "minimum": 1 }
+          }
+        }
       }
     },
     "lingotsHorsPrestige": {
