@@ -71,6 +71,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteMode = config.siteMode,
             siteUrl = config.siteUrl,
             discordUrl = config.discordUrl,
+            siteSettings = config.siteSettings,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.

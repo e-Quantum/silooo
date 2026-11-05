@@ -2,6 +2,8 @@ package com.silooo.core
 
 import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.site.SiteMode
+import com.silooo.core.site.SiteSettings
+import com.silooo.core.site.VoteSite
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -36,10 +38,12 @@ data class ServiceConfig(
     val siteUrl: String = Config.DEFAULT_SITE_URL,
     /** Le lien Discord du site (`SILOOO_SITE_URL_DISCORD`) ; `null` tant qu'il n'est pas posé. */
     val discordUrl: String? = null,
+    /** L'adresse et le port du jeu, la boutique et les sites de vote que les pages affichent (`SILOOO_SITE_ADRESSE_JEU` et suivantes). */
+    val siteSettings: SiteSettings = SiteSettings(),
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
-            "sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl)"
+            "sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings)"
 }
 
 /**
@@ -58,6 +62,10 @@ object Config {
     const val SITE_MODE = "SILOOO_SITE_MODE"
     const val SITE_URL = "SILOOO_SITE_URL"
     const val SITE_URL_DISCORD = "SILOOO_SITE_URL_DISCORD"
+    const val SITE_GAME_ADDRESS = "SILOOO_SITE_ADRESSE_JEU"
+    const val SITE_GAME_PORT = "SILOOO_SITE_PORT_JEU"
+    const val SITE_SHOP_URL = "SILOOO_SITE_URL_BOUTIQUE"
+    const val SITE_VOTE_SITES = "SILOOO_SITE_SITES_DE_VOTE"
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -84,6 +92,16 @@ object Config {
 
     /** Adresse publique du site quand `SILOOO_SITE_URL` n'est pas posée. */
     const val DEFAULT_SITE_URL = "https://silooo.com"
+
+    /** L'adresse du serveur de jeu que le site affiche quand `SILOOO_SITE_ADRESSE_JEU` n'est pas posée. */
+    const val DEFAULT_GAME_ADDRESS_SHOWN = "play.silooo.com"
+
+    /**
+     * Le port du serveur de jeu que le site affiche quand `SILOOO_SITE_PORT_JEU` n'est pas posée. C'est le défaut de
+     * `BDS_PORT` dans `deploy/compose.yml` (`${BDS_PORT:-19142}`, ADR 0004 : le 19132 est pris par le Geyser de SileneMC).
+     * Un test compare les deux : si Kr change le port du jeu dans le compose, il le dit.
+     */
+    const val DEFAULT_GAME_PORT_SHOWN = 19142
 
     /**
      * Seulement la base : c'est tout ce que le mode `migrate` demande. Le service `silooo-migrate`
@@ -112,10 +130,12 @@ object Config {
         val siteMode = reader.siteMode()
         val siteUrl = reader.siteUrl(SITE_URL, DEFAULT_SITE_URL)
         val discordUrl = reader.siteUrl(SITE_URL_DISCORD, null)
+        val siteSettings = reader.siteSettings()
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
+            siteSettings = checkNotNull(siteSettings),
         )
     }
 
@@ -233,6 +253,42 @@ object Config {
                 return default
             }
             return url.trimEnd('/')
+        }
+
+        /** Ce que les pages du site affichent du jeu : adresse, port, boutique, sites de vote. Chaque défaut est celui du jeu, jamais une erreur. */
+        fun siteSettings(): SiteSettings? {
+            val before = problems.size
+            val address = env[SITE_GAME_ADDRESS]?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_GAME_ADDRESS_SHOWN
+            if (address.any { it.isWhitespace() || it == '/' || it == ':' }) {
+                problems += "$SITE_GAME_ADDRESS doit être une adresse sans espace, sans « / » ni port (le port a sa variable, $SITE_GAME_PORT)"
+            }
+            val rawPort = env[SITE_GAME_PORT]
+            val port = if (rawPort.isNullOrBlank()) DEFAULT_GAME_PORT_SHOWN else rawPort.trim().toIntOrNull()
+            if (port == null || port !in 1..65535) {
+                problems += "$SITE_GAME_PORT doit être un numéro de port entre 1 et 65535"
+            }
+            val shopUrl = siteUrl(SITE_SHOP_URL, null)
+            val voteSites = voteSites()
+            if (problems.size > before) return null
+            return SiteSettings(address, checkNotNull(port), shopUrl, voteSites)
+        }
+
+        /** `nom|url;nom|url` : une entrée sans nom, sans url ou sans « | » refuse tout le démarrage. */
+        private fun voteSites(): List<VoteSite> {
+            val raw = env[SITE_VOTE_SITES]
+            if (raw.isNullOrBlank()) return emptyList()
+            val sites = mutableListOf<VoteSite>()
+            for (entry in raw.split(";").map { it.trim() }.filter { it.isNotEmpty() }) {
+                val bar = entry.indexOf('|')
+                val name = if (bar > 0) entry.substring(0, bar).trim() else ""
+                val url = if (bar > 0) entry.substring(bar + 1).trim() else ""
+                if (name.isEmpty() || !(url.startsWith("http://") || url.startsWith("https://"))) {
+                    problems += "$SITE_VOTE_SITES : « $entry » doit s'écrire nom|url, avec une adresse qui commence par http (plusieurs sites séparés par des points-virgules)"
+                } else {
+                    sites += VoteSite(name, url)
+                }
+            }
+            return sites
         }
 
         fun finish() {

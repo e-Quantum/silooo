@@ -147,7 +147,7 @@ const reglees = new Set(['SILOOO_PORT', 'SILOOO_DEFINITIONS_DIR']); // port 8080
 // Le site public (docs/site-passation.md) : des variables facultatives, avec un défaut sûr (attente, 8081). deploy/ est à la
 // direction du jeu : elle les ajoute à exemple.env.txt (docs/site-passation.md, « Pour la direction du jeu »), puis retire
 // chaque nom de cette liste. Une variable du site qui n'est ni ici ni dans exemple.env.txt fait échouer le test.
-for (const nom of ['SILOOO_SITE_PORT', 'SILOOO_SITE_MODE', 'SILOOO_SITE_URL', 'SILOOO_SITE_URL_DISCORD']) reglees.add(nom);
+for (const nom of ['SILOOO_SITE_PORT', 'SILOOO_SITE_MODE', 'SILOOO_SITE_URL', 'SILOOO_SITE_URL_DISCORD', 'SILOOO_SITE_ADRESSE_JEU', 'SILOOO_SITE_PORT_JEU', 'SILOOO_SITE_URL_BOUTIQUE', 'SILOOO_SITE_SITES_DE_VOTE']) reglees.add(nom);
 const oubliees = variablesCore.filter((nom) => !reglees.has(nom) && !connues.has(nom));
 verifier(variablesCore.length >= 5 && oubliees.length === 0, 'chaque variable lue par Config.kt est dans exemple.env.txt (sauf SILOOO_PORT, SILOOO_DEFINITIONS_DIR et les variables du site, en attente dans deploy/)', oubliees);
 
