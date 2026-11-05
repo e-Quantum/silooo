@@ -95,7 +95,8 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
   régime hors ligne ; la production versée au régime en ligne va au Donar de l'entreprise (`state.donar`) et n'y
   figure pas.
 - Sans chef d'équipe, une usine s'arrête quand son stock est plein. Jamais de grève ni d'incident
-  pendant une absence.
+  pendant une absence. Un chef d'équipe affecté à une usine relève le plafond de cette usine seulement
+  (section Le personnel).
 
 ## La remise en état
 
@@ -185,6 +186,57 @@ Le service tranche ainsi, **à valider par Kr** :
 - `GET /v1/players/{xuid}/missions` rend la mission en cours (identifiant, avancement, cible, Lingots) et la liste des
   missions terminées. Les textes de chaque mission sont ceux de l'add-on, retrouvés par l'identifiant : le service ne
   les connaît pas.
+
+## Le personnel
+
+`definitions/personnel.json` dit tout : la liste du jour de l'agence, les trois raretés (part, bonus, salaire, prix), les
+deux rôles, les postes et le plafond du chef. Le service ne contient aucun de ces chiffres.
+
+**La liste du jour.** Cinq candidats par jour et par entreprise : quatre salariés et un chef d'équipe. Elle est tirée de
+l'entreprise et du jour (UTC) seulement, donc identique toute la journée et à chaque lecture, et il n'existe aucun moyen de
+payer pour la changer : pas de relance, pas de tirage payant, rien qui ressemble à un pari. Les raretés sortent d'une
+répartition fixe, 75 % de communs, 20 % de rares, 5 % d'épiques.
+
+**Ce que rapporte un membre.** Affecté à une usine qui produit, il change la production de cette usine de
+`bonus - salaire`, en pourcent de ce qu'elle produirait sans équipe. Le salaire d'un rôle est le pourcent de salaire de la
+rareté fois le facteur du rôle (le chef coûte plus cher). Les bonus de plusieurs membres s'additionnent. Le salaire est une
+vraie sortie d'argent : il est retranché du revenu net, donc dans les deux régimes (en ligne au revenu plein, hors ligne par
+le plafond et l'efficacité), et `CompanyState.ratePerHour` est ce revenu net. Un membre sans usine, ou dans une usine en ruine,
+ne rapporte rien et ne coûte rien.
+
+| Rareté | Part | Bonus | Salaire d'un salarié | Salaire d'un chef | Prix d'un salarié | Prix d'un chef |
+| --- | --- | --- | --- | --- | --- | --- |
+| Commun | 75 % | 10 % | 2,5 % | 3,75 % | 1 heure de revenu | 2 heures |
+| Rare | 20 % | 25 % | 6 % | 9 % | 4 heures | 8 heures |
+| Épique | 5 % | 60 % | 15 % | 22,5 % | 20 heures | 40 heures |
+
+Ce sont les valeurs de départ de `personnel.json`. Le prix d'embauche est des heures du revenu net de l'entreprise au moment
+de l'embauche : il suit la progression au lieu d'être un chiffre fixe, et il ne peut pas devenir négligeable plus tard.
+
+**Retour sur investissement.** Quand une seule usine produit tout le revenu, un membre se paie après `prix / net` heures :
+
+| Rareté | Salarié | Chef |
+| --- | --- | --- |
+| Commun | 13 h | 32 h |
+| Rare | 21 h | 50 h |
+| Épique | 44 h | 107 h |
+
+Avec plusieurs usines le même membre ne porte qu'une part du revenu et se paie plus lentement. À recaler avec le simulateur
+quand le joueur type embauchera ([Le simulateur](#le-simulateur)).
+
+**Postes.** Une usine accueille un salarié, plus un par tranche de 25 niveaux, et un seul chef. Les postes ne limitent que
+l'entrée : une usine qui en perd au prestige garde son équipe.
+
+**Le chef d'équipe** relève de 4 heures le plafond hors ligne de l'usine où il travaille, et de celle-là seulement ; les
+autres usines restent au plafond de l'entreprise. C'est le seul effet hors ligne du personnel.
+
+Le service tranche ainsi, **à valider par Kr** :
+
+- Tout membre de l'entreprise peut embaucher et affecter ; seul le PDG renvoie.
+- L'embauche coûte du Donar de l'entreprise, jamais de Lingots. Un membre renvoyé ne rend rien.
+- Le candidat renvoyé redevient embauchable le jour même, au prix du moment.
+- Les bonus s'additionnent, ils ne se multiplient pas.
+- Les noms et les apparences de l'agence, et leur nombre, sont provisoires.
 
 ## La ville : zones et bonus
 
@@ -386,3 +438,4 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `prestige.facteurSeuilSuivant` | absente (le texte `etoilesSuivantes` parlait d'un facteur à recaler) | `1000` | Le moteur doit donner un seuil à toute course, et `join` ne peut pas tomber au-delà de la 9e : la clé chiffre le texte. **À valider par Kr** (point 5 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, aucune course listée ne change. |
 | 5 nov. 2026 | `monde.json` : `archipel.ecartEntreCases`, `archipel.casesParRangee`, `archipel.origine` (`x`, `z`) | fichier absent | `600`, `64`, `0` et `0` | `CompanyBootstrap.slotOrigin` pose chaque île neuve sur une grille : colonne `N % casesParRangee`, rangée `N / casesParRangee`. 600 blocs reprend l'espace à prévoir par joueur ([game-design.md](game-design.md), section Technique) ; la largeur de 64 cases et l'origine en (0, 0) sont des valeurs de départ, à recaler quand le monde sera posé. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
 | 5 nov. 2026 | `missions.json` : `missions[]` (`id`, `evenement`, `cible`, `recompense`) | fichier absent | `bienvenue-mairie`, `collect`, `1`, `lingotsHorsPrestige.missionBienvenue` | Le service compte les missions lui-même (`collect` qui rapporte) et les termine tout seul. Le catalogue n'a aucun chiffre d'économie : la récompense est le chemin d'une clé de `economie.json`, dont `lingotsHorsPrestige.missionBienvenue` (10) ne change pas. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
+| 5 nov. 2026 | `personnel.json` : `agence`, `raretes`, `roles`, `postes`, `chefEquipe` | fichier absent | liste de 5 (4 salariés, 1 chef), parts `75`/`20`/`5`, bonus `10`/`25`/`60`, salaires `2,5`/`6`/`15`, prix `1`/`4`/`20` heures de revenu, chef x`2` de prix et x`1,5` de salaire, 1 salarié + 1 par `25` niveaux et 1 chef, chef `+4` h hors ligne | Le contrat décrit l'agence (cinq candidats, trois raretés 75/20/5) sans chiffres de bonus, de salaire ni de prix : le service en a besoin pour embaucher et pour compter les salaires comme sortie d'argent. Valeurs de départ au plus simple, à recaler quand le joueur type embauchera. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'embauche personne). |
