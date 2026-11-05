@@ -222,7 +222,7 @@ class MissionSqlTest {
 
         val state = stateOf(KR)
         assertEquals(listOf(first.id), state.completed.take(1))
-        assertTrue(state.current == null || state.current!!.id != first.id)
+        assertTrue(state.current == null || state.current.id != first.id)
     }
 
     @Test

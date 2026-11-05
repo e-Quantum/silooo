@@ -21,6 +21,7 @@ import com.silooo.core.economy.EngineFixture.Companion.OTHER
 import com.silooo.core.economy.EngineFixture.Companion.START
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.MissionService
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionService
@@ -194,9 +195,21 @@ class CompanySqlTest {
 
     private fun eventCount() = MariaDbSupport.count("game_events")
 
-    /** Le champ [name] du `payload` de chaque événement, dans l'ordre où ils ont été publiés. */
-    private fun eventValues(name: String): List<String?> =
-        MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.$name') FROM game_events ORDER BY id")
+    /** Le nombre d'événements dont `payload.action` vaut [action]. */
+    private fun eventCount(action: String) =
+        MariaDbSupport.long("SELECT COUNT(*) FROM game_events WHERE JSON_VALUE(payload, '\$.action') = ?", action)
+
+    /**
+     * Le champ [name] du `payload` de chaque événement, dans l'ordre où ils ont été publiés. Avec [action], seuls les
+     * événements de cette action : le premier encaissement qui rapporte termine aussi la mission de bienvenue, dont
+     * l'événement s'ajoute à celui du collect.
+     */
+    private fun eventValues(name: String, action: String? = null): List<String?> =
+        if (action == null) {
+            MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.$name') FROM game_events ORDER BY id")
+        } else {
+            MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.$name') FROM game_events WHERE JSON_VALUE(payload, '\$.action') = ? ORDER BY id", action)
+        }
 
     private fun startingRate() = engine.ratePerHour(engine.startingLevels(), engine.globalMultiplier(0.0, 0))
 
@@ -257,18 +270,20 @@ class CompanySqlTest {
         assertEquals(clock.instant(), lastCollectAt(id))
         assertEquals(1L, version(id))
 
-        assertEquals(1L, eventCount())
-        assertEquals(CompanyService.EVENT_KIND.name, MariaDbSupport.string("SELECT kind FROM game_events"))
-        assertEquals(KR.text, MariaDbSupport.string("SELECT CAST(xuid AS CHAR) FROM game_events"))
-        assertEquals(listOf(CompanyService.ACTION_COLLECT), eventValues("action"))
-        assertEquals(listOf(id.toString()), eventValues("companyId"))
-        assertGolden(earned, eventValues("collected").single()!!.toDouble(), "Donar encaissé dans l'événement")
+        // Un événement pour le collect, et celui de la mission de bienvenue que ce premier encaissement termine.
+        assertEquals(1L, eventCount(CompanyService.ACTION_COLLECT))
+        assertEquals(2L, eventCount())
+        assertEquals(listOf(CompanyService.ACTION_COLLECT, MissionService.ACTION), eventValues("action"))
+        assertEquals(List(2) { CompanyService.EVENT_KIND.name }, MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"))
+        assertEquals(List(2) { KR.text }, MariaDbSupport.strings("SELECT CAST(xuid AS CHAR) FROM game_events ORDER BY id"))
+        assertEquals(listOf(id.toString()), eventValues("companyId", CompanyService.ACTION_COLLECT))
+        assertGolden(earned, eventValues("collected", CompanyService.ACTION_COLLECT).single()!!.toDouble(), "Donar encaissé dans l'événement")
 
         // Rejoué avec le même requestId : la même réponse, aucune écriture de plus.
         val replay = collect(id)
         assertEquals(firstBody, replay.bodyAsText())
         assertEquals(1L, version(id))
-        assertEquals(1L, eventCount())
+        assertEquals(2L, eventCount())
 
         // Un autre appel, sans temps écoulé : rien à encaisser, ni écriture ni événement.
         val nothing = SiloooJson.decodeFromString(CollectResponse.serializer(), collect(id, n = 2).bodyAsText())
@@ -276,7 +291,7 @@ class CompanySqlTest {
         assertEquals(0.0, nothing.offlineHours)
         assertGolden(earned, donar(id), "donar après l'appel à vide")
         assertEquals(1L, version(id))
-        assertEquals(1L, eventCount())
+        assertEquals(2L, eventCount())
         assertEquals(clock.instant(), lastCollectAt(id))
     }
 
@@ -493,7 +508,8 @@ class CompanySqlTest {
      */
     private suspend fun ApplicationTestBuilder.addPartner(companyId: Long, partner: Xuid) {
         join(partner, "Associe")
-        MariaDbSupport.update("UPDATE company_members SET company_id = ?, role = 'ASSOCIE' WHERE xuid = ?", companyId, partner.text)
+        // Sans part (0) : les parts d'une entreprise ne dépassent pas 100, et le PDG a 100 tant qu'un test n'en pose pas d'autres.
+        MariaDbSupport.update("UPDATE company_members SET company_id = ?, role = 'ASSOCIE', share_percent = 0 WHERE xuid = ?", companyId, partner.text)
     }
 
     @Test
@@ -698,7 +714,7 @@ class CompanySqlTest {
             "course_started_at passe à maintenant",
         )
         assertEquals(2, result.state.courseNumber)
-        assertEquals(1L, result.state.version)
+        assertEquals(1, result.state.version)
 
         // company_factories : l'usine de départ au niveau de départ, l'autre en ruine au niveau zéro, aucun incident ouvert.
         assertEquals("ACTIVE|0|${start.level}", factoryRow(id, start.factoryId))
