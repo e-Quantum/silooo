@@ -10,7 +10,7 @@
 //         │                   (ces écrans sont dans personnel.ts)
 //         ├─ ASSOCIÉS ─────── les membres de l'entreprise ; Inviter, Parts (le PDG), les invitations reçues
 //         │                   (ces écrans sont dans associes.ts)
-//         └─ Amis : verrouillé, un mot « Bientôt »
+//         ├─ VILLE ────────── mairie, bonus, prochaine zone ; Bâtiments, Construire (ces écrans sont dans ville.ts)
 //
 // Les écrans sont des fonctions pures : une vue de l'entreprise (ce que le service a dit) entre, un écran sort
 // (titre, corps, boutons, et ce que chaque bouton fait). Rien n'y est calculé : chaque chiffre montré est un champ
@@ -32,6 +32,9 @@ import {
   type PrestigePreview,
   type Xuid,
 } from "../protocol";
+import { ILES, VILLE } from "../monde/definitions";
+import type { Pos, Xz } from "../monde/geometrie";
+import { parcelAt, type ParcelReading } from "../monde/ville";
 import type { TravelOutcome } from "../monde/voyage";
 import { describeError, type Clock, type Logger } from "../runtime";
 import type { Actions, ActionOutcome, CandidatesOutcome, PreviewOutcome } from "./actions";
@@ -64,11 +67,13 @@ import {
 } from "./ecran";
 import type { CompanyView, ViewStore } from "./etat";
 import type { ActionFormSpec, FormAnswer, FormPresenter, ModalFormSpec, ModalAnswer } from "./formulaires";
+import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
 import type { Invitations } from "./invitations";
 import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
 import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
 import { playRepair } from "./reparation";
+import { batimentScreen, batimentsScreen, construireScreen, ilePrincipaleTile, poserScreen, villeNotice, villeScreen, villeTile } from "./ville";
 import {
   ASSOCIES_TEXTES,
   BULLES,
@@ -81,6 +86,7 @@ import {
   PRESTIGE_TEXTES,
   SILO_TEXTES,
   USINES_TEXTES,
+  VILLE_TEXTES,
   eraName,
   factoryName,
   failureBubble,
@@ -97,13 +103,6 @@ import { canBuyLevels, factoryStatus, nextRestoreStep, type FactoryStatus } from
 export type { Notice, Route, Screen, Target } from "./ecran";
 
 // ---------------------------------------------------------------- menu principal
-
-function lockedTile(label: string): Entry {
-  return {
-    text: `${COLOR.locked}${ICON.cadenas} ${label}\n${MENU_TEXTES.bientot}${COLOR.reset}`,
-    target: { kind: "soon" },
-  };
-}
 
 /**
  * La tuile Objectifs : la ligne d'info dit où en est la mission en cours, d'après la dernière lecture du service.
@@ -147,7 +146,7 @@ export function mainScreen(view: CompanyView, missions: MissionState | undefined
       text: button(`${ICON.associes} ${MENU_TEXTES.associes}`, associesDetail(view)),
       target: go({ screen: "associes" }),
     },
-    lockedTile(MENU_TEXTES.amis),
+    villeTile(view),
   ];
   return screenOf(MENU_TEXTES.titre, bodyOf(notice, [`${COLOR.bold}${view.state.name}${COLOR.reset}`]), tiles);
 }
@@ -296,14 +295,14 @@ function carteDetail(factory: Factory, status: FactoryStatus): string {
 }
 
 /**
- * La carte des îles : l'île principale (pas encore construite, donc verrouillée), puis une ligne par usine dans
- * l'ordre du jeu. Une usine de l'entreprise mène à son île ; une usine qu'elle n'a pas reste cachée (« ????? »).
+ * La carte des îles : l'île principale (verrouillée tant que l'entreprise n'a pas sa première zone, puis un voyage à la
+ * mairie), puis une ligne par usine dans l'ordre du jeu. Une usine de l'entreprise mène à son île ; une usine qu'elle n'a pas reste cachée (« ????? »).
  * Une usine de l'entreprise que cet add-on ne connaît pas encore vient après les autres.
  */
 export function carteScreen(view: CompanyView, page: number, tilesPerScreen: number, notice?: Notice): Screen {
   const owned = new Map(view.state.factories.map((factory) => [factory.factoryId, factory]));
   const ids = [...FACTORY_IDS, ...view.state.factories.map((factory) => factory.factoryId).filter((id) => !FACTORY_IDS.includes(id))];
-  const rows: Entry[] = [lockedTile(CARTE_TEXTES.ilePrincipale)];
+  const rows: Entry[] = [ilePrincipaleTile(view, CARTE_TEXTES.ilePrincipale, CARTE_TEXTES.ilePrincipaleVerrouillee)];
   for (const id of ids) {
     const factory = owned.get(id);
     if (factory === undefined) {
@@ -473,6 +472,12 @@ export function noticeOf(outcome: ActionOutcome, staff = false): Notice | undefi
       return { bubble: ASSOCIES_TEXTES.bulles.partsEnregistrees };
     case "joined":
       return { bubble: ASSOCIES_TEXTES.bulles.bienvenue };
+    case "zoneBought":
+      return { bubble: VILLE_TEXTES.bulles.zoneAchetee };
+    case "buildingPlaced":
+      return { bubble: VILLE_TEXTES.bulles.batimentPose };
+    case "buildingUpgraded":
+      return { bubble: VILLE_TEXTES.bulles.batimentAmeliore };
     case "refused":
       return { bubble: staff ? staffRefusalBubble(outcome.reason, outcome.missing) : refusalBubble(outcome.reason, outcome.missing) };
     case "failed":
@@ -516,6 +521,18 @@ export interface MenuDeps<P extends MenuPlayer> {
    * donné. Absent quand le monde n'a pas démarré : la carte répond alors « Pas encore disponible ».
    */
   readonly travel?: (player: P, state: CompanyState, factoryId: string) => Promise<TravelOutcome>;
+  /** Téléporte le joueur à la mairie de l'île principale (monde/voyage.ts, createCityTravel). Absent : la carte répond « Pas encore disponible ». */
+  readonly travelCity?: (player: P, state: CompanyState) => Promise<TravelOutcome>;
+  /**
+   * Où se tient le joueur dans le monde des joueurs (monde/arrivee.ts, `ArrivalWorld.locate`). Sert à lire la parcelle de
+   * « Poser ici ». Absent, ou sans réponse : la pose dit qu'elle ne sait pas où est le joueur.
+   */
+  readonly where?: (player: P) => Pos | undefined;
+  /** La dernière origine d'archipel connue d'une entreprise (monde/synchro.ts), pour une réponse du service qui ne la redonne pas. */
+  readonly originOf?: (companyId: number) => Xz | undefined;
+  /** Les chiffres du monde et de la ville. Absents : definitions/iles.json et definitions/ville.json. */
+  readonly defs?: IlesDefinitions;
+  readonly ville?: VilleDefinitions;
   readonly presenter: FormPresenter<P>;
   readonly clock: Clock;
   /** Attend ce nombre de secondes sur l'horloge du serveur (runtime.ts, pause). */
@@ -552,6 +569,14 @@ function parentOf(route: Route): Route {
     case "inviter":
     case "invitation":
       return { screen: "associes" };
+    case "batiments":
+    case "construire":
+      return { screen: "ville" };
+    case "batiment":
+      return { screen: "batiments", page: route.page };
+    case "poser":
+      return { screen: "construire" };
+    case "ville":
     case "associes":
     case "personnel":
     case "usines":
@@ -569,6 +594,8 @@ function parentOf(route: Route): Route {
 interface Reads {
   preview: PreviewOutcome | undefined;
   candidates: CandidatesOutcome | undefined;
+  /** La parcelle où se tient le joueur, lue en entrant dans l'écran de pose. */
+  parcel: ParcelReading | undefined;
 }
 
 export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
@@ -577,6 +604,16 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
   const busyRetries = deps.busyRetries ?? config.ui.formBusyRetries;
   const busyRetrySeconds = deps.busyRetrySeconds ?? config.ui.formBusyRetrySeconds;
   const inMenu = new Set<string>();
+  const defs = deps.defs ?? ILES;
+  const ville = deps.ville ?? VILLE;
+
+  /** La parcelle où se tient le joueur. Rien quand sa position ou l'origine de l'archipel n'est pas connue. */
+  function readParcel(player: P, state: CompanyState): ParcelReading | undefined {
+    const at = deps.where?.(player);
+    const origin = state.island ?? deps.originOf?.(state.companyId);
+    if (at === undefined || origin === undefined) return undefined;
+    return parcelAt(at, origin, defs, ville);
+  }
 
   /** Montre l'écran. Si Bedrock le refuse parce que le joueur a un autre écran ouvert, on réessaie un peu, puis on renonce. */
   async function present(player: P, spec: ActionFormSpec): Promise<FormAnswer> {
@@ -664,6 +701,16 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         return inviterScreen(deps.online?.() ?? [], xuid, route.page, tilesPerScreen, notice);
       case "invitation":
         return invitationScreen(deps.invitations?.list(xuid) ?? [], route.companyId, notice);
+      case "ville":
+        return villeScreen(view, notice);
+      case "batiments":
+        return batimentsScreen(view, route.page, tilesPerScreen, notice);
+      case "batiment":
+        return batimentScreen(view, route.buildingId, route.page, notice);
+      case "construire":
+        return construireScreen(notice, ville);
+      case "poser":
+        return poserScreen(route.buildingType, route.rotation, reads.parcel, notice, ville);
     }
   }
 
@@ -686,6 +733,10 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "accept":
       case "prestige":
       case "travel":
+      case "travelCity":
+      case "buyZone":
+      case "upgrade":
+      case "place":
       case "go":
       case "end":
         return undefined;
@@ -697,7 +748,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     let route: Route = MAIN;
     let notice: Notice | undefined;
     /** Ce que le menu a lu du service pour ses écrans : l'aperçu du prestige, les candidats de l'agence. */
-    const reads: Reads = { preview: undefined, candidates: undefined };
+    const reads: Reads = { preview: undefined, candidates: undefined, parcel: undefined };
     /** Relit ce que l'écran d'arrivée montre et que le service peut avoir changé depuis la dernière fois. */
     async function enter(next: Route): Promise<Notice | undefined> {
       // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
@@ -706,6 +757,16 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       if (next.screen === "prestige") reads.preview = await actions.preview(xuid);
       // Les candidats du jour aussi : un candidat embauché ailleurs, ou une nouvelle liste.
       if (next.screen === "agence") reads.candidates = await actions.candidates(xuid);
+      // La ville aussi : un associé a pu acheter une zone ou poser un bâtiment. La relecture ne coûte rien à l'écran : si elle échoue, la dernière ville connue reste.
+      if (next.screen === "ville") {
+        const refreshed = await actions.refresh(xuid);
+        if (refreshed.kind === "failed") return { bubble: failureBubble(refreshed.failure, refreshed.reason) };
+      }
+      // La parcelle où se tient le joueur : lue à l'ouverture de l'écran de pose, et à chaque quart de tour.
+      if (next.screen === "poser") {
+        const current = views.get(xuid)?.state;
+        reads.parcel = current === undefined ? undefined : readParcel(player, current);
+      }
       // Les associés aussi : un joueur a pu accepter, ou le PDG changer les parts, sans que ce joueur ait agi.
       if (next.screen === "associes") {
         deps.invitations?.opened(xuid);
@@ -780,6 +841,34 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         const played = await playRepair({ show: (spec) => present(player, spec) }, target.factoryId, target.incidentKind);
         if (played === "closed") return;
         if (played === "done") notice = noticeOf(await actions.resolveIncident(xuid, target.incidentId));
+      } else if (target.kind === "buyZone") {
+        const outcome = await actions.buyZone(xuid, target.zoneIndex);
+        notice = villeNotice(outcome, "buyZone", target.zoneIndex) ?? noticeOf(outcome);
+      } else if (target.kind === "upgrade") {
+        const outcome = await actions.upgradeBuilding(xuid, target.buildingId);
+        notice = villeNotice(outcome, "upgradeBuilding") ?? noticeOf(outcome);
+      } else if (target.kind === "place") {
+        // La parcelle est celle où le joueur se tient maintenant, pas celle que l'écran a montrée en s'ouvrant.
+        const current = views.get(xuid)?.state ?? view.state;
+        const parcel = readParcel(player, current);
+        reads.parcel = parcel;
+        if (parcel === undefined) {
+          notice = { bubble: VILLE_TEXTES.bulles.positionInconnue };
+        } else if (parcel.kind === "off") {
+          notice = { bubble: VILLE_TEXTES.bulles.pasSurLIle };
+        } else {
+          const outcome = await actions.placeBuilding(xuid, target.buildingType, parcel.x, parcel.z, target.rotation);
+          notice = villeNotice(outcome, "placeBuilding") ?? noticeOf(outcome);
+          if (outcome.kind === "buildingPlaced") route = { screen: "ville" };
+        }
+      } else if (target.kind === "travelCity") {
+        if (deps.travelCity === undefined) {
+          notice = { bubble: BULLES.bientot };
+        } else {
+          const outcome = await deps.travelCity(player, views.get(xuid)?.state ?? view.state);
+          if (outcome === "arrived" || outcome === "gone") return;
+          notice = travelNotice(outcome);
+        }
       } else if (target.kind === "travel") {
         if (deps.travel === undefined) {
           notice = { bubble: BULLES.bientot };

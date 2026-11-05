@@ -43,7 +43,7 @@ export function colored(color: string, text: string): string {
 }
 
 /**
- * Un repère par icône de design/icones/ utilisée. Objectifs, Amis, Silo, Personnel, Agence et Associés n'ont pas d'icône dans design/ :
+ * Un repère par icône de design/icones/ utilisée. Objectifs, Amis, Silo, Personnel, Agence, Associés et Ville n'ont pas d'icône dans design/ :
  * leur repère est un manque du design system, à dessiner (voir addon/README.md).
  */
 export const ICON = {
@@ -63,6 +63,7 @@ export const ICON = {
   personnel: "[M]",
   agence: "[R]",
   associes: "[N]",
+  ville: "[V]",
 } as const;
 
 /**

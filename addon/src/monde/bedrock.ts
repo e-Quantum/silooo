@@ -85,24 +85,35 @@ export function releaseStaleAreas(): number {
 // ---------------------------------------------------------------- marques des îles posées
 
 const MARK_PREFIX = "silooo:iles:";
+/** Les marques de la ville (clés « ville: ») ont leur propre propriété : une propriété dynamique est limitée à 32 767 caractères. */
+const CITY_MARK_PREFIX = "silooo:ville:";
+const CITY_KEY_PREFIX = "ville:";
+
+function readMarks(property: string): Record<string, string> {
+  const raw = world.getDynamicProperty(property);
+  if (typeof raw !== "string") return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    const marks: Record<string, string> = {};
+    for (const [key, mark] of Object.entries(parsed)) if (typeof mark === "string") marks[key] = mark;
+    return marks;
+  } catch {
+    return {};
+  }
+}
 
 export function createMarkStore(): MarkStore {
   return {
     read(companyId) {
-      const raw = world.getDynamicProperty(`${MARK_PREFIX}${companyId}`);
-      if (typeof raw !== "string") return {};
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-        const marks: Record<string, string> = {};
-        for (const [factoryId, mark] of Object.entries(parsed)) if (typeof mark === "string") marks[factoryId] = mark;
-        return marks;
-      } catch {
-        return {};
-      }
+      return { ...readMarks(`${MARK_PREFIX}${companyId}`), ...readMarks(`${CITY_MARK_PREFIX}${companyId}`) };
     },
     write(companyId, marks) {
-      world.setDynamicProperty(`${MARK_PREFIX}${companyId}`, JSON.stringify(marks));
+      const islands: Record<string, string> = {};
+      const city: Record<string, string> = {};
+      for (const [key, mark] of Object.entries(marks)) (key.startsWith(CITY_KEY_PREFIX) ? city : islands)[key] = mark;
+      world.setDynamicProperty(`${MARK_PREFIX}${companyId}`, JSON.stringify(islands));
+      world.setDynamicProperty(`${CITY_MARK_PREFIX}${companyId}`, JSON.stringify(city));
     },
   };
 }
@@ -138,6 +149,11 @@ export function createArrivalWorld(): ArrivalWorld<Player> {
     isOnline: (player) => player.isValid,
     teleport(player, at, facing) {
       player.teleport(at, { dimension: overworld(), facingLocation: facing, keepVelocity: false });
+    },
+    locate(player) {
+      if (!player.isValid || player.dimension.id !== overworld().id) return undefined;
+      const { x, y, z } = player.location;
+      return { x, y, z };
     },
   };
 }

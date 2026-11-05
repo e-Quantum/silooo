@@ -3,13 +3,17 @@
 // Rien ici ne décide quoi que ce soit : on lit des chiffres et on les rend tels quels.
 
 import brut from "../../../definitions/iles.json";
-import type { IlesDefinitions } from "../generated/definitions";
+import brutVille from "../../../definitions/ville.json";
+import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
 
 /**
  * Le JSON importé a des chaînes larges (`string`), les types générés ont les unions exactes du schéma : le passage
  * se fait ici, une seule fois, et le test des définitions compare le fichier réel à ce que le schéma promet.
  */
 export const ILES: IlesDefinitions = brut as unknown as IlesDefinitions;
+
+/** La ville de l'île principale : definitions/ville.json (zones, catalogue des bâtiments, prix du niveau 1), lu tel quel. */
+export const VILLE: VilleDefinitions = brutVille as unknown as VilleDefinitions;
 
 /** Les règles de fond que le schéma JSON ne peut pas dire. Rend une liste de problèmes lisibles, vide si tout va bien. */
 export function verifierIles(defs: IlesDefinitions, tailleDeLaCase: number): string[] {

@@ -26,8 +26,8 @@ ou que Kr fera le relevé depuis son PC.
 | Rejoindre (`contenu/rejoindre.md`, adresse et port par `pages/Joueurs.kt`) | L'adresse et le port, la marche à suivre par plate-forme (PC, téléphone et tablette, console) | « Interface et onboarding console », ADR 0004 |
 | Ce qui se vend (`contenu/ce-qui-se-vend.md`, tableaux par `pages/Offres.kt`) | La phrase « tout ce qui s'achète se gagne aussi en jouant », puis la liste exacte de ce qui se vend, avec les prix, visible avant la connexion | Obligations de la boutique |
 | Wiki et guides (`contenu/wiki/`, `pages/Wiki.kt` et `pages/WikiBlocs.kt`) | Les systèmes du jeu, dans l'ordre où le joueur les rencontre ; les règles du serveur, qui ne sont pas en jeu à l'arrivée | « Interface et onboarding console » |
-| Classements | Hebdomadaires, en Lingots gagnés dans la semaine, jamais en richesse totale ; les villes les mieux votées | « Économie sur le long terme » |
-| Fiche publique d'entreprise | Nom, logo, couleurs, slogan, membres, époque, étoiles, ville | « Identité d'entreprise » |
+| Classements (`contenu/classements.md`, `site/StatsRoutes.kt`, `pages/Classements.kt`) | Hebdomadaires (semaine ISO en UTC), les joueurs par Lingots gagnés dans la semaine, jamais en richesse totale, vingt-cinq par page, avec le lien vers la fiche de leur entreprise ; les villes les mieux votées viendront avec le vote | « Économie sur le long terme » |
+| Fiche publique d'entreprise (`/entreprise/{id}/`, `pages/Entreprise.kt`) | Nom, époque, étoiles, prestiges, date de création, membres (PDG d'abord) ; le logo, les couleurs, le slogan et la ville y viendront quand le jeu les écrit | « Identité d'entreprise » |
 | Boutique (`contenu/boutique.md`, `pages/Boutique.kt`) | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
 | Vote (`contenu/vote.md`, `pages/Vote.kt`) | Les sites de vote et Hubyy, la récompense par vote, la jauge de la Vote party | « Votes » |
 | Mises à jour (`contenu/mises-a-jour.md`, entrées dans `contenu/mises-a-jour/`, `pages/MisesAJour.kt`) | Une entrée datée par tag déployé, écrite pour les joueurs | Référence Rinaorc, ADR 0006 |
@@ -231,6 +231,81 @@ Section tenue par la direction du site, étape par étape ([site-passation.md](s
     silooo-core, ou le dernier maillon de `X-Forwarded-For` quand `SILOOO_SITE_TRUSTED_PROXY=true`.
   - **Aucune donnée personnelle affichée** : l'identifiant Discord n'entre dans aucune page, aucun journal, aucun message d'erreur
     (un test le cherche dans toutes les pages d'un parcours complet).
+
+- S5 : les données vivantes, le webhook PayNow, la mise en ligne. Les textes neufs sont **à valider par Kr**.
+  - **Joueurs en ligne** (accueil, `ouvert`) : le nombre de joueurs des derniers signaux de vie de `ServerPresence`, sans doublon d'un serveur à
+    l'autre. Aucun signal depuis plus de deux minutes (`SITE_MAX_BEAT_AGE`, une durée technique) : « Serveur fermé pour l'instant. ». Aucune
+    lecture de la base.
+  - **Classements** (`/classements/`, `ouvert`) : la semaine ISO en cours en UTC, lue sur l'horloge du service, du lundi 00:00 au dimanche
+    23:59:59 ; le titre dit les dates (« Semaine du 2 au 8 novembre 2026 »). Les joueurs sont classés par Lingots gagnés dans la semaine :
+    la somme, par joueur, des lignes de `currency_ledger` en `LINGOTS` avec `delta > 0` dont la date tombe dans la semaine, avec le gamertag
+    et l'entreprise du joueur (« Sans entreprise » s'il n'en a pas). Les dépenses, les autres monnaies et les soldes ne comptent pas.
+    Vingt-cinq par page (`?page=2`), au plus quarante pages. Cache d'une minute par page et par semaine, partagé entre les requêtes.
+  - **La fiche d'entreprise** (`/entreprise/{id}/`, `ouvert`, hors de la navigation) : nom, « Époque N », étoiles, prestiges (comptés dans
+    `prestige_history`), date de création, membres (gamertag et rôle). Ni Donar, ni Lingots, ni XUID, ni slogan. Un identifiant invalide ou
+    inconnu rend le 404 en page Silooo. Cache d'une minute par identifiant, trois cents entrées au plus.
+  - **Les accès** sont dans `com.silooo.core.sitedata` (hors du paquet `site`, dont les littéraux passent le filtre de texte) :
+    `SiteStatsStore` et son SQL en lecture seule, `ShopDeliveryStore` pour le webhook. Testés sur MariaDB (`SiteStatsSqlTest`,
+    `ShopDeliverySqlTest`, ignorés sans Docker, joués dans la CI) et avec des faux en mémoire pour les pages.
+  - **Le webhook PayNow** (`POST /paynow/webhook`, `attente` comme `ouvert`) : **le format exact des webhooks de PayNow est à confirmer par
+    Kr**. Tout ce qui en dépend est dans la classe `PayNowWebhook` : l'en-tête `PayNow-Signature` porte l'HMAC-SHA256 du corps brut, en
+    hexadécimal minuscule, avec `SILOOO_PAYNOW_WEBHOOK_SECRET` pour clé ; le corps JSON porte `order_id`, `gamertag` et `gemmes`. Sans secret
+    posé : 503. Signature absente ou fausse (comparaison en temps constant) : 401. Champ manquant ou Gemmes non strictement positives : 400
+    qui nomme le champ. Corps de plus de 4 Ko : 413. Sinon une ligne dans `shop_deliveries` (`xuid` et `delivered_at` nuls : le relevé du jeu
+    les remplit et crédite) et `{"received": true}`. Un `order_id` déjà écrit rend 200 sans seconde ligne (la clé primaire refuse le doublon).
+  - **Les captures** de relecture (360 et 1280 px) se font avec `SILOOO_SITE_RENDER_DIR` (`SiteRenderToDisk` écrit aussi les classements et une fiche).
+
+## Mettre en ligne
+
+La marche à suivre pour Kr et pour la direction du jeu. Rien ici ne s'exécute tout seul : chaque geste est celui de Kr, ou celui de la
+direction du jeu quand [site-passation.md](site-passation.md) dit « Prêt à mettre en ligne ». Le site reste en mode `attente` jusqu'à
+l'ouverture.
+
+1. **Le DNS.** `silooo.com` (et `www`, si Kr le veut) pointe vers l'adresse du VPS qui porte le Caddy de SileneMC. Le jeu garde son
+   adresse à part (`play.silooo.com`, `SILOOO_SITE_ADRESSE_JEU`).
+2. **Les variables**, dans le fichier d'environnement du VPS (jamais dans le dépôt ; `deploy/exemple.env.txt` donne les noms) :
+
+   | Variable | Valeur |
+   | --- | --- |
+   | `SILOOO_SITE_PORT` | `8081` (le défaut ; le Caddy y joint `silooo-core`) |
+   | `SILOOO_SITE_MODE` | `attente` (voir la règle plus bas) |
+   | `SILOOO_SITE_URL` | `https://silooo.com` |
+   | `SILOOO_SITE_URL_DISCORD` | le lien d'invitation du Discord de Silooo |
+   | `SILOOO_SITE_ADRESSE_JEU` | `play.silooo.com` |
+   | `SILOOO_SITE_PORT_JEU` | le port de `BDS_PORT` dans `deploy/compose.yml` |
+   | `SILOOO_SITE_URL_BOUTIQUE` | l'adresse de la boutique de SileneMC où s'achètent les Gemmes |
+   | `SILOOO_SITE_SITES_DE_VOTE` | `nom\|url` séparés par des points-virgules |
+   | `SILOOO_SITE_ADMISSION` | `discord` (par défaut) ou `tous` à l'ouverture |
+   | `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET` | ceux de l'application Discord (les deux, ou aucune) |
+   | `SILOOO_SITE_TRUSTED_PROXY` | `true` : l'adresse du visiteur se lit dans `X-Forwarded-For`, posé par le Caddy |
+   | `SILOOO_PAYNOW_WEBHOOK_SECRET` | le secret de signature des webhooks, donné par PayNow |
+
+3. **Le bloc Caddy**, dans le Caddy de SileneMC (`/var/www/minecraft`, que les sessions Silooo ne touchent pas). `silooo-core` est sur le
+   réseau Docker `silenemc` ; le Caddy joint le port du site, jamais celui de `/v1` :
+
+   ```
+   silooo.com {
+       reverse_proxy silooo-core:8081 {
+           header_up X-Forwarded-For {remote_host}
+       }
+   }
+   ```
+
+   Le `header_up` remplace tout `X-Forwarded-For` que le visiteur aurait envoyé : la limite de débit des inscriptions et
+   `SILOOO_SITE_TRUSTED_PROXY=true` comptent dessus. Le TLS est celui de Caddy.
+4. **Les mentions** (`contenu/mentions.md`) : l'éditeur, l'hébergeur et le contact disent « À compléter par Kr ». Les remplir avant l'ouverture
+   (identité légale, hébergeur, adresse de contact). La section « Données » dit aussi ce que le site garde ; si le site garde autre chose
+   (le pseudo d'une commande de Gemmes), la compléter.
+5. **L'application Discord** (portail des développeurs de Discord) : ajouter l'URL de retour OAuth2 `<SILOOO_SITE_URL>/pionniers/discord/retour/`
+   (`https://silooo.com/pionniers/discord/retour/`), à l'identique, sans rien d'autre. La portée est `identify` seule.
+6. **PayNow** : déclarer l'URL du webhook `<SILOOO_SITE_URL>/paynow/webhook` (`https://silooo.com/paynow/webhook`), et poser son secret dans
+   `SILOOO_PAYNOW_WEBHOOK_SECRET`. **Confirmer d'abord le format** (en-tête de signature, calcul, champs du corps) : s'il diffère de ce que
+   `PayNowWebhook` suppose, on ne change que cette classe et son test. Sans secret, le webhook répond 503 et PayNow rejoue plus tard.
+7. **Vérifier avant d'ouvrir** : `https://silooo.com/` montre la page d'attente et `/mentions/` les mentions ; `/classements/` répond 404 (il n'existe
+   qu'en `ouvert`) ; `/v1/` n'existe pas sur le site ; un `POST` sans signature sur `/paynow/webhook` rend 401.
+8. **Le mode.** `SILOOO_SITE_MODE` passe à `ouvert` **par Kr seulement, à l'ouverture** : jamais dans un fichier du dépôt, ni dans la CI, ni
+   dans un déploiement fait par une session. Pour relire le site entier avant, le lancer sur son propre poste
+   (`SILOOO_SITE_MODE=ouvert ./gradlew run`, voir `core/README.md`).
 
 ## Ce qui est tranché, provisoirement
 

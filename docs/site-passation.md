@@ -1,6 +1,6 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 15 h 20, S4 fusionnée (direction du site, cloud).
+Dernière mise à jour : 5 novembre 2026, 15 h 00, S5 fusionnée, prêt à mettre en ligne, dernier bilan (direction du site, cloud).
 
 Ce fichier est tenu par la session de direction du site ([site-direction.md](site-direction.md)). Il ne remplace pas
 [passation.md](passation.md), qui reste à la direction du jeu : ici, seulement le site `silooo.com`, décrit dans
@@ -8,6 +8,12 @@ Ce fichier est tenu par la session de direction du site ([site-direction.md](sit
 
 ## État
 
+- **S5 est sur `main`** : les joueurs en ligne sur l'accueil (d'après le dernier `heartbeat`, « Serveur fermé pour
+  l'instant. » sans battement récent), les classements de la semaine ISO en Lingots gagnés (`/classements/`, pages de
+  25, cache d'une minute), la fiche d'entreprise (`/entreprise/{id}/`), le webhook PayNow (`POST /paynow/webhook`,
+  signature HMAC-SHA256 supposée, une ligne `shop_deliveries` par commande, rejeu sans doublon), et la section
+  « Mettre en ligne » de `docs/site.md`. Les accès SQL sont dans `com.silooo.core.sitedata`, en lecture seule hors
+  des livraisons. **S0 à S5 sont cochées sauf les cases de Kr : le site est prêt à mettre en ligne** (section plus bas).
 - **S4 est sur `main`** : la migration V7 (`site_registrations`), la page `/pionniers/` dans les deux modes
   (inscription par gamertag, jeton de formulaire signé, cookie de session signé d'une heure, limite de débit,
   compteur des inscrits), « Relier Discord » par OAuth2 (`identify`) seulement si Kr pose l'application, la règle
@@ -192,20 +198,29 @@ Discord », « refus des non-admis »), faute des fichiers de Kr.
 Critère de fin : joueurs en ligne sur l'accueil, Classements et fiches d'entreprise rendus en mode `ouvert` ; le
 webhook PayNow écrit `shop_deliveries` ; la liste « Prêt à mettre en ligne » écrite ; `tools/verifier.sh` vert.
 
-- [ ] Joueurs en ligne : lus dans `ServerPresence` (le dernier `heartbeat`), affichés sur l'accueil ; « Serveur fermé »
+- [x] Joueurs en ligne : lus dans `ServerPresence` (le dernier `heartbeat`), affichés sur l'accueil ; « Serveur fermé »
   sans heartbeat récent
-- [ ] Classements : la semaine ISO en cours, les joueurs par Lingots gagnés dans la semaine (`currency_ledger`,
+- [x] Classements : la semaine ISO en cours, les joueurs par Lingots gagnés dans la semaine (`currency_ledger`,
   `LINGOTS`, `delta > 0`), gamertag et nom d'entreprise, taille de page technique dans le code ; cache d'une minute ;
   tests SQL Testcontainers
-- [ ] Fiche d'entreprise `/entreprise/{id}/` : nom, époque, étoiles, membres (gamertag et rôle, PDG d'abord), nombre de
+- [x] Fiche d'entreprise `/entreprise/{id}/` : nom, époque, étoiles, membres (gamertag et rôle, PDG d'abord), nombre de
   prestiges, date de création ; 404 en page Silooo pour une entreprise inconnue ; jamais de XUID ni de solde
-- [ ] Webhook PayNow `POST /paynow/webhook` : signature contrôlée avec `SILOOO_PAYNOW_WEBHOOK_SECRET` (le format exact de
+- [x] Webhook PayNow `POST /paynow/webhook` : signature contrôlée avec `SILOOO_PAYNOW_WEBHOOK_SECRET` (le format exact de
   PayNow est **à confirmer par Kr** ; en attendant, HMAC-SHA256 du corps dans un en-tête nommé, à changer en une
   constante), une ligne `shop_deliveries` par commande (`order_id`, gamertag, Gemmes), rejeu sans double ligne
   (clé primaire), 401 sans signature, 503 sans secret configuré ; tests SQL
-- [ ] « Prêt à mettre en ligne » : la section est écrite ici quand S0 à S5 sont sur `main`, avec la marche à suivre de
+- [x] « Prêt à mettre en ligne » : la section est écrite ici quand S0 à S5 sont sur `main`, avec la marche à suivre de
   Kr (DNS, bloc Caddy vers `silooo-core:8081`, mentions remplies, variables posées, `SILOOO_SITE_MODE` laissé à
   `attente`) ; `docs/site.md` complet
+
+## Prêt à mettre en ligne
+
+Depuis le 5 novembre 2026, 15 h : S0 à S5 sont sur `main`, `main` est vert (vérificateur dans la session et CI), et la
+marche à suivre est écrite dans [site.md](site.md), section « Mettre en ligne ». Rien ne change au déploiement du jeu :
+le site est dans l'image de silooo-core, sur le port `SILOOO_SITE_PORT` (8081), et toutes ses variables ont un défaut
+sûr (`attente`, aucun lien, aucun webhook, aucune liaison Discord tant que Kr ne les pose pas). La direction du jeu
+déploie `main` quand Kr a fait sa part (DNS, bloc Caddy, variables, mentions) ; le site répond alors en mode `attente`
+avec la page d'attente, les mentions et l'inscription des pionniers. Le passage à `ouvert` reste un geste de Kr.
 
 ## Pour la direction du jeu
 
@@ -221,8 +236,10 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
 3. **Variables d'environnement du site**, lues par silooo-core par `env_file` (rien à changer dans le compose) :
    `SILOOO_SITE_PORT` (8081), `SILOOO_SITE_MODE` (`attente`), `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`,
    `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU` (le défaut de `BDS_PORT`, un test les compare), `SILOOO_SITE_URL_BOUTIQUE`,
-   `SILOOO_SITE_SITES_DE_VOTE` (`nom|url;nom|url`), plus tard `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`,
-   `SILOOO_PAYNOW_WEBHOOK_SECRET`. Toutes sont décrites dans le tableau des variables de `core/README.md`. `deploy/exemple.env.txt` et le tableau des variables
+   `SILOOO_SITE_SITES_DE_VOTE` (`nom|url;nom|url`), `SILOOO_SITE_ADMISSION`, `SILOOO_DISCORD_CLIENT_ID`,
+   `SILOOO_DISCORD_CLIENT_SECRET`, `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET` : treize variables, toutes
+   facultatives avec un défaut sûr, toutes décrites dans le tableau des variables de `core/README.md` et dans
+   `docs/site.md`, « Mettre en ligne ». `deploy/exemple.env.txt` et le tableau des variables
    de `docs/deploiement.md` sont à vous : merci d'y ajouter ces lignes (S0 est sur `main` : les quatre premières
    sont lues par `Config.kt`), avec l'avertissement « jamais `ouvert` par une session », puis de retirer leurs noms
    de la liste `reglees` de `tools/tests/deploy-compose.mjs`, où S0 les a exemptés faute de pouvoir toucher `deploy/`.
@@ -240,6 +257,12 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    identifiants `COMMUN`, `RARE`, `EPIQUE` ; le wiki affiche donc les identifiants en minuscules, dont le troisième
    est un mot que la charte bannit (`docs/glossaire.md` le note déjà : « le nom affiché est à confirmer par Kr »).
    Un `nom` par rareté dans `personnel.json` réglerait le wiki et l'add-on d'un coup.
+9. **Ce que le site attend du jeu, après S5.** (a) La route de `join` qui refuse les non-admis (point 4), avec un code
+   `Refused` nommé dans `api/`. (b) Le crédit du titre et de l'objet du pionnier d'après `site_registrations.pioneer`.
+   (c) Les livraisons : le webhook écrit `shop_deliveries` (`order_id`, `gamertag`, `gemmes`), votre relevé
+   (`DeliveryRelief`) les crédite ; le pseudo est écrit tel que PayNow l'envoie, à rapprocher d'un gamertag Bedrock
+   (préfixe Floodgate, casse) de votre côté ou du côté de PayNow. (d) `docs/base-de-donnees.md` : la table
+   `site_registrations` (V7) y manque, ce fichier est à vous.
 8. **L'agence : `game-design.md` et `economie.md` se contredisent.** Le game design parle d'une nouvelle liste de
    candidats achetée en Donar ; le service (décision 33) et `economie.md` disent « rien à acheter ». Le wiki suit le
    service. À trancher par Kr, et le game design à mettre d'accord.
@@ -263,7 +286,10 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
 - [ ] L'identité légale des mentions : éditeur, hébergeur, contact, conditions de vente, protection des données
 - [ ] L'adresse de la boutique de SileneMC pour les Gemmes de Silooo, et les sites de vote
 - [ ] Le lien d'invitation Discord, l'application Discord (identifiant et secret) pour « Relier Discord »
-- [ ] Le format exact du webhook PayNow (en-tête de signature, corps) et son secret
+- [ ] Le format exact du webhook PayNow (en-tête de signature, calcul, champs du corps) et son secret : le site suppose
+  `PayNow-Signature` en HMAC-SHA256 hexadécimal du corps et les champs `order_id`, `gamertag`, `gemmes`
+  (`core/.../site/PayNowWebhook.kt`, une seule classe à changer)
+- [ ] Compléter la section « Données » des mentions si le pseudo d'une commande de Gemmes doit y être déclaré
 - [ ] Le relevé de `skyblock.rinaorc.com` (grille de [site.md](site.md)), depuis le PC ou en autorisant le domaine
 - [ ] Le passage de `SILOOO_SITE_MODE` à `ouvert` dans le fichier d'environnement du VPS, à l'ouverture (phase 7)
 
@@ -324,6 +350,14 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
     rejoue (sans effet : l'inscription est idempotente) ; un espace au bord du gamertag est refusé plutôt que retiré ;
     les styles du formulaire (champ, case, erreur) sont écrits dans `atelier.css` sans texture de `design/`, à
     dessiner dans la charte avant de les réutiliser ; le retour Discord n'a pas de limite de débit.
+11. **S5, tranché par la session et gardé à la fusion** : la semaine du classement est la semaine ISO en UTC, lue sur
+    l'horloge du service ; à égalité le gamertag départage ; un joueur sans entreprise s'affiche « Sans entreprise » ;
+    la fiche garde en cache une minute même une entreprise inconnue (bornée à quelques centaines d'entrées) ; le
+    webhook n'accepte que la signature hexadécimale sans préfixe, refuse un corps de plus de quatre kilo-octets, un
+    pseudo de plus de 32 caractères ou un identifiant de plus de 64, et rend 405 à un `GET` ; les Lingots du tableau
+    sont écrits en `fonte-900` sur le papier, l'icône seule porte l'or (lisibilité). À la fusion, la direction a mis la
+    plaque du titre en taille « petite » sous 480 px (la charte le prévoit sur mobile) : « CLASSEMENTS » se coupait au
+    milieu du mot à 360 px.
 
 ## À valider par Kr
 
@@ -388,6 +422,13 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   « Trop d'essais. Réessaie dans une minute. », « Ce compte Discord est déjà relié à un autre joueur. », « N pionniers
   inscrits »), plus « Pionniers » dans la navigation. Le dessin entier de S4 (gamertag seul, admission par Discord)
   est **à valider par Kr**.
+- S5, `contenu/classements.md` (« Les joueurs qui ont gagné le plus de Lingots cette semaine, avec leur entreprise. »,
+  « Le classement compte les Lingots gagnés cette semaine, pas la richesse totale. »), `pages/Classements.kt`
+  (« Personne n'a encore gagné de Lingots cette semaine. », « Sans entreprise », « Page précédente », « Page
+  suivante », Rang, Joueur, Entreprise, Lingots, « Semaine du N au N mois »), `pages/Entreprise.kt` (« Époque N »,
+  « N étoiles », « N prestiges », « Créée le … », « Membres », « PDG », « Associé », « Voir les classements », la
+  description), `pages/Joueurs.kt` (« Serveur fermé pour l'instant. », « Personne en ligne pour l'instant. »,
+  « N joueurs en ligne »).
 
 ## Journal
 
@@ -414,13 +455,13 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   trois tests nouveaux et le rendu sur disque, les captures (rien ne déborde à 360 px, les polices se chargent, la
   plaque, le panneau riveté et Oooscar sont ceux de la charte). Fusionnée en avance rapide (`7996856`), puis le
   paragraphe en double de la page d'attente retiré. Suite : S2.
-- 5 novembre 2026, 14 h 10 à 14 h 25 (direction du site, cloud). `main` poussé avec S1 (`6301067`). Session S2
-  (Sonnet, worktree, partie de `main`) lancée à 13 h 50, revenue à 14 h 05 avec trois commits et vingt captures.
+- 5 novembre 2026, 13 h 50 à 14 h 05 (direction du site, cloud). `main` poussé avec S1 (`6301067`). Session S2
+  (Sonnet, worktree, partie de `main`) lancée à 13 h 50, revenue à 14 h 02 avec trois commits et vingt captures.
   Relu : les quatre variables et `SiteSettings`, le mécanisme `{{nom}}`, `Offres.kt` (rien que les définitions),
   `Updates.kt`, les six contenus, les deux fichiers de tests nouveaux, le `rel="nofollow"` retiré des liens
   internes, les captures de l'accueil complet, de « Ce qui se vend » et de « Rejoindre ». Fusionnée en avance
   rapide (`0834dce`).
-- **5 novembre 2026, 14 h 25 : bilan de deux heures (direction du site).**
+- **5 novembre 2026, 14 h 05 : bilan de deux heures (direction du site).**
   - Fait depuis 12 h 45 : la mise en place (direction, passation, `site.md` sur `main`, ADR 0006 réécrit sur la
     décision 37), S0 (le site dans silooo-core, second serveur, deux modes, attente et mentions, anti-IA), S1
     (Silooo Atelier pour le web, polices servies par le site, gabarit et navigation), S2 (les six pages publiques
@@ -435,21 +476,44 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
     « À valider par Kr » de S0, S1 et S2.
   - Pour la direction du jeu : les six points de la section, dont les variables du site à poser dans
     `deploy/exemple.env.txt` et le nom des abonnements dans `boutique.json`.
-- 5 novembre 2026, 14 h 25 à 14 h 50 (direction du site, cloud). `main` poussé avec S2 et le bilan (`75256e9`).
-  Session S3 (Sonnet, worktree, partie de `main`) lancée à 14 h 27, revenue à 14 h 40 avec trois commits. Relu : les
+- 5 novembre 2026, 14 h 05 à 14 h 20 (direction du site, cloud). `main` poussé avec S2 et le bilan (`75256e9`).
+  Session S3 (Sonnet, worktree, partie de `main`) lancée à 14 h 06, revenue à 14 h 17 avec trois commits. Relu : les
   treize textes en entier (justes contre `economie.md` et `core/README.md`, sans slop, en mots du jeu), les blocs
   rendus (aucun chiffre hors des définitions), la capture de la page des usines à 360 px (tableau en fiches). Deux
   phrases corrigées à la fusion (décision 9). Deux points ouverts remontés au jeu (noms des raretés, agence payante
   ou non). Suite : S4.
-- 5 novembre 2026, 14 h 50 à 15 h 20 (direction du site, cloud). `main` poussé avec S3 (`ba9cd57`). Session S4
-  (Sonnet, worktree, partie de `main`) lancée à 14 h 55, revenue à 15 h 10 avec trois commits. Relu en entier :
+- 5 novembre 2026, 14 h 20 à 14 h 36 (direction du site, cloud). `main` poussé avec S3 (`ba9cd57`). Session S4
+  (Sonnet, worktree, partie de `main`) lancée à 14 h 22, revenue à 14 h 34 avec trois commits. Relu en entier :
   la migration V7, `SiteRegistrations` (clé, contrôle du gamertag, règle d'admission), `SiteSigner` (HMAC, rôles,
   durées, comparaison en temps constant), `RateLimiter`, `PioneerRoutes` (les cinq routes, le cookie, l'état
   OAuth2, les refus), `HttpDiscordIdentity` (échange du code, lecture de l'identifiant, rien de sensible dans les
   erreurs), le SQL du store (INSERT simple, doublon par la clé, UPDATE conditionnel), les deux contenus. Réserve de
   conception notée pour Kr et pour le jeu : la possession du gamertag n'est pas prouvée. Fusionnée. Suite : S5.
-- 5 novembre 2026, 15 h 20 à 15 h 40 (direction du site, cloud). `main` avait avancé de quatre commits (Gemmes et
+- 5 novembre 2026, 14 h 36 à 14 h 41 (direction du site, cloud). `main` avait avancé de quatre commits (Gemmes et
   grades du jeu, décision 40, votes lancés) : fusionné dans la branche de la direction, deux conflits de lignes
   ajoutées des deux côtés (`Main.kt` : imports ; `Config.kt` : le `toString`), résolus en gardant les deux ;
   `tools/verifier.sh` vert sur l'arbre fusionné (1316 tests Gradle dont les SQL ignorés). Points « à revoir » de la
   session S4 consignés (décision 10). `main` poussé. Suite : S5.
+- 5 novembre 2026, 14 h 41 à 15 h 00 (direction du site, cloud). `main` poussé avec S4 et la fusion des Gemmes
+  (`fad5319`). Session S5 (Sonnet, worktree, partie de `main`) lancée à 14 h 42, revenue à 14 h 51 avec trois commits
+  et cinq captures. Relu : `PayNowWebhook` (signature en temps constant, corps borné à quatre kilo-octets, champs
+  nommés, rien du corps dans les réponses), `WebhookRoutes` (503, 413, 401, 400, 200, journal une fois), le SQL des
+  classements (somme des deltas positifs de Lingots dans la semaine, jointures gauches, tri stable) et de la fiche
+  (membres PDG d'abord), `ShopDeliveryStore` (INSERT simple, doublon par 1062), la section « Mettre en ligne », la
+  capture des classements à 360 px (fiches lisibles ; la plaque coupait le mot, corrigé). `main` avait encore avancé
+  (add-on de la ville, phase 4 close sauf Kr, décision 41) : fusionné sans conflit. Les heures du journal depuis 13 h 50
+  ont été remises sur l'horloge de Paris (elles avaient dérivé d'une demi-heure).
+- **5 novembre 2026, 15 h 00 : dernier bilan (direction du site).**
+  - Fait depuis le bilan de 14 h 05 : S3 (le wiki, treize pages), S4 (pionniers, Relier Discord, admission, migration
+    V7), S5 (joueurs en ligne, classements, fiche, webhook PayNow, marche à suivre de la mise en ligne), les deux
+    fusions de `main` du jeu (Gemmes et grades, add-on de la ville). S0 à S5 sont cochées sur `main`, sauf les cases
+    de Kr ; `main` est vert ; la section « Prêt à mettre en ligne » est écrite.
+  - Reste : rien côté site hors validation. Pour Kr, la liste « À faire par Kr » (pousser ses fichiers de cadrage,
+    relire l'ADR 0006 et le dessin de S4, DNS, bloc Caddy, mentions, boutique, sites de vote, Discord, PayNow, texte
+    des consoles, règles du serveur, passage à `ouvert`) et tous les textes « À valider par Kr ». Pour la direction du
+    jeu, les neuf points de « Pour la direction du jeu ».
+  - Décisions prises seule : 1 à 11. Aucune session de travail en cours : les cinq sessions S0 à S5 (six lancées, la
+    première arrêtée avant toute fusion) sont finies, leurs worktrees retirés, leurs branches `claude/site-s0` à
+    `s5` poussées et fusionnées.
+  - Ce que seule la CI vérifie : les tests SQL Testcontainers de S4 et S5 (`SiteRegistrationSqlTest`,
+    `SiteStatsSqlTest`, `ShopDeliverySqlTest`) et `MigrationTest` avec V7, ignorés sans Docker dans la session.

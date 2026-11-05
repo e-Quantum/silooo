@@ -60,11 +60,16 @@ import com.silooo.core.session.SessionStore
 import com.silooo.core.session.PendingVotes
 import com.silooo.core.session.sessionRoutes
 import com.silooo.core.staff.JdbcStaffStore
+import com.silooo.core.sitedata.JdbcShopDeliveryStore
+import com.silooo.core.sitedata.JdbcSiteStatsStore
+import com.silooo.core.sitedata.ShopDeliveryStore
+import com.silooo.core.sitedata.SiteStatsStore
 import com.silooo.core.staff.StaffStore
 import com.silooo.core.registration.DiscordIdentity
 import com.silooo.core.registration.JdbcSiteRegistrationStore
 import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.SiteRegistrationStore
+import com.silooo.core.site.SiteCaches
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 import com.silooo.core.staff.staffRoutes
@@ -179,6 +184,14 @@ class Dependencies(
     val pendingVotes: PendingVotes? = null,
     /** La réception des votes de Hubyy (`SILOOO_VOTIFIER_TOKEN`). `null` : éteinte, aucun port n'est ouvert. */
     val votifier: VotifierSettings? = null,
+    /** Les lectures du site sur la base du jeu (classements, fiches d'entreprise), en lecture seule. */
+    val siteStatsStore: SiteStatsStore = JdbcSiteStatsStore(),
+    /** Les caches d'une minute de ces lectures, partagés entre les requêtes ; ils lisent l'horloge [clock]. */
+    val siteCaches: SiteCaches = SiteCaches(clock),
+    /** L'écriture du webhook de PayNow dans `shop_deliveries`. */
+    val shopDeliveryStore: ShopDeliveryStore = JdbcShopDeliveryStore(),
+    /** `SILOOO_PAYNOW_WEBHOOK_SECRET` : la clé de la signature du webhook ; `null` : le webhook répond 503. Ne s'affiche jamais. */
+    val payNowWebhookSecret: String? = null,
 )
 
 /**

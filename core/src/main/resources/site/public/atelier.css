@@ -336,6 +336,11 @@ main { margin-bottom: var(--pas-6); }
 .offre__detail { flex: 0 1 auto; }
 /* Sur le papier, la Gemme prend la couleur du texte : papier sur papier ne se lirait pas. */
 .lecture .sa-monnaie--gemmes { color: var(--fonte-900); }
+/* Idem pour les Lingots d'un classement : or-lingot sur papier ne se lirait pas, seule l'icône porte l'or ; la valeur garde la taille du tableau. */
+.lecture .sa-monnaie--lingots { color: var(--fonte-900); }
+.tableau .sa-monnaie { font-family: inherit; font-size: inherit; line-height: inherit; white-space: nowrap; vertical-align: middle; }
+.tableau thead th { white-space: nowrap; }
+.tableau a { color: inherit; }
 .lecture ul:not(.offres):not(.liens) { margin: 0 0 var(--pas-4); padding-left: var(--pas-6); }
 
 /* Les boutons d'une liste (sites de vote). */
@@ -402,3 +407,9 @@ main { margin-bottom: var(--pas-6); }
 .formulaire__erreur { margin: 0; padding-left: var(--pas-4); border-left: 6px solid var(--email-rouge); font-weight: 600; }
 .etat { list-style: none; margin: 0 0 var(--pas-4); padding: 0; }
 .etat li { padding: var(--pas-1) 0; font-weight: 600; }
+
+/* ---------- Écrans étroits : la plaque du titre prend la taille « petite » de la charte, et un mot ne se coupe jamais dedans
+   (à 360 px, « CLASSEMENTS » en 50 px ne tient pas sur une ligne). */
+@media (max-width: 480px) {
+  .sa-plaque { font-size: 30px; line-height: 30px; border-width: 12px; border-image-width: 12px; letter-spacing: 2px; overflow-wrap: normal; }
+}

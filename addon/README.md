@@ -16,9 +16,9 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, réparation, associés, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, réparation, associés, ville, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
-| `src/monde/` | Le monde : îles des usines, arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
+| `src/monde/` | Le monde : îles des usines, île principale (la ville), arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
 | `pack/entities/oooscar.json` | L'entité `silooo:oooscar`, copiée telle quelle dans `dist/pack/` par le build. Le côté client est dans `resource-pack/`. |
 | `src/generated/definitions.ts` | Types tirés de `definitions/`. Généré, ne pas éditer. |
@@ -73,7 +73,7 @@ Appels bêta, tous dans `src/beta.ts` :
 Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
 la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
 de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service). La phase 4
-y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »), puis les incidents d'usine et leur réparation (voir « Les incidents »), puis les associés (voir « Les associés »).
+y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »), puis les incidents d'usine et leur réparation (voir « Les incidents »), puis les associés (voir « Les associés »), puis la ville et l'île principale (voir « La ville »).
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
@@ -81,7 +81,7 @@ boussole ── MENU ─┬─ Silo ───── Encaisser ............ colle
                   │                              ├─ Parler, Réparer, Livrer, Recruter ....... restoreStep
                   │                              └─ Réparer (usine en incident) ─ mini-jeu ... resolveIncident
                   ├─ Objectifs ─ la mission en cours, les missions terminées ................ getMissions
-                  ├─ Carte ──── une ligne par usine ─── île choisie ... téléportation (monde/voyage.ts)
+                  ├─ Carte ──── l'île principale, une ligne par usine ─── île choisie ... téléportation (monde/voyage.ts)
                   ├─ Prestige ─ l'aperçu du service ─── Prestige ! ... prestige ── écran d'après
                   │                                     (lecture de l'aperçu .......... prestigePreview)
                   ├─ Personnel ─ une équipe par usine ─ un membre ─┬─ Affecter à une usine ... assignStaff
@@ -92,7 +92,9 @@ boussole ── MENU ─┬─ Silo ───── Encaisser ............ colle
                   │   (relue à chaque     ├─ Parts (PDG) ─ un champ par membre ............ setShares
                   │    ouverture ........ ├─ Invitation reçue ─ Accepter ... acceptInvite, puis le HUD
                   │    getCompany)        └─ Retour
-                  └─ Amis : tuile verrouillée, avec le mot « Bientôt »
+                  └─ Ville ──── la ville (relue à chaque ouverture ... getCompany) ─┬─ Acheter la zone ........ buyZone
+                                                                                     ├─ Bâtiments ─ un bâtiment ─ Améliorer ... upgradeBuilding
+                                                                                     └─ Construire ─ un type ─ Poser ici ...... placeBuilding
 ```
 
 La boussole (`minecraft:compass`, réglable dans `config.ui.menuItem`) est donnée à la première arrivée si le joueur
@@ -106,16 +108,18 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
 | `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne, ou d'une autre entreprise, est ignorée ; `switchCompany` change d'entreprise) et l'état de la liaison avec le service. |
-| `actions.ts` | Les onze actions (encaisser, acheter des niveaux, remettre en état, réparer un incident, prestige, embaucher, affecter, renvoyer, inviter, fixer les parts, accepter une invitation) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
+| `actions.ts` | Les quatorze actions (encaisser, acheter des niveaux, remettre en état, réparer un incident, prestige, embaucher, affecter, renvoyer, inviter, fixer les parts, accepter une invitation, acheter une zone, poser un bâtiment, améliorer un bâtiment) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
 | `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
 | `ecran.ts` | Le vocabulaire commun des écrans : routes, cibles des boutons, `Screen`, bulle et pages. Aucun écran, aucun import de Bedrock. |
-| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel et associés compris. |
+| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel, associés et ville compris. |
 | `reparation.ts` | Le mini-jeu de réparation : la logique pure (`repairMove`, qui juge un choix et rend l'étape suivante, la même étape après une erreur, ou la fin), l'écran d'une étape, et `playRepair`, qui enchaîne les formulaires et rend `done` ou `back`. Il n'appelle pas le service : c'est `menu.ts` qui appelle `resolveIncident` après la dernière étape réussie. |
 | `incidents.ts` | L'événement `INCIDENT` en phrases pour le tchat (un incident s'ouvre, un incident est réparé, avec la récompense du service), puis la relecture de l'état de l'entreprise pour que la fiche d'usine suive. |
 | `personnel.ts` | Les écrans du personnel et de l'agence, et la ligne d'équipe de la fiche d'usine : des fonctions pures, comme celles de `menu.ts`. |
 | `associes.ts` | Les écrans des associés (la liste, le choix du joueur à inviter, l'invitation reçue), le formulaire des parts et la lecture de ses champs : des fonctions pures. |
+| `ville.ts` | Les écrans de la ville : la tuile du menu et celle de la carte, la ville (mairie, bonus, prochaine zone), la liste des bâtiments, la fiche d'un bâtiment, le choix d'un bâtiment à poser, la pose, et la bulle d'Oooscar de chaque refus : des fonctions pures. |
+| `annonces-ville.ts` | L'événement `ANNONCE` d'un achat de zone, d'une pose ou d'une amélioration : relecture de l'état de l'entreprise, puis une bulle courte dans le tchat. |
 | `invitations.ts` | Les invitations reçues de chaque joueur d'après l'événement `INVITATION` (une par entreprise, jusqu'à `expiresAt`), et l'annonce d'un changement de parts. |
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui` : des écrans à boutons (`show`) et des formulaires à champs de texte (`ask`). Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
@@ -199,7 +203,8 @@ brancher de plus : les usines sont revenues en ruine dans l'état du service, et
 (`config.world.syncSeconds`) les redessine.
 
 **La carte.** La tuile Carte (ligne d'info « 1 île », « `<n>` îles ») ouvre une liste : l'île principale en tête,
-verrouillée (« Bientôt », elle n'est pas construite), puis une ligne par usine dans l'ordre de `definitions/usines.json`,
+fermée tant que l'entreprise n'a pas sa première zone et sa mairie (« Achète la première zone. »), puis ouverte : elle mène à la
+mairie (voir « La ville »). Ensuite vient une ligne par usine dans l'ordre de `definitions/usines.json`,
 qui est celui de `iles.json` (un test le vérifie). Une usine de l'entreprise montre son nom et son état d'après le
 service : « Entière · niv. `<niveau>` », « En ruine », « En travaux `<étape>`/`<total>` ». Une usine qu'elle n'a pas
 reste cachée (« ????? ») et Oooscar dit qu'elle n'est pas encore à elle. La liste se pagine comme celle des usines
@@ -285,7 +290,7 @@ limite, et ne connaît pas de maximum. Les écrans sont dans `ui/associes.ts` (f
 dans `ui/invitations.ts` ; les phrases dans `ASSOCIES_TEXTES`, toutes à valider par Kr. La liste des membres est
 `CompanyState.members` (le contrat ne la marque pas obligatoire : absente, elle est vide).
 
-**Associés.** La tuile du menu, juste avant « Amis », ouvre l'écran ASSOCIÉS. À chaque ouverture, il relit l'entreprise
+**Associés.** La tuile du menu, juste avant « Ville », ouvre l'écran ASSOCIÉS. À chaque ouverture, il relit l'entreprise
 (`getCompany`) : la liste est celle du service, le PDG en premier, avec le rôle, le nom et la part en pourcent. La ligne du
 joueur porte « (toi) ». Un joueur seul lit qu'il peut inviter « jusqu'à ce que le service refuse » : l'écran ne donne aucun
 chiffre. Le PDG a les boutons « Inviter » et « Parts » (« Parts » seulement quand l'entreprise a au moins deux membres) ;
@@ -319,6 +324,63 @@ une action à la fois par joueur, un seul nouvel essai après `CONFLIT_REESSAYER
 l'entreprise, pas `invite`. Pour `acceptInvite`, le nouvel essai ne relit pas l'entreprise (celle qu'on relirait est
 l'ancienne).
 
+### La ville
+
+Sixième tranche des écrans (phase 4) : la ville de l'île principale. Le service décide de tout : les zones que l'entreprise
+possède, le prix et les conditions de la suivante, chaque bâtiment avec son niveau, sa parcelle, sa rotation, son bonus et le
+prix du niveau suivant, et les bonus d'ensemble (plafonds compris). L'add-on ne calcule ni prix, ni bonus, ni gain. Il lit
+`CompanyState.city` (facultatif au contrat : un état sans `city` est valide, les champs inconnus sont ignorés) et affiche. Les
+phrases sont dans `VILLE_TEXTES`, `BATIMENT_NOMS` et la tuile `MENU_TEXTES.ville`, toutes à valider par Kr. Les écrans sont
+dans `ui/ville.ts` (fonctions pures), le plan de blocs dans `monde/ville.ts`.
+
+**Le menu.** La tuile « Ville » est la huitième et dernière : elle prend la place de la tuile verrouillée « Amis ». Sans `city`
+dans l'état, elle est fermée et dit les usines actives qu'il faut pour la première zone (le chiffre vient de
+`definitions/ville.json`, `zones.premiere.usinesActivesMin`). Dès que le service donne une ville, elle s'ouvre : avant la
+première zone, sa ligne d'info donne les usines actives que le service demande ; ensuite, le niveau de la mairie.
+
+**La ville.** L'écran VILLE relit l'entreprise à chaque ouverture (`getCompany`), parce qu'un associé a pu acheter une zone ou
+poser un bâtiment. Avant la première zone : « Tu n'as pas encore de zone. » et la prochaine zone. Ensuite : le niveau de la
+mairie, les bonus d'ensemble tels que le service les donne (une ligne par bonus qui n'est pas nul), la prochaine zone
+(numéro, prix en Lingots, mairie requise, usines actives requises), puis les boutons « Acheter la zone `<n>` », « Bâtiments »
+et « Construire ». Le bouton d'achat est toujours montré tant que `nextZone` n'est pas nul : le service juge, et la bulle
+d'Oooscar dit le refus (`ZONE_VERROUILLEE` : il manque des usines actives pour la première zone, la mairie doit monter
+pour les autres). Quand toutes les zones sont à l'entreprise (`nextZone` nul), l'écran le dit.
+
+**Les bâtiments.** La liste (la mairie en tête, une page à la fois comme celle des usines) montre pour chacun son nom, son
+niveau et son bonus, ou sa parcelle quand il n'en a pas. La fiche donne le niveau sur le maximum, le bonus, la parcelle et le
+prix du niveau suivant avec la mairie qu'il demande ; « Améliorer » appelle `upgradeBuilding`. Au dernier niveau, la fiche
+dit « Niveau maximum. ». L'add-on n'affiche pas le bonus du niveau suivant : le contrat ne le donne pas.
+
+**Construire et poser.** « Construire » liste les types que le catalogue de `definitions/ville.json` marque posables, avec le
+prix du niveau 1 et son bonus (la mairie n'est pas posable). Choisir un type ouvre POSER : l'écran lit la position du joueur
+(`ArrivalWorld.locate`), l'arrondit vers le bas à la grille d'une parcelle (16 blocs) depuis le coin de l'île principale, et
+montre la parcelle. « Tourner » fait un quart de tour et dit où est la porte (ou le sens de la route). « Poser ici » relit la
+position à cet instant, puis appelle `placeBuilding` avec le type, la parcelle et la rotation ; l'add-on ne vérifie rien d'autre
+(zone possédée, emplacement libre, quota : c'est le service). Hors de l'île principale, ou sans position lisible, aucune
+requête ne part et Oooscar le dit. Réussi, on revient à l'écran VILLE, qui montre l'état rendu.
+
+**L'île principale.** Le relevé du monde (`monde/synchro.ts`) montre la ville au constructeur (`syncCity`) à chaque tour, après
+les mini-îles. Le constructeur pose, un chantier à la fois, la plateforme de chaque zone possédée (le même sol que les
+mini-îles, carré et plein sur 128 blocs, par bandes de deux chunks), puis chaque bâtiment : un préfabriqué simple par type
+(`GABARITS` dans `monde/ville.ts` : quatre murs, une porte de deux blocs, un toit, une lanterne pour certains, une enseigne
+avec le nom, le niveau et le bonus), centré sur sa parcelle de 16 blocs. La route est une bande de gravats, plus large d'un
+bloc de chaque côté par niveau. Un niveau de plus rehausse le bâtiment d'un étage (tous les deux niveaux pour la mairie). Une
+marque par zone et par bâtiment (type, niveau, parcelle, rotation, origine d'archipel) évite toute repose, et un bâtiment
+attend la plateforme de sa zone. Rien n'est démoli : un bâtiment qui disparaît de la liste du service reste dans le monde. Un
+type inconnu de l'add-on devient une boîte de planches qui porte son nom, avec un seul avertissement au journal.
+
+**Le voyage.** La ligne « Île principale » de la carte s'ouvre quand l'entreprise a sa première zone et sa mairie, et mène à
+la mairie (`createCityTravel`) : le joueur arrive à deux blocs devant la porte, le regard sur elle, une fois la plateforme et la
+mairie posées (au plus `config.world.travelWaitSeconds`). Sinon elle reste fermée et dit « Achète la première zone. ».
+
+**Les annonces.** L'`ANNONCE` d'un achat de zone, d'une pose ou d'une amélioration (`payload.action` vaut `buyZone`,
+`placeBuilding` ou `upgradeBuilding`, adressée à celui qui a agi) relit l'état de l'entreprise puis fait dire à Oooscar une
+bulle courte dans le tchat (`ui/annonces-ville.ts`). C'est un doublon voulu de la bulle de l'écran : l'événement prévient aussi
+un joueur qui a agi depuis une autre session.
+
+**Verrous.** `buyZone`, `placeBuilding` et `upgradeBuilding` passent par `Actions` comme les autres : un identifiant par
+action, une action à la fois par joueur, un seul nouvel essai après `CONFLIT_REESSAYER` (avec `getCompany` entre les deux).
+
 ### Les formulaires
 
 Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert (le tchat, un autre menu). Le menu
@@ -343,13 +405,14 @@ join ── island présent ? ── non ── une ligne de journal, rien posé
 | `definitions.ts` | `definitions/iles.json`, typé. |
 | `geometrie.ts` | Les cases de l'archipel, le repère local d'une île (l'avant regarde l'île principale), le point d'arrivée de chaque île (`arrivalAt`, et `arrivalOf` pour l'île de départ). |
 | `plan.ts` | Le plan d'une mini-île par usine et par état : une liste d'opérations, sans bloc Bedrock. En ruine : abîmée et sans toit, au hasard d'un hachage fixe (même résultat à chaque pose). Active : entière. Plate-forme, bâtiment, panneau au nom de l'usine. |
-| `constructeur.ts` | Pose les plans par lots entre deux pauses, un chantier à la fois, la zone chargée par une ticking area. Un échec se rejoue après 2 s, puis le délai double jusqu'à 30 s. Une marque par usine et par état, rangée dans une propriété dynamique du monde : une île n'est posée qu'une fois par état. |
+| `constructeur.ts` | Pose les plans par lots entre deux pauses, un chantier à la fois, la zone chargée par une ticking area. Un échec se rejoue après 2 s, puis le délai double jusqu'à 30 s. Une marque par usine et par état, rangée dans une propriété dynamique du monde : une île n'est posée qu'une fois par état. `syncCity` fait de même pour la ville : une marque par zone (« ville:zone:`<n>` ») et par bâtiment (« ville:b:`<id>` »), qui change avec le niveau, la parcelle, la rotation ou l'origine. Un bâtiment attend la plateforme de sa zone. |
 | `arrivee.ts` | La suite de l'arrivée, et le moment où le joueur est « occupé » : HUD silencieux, boussole en attente, menu fermé. |
 | `cinematique.ts` | Le lecteur de cinématique : plans, caméra libre et glissé, fondus pour cacher les coupes, HUD masqué, sous-titres par le canal de titre, saut en restant accroupi une seconde, remise en état à la fin. |
 | `oooscar.ts` | Une Oooscar par joueur, jamais deux, retirée au départ, balayée au démarrage et à chaque relevé. |
-| `synchro.ts` | Le relevé périodique : l'état des usines de chaque joueur est montré au constructeur, qui ne refait que ce qui a changé. Une usine remise en état, ou retombée en ruine par un prestige, change de visage au relevé suivant. Il retient aussi l'origine d'archipel de chaque entreprise (`originOf`), pour le voyage. |
-| `voyage.ts` | Le voyage depuis la carte : origine de l'archipel, point d'arrivée de l'île choisie (`arrivalAt`), îles montrées au constructeur, attente de l'île voulue, téléportation. Il n'importe pas `@minecraft/*` : le monde est un `ArrivalWorld`, comme pour l'arrivée. |
-| `bedrock.ts` | L'enveloppe de `@minecraft/server` : blocs, panneaux, zones chargées, caméra, entité, téléportation. |
+| `synchro.ts` | Le relevé périodique : l'état des usines de chaque joueur est montré au constructeur, qui ne refait que ce qui a changé. Une usine remise en état, ou retombée en ruine par un prestige, change de visage au relevé suivant. Il retient aussi l'origine d'archipel de chaque entreprise (`originOf`), pour le voyage. Quand l'état porte une ville (`city`), il la montre aussi au constructeur (`syncCity`), après les mini-îles. |
+| `voyage.ts` | Le voyage depuis la carte : origine de l'archipel, point d'arrivée de l'île choisie (`arrivalAt`), îles montrées au constructeur, attente de l'île voulue, téléportation. Il n'importe pas `@minecraft/*` : le monde est un `ArrivalWorld`, comme pour l'arrivée. `createCityTravel` fait le même voyage vers la porte de la mairie. |
+| `ville.ts` | Le plan de l'île principale, en fonctions pures : la plateforme de chaque zone possédée (par bandes de deux chunks), les bâtiments en préfabriqués simples (murs, porte, toit, enseigne), la route en bande de gravats, la parcelle sous les pieds d'un joueur (`parcelAt`), les marques et la place devant la porte de la mairie (`doorArrival`). |
+| `bedrock.ts` | L'enveloppe de `@minecraft/server` : blocs, panneaux, zones chargées, caméra, entité, téléportation, position d'un joueur (`locate`). |
 
 Choix faits ici, à relire :
 
@@ -389,7 +452,7 @@ dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoir
 | Menu, tuile | rien | Carte |
 | Menu, tuile | rien | Objectifs |
 | Menu, tuile | rien | Prestige |
-| Menu, tuile | rien | Amis |
+| Menu, tuile verrouillée Amis, remplacée par la tuile Ville | Amis | Ville |
 | Menu, tuile | rien | Personnel |
 | Menu, tuile verrouillée | rien | Bientôt |
 | Menu, bouton | rien | Retour |
@@ -520,7 +583,7 @@ viennent du service, mis en forme par `ui/nombres.ts`. Les noms d'époque sont c
 | Bulle fier, prestige accompli | rien | Prestige accompli, patron ! |
 | Carte, titre | rien | CARTE |
 | Carte, phrase | rien | Choisis une île pour t'y rendre. |
-| Carte, île principale (verrouillée) | rien | Île principale, avec le mot Bientôt |
+| Carte, île principale, tuile verrouillée tant que l'entreprise n'a pas de zone | Île principale, avec le mot Bientôt | Île principale, avec Achète la première zone. |
 | Carte, usine que l'entreprise n'a pas | rien | ????? |
 | Carte, usine entière | rien | Entière · niv. `<niveau>` |
 | Carte, usine en ruine | rien | En ruine |
@@ -709,6 +772,77 @@ L'entreprise partagée (phase 4). Les phrases sont dans `ASSOCIES_TEXTES` et dan
 | Refus `ENTREPRISE_EN_COURS` d'une invitation (remplace Tu as déjà lancé ton entreprise.) | Tu as déjà lancé ton entreprise. | Il a déjà lancé son entreprise. |
 | Refus `ENTREPRISE_PLEINE` en acceptant (remplace Ton entreprise est pleine.) | Ton entreprise est pleine. | Cette entreprise est pleine. |
 
+La ville et l'île principale (phase 4). Les phrases sont dans `VILLE_TEXTES`, `BATIMENT_NOMS` et `MENU_TEXTES`. Les noms des
+bâtiments viennent de `definitions/ville.json` (clé « id » du catalogue), recopiés dans `BATIMENT_NOMS` et comparés au fichier par
+un test. Un type que l'add-on ne connaît pas encore prend son identifiant en capitale initiale. Les noms, les niveaux et les
+bonus de l'enseigne posée sur chaque bâtiment de l'île principale reprennent ces mêmes phrases. Tout est à valider par Kr.
+
+| Où | Avant | Après |
+|---|---|---|
+| Noms des bâtiments (menus, fiches, enseignes) | rien | Mairie, Route, Maison, Immeuble, Commerce, Garage |
+| Menu, tuile Ville, ligne d'info quand le service ne donne pas de ville | rien | Il faut `<n>` usines actives. |
+| Menu, tuile Ville, même ligne au singulier | rien | Il faut 1 usine active. |
+| Menu, tuile Ville, ligne d'info avant la première zone | rien | Première zone : `<n>` usines actives |
+| Menu, tuile Ville, même ligne au singulier | rien | Première zone : 1 usine active |
+| Menu, tuile Ville, ligne d'info quand l'entreprise a la mairie | rien | Mairie niveau `<niveau>` |
+| Carte, île principale ouverte, ligne d'info | rien | Mairie niveau `<niveau>` |
+| Ville, titre | rien | VILLE |
+| Ville, avant la première zone | rien | Tu n'as pas encore de zone. |
+| Ville, section de la zone à acheter | rien | Prochaine zone |
+| Ville, numéro de la zone | rien | Zone `<n>` |
+| Ville, prix de la zone | rien | `<prix>` Lingots |
+| Ville, mairie demandée par la zone | rien | Mairie niveau `<niveau>` requise |
+| Ville, usines actives demandées par la zone | rien | `<n>` usines actives requises |
+| Ville, même ligne au singulier | rien | 1 usine active requise |
+| Ville, bouton d'achat | rien | Acheter la zone `<n>` |
+| Ville, quand toutes les zones sont à l'entreprise | rien | Toutes les zones sont à toi. |
+| Ville, section des bonus d'ensemble | rien | Bonus |
+| Ville, aucun bonus | rien | Aucun bonus pour l'instant. |
+| Ville, personnel logé | rien | Personnel logé `<logés>` sur `<places>` |
+| Bonus d'un bâtiment, logements | rien | Logements `<n>` |
+| Bonus d'un bâtiment, production de Donar | rien | Donar +`<n>` % |
+| Bonus d'un bâtiment, vitesse de livraison | rien | Livraison +`<n>` % |
+| Ville, bouton de la liste | rien | Bâtiments |
+| Bâtiments, nombre | rien | `<n>` bâtiments |
+| Bâtiments, nombre au singulier | rien | 1 bâtiment |
+| Bâtiments, aucun | rien | Aucun bâtiment pour l'instant. |
+| Bâtiments, ligne d'un bâtiment | rien | `<nom>` niveau `<niveau>` |
+| Fiche d'un bâtiment, niveau | rien | Niveau `<niveau>` sur `<maximum>` |
+| Fiche d'un bâtiment, prix du niveau suivant | rien | Niveau suivant : `<prix>` Lingots |
+| Fiche d'un bâtiment, dernier niveau | rien | Niveau maximum. |
+| Fiche d'un bâtiment, bouton | rien | Améliorer |
+| Enseigne posée sur le bâtiment, deuxième ligne | rien | Niveau `<niveau>` |
+| Construire, titre | rien | CONSTRUIRE |
+| Ville, bouton | rien | Construire |
+| Construire, phrase | rien | Choisis un bâtiment à poser. |
+| Construire, détail d'un type | rien | `<prix>` Lingots · `<bonus>` |
+| Construire, détail d'un type sans bonus | rien | `<prix>` Lingots |
+| Poser, titre | rien | POSER |
+| Poser, parcelle sous les pieds du joueur | rien | Parcelle `<x>`, `<z>` |
+| Poser, prix du bâtiment neuf | rien | Prix `<prix>` Lingots |
+| Poser, le joueur n'est pas sur l'île principale | rien | Place-toi sur l'île principale. |
+| Poser, la position n'est pas lisible | rien | Je ne sais pas où tu te trouves. |
+| Poser, côté de la porte (rotation 0, 90, 180, 270) | rien | Porte au sud, Porte à l'ouest, Porte au nord, Porte à l'est |
+| Poser, sens de la route (0 et 180, 90 et 270) | rien | Sens nord-sud, Sens est-ouest |
+| Poser, bouton | rien | Poser ici |
+| Poser, bouton | rien | Tourner |
+| Bulle joie, zone achetée | rien | Nouvelle zone achetée ! |
+| Bulle joie, bâtiment posé | rien | Bâtiment posé. |
+| Bulle joie, bâtiment amélioré | rien | Bâtiment amélioré ! |
+| Bulle joie, annonce du service après un achat, une pose ou une amélioration (tchat) | rien | les trois bulles ci-dessus |
+| Bulle oups, « Poser ici » hors de l'île principale (rien n'est envoyé) | rien | Va sur l'île principale. |
+| Bulle oups, la position du joueur n'est pas lisible (rien n'est envoyé) | rien | Je ne te trouve pas. |
+| Bulle oups, première zone sans assez d'usines actives (`ZONE_VERROUILLEE`, remplace Cette zone est verrouillée.) | Cette zone est verrouillée. | Il te faut plus d'usines actives. |
+| Bulle oups, autre zone ou amélioration, mairie trop basse (`ZONE_VERROUILLEE`, remplace Cette zone est verrouillée.) | Cette zone est verrouillée. | Monte d'abord la mairie. |
+| Bulle oups, pose dans une zone fermée (`ZONE_VERROUILLEE`, remplace Cette zone est verrouillée.) | Cette zone est verrouillée. | Zone fermée ou mairie trop basse. |
+| Bulle oups, parcelle prise (`EMPLACEMENT_OCCUPE`, remplace Cet emplacement est occupé.) | Cet emplacement est occupé. | Un bâtiment est déjà là. |
+| Bulle oups, quota du type atteint (`DEJA_POSSEDE` en posant, remplace Tu l'as déjà.) | Tu l'as déjà. | Maximum atteint pour ce bâtiment. |
+| Bulle fier, zone déjà possédée (`DEJA_POSSEDE` en achetant, remplace Tu l'as déjà.) | Tu l'as déjà. | Cette zone est déjà à toi. |
+| Bulle fier, bâtiment au dernier niveau (`DEJA_POSSEDE` en améliorant, remplace Tu l'as déjà.) | Tu l'as déjà. | Déjà au niveau maximum. |
+
+Les autres refus (`PAS_ASSEZ_DE_LINGOTS`, `PAS_LE_PDG`, `CONFLIT_REESSAYER`, service injoignable) gardent les bulles déjà dans
+les tableaux plus haut.
+
 ## Ce qui manque
 
 Au contrat (`api/`, non modifié par cette tranche) :
@@ -732,7 +866,7 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Le service doit remplir `island` (l'origine de la case d'archipel de l'entreprise). Sans lui, rien n'est posé et le
   journal le dit une fois : les joueurs restent où Bedrock les met.
 - Le coin de la case et le centre de l'île principale à +300 +300 sont une hypothèse de cette tranche.
-- L'île principale n'est pas posée : les mini-îles s'ordonnent autour d'un centre où rien n'est encore construit.
+- L'île principale se pose à la tranche de la ville (plus bas), autour du centre à +300 +300 que les mini-îles entourent.
 - Le côté client d'Oooscar (géométrie, texture, apparence) est au pack de ressources, hors de cette tranche : le
   serveur sait la faire apparaître, pas la montrer.
 - Les phrases de la cinématique sont des textes à valider, de même que le découpage et le cadrage des plans.
@@ -745,7 +879,8 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - L'aperçu du prestige ne donne que les XUID des membres : l'écran dit « Ta part » et « Un associé », sans nom.
 - Le contrat ne donne pas le rôle du joueur : l'écran propose « Prestige ! » à tout membre quand le service
   l'autorise, et `PAS_LE_PDG` revient en bulle pour qui n'est pas le PDG.
-- L'île principale n'est pas construite : sa ligne de la carte est verrouillée (« Bientôt »).
+- La ligne « Île principale » de la carte s'ouvre avec la ville (tranche de la ville, plus bas) : elle reste fermée tant que
+  l'entreprise n'a ni zone ni mairie.
 - Oooscar ne suit pas le joueur sur l'île choisie : il reste là où l'arrivée l'a posé.
 - Pas de texte pour les époques au-delà de la quatrième : un numéro inconnu se montre sans nom.
 
@@ -791,9 +926,27 @@ Au contrat (`api/`, non modifié par cette tranche) :
   (« Tu quittes ton entreprise actuelle. »), mais rien ne le retient.
 - La tuile du menu ne montre pas le nombre d'invitations en attente.
 
+À la tranche de la ville :
+
+- Les dimensions et les matériaux des préfabriqués (`GABARITS` dans `monde/ville.ts`) sont écrits dans le code : le fichier
+  `definitions/ville.json` ne les donne pas. Ils devraient y vivre, avec le reste des chiffres du jeu. Aucun n'est un prix, un
+  bonus ou un gain, mais un changement de taille demande aujourd'hui de toucher au code.
+- Pas de démolition, ni de route pour déplacer ou retirer un bâtiment : si le service en retire un de la liste, le monde garde
+  le bâtiment posé, et rien ne le dit au joueur.
+- `CompanyState.city` ne donne pas le prix d'un bâtiment neuf, ni le bonus du niveau suivant : l'add-on lit le prix du
+  niveau 1 dans `definitions/ville.json` et ne montre pas le bonus du niveau suivant. Les noms des bâtiments sont recopiés
+  dans `BATIMENT_NOMS` (un test les compare au fichier).
+- Le payload de l'événement `ANNONCE` d'un achat de zone, d'une pose ou d'une amélioration n'a pas de schéma : `action` n'est
+  décrit que par du texte. L'add-on lit cette seule clé et relit l'état de l'entreprise, sans se fier à d'autres champs.
+- Aucune route ne dit où le joueur se tient : l'add-on lit sa position dans le monde (`locate`) et arrondit à la parcelle de
+  16 blocs. Une pose se joue donc là où il se tient, pas sur une parcelle choisie sur un plan.
+- La liste des bâtiments n'a ni tri ni filtre : elle suit l'ordre du service, la mairie en tête.
+- Aucun essai en jeu n'a été possible : tout est prouvé sur de faux mondes (voir la section sur ce qui ne se vérifie que sur un
+  vrai BDS).
+
 Au design system :
 
-- Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence et Associés (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
+- Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence, Associés et Ville (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`, Ville `[V]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
 - Pas d'image d'Oooscar utilisable en jeu : les bulles portent un repère entre crochets.
 - Pas de glyphes dans le pack de ressources pour les icônes qui existent dans `design/icones/`.
 
@@ -813,7 +966,7 @@ Au design system :
   (10 s) ; le bouton de confirmation s'écrit « Prestige ! », seul point d'exclamation d'un bouton, parce que
   `design/README.md` le prescrit ; « ????? » est le seul point d'interrogation, c'est le nom caché d'une usine.
 
-- Personnel, choix faits sans Kr, à relire : le personnel est la septième tuile du menu, avant Amis ; l'agence est une
+- Personnel, choix faits sans Kr, à relire : le personnel est la sixième tuile du menu, avant Associés et Ville ; l'agence est une
   tuile de l'écran PERSONNEL, pas du menu ; l'écran PERSONNEL liste les équipes qui ont du monde, pas toutes les usines ;
   la couleur d'un nom suit la rareté (gris, bleu, jaune) ; la troisième rareté s'écrit « Exceptionnel » ; le salaire
   s'écrit par heure comme le service le donne, alors que le revenu du HUD est par seconde (« Donar/h » contre « /s ») ;
@@ -829,6 +982,18 @@ Au design system :
   prend le mini-jeu générique ; la phrase de la fiche pour une sorte inconnue passe de « bloque » à « ralentit »,
   parce que le service ralentit sans arrêter. Les noms d'usines changent de genre, d'où « `<usine>` : `<sorte>` » sans
   article ni accord.
+
+- Ville, choix faits sans Kr, à relire : la tuile « Ville » remplace la tuile verrouillée « Amis », huitième et dernière du
+  menu (la tuile Amis n'avait ni écran ni route) ; elle est ouverte dès que l'état porte une `city` et verrouillée sinon,
+  avec les usines actives de la première zone lues dans `definitions/ville.json` ; un `nextZone` absent est lu comme nul
+  (toutes les zones achetées), alors qu'une `city` mal formée fait échouer la lecture de l'état entier ; le bouton
+  « Acheter la zone » est toujours montré tant qu'il reste une zone, le service jugeant les conditions ; une entreprise sans
+  zone ne peut pas se rendre sur l'île principale (la tuile de la carte reste fermée) ; la liste des bâtiments est
+  paginée comme celle des usines ; après une pose réussie on revient à l'écran VILLE ; l'écran VILLE relit l'entreprise à
+  chaque ouverture ; l'`ANNONCE` de la ville fait dire une bulle dans le tchat en plus de celle de l'écran (un doublon
+  possible pour qui vient d'agir) ; les préfabriqués vivent dans le code, sans démolition (rien n'est retiré du monde) ;
+  les marques de la ville (zones et bâtiments) sont dans une seconde propriété dynamique du monde, à côté de celle des
+  îles, pour que les deux relevés ne s'écrasent pas.
 
 ## Ce qui ne se vérifie que sur un vrai BDS
 
@@ -863,6 +1028,11 @@ Au design system :
 - Les missions : `player.sendMessage` avec les codes `§` pour la bulle de fin, la tuile Objectifs à deux lignes, la
   lecture des missions à l'arrivée pendant la cinématique, et une `ANNONCE` reçue pour un joueur qui vient de se
   connecter (le curseur des événements repart de 0 au redémarrage de BDS).
+- La ville : la position du joueur (`locate`) et sa conversion en parcelle ; les marques de la ville en deux propriétés
+  dynamiques du monde (celle des îles et celle de la ville) ; le panneau mural de l'enseigne (`facing_direction`, texte
+  à trois lignes, orientation selon la rotation) ; le chargement des bandes d'une plateforme de 128 blocs et la pose à
+  plusieurs centaines de blocs du joueur (ticking area, reprises avec attente doublée) ; l'arrivée à deux blocs devant la
+  porte de la mairie, le regard sur elle ; le rendu des préfabriqués (toits, étages, lanternes, porte à deux blocs).
 
 ## Points ouverts
 

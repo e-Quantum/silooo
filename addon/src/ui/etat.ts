@@ -170,5 +170,9 @@ export function observeApi(api: CoreApi, link: LinkState): CoreApi {
     invite: (companyId, action, targetXuid) => watch(api.invite(companyId, action, targetXuid)),
     setShares: (companyId, action, shares) => watch(api.setShares(companyId, action, shares)),
     acceptInvite: (companyId, action) => watch(api.acceptInvite(companyId, action)),
+    buyZone: (companyId, zoneIndex, action) => watch(api.buyZone(companyId, zoneIndex, action)),
+    placeBuilding: (companyId, action, buildingType, x, z, rotation) =>
+      watch(api.placeBuilding(companyId, action, buildingType, x, z, rotation)),
+    upgradeBuilding: (companyId, buildingId, action) => watch(api.upgradeBuilding(companyId, buildingId, action)),
   };
 }

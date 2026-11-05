@@ -2,7 +2,15 @@ package com.silooo.core.site
 
 import com.silooo.core.Dependencies
 import com.silooo.core.TestDefinitions
+import com.silooo.core.MutableClock
 import com.silooo.core.db.FakeDatabase
+import com.silooo.core.db.PassThroughDatabase
+import com.silooo.core.server.ServerPresence
+import com.silooo.core.sitedata.CompanyCard
+import com.silooo.core.sitedata.CompanyMember
+import com.silooo.core.sitedata.InMemorySiteStatsStore
+import com.silooo.core.sitedata.MemberRole
+import java.time.Instant
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.server.testing.testApplication
@@ -67,6 +75,30 @@ class SiteRenderToDisk {
             UpdateEntries.parse("2026-12-01-exemple.md", "---\ntitre: Une usine de plus\ndescription: Exemple.\ndate: 2026-12-01\n---\nTexte d'exemple.\n"),
             UpdateEntries.parse("2026-11-05-exemple.md", "---\ntitre: Le serveur ouvre\ndescription: Exemple.\ndate: 2026-11-05\n---\nTexte d'exemple.\n"),
         )
+        // Le classement et une fiche, avec un faux dépôt et une présence : les données vivantes que le mode ouvert montre.
+        val stats = InMemorySiteStatsStore().apply {
+            entries += InMemorySiteStatsStore.Entry("2535400000000001", "Kr Test", 1L, "Les Silos du Ciel", 1_250_000)
+            entries += InMemorySiteStatsStore.Entry("2535400000000002", "Oooscar", 1L, "Les Silos du Ciel", 98_400)
+            entries += InMemorySiteStatsStore.Entry("2535400000000003", "Joueuse a un nom assez long pour passer à la ligne", 2L, "Atelier des Nuages avec un nom long", 4_200)
+            entries += InMemorySiteStatsStore.Entry("2535400000000004", "Sans Toit", null, null, 35)
+            companies[1L] = CompanyCard(
+                1L, "Les Silos du Ciel", era = 2, stars = 14, createdAt = Instant.parse("2026-10-12T09:00:00Z"), prestiges = 3,
+                members = listOf(CompanyMember("Kr Test", MemberRole.PDG), CompanyMember("Oooscar", MemberRole.ASSOCIE)),
+            )
+        }
+        val clock = MutableClock(Instant.parse("2026-11-05T12:00:00Z"))
+        val presence = ServerPresence(clock).apply { record("bds-1", listOf("1", "2", "3")) }
+        testApplication {
+            application {
+                siteModule(Dependencies(PassThroughDatabase(), "cle", serverPresence = presence, definitions = TestDefinitions.loaded, clock = clock, siteMode = SiteMode.OUVERT, siteStatsStore = stats))
+            }
+            val client = createClient { followRedirects = false }
+            for ((route, file) in listOf("/" to "ouvert-vivant/index.html", "/classements/" to "ouvert-vivant/classements/index.html", "/entreprise/1/" to "ouvert-vivant/entreprise/1/index.html")) {
+                val target = out.resolve(file)
+                Files.createDirectories(target.parent)
+                Files.writeString(target, client.get(route).bodyAsText())
+            }
+        }
         for ((mode, discord, routes) in pages) {
             val complete = routes.first().second.startsWith("ouvert-complet")
             testApplication {

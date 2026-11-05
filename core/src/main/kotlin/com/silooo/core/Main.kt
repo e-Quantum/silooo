@@ -98,6 +98,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteAdmission = config.siteAdmission,
             discordIdentity = config.discord?.let { HttpDiscordIdentity(it) },
             siteTrustedProxy = config.siteTrustedProxy,
+            payNowWebhookSecret = config.payNowWebhookSecret,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.

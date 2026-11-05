@@ -1,21 +1,27 @@
-// Le constructeur d'îles : pose, une par une, les mini-îles que les entreprises présentes demandent, dans l'état de
-// leur usine. Il ne décide de rien : il lit l'état donné par le service (via `sync`), le compare à ce qu'il a déjà posé
-// (une marque par île, gardée dans le monde) et ne refait que ce qui a changé.
+// Le constructeur d'îles : pose, un par un, les mini-îles et l'île principale que les entreprises présentes demandent,
+// dans l'état que le service dit. Il ne décide de rien : il lit l'état donné par le service (via `sync` et `syncCity`), le
+// compare à ce qu'il a déjà posé (une marque par île, par zone et par bâtiment, gardée dans le monde) et ne refait que
+// ce qui a changé.
 //
 // - Une marque `état@x,z` par usine et par entreprise : la même île n'est jamais reposée dans le même état ; un
 //   changement d'état refait le bâtiment seulement ; une autre origine d'archipel refait aussi la plateforme.
+// - La ville a ses marques à elle (clés « ville:zone:N » et « ville:b:ID », monde/ville.ts) : une plateforme par zone
+//   possédée, un préfabriqué par bâtiment, refait quand son niveau, sa parcelle ou sa rotation changent. Un bâtiment
+//   attend la plateforme de sa zone.
 // - Un seul chantier à la fois, et des lots d'opérations séparés par des pauses : le serveur ne se fige pas.
-// - Une île est loin du joueur (plusieurs centaines de blocs) : le chantier charge d'abord sa zone (ticking area),
-//   pose, puis la relâche. Si le chargement échoue, nouvel essai plus tard, attente doublée à chaque échec.
+// - Un chantier est loin du joueur (plusieurs centaines de blocs) : il charge d'abord sa zone (ticking area), pose,
+//   puis la relâche. Si le chargement échoue, nouvel essai plus tard, attente doublée à chaque échec.
 // - Rien d'ici n'importe @minecraft/* : le monde est un `BlockWriter`, les marques un `MarkStore`.
 
-import type { IlesDefinitions } from "../generated/definitions";
-import type { Factory, FactoryState } from "../protocol";
+import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
+import type { CityState, Factory, FactoryState } from "../protocol";
 import { createStatusLog, describeError, pause, type Clock, type Logger, type Scheduler, type StatusLog } from "../runtime";
 import { config } from "../config";
+import { VILLE } from "./definitions";
 import type { Box, Pos, Xz } from "./geometrie";
 import { usineIle } from "./geometrie";
-import { planIsland, type BlockStates, type IslandPlan, type Op } from "./plan";
+import { planIsland, type BlockStates, type Op } from "./plan";
+import { cityWorks, isKnownBuilding, type Segment } from "./ville";
 
 /** Ce que le constructeur demande au monde. L'implémentation réelle est dans monde/bedrock.ts. */
 export interface BlockWriter {
@@ -26,7 +32,7 @@ export interface BlockWriter {
   setText(at: Pos, text: string): void;
 }
 
-/** Les marques des îles posées, par entreprise, gardées là où le monde les garde (propriétés dynamiques). */
+/** Les marques des travaux posés, par entreprise, gardées là où le monde les garde (propriétés dynamiques). */
 export interface MarkStore {
   read(companyId: number): Readonly<Record<string, string>>;
   write(companyId: number, marks: Readonly<Record<string, string>>): void;
@@ -41,6 +47,8 @@ export interface BuilderSettings {
 
 export interface BuilderDeps {
   readonly defs: IlesDefinitions;
+  /** La ville de l'île principale (definitions/ville.json). Absente : celle du fichier de données. */
+  readonly ville?: VilleDefinitions;
   readonly writer: BlockWriter;
   readonly marks: MarkStore;
   readonly scheduler: Scheduler;
@@ -51,31 +59,53 @@ export interface BuilderDeps {
 
 export interface IslandBuilder {
   /**
-   * Demande que la mini-île de chaque usine soit posée dans son état. Rend le nombre d'îles qui restent à poser
+   * Demande que la mini-île de chaque usine soit posée dans son état. Rend le nombre de chantiers qui restent à poser
    * (en attente, en cours ou à réessayer). Sans effet pour une île déjà posée dans cet état.
    */
   sync(companyId: number, origin: Xz, factories: readonly Factory[]): number;
-  /** Résout vrai dès que la mini-île de l'usine est posée comme demandé, faux au bout de `timeoutSeconds`. */
-  whenReady(companyId: number, factoryId: string, timeoutSeconds: number): Promise<boolean>;
-  /** Les îles qui attendent ou sont en cours de pose. */
+  /**
+   * Demande que la plateforme de chaque zone possédée et chaque bâtiment de la ville soient posés. Rend le nombre de
+   * chantiers qui restent à poser. Sans effet pour ce qui est déjà posé tel quel.
+   */
+  syncCity(companyId: number, origin: Xz, city: CityState): number;
+  /**
+   * Résout vrai dès que le chantier de la clé de marque `markKey` est posé comme demandé, faux au bout de
+   * `timeoutSeconds`. La clé d'une mini-île est l'identifiant de son usine ; celle d'un bâtiment, `buildingKey`.
+   */
+  whenReady(companyId: number, markKey: string, timeoutSeconds: number): Promise<boolean>;
+  /** Les chantiers qui attendent ou sont en cours. */
   pending(): number;
 }
 
+/** Ce qu'un chantier va exécuter, calculé au moment de le lancer (les marques connues peuvent avoir changé depuis la demande). */
+interface JobPlan {
+  readonly segments: readonly Segment[];
+  /** Un mot de plus pour le journal. */
+  readonly detail: string;
+}
+
 interface Job {
+  /** « entreprise/clé de marque » : un chantier par clé. */
   readonly key: string;
   readonly companyId: number;
-  readonly factoryId: string;
-  readonly origin: Xz;
-  readonly state: FactoryState;
-  /** La marque qu'on obtiendra une fois l'île posée. */
+  /** La clé de sa marque dans le `MarkStore` : l'identifiant d'une usine, ou une clé de la ville. */
+  readonly markKey: string;
+  /** La marque qu'on obtiendra une fois posé. */
   readonly mark: string;
+  /** « île 7/carriere », « zone 7/1 » : le début de la ligne de journal. */
+  readonly label: string;
+  /** « posée » ou « posé » : la fin de la ligne de journal. */
+  readonly done: string;
+  /** La clé d'un autre chantier de la même entreprise à finir avant celui-ci. */
+  readonly after: string | undefined;
+  readonly plan: (known: Readonly<Record<string, string>>) => JobPlan;
   attempts: number;
   notBeforeMs: number;
 }
 
 interface Waiter {
   readonly companyId: number;
-  readonly factoryId: string;
+  readonly markKey: string;
   readonly resolve: (ready: boolean) => void;
 }
 
@@ -106,6 +136,7 @@ export function applyOp(writer: BlockWriter, op: Op): void {
 
 export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
   const { defs, writer, marks, scheduler, clock, log } = deps;
+  const ville = deps.ville ?? VILLE;
   const settings = deps.settings ?? config.world;
   const jobs = new Map<string, Job>();
   const cache = new Map<number, Record<string, string>>();
@@ -116,7 +147,7 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
   let running = false;
   let timerArmed = false;
 
-  const keyOf = (companyId: number, factoryId: string): string => `${companyId}/${factoryId}`;
+  const keyOf = (companyId: number, markKey: string): string => `${companyId}/${markKey}`;
 
   function marksOf(companyId: number): Record<string, string> {
     let known = cache.get(companyId);
@@ -127,44 +158,55 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
     return known;
   }
 
-  function statusOf(key: string): StatusLog {
-    let status = statuses.get(key);
+  function statusOf(job: Job): StatusLog {
+    let status = statuses.get(job.key);
     if (status === undefined) {
-      status = createStatusLog(log, `île ${key}`);
-      statuses.set(key, status);
+      status = createStatusLog(log, job.label);
+      statuses.set(job.key, status);
     }
     return status;
   }
 
-  function isReady(companyId: number, factoryId: string): boolean {
-    const key = keyOf(companyId, factoryId);
-    return marksOf(companyId)[factoryId] !== undefined && !jobs.has(key) && inFlight?.key !== key;
+  function isReady(companyId: number, markKey: string): boolean {
+    const key = keyOf(companyId, markKey);
+    return marksOf(companyId)[markKey] !== undefined && !jobs.has(key) && inFlight?.key !== key;
   }
 
   function notify(): void {
     for (let index = waiters.length - 1; index >= 0; index -= 1) {
       const waiter = waiters[index];
-      if (waiter !== undefined && isReady(waiter.companyId, waiter.factoryId)) {
+      if (waiter !== undefined && isReady(waiter.companyId, waiter.markKey)) {
         waiters.splice(index, 1);
         waiter.resolve(true);
       }
     }
   }
 
-  async function execute(job: Job, plan: IslandPlan, withBase: boolean): Promise<void> {
-    const ops = withBase ? [...plan.base, ...plan.state] : [...plan.state];
-    await writer.withLoadedArea(plan.box, async () => {
-      for (let start = 0; start < ops.length; start += settings.opsPerBatch) {
-        for (const op of ops.slice(start, start + settings.opsPerBatch)) applyOp(writer, op);
-        if (start + settings.opsPerBatch < ops.length) await pause(scheduler, settings.batchPauseSeconds);
-      }
-    });
-    log.info(`île ${job.key} posée (${job.mark}, ${ops.length} opération(s)${withBase ? ", plateforme comprise" : ""})`);
+  /** Un bâtiment attend la plateforme de sa zone : tant qu'elle est à poser, en cours ou à réessayer, il reste en file. */
+  function blocked(job: Job): boolean {
+    if (job.after === undefined) return false;
+    const key = keyOf(job.companyId, job.after);
+    return jobs.has(key) || inFlight?.key === key;
+  }
+
+  async function execute(job: Job, plan: JobPlan): Promise<void> {
+    let total = 0;
+    for (const [index, segment] of plan.segments.entries()) {
+      if (index > 0) await pause(scheduler, settings.batchPauseSeconds);
+      await writer.withLoadedArea(segment.box, async () => {
+        for (let start = 0; start < segment.ops.length; start += settings.opsPerBatch) {
+          for (const op of segment.ops.slice(start, start + settings.opsPerBatch)) applyOp(writer, op);
+          if (start + settings.opsPerBatch < segment.ops.length) await pause(scheduler, settings.batchPauseSeconds);
+        }
+      });
+      total += segment.ops.length;
+    }
+    log.info(`${job.label} ${job.done} (${job.mark}, ${total} opération(s)${plan.detail})`);
   }
 
   function nextDue(): Job | undefined {
     const now = clock.now();
-    for (const job of jobs.values()) if (job.notBeforeMs <= now) return job;
+    for (const job of jobs.values()) if (job.notBeforeMs <= now && !blocked(job)) return job;
     return undefined;
   }
 
@@ -172,7 +214,7 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
     if (timerArmed || jobs.size === 0) return;
     const now = clock.now();
     let soonest = Number.POSITIVE_INFINITY;
-    for (const job of jobs.values()) soonest = Math.min(soonest, job.notBeforeMs);
+    for (const job of jobs.values()) if (!blocked(job)) soonest = Math.min(soonest, job.notBeforeMs);
     if (!Number.isFinite(soonest)) return;
     timerArmed = true;
     scheduler.after(Math.max(0.05, (soonest - now) / 1000), () => {
@@ -188,23 +230,19 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
       for (let job = nextDue(); job !== undefined; job = nextDue()) {
         jobs.delete(job.key);
         inFlight = job;
-        const usine = usineIle(defs, job.factoryId);
         try {
-          if (usine === undefined) throw new Error(`usine ${job.factoryId} absente de iles.json`);
           const known = marksOf(job.companyId);
-          const plan = planIsland(defs, usine, job.origin, job.state);
-          const withBase = markOrigin(known[job.factoryId]) !== `${job.origin.x},${job.origin.z}`;
-          await execute(job, plan, withBase);
-          known[job.factoryId] = job.mark;
+          await execute(job, job.plan(known));
+          known[job.markKey] = job.mark;
           marks.write(job.companyId, known);
-          statusOf(job.key).ok();
+          statusOf(job).ok();
         } catch (error) {
           job.attempts += 1;
           const wait = Math.min(settings.buildRetryMaxSeconds, settings.buildRetrySeconds * 2 ** (job.attempts - 1));
           job.notBeforeMs = clock.now() + wait * 1000;
-          // Une demande plus récente pour la même île prime ; sinon on réessaie celle-ci plus tard.
+          // Une demande plus récente pour le même chantier prime ; sinon on réessaie celui-ci plus tard.
           if (!jobs.has(job.key)) jobs.set(job.key, job);
-          statusOf(job.key).failed(describeError(error));
+          statusOf(job).failed(describeError(error));
         } finally {
           inFlight = undefined;
         }
@@ -215,6 +253,19 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
       armTimer();
     }
   }
+
+  /** Met un chantier en file, sauf s'il est déjà posé tel quel ou déjà demandé tel quel. */
+  function request(job: Job): void {
+    const marked = marksOf(job.companyId)[job.markKey];
+    if (marked === job.mark) {
+      jobs.delete(job.key);
+      return;
+    }
+    if (jobs.get(job.key)?.mark === job.mark || (inFlight?.key === job.key && inFlight.mark === job.mark)) return;
+    jobs.set(job.key, job);
+  }
+
+  const pendingCount = (): number => jobs.size + (inFlight === undefined ? 0 : 1);
 
   return {
     sync(companyId, origin, factories) {
@@ -227,24 +278,62 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
           }
           continue;
         }
-        const key = keyOf(companyId, factoryId);
-        const mark = markOf(factory.state, origin);
-        if (marksOf(companyId)[factoryId] === mark) {
-          jobs.delete(key);
-          continue;
-        }
-        if (jobs.get(key)?.mark === mark || (inFlight?.key === key && inFlight.mark === mark)) continue;
-        jobs.set(key, { key, companyId, factoryId, origin, state: factory.state, mark, attempts: 0, notBeforeMs: 0 });
+        const state = factory.state;
+        request({
+          key: keyOf(companyId, factoryId),
+          companyId,
+          markKey: factoryId,
+          mark: markOf(state, origin),
+          label: `île ${companyId}/${factoryId}`,
+          done: "posée",
+          after: undefined,
+          plan: (known) => {
+            const usine = usineIle(defs, factoryId);
+            if (usine === undefined) throw new Error(`usine ${factoryId} absente de iles.json`);
+            const plan = planIsland(defs, usine, origin, state);
+            const withBase = markOrigin(known[factoryId]) !== `${origin.x},${origin.z}`;
+            const ops = withBase ? [...plan.base, ...plan.state] : [...plan.state];
+            return { segments: [{ box: plan.box, ops }], detail: withBase ? ", plateforme comprise" : "" };
+          },
+          attempts: 0,
+          notBeforeMs: 0,
+        });
       }
       void pump();
       notify();
-      return jobs.size + (inFlight === undefined ? 0 : 1);
+      return pendingCount();
     },
 
-    whenReady(companyId, factoryId, timeoutSeconds) {
-      if (isReady(companyId, factoryId)) return Promise.resolve(true);
+    syncCity(companyId, origin, city) {
+      for (const building of city.buildings) {
+        if (!isKnownBuilding(building.buildingType) && !unknown.has(building.buildingType)) {
+          unknown.add(building.buildingType);
+          log.warn(`bâtiment ${building.buildingType} : aspect inconnu, une boîte de planches posée à la place`);
+        }
+      }
+      for (const work of cityWorks(defs, ville, origin, city)) {
+        request({
+          key: keyOf(companyId, work.markKey),
+          companyId,
+          markKey: work.markKey,
+          mark: work.mark,
+          label: `${work.kind} ${companyId}/${work.ref}`,
+          done: work.kind === "zone" ? "posée" : "posé",
+          after: work.after,
+          plan: () => ({ segments: work.segments(), detail: "" }),
+          attempts: 0,
+          notBeforeMs: 0,
+        });
+      }
+      void pump();
+      notify();
+      return pendingCount();
+    },
+
+    whenReady(companyId, markKey, timeoutSeconds) {
+      if (isReady(companyId, markKey)) return Promise.resolve(true);
       return new Promise<boolean>((resolve) => {
-        const waiter: Waiter = { companyId, factoryId, resolve };
+        const waiter: Waiter = { companyId, markKey, resolve };
         waiters.push(waiter);
         scheduler.after(timeoutSeconds, () => {
           const index = waiters.indexOf(waiter);
@@ -255,6 +344,6 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
       });
     },
 
-    pending: () => jobs.size + (inFlight === undefined ? 0 : 1),
+    pending: pendingCount,
   };
 }

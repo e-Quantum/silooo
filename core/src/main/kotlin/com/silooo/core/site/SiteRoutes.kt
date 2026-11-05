@@ -1,5 +1,6 @@
 package com.silooo.core.site
 
+import com.silooo.core.site.pages.PlayersOnline
 import com.silooo.core.site.pages.SiteShell
 import com.silooo.core.site.pages.accueil
 import com.silooo.core.site.pages.attente
@@ -24,11 +25,17 @@ import kotlinx.html.HTML
  * tombe dans le 404 du module. Les pages du mode `ouvert` ne sont pas enregistrées en mode `attente` : leur
  * adresse y répond 404, comme n'importe quelle adresse inconnue.
  */
-internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell, updates: List<UpdateEntry>, wiki: List<ContentPage>) {
+internal fun Route.siteRoutes(
+    pages: List<ContentPage>,
+    shell: SiteShell,
+    updates: List<UpdateEntry>,
+    wiki: List<ContentPage>,
+    online: () -> PlayersOnline? = { null },
+) {
     for (page in pages) {
-        // Les routes des pionniers (GET et POST) sont dans PioneerRoutes.kt.
-        if (page.name == PIONEERS_PAGE) continue
-        val render = renderer(page, shell, updates, wiki)
+        // Les routes des pionniers (GET et POST) sont dans PioneerRoutes.kt, celles des classements dans StatsRoutes.kt.
+        if (page.name == PIONEERS_PAGE || page.name == RANKING_PAGE) continue
+        val render = renderer(page, shell, updates, wiki, online)
         get(page.url) { call.respondHtml(HttpStatusCode.OK) { render() } }
         // /mentions mène à /mentions/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.
         if (page.url != "/") {
@@ -39,9 +46,15 @@ internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell, update
 }
 
 /** La fonction de rendu d'un contenu, choisie par son nom de fichier. Un contenu sans page fait échouer le démarrage. */
-private fun renderer(page: ContentPage, shell: SiteShell, updates: List<UpdateEntry>, wiki: List<ContentPage>): HTML.() -> Unit = when (page.name) {
+private fun renderer(
+    page: ContentPage,
+    shell: SiteShell,
+    updates: List<UpdateEntry>,
+    wiki: List<ContentPage>,
+    online: () -> PlayersOnline?,
+): HTML.() -> Unit = when (page.name) {
     "attente" -> { { attente(shell, page) } }
-    "accueil" -> { { accueil(shell, page) } }
+    "accueil" -> { { accueil(shell, page, online()) } }
     "mentions" -> { { mentions(shell, page) } }
     "rejoindre" -> { { rejoindre(shell, page) } }
     "ce-qui-se-vend" -> { { ceQuiSeVend(shell, page) } }

@@ -54,11 +54,13 @@ data class ServiceConfig(
     val siteTrustedProxy: Boolean = false,
     /** La réception des votes de Hubyy (`SILOOO_VOTIFIER_TOKEN` et `SILOOO_VOTIFIER_PORT`) ; `null` tant que le jeton n'est pas posé : rien n'écoute. */
     val votifier: VotifierSettings? = null,
+    /** `SILOOO_PAYNOW_WEBHOOK_SECRET` : la clé de la signature du webhook de PayNow ; `null` : le webhook répond 503. */
+    val payNowWebhookSecret: String? = null,
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, votifier=$votifier)"
+            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier)"
 }
 
 /**
@@ -85,6 +87,7 @@ object Config {
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
     const val SITE_TRUSTED_PROXY = "SILOOO_SITE_TRUSTED_PROXY"
+    const val PAYNOW_WEBHOOK_SECRET = "SILOOO_PAYNOW_WEBHOOK_SECRET"
 
     /** Le jeton que Hubyy signe ses votes avec (Votifier 2). Un secret : posé seulement dans l'environnement du conteneur, jamais dans le dépôt. Absent : la réception des votes est éteinte. */
     const val VOTIFIER_TOKEN = "SILOOO_VOTIFIER_TOKEN"
@@ -177,6 +180,7 @@ object Config {
         val discord = reader.discord()
         val trustedProxy = reader.trustedProxy()
         val votifier = reader.votifier(port, sitePort)
+        val payNowSecret = env[PAYNOW_WEBHOOK_SECRET]?.trim()?.takeIf { it.isNotEmpty() }
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
@@ -185,6 +189,7 @@ object Config {
             siteSettings = checkNotNull(siteSettings),
             siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
             votifier = votifier,
+            payNowWebhookSecret = payNowSecret,
         )
     }
 
