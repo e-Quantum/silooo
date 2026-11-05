@@ -69,20 +69,23 @@ appliquée ne se modifie jamais.
 ## L'image Docker
 
 ```bash
-docker build -t silooo-core core     # le contexte est le dossier core/
+docker build -f core/Dockerfile -t silooo-core .     # depuis la racine du dépôt : le contexte est la racine
 docker run --rm --env-file <fichier d'environnement> silooo-core migrate
 docker run --rm --env-file <fichier d'environnement> silooo-core
 ```
 
 Construction par le wrapper Gradle sur `eclipse-temurin:17-jdk`, exécution sur
-`eclipse-temurin:17-jre`, utilisateur non root, `-XX:MaxRAMPercentage=75`. La CI la construit à
+`eclipse-temurin:17-jre`, utilisateur non root, `-XX:MaxRAMPercentage=75`. L'image embarque `definitions/`
+(les chiffres du jeu) dans `/app/definitions` et pose `SILOOO_DEFINITIONS_DIR` dessus : c'est pourquoi le
+contexte est la racine du dépôt. Ce qui entre dans le contexte est dans `Dockerfile.dockerignore`, à côté du
+Dockerfile : tout est exclu sauf le code de `core/` (sans les tests) et `definitions/`. La CI la construit à
 chaque poussée et, sur `main`, la pousse sur `ghcr.io/e-quantum/silooo-core` (tags : SHA du commit et
 `main`). Elle ne contient aucun secret.
 
 ## Où est quoi
 
-Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`. Les paquets `session`, `events` et
-`economy` ne contiennent qu'un commentaire qui dit ce que la session suivante y met.
+Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`. Les paquets `session` et
+`events` ne contiennent qu'un commentaire qui dit ce que la session suivante y met.
 
 | Paquet ou fichier | Contenu |
 | --- | --- |
@@ -91,8 +94,9 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`. Les paquets `ses
 | `api/` | Le plugin `X-Silooo-Key` (401), le corps d'erreur du contrat, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `HikariDatabase`, `Migrations` |
 | `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique) : classes typées et `DefinitionsLoader` |
+| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), sans route en phase 1 |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock |
-| `session/`, `events/`, `economy/` | À remplir (voir ci-dessous) |
+| `session/`, `events/` | À remplir (voir ci-dessous) |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
 `/v1` sans clé valable 401 avec `{"reason": "CLE_INVALIDE"}`. Écrire une route la remplace sans rien
@@ -106,7 +110,7 @@ test de contrat, puis code.
 - `session/join` et `session/leave`, `GET /v1/events` avec curseur.
 - L'idempotence par `requestId` (table `api_requests`), le verrou optimiste sur `companies.version`,
   le journal des monnaies dans la même transaction que le solde.
-- Le moteur d'économie et les tests dorés. Il lit `definitions/` : l'image ne l'a pas aujourd'hui
-  (le contexte est `core/`), à régler dans cette session.
+- Les routes d'économie (`companies/{companyId}`) : le moteur et ses tests dorés sont là, il reste à
+  l'appeler depuis les routes.
 - Les tests de contrat sur les 29 opérations de l'OpenAPI.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).

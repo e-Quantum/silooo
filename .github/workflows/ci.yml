@@ -44,6 +44,8 @@ jobs:
         run: bash tools/verifier.sh
 
   # L'image de silooo-core (core/Dockerfile), construite à chaque poussée une fois le dépôt vérifié.
+  # Le contexte est la racine du dépôt : l'image embarque definitions/ (core/Dockerfile.dockerignore
+  # dit ce qui entre dans le contexte).
   # Sur main seulement, elle part sur le registre GitHub, taguée par commit (SHA) et « main ».
   # Le registre est privé : le tirage sur le VPS demandera une clé de lecture, posée par Kr.
   image:
@@ -70,7 +72,8 @@ jobs:
       - name: Construire l'image (et la pousser sur main)
         uses: docker/build-push-action@v6
         with:
-          context: core
+          context: .
+          file: core/Dockerfile
           push: ${{ env.PUBLIER == 'true' }}
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
