@@ -572,6 +572,25 @@ class PassRoutesTest {
     }
 
     @Test
+    @DisplayName("buyItem : un cosmétique du pass, comme tout cosmétique que boutique.json ne vend pas, est refusé (400), pour soi et en cadeau, sans toucher aux Gemmes")
+    fun passCosmeticsCannotBeBought() = withApp { app ->
+        app.player(kr, gemmes = 10 * price)
+        app.player(friend)
+        val notSold = definitions.shop.cosmetics.filter { !it.purchasable }.map { it.id }
+        assertTrue(notSold.containsAll(pass.tiers.mapNotNull { it.premium?.cosmeticId }), "ceux du pass sont déclarés sans être vendus")
+
+        var n = 0
+        for (id in notSold) {
+            assertBadRequest(buy(id, n = ++n), "« $id » acheté")
+            assertBadRequest(buy(id, n = ++n, forXuid = friend), "« $id » offert")
+        }
+
+        assertEquals(10 * price, app.gemmes(kr))
+        assertTrue(app.shop.purchases.isEmpty())
+        assertTrue(catalogItems(catalogOf(kr)).none { it.itemId in notSold })
+    }
+
+    @Test
     @DisplayName("Du début à la fin : acheter la piste, atteindre le palier, réclamer les deux pistes")
     fun buyThenClaim() = withApp { app ->
         app.player(kr, gemmes = price)

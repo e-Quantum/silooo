@@ -7,12 +7,15 @@ import com.silooo.core.api.refuse
 import com.silooo.core.db.InsufficientBalance
 import com.silooo.core.db.Xuid
 import com.silooo.core.economy.RequestRejected
+import com.silooo.core.events.GameEventKind
 import com.silooo.core.pass.PassService
 import com.silooo.core.session.SessionStore
 import java.sql.Connection
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * La boutique en Gemmes, sans HTTP : `catalog` et `buyItem`. Les routes valident l'entrée et répondent ; ce service lit, décide et
@@ -26,11 +29,13 @@ import java.time.temporal.ChronoUnit
  *  3. Les refus du jeu (`Refusal`) tombent avant la première écriture, les Gemmes en dernier : `DEJA_POSSEDE`, `GRADE_PRECEDENT_REQUIS`,
  *     `PAS_ASSEZ_DE_GEMMES` avec ce qui manque. Les vérifications de possession portent sur le DESTINATAIRE.
  *  4. L'achat est noté (`shop_purchases`, clé unique sur le `requestId`), l'acheteur paie (`creditBalance` revérifie le solde sous
- *     verrou et reste le filet), puis le destinataire reçoit : le grade (source `achat`, ou `cadeau` pour un autre joueur), ou
- *     l'abonnement prolongé avec les Gemmes qu'il rend.
+ *     verrou et reste le filet), puis le destinataire reçoit : le grade (source `achat`, ou `cadeau` pour un autre joueur), le
+ *     cosmétique (`player_cosmetics`, source `boutique`, cadeau compris), ou l'abonnement prolongé avec les Gemmes qu'il rend. Le boost
+ *     collectif, lui, n'a pas de destinataire : une ligne de `server_boosts`, qui commence à la fin du dernier boost réservé s'il en
+ *     court un, et l'événement `BOOST_COLLECTIF` (sans `xuid`) pour le bot Discord et l'add-on.
  *  5. La réponse est le solde de l'acheteur.
  *
- * Aucun événement n'est écrit pour un achat : `GEMMES_RECUES` est celui d'une livraison de commande, avec son `orderId`.
+ * Aucun autre événement n'est écrit pour un achat : `GEMMES_RECUES` est celui d'une livraison de commande, avec son `orderId`.
  */
 class ShopService(
     private val rules: ShopRules,
@@ -59,6 +64,8 @@ class ShopService(
         // Un cadeau à soi-même est un achat pour soi.
         val recipient = forXuid ?: actor
         val gift = recipient != actor
+        // Un boost est pour tout le serveur : il n'a pas de destinataire à qui l'offrir.
+        if (item is ShopItem.CollectiveBoost && gift) throw RequestRejected("Le boost collectif ne s'offre pas : il profite à tout le serveur")
         if (!store.isKnownPlayer(connection, actor)) throw RequestRejected("Acheteur inconnu : $actor")
         if (gift && !store.isKnownPlayer(connection, recipient)) throw RequestRejected("Destinataire inconnu : $recipient")
 
@@ -88,8 +95,35 @@ class ShopService(
                 // Faux : un autre achat de la piste premium pour ce joueur a passé entre-temps. L'achat est annulé, rien n'est payé.
                 if (!checkNotNull(pass).grantPremium(connection, recipient)) refuse(RefusalCodes.ALREADY_OWNED)
             }
+            is ShopItem.Cosmetic -> {
+                // Faux : un autre achat du même cosmétique pour ce joueur a passé entre-temps. L'achat est annulé, rien n'est payé.
+                if (!store.grantCosmetic(connection, recipient, item.id, SOURCE_COSMETIC, now)) refuse(RefusalCodes.ALREADY_OWNED)
+            }
+            is ShopItem.CollectiveBoost -> startBoost(connection, actor, item, now)
         }
         return sessions.loadBalances(connection, actor)
+    }
+
+    /**
+     * Réserve le boost [item] acheté par [buyer] : il commence maintenant, ou à la fin du dernier boost réservé (verrouillée par la
+     * lecture : deux achats en même temps se suivent), puis l'événement `BOOST_COLLECTIF` annonce l'acheteur, la hausse, la durée et les
+     * bornes. L'événement part à l'achat, pas au début d'un boost en attente.
+     */
+    private fun startBoost(connection: Connection, buyer: Xuid, item: ShopItem.CollectiveBoost, now: Instant) {
+        val window = rules.scheduleBoost(item, store.lastBoostEnd(connection, now), now)
+        store.insertBoost(connection, buyer, window, item.bonusPercent)
+        store.publish(
+            connection,
+            GameEventKind.BOOST_COLLECTIF,
+            null,
+            buildJsonObject {
+                put("buyerName", store.gamertagOf(connection, buyer))
+                put("percent", item.bonusPercent)
+                put("minutes", item.minutes)
+                put("startsAt", window.startsAt.toString())
+                put("endsAt", window.endsAt.toString())
+            },
+        )
     }
 
     /** La base garde la milliseconde (`DATETIME(3)`) : on écrit et on compare avec elle. */
@@ -103,5 +137,8 @@ class ShopService(
         /** Les valeurs de `player_ranks.source` pour un achat. */
         const val SOURCE_PURCHASE = "achat"
         const val SOURCE_GIFT = "cadeau"
+
+        /** La valeur de `player_cosmetics.source` pour un cosmétique acheté en jeu, cadeau compris. */
+        const val SOURCE_COSMETIC = "boutique"
     }
 }

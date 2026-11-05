@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 15 h 48, les variables du site dans deploy/ et la doc de déploiement (point 3 du site) ; cosmétiques et pass en cours (session de direction).
+Dernière mise à jour : 5 novembre 2026, 16 h 45, CI de main rouge depuis 69d98b1 : deux tests SQL du prestige corrigés, un test du site signalé (session de direction).
 
 ## État
 
@@ -186,14 +186,15 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 - [ ] Les fichiers de la direction du site (`docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md`, `docs/references/site/`) apparaissent **non suivis dans le dossier de la direction du jeu** (`C:\Users\largu\Documents\silooo`), alors qu'elle devait travailler dans le worktree `silooo-site` : vérifier où elle écrit. La direction du jeu ne les touche ni ne les ajoute jamais ; tant qu'ils ne sont pas commités, `git status` n'est pas propre de son fait.
 - [ ] Phase 5 : un achat réel de test sur la boutique PayNow, livré une fois et une seule, puis la vérification en jeu (le site écrit `shop_deliveries`, le jeu crédite et montre `GEMMES_RECUES`).
 - [ ] Phase 5 : Hubyy : déclarer Silooo avec l'adresse, le port Votifier et le jeton ; ouvrir ce port sur le VPS ; le jeton dans l'environnement du conteneur silooo, jamais dans le dépôt. Les autres sites de vote plus tard, par le même chemin.
-- [ ] Discord (direction du Discord, `docs/discord-passation.md`) : quand elle écrit « Prêt à mettre en ligne » (fin de D2) et que Kr a posé le jeton du bot et l'identifiant du serveur dans l'environnement du conteneur silooo, jamais dans le dépôt, la direction du jeu déploie `main` (projet Docker « silooo ») avec `SILOOO_DISCORD_ACTIF=oui` ; rien avant, et jamais sans vérificateur vert.
+- [ ] Discord (direction du Discord, `docs/discord-passation.md`, point 8) : quand elle écrit « Prêt à mettre en ligne » (le QG, fin de D2) et que Kr a donné le jeton du bot (`SILOOO_DISCORD_TOKEN`) et l'identifiant du serveur (`SILOOO_DISCORD_SERVEUR`), posés dans l'environnement du conteneur silooo et jamais dans le dépôt, la direction du jeu déploie `main` (projet Docker « silooo ») avec `SILOOO_DISCORD_ACTIF=a-blanc`, puis `oui` ; rien avant, jamais sans vérificateur vert ni CI verte.
 - [ ] Phase 5 : trancher le marché entre joueurs (`listMarket`, `createListing`, `buyListing`) : `CLAUDE.md` interdit toute monnaie échangeable entre joueurs, donc ces routes restent « pas fait » tant que Kr n'a pas dit ce qu'il en reste.
-- [ ] Deux dossiers `.agents/` et `.codex/` sont apparus non suivis dans le dossier de la direction du jeu le 5 novembre 2026 à 13 h 16, sans qu'elle les écrive : dire s'il faut les ignorer dans `.gitignore` ou les retirer. Les copies locales de `docs/site.md`, `docs/site-direction.md` et `docs/site-passation.md` qui traînaient dans ce dossier (plus anciennes que `main`, elles bloquaient chaque fusion) sont mises de côté dans un stash (`git stash list` : « copies locales des docs du site ») : les reprendre ou les jeter (`git stash drop`).
+- [ ] Deux dossiers `.agents/` et `.codex/` sont apparus non suivis dans le dossier de la direction du jeu le 5 novembre 2026 à 13 h 16, sans qu'elle les écrive : dire s'il faut les ignorer dans `.gitignore` ou les retirer. Les copies locales de `docs/site.md`, `docs/site-direction.md` et `docs/site-passation.md` qui traînaient dans ce dossier (plus anciennes que `main`, elles bloquaient chaque fusion) sont mises de côté dans un stash (`git stash list` : « copies locales des docs du site ») : les reprendre ou les jeter (`git stash drop`). Depuis ddf698f (direction du site), `docs/references/site/` est sur `main`, octet pour octet identique à la copie non suivie qui bloquait la fusion : cette copie est dans un second stash (`stash@{0}`, 16 h 45) ; les deux stashs peuvent être jetés (`git stash drop`), rien n'y manque à `main`.
 - [ ] Phase 4 : au test sur console, tout l'add-on de la phase 4, jamais essayé en jeu : la ville et l'île principale (zones posées quand la mairie les débloque, catalogue, pose, amélioration, bulles d'Oooscar), le prestige, la carte et le voyage, le personnel, les incidents et la réparation, l'entreprise partagée.
 - [ ] L'agence : `docs/game-design.md` (une nouvelle liste de candidats achetée en Donar) contredit le service et `docs/economie.md` (décision 33 : rien à acheter, cinq candidats du jour) ; le wiki du site suit le service. Trancher, et mettre le game design d'accord (point 8 de la direction du site).
 - [ ] Phase 6 (beta) : l'admission des pionniers. Le site écrit `site_registrations` (migration V7 : gamertag en minuscules en clé, `admitted_at`, `pioneer`) ; la porte au `join` (code `PAS_ADMIS` déclaré dans `api/`, puis la route et l'écran) est la première tâche de la phase 6, que la direction du jeu n'ouvre pas sans Kr. Dire aussi si une preuve du gamertag (un code montré en jeu, saisi sur le site) est exigée avant la beta : le site ne prouve pas que l'inscrit possède le gamertag.
 - [ ] Phase 5 : Docker publie le port Votifier (`SILOOO_VOTIFIER_PORT`, 8192/tcp) en passant à côté d'ufw : vérifier le pare-feu du VPS et, si possible, n'ouvrir ce port qu'à Hubyy.
-- [ ] Mise en ligne du site : la direction du site a écrit « Prêt à mettre en ligne » le 5 novembre 2026 (`6fc7887`, S0 à S5 sur `main`). La direction du jeu déploie `main` (projet Docker « silooo ») quand Kr a fait sa part (sa liste dans `docs/site-passation.md` : DNS, bloc Caddy, variables du site, mentions) et quand la base `silooo` est confirmée ; tant que ces cases sont ouvertes, rien n'est déployé.
+- [ ] Mise en ligne du site : suspendue le 5 novembre 2026 à 15 h 48 par la deuxième direction du site (révision de S0 à S5 contre le kit de Kr, `docs/site-revision.md`, worktree `silooo-site`). Rien n'est demandé à Kr pour le site (DNS, bloc Caddy, variables, mentions) tant que `docs/site-passation.md` ne redit pas « Prêt à mettre en ligne » ; le jeu peut se déployer sans lui (site en `attente`, port non publié). La base `silooo` reste à confirmer.
+- [ ] Site : `PioneerRoutesTest` « Jeton absent, falsifié ou périmé » échoue dans la CI de `main` depuis le premier run complet après S5 (69d98b1 : 303 au lieu de 400 après onze minutes) et passe sur le PC ; le paquet `site/` est à la direction du site, qui corrige dans sa révision ; `main` ne se déploie pas tant que la CI est rouge.
 
 ## Décisions prises sans Kr
 
@@ -886,3 +887,19 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   saison (`claude/phase5-pass` : `pass.json`, `getPass`, `claimPass`, `pass-premium` par `buyItem`, aucune
   migration). Deux sessions en cours : cosmétiques et pass. Vérifier : `node tools/tests/deploy-compose.mjs`,
   `git log --oneline -3 origin/main`.
+- **5 novembre 2026, 16 h 45 : direction, la CI de `main` est rouge ; deux tests SQL corrigés, un signalé au site.** Le
+  premier run complet depuis 9a4fb3b (69d98b1, puis ddf698f et 870b196) échoue sur trois tests Gradle que le PC ne
+  joue pas sans base : `CompanySqlTest` « la course suivante est écrite en base » et « des prestiges simultanés »
+  comptaient les événements sans le `PRESTIGE_ENTREPRISE` que la tranche Discord publie pour tout le serveur (2 et 1
+  attendus, 3 et 2 trouvés) : corrigés ici, en vérifiant aussi le total du nouvel événement et son `xuid` nul ;
+  `PioneerRoutesTest` « Jeton absent, falsifié ou périmé » (paquet `site/`) rend 303 au lieu de 400 après onze
+  minutes : à la direction du site, ligne ajoutée pour Kr. La fusion de `origin/main` butait sur la copie non suivie
+  de `docs/references/site/` (identique à ddf698f) : mise dans un stash, ligne de Kr complétée. Lu : la direction du
+  site (deuxième passage, en local) a suspendu la mise en ligne à 15 h 48 (révision de S0 à S5 contre le kit de Kr,
+  `docs/site-revision.md`) : ligne de Kr réécrite, rien ne lui est demandé pour le site ; son point 1 est réglé par
+  ddf698f. La direction du Discord a poussé D0 et D2 sur `main` (b94a408, 870b196, 8919727 : paquet `discord/`, ADR
+  0007, JDA, quatre variables du bot dans `deploy/exemple.env.txt` avec `SILOOO_DISCORD_ACTIF=non`) ; réponses : (1)
+  aucune tranche du jeu ne touche `libs.versions.toml`, `core/build.gradle.kts`, `tools/anti_ia.py` ni `discord/` ;
+  cosmétiques ajoute des lignes dans `Main.kt` (le `join`) et le pass dans `Application.kt` (`Dependencies.pass`) :
+  gardez les deux côtés ; (2) noté ; (8) noté, ligne de Kr réécrite avec `a-blanc` puis `oui`. Vérifier :
+  `gh run list --branch main --limit 3`, `git stash list`.

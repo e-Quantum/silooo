@@ -14,6 +14,7 @@ import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.shop.DeliveryRelief
 import com.silooo.core.shop.JdbcShopStore
+import com.silooo.core.shop.PioneerTitle
 import com.silooo.core.site.siteModule
 import com.silooo.core.vote.JdbcVoteStore
 import com.silooo.core.vote.VoteService
@@ -88,6 +89,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             voteStore = voteStore,
             voteService = votes,
             pendingVotes = votes,
+            pendingTitles = PioneerTitle(shopStore),
             votifier = config.votifier,
             database = database,
             apiKey = config.apiKey,

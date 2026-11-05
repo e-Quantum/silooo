@@ -59,6 +59,7 @@ import com.silooo.core.session.CompanyBootstrap
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionStore
+import com.silooo.core.session.PendingTitles
 import com.silooo.core.session.PendingVotes
 import com.silooo.core.session.sessionRoutes
 import com.silooo.core.staff.JdbcStaffStore
@@ -184,6 +185,8 @@ class Dependencies(
     val voteService: VoteService = VoteService(definitions, voteStore, clock) { serverPresence.onlineXuids() },
     /** Le rattrapage des votes d'un pseudo inconnu au moment du vote, à `join`. `null` : pas de rattrapage (les tests). */
     val pendingVotes: PendingVotes? = null,
+    /** Le titre Pionnier, donné à `join` d'après `site_registrations` (`shop/PioneerTitle`). `null` : aucun titre donné (les tests). */
+    val pendingTitles: PendingTitles? = null,
     /** La réception des votes de Hubyy (`SILOOO_VOTIFIER_TOKEN`). `null` : éteinte, aucun port n'est ouvert. */
     val votifier: VotifierSettings? = null,
     /** Les lectures du site sur la base du jeu (classements, fiches d'entreprise), en lecture seule. */

@@ -74,8 +74,8 @@ data class StaffRecord(
 /** Un membre de l'entreprise (`company_members` et le gamertag de `players`), tel que `CompanyState.members` le montre. */
 data class MemberRecord(val xuid: Xuid, val name: String, val role: Role, val sharePercent: Int)
 
-/** Grade à vie et abonnement Pilier du joueur, pour `JoinResponse.rank` et `pilierUntil`. */
-data class PlayerProfile(val rank: String?, val pilierUntil: Instant?)
+/** Grade à vie, abonnement Pilier et cosmétiques du joueur, pour `JoinResponse.rank`, `pilierUntil` et `cosmetics`. */
+data class PlayerProfile(val rank: String?, val pilierUntil: Instant?, val cosmetics: List<String> = emptyList())
 
 /**
  * Les accès SQL de `join` et `leave`, derrière une interface : les tests de la route tournent avec un

@@ -5,6 +5,9 @@ import com.silooo.core.api.CatalogItem
 import com.silooo.core.api.PassFreeReward
 import com.silooo.core.api.PassPremiumReward
 import com.silooo.core.api.RefusalCodes
+import com.silooo.core.shop.Holdings
+import com.silooo.core.shop.ShopRules
+import java.time.Instant
 import java.time.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -172,6 +175,23 @@ class PassRulesTest {
             assertEquals(defined.free?.let { PassFreeReward(it.lingots) }, shown.free)
             assertEquals(defined.premium?.let { PassPremiumReward(it.cosmeticId) }, shown.premium)
         }
+    }
+
+    @Test
+    @DisplayName("Tout cosmétique que boutique.json ne vend pas (achetable à faux : ceux du pass comme le titre Pionnier) n'est pas un article et reste hors du catalogue, même possédé")
+    fun cosmeticsThatAreNotSoldAreNeverShopItems() {
+        val shopRules = ShopRules(definitions)
+        val notSold = definitions.shop.cosmetics.filter { !it.purchasable }.map { it.id }
+        val given = pass.tiers.mapNotNull { it.premium?.cosmeticId }
+        assertTrue(given.isNotEmpty())
+        assertTrue(notSold.containsAll(given + ShopRules.PIONEER_TITLE_ID), "le pass et le titre Pionnier sont déclarés sans être vendus")
+
+        val catalog = shopRules.catalog(Holdings(emptySet(), emptyMap(), cosmetics = notSold.toSet()), Instant.EPOCH)
+        for (id in notSold) {
+            assertNull(shopRules.item(id), "« $id » n'est pas un article")
+            assertTrue(catalog.none { it.itemId == id }, "« $id » n'est pas au catalogue, même possédé")
+        }
+        assertEquals(shopRules.cosmetics.map { it.id }, catalog.map { it.itemId }.filter { id -> definitions.shop.cosmetics.any { it.id == id } })
     }
 
     @Test

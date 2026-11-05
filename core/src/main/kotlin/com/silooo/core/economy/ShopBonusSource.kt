@@ -4,13 +4,14 @@ import com.silooo.core.session.CompanyRecord
 import java.sql.Connection
 
 /**
- * Les deux bonus de Donar que la boutique donne à une entreprise, en pourcents : [gradePercent] est celui du plus haut grade à vie du
- * PDG (pas la somme des grades), [pilierPercent] celui de son abonnement Pilier tant qu'il court. Zéro quand le PDG n'a ni l'un ni
- * l'autre. Le moteur les applique au multiplicateur global ([EconomyEngine.withShopBonuses]).
+ * Les bonus de Donar que la boutique donne à une entreprise, en pourcents : [gradePercent] est celui du plus haut grade à vie du
+ * PDG (pas la somme des grades), [pilierPercent] celui de son abonnement Pilier tant qu'il court, [boostPercent] celui du boost
+ * collectif qui court en ce moment, le même pour toutes les entreprises du serveur. Zéro quand il n'y a ni l'un ni l'autre. Le moteur
+ * les applique au multiplicateur global ([EconomyEngine.withShopBonuses]).
  */
-data class ShopBonuses(val gradePercent: Int, val pilierPercent: Int) {
+data class ShopBonuses(val gradePercent: Int, val pilierPercent: Int, val boostPercent: Int = 0) {
     companion object {
-        val NONE = ShopBonuses(0, 0)
+        val NONE = ShopBonuses(0, 0, 0)
     }
 }
 

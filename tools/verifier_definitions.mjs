@@ -231,6 +231,46 @@ function controlesBoutique(fichier, d) {
       signaler(fichier, `$.abonnements[${i}].reserveA`, `le grade « ${a.reserveA} » n'existe pas dans $.grades`);
     }
   });
+  controlesCosmetiques(fichier, d);
+}
+
+/** Identifiant de l'article « boost collectif » dans la boutique : une constante du service (ShopRules.BOOST_ID). */
+const ARTICLE_BOOST = "boost-collectif";
+/** Le titre que le site donne aux pionniers : le service le cherche par cet identifiant (ShopRules.PIONEER_TITLE_ID). */
+const TITRE_PIONNIER = "pionnier";
+
+function controlesCosmetiques(fichier, d) {
+  const cosmetiques = liste(d.cosmetiques);
+  doublons(fichier, "$.cosmetiques", cosmetiques, "le cosmétique");
+  // Tous les articles se commandent par le même champ itemId : un identifiant ne peut désigner qu'un article.
+  const pris = new Map([[ARTICLE_BOOST, "le boost collectif"]]);
+  liste(d.grades).forEach((g) => pris.set(g?.id, "un grade"));
+  liste(d.abonnements).forEach((a) => pris.set(a?.id, "un abonnement"));
+  const noms = new Map();
+  cosmetiques.forEach((c, i) => {
+    const id = texte(c?.id);
+    if (id !== null && pris.has(id)) {
+      signaler(fichier, `$.cosmetiques[${i}].id`, `l'identifiant « ${id} » désigne déjà ${pris.get(id)} : un article, un identifiant`);
+    }
+    const nom = texte(c?.nom)?.trim().toLowerCase();
+    if (nom !== undefined && nom !== null) {
+      if (noms.has(nom)) {
+        signaler(fichier, `$.cosmetiques[${i}].nom`, `le nom « ${c.nom} » est déjà celui du cosmétique n° ${noms.get(nom)}`);
+      } else {
+        noms.set(nom, i);
+      }
+    }
+    if (c?.achetable === true && !(c?.prixGemmes >= 1)) {
+      signaler(fichier, `$.cosmetiques[${i}].prixGemmes`, "un cosmétique achetable coûte au moins 1 Gemme");
+    }
+    if (c?.achetable === false && c?.prixGemmes !== 0) {
+      signaler(fichier, `$.cosmetiques[${i}].prixGemmes`, "un cosmétique qui n'est pas vendu a le prix 0");
+    }
+  });
+  const pionnier = cosmetiques.find((c) => c?.id === TITRE_PIONNIER);
+  if (pionnier === undefined || pionnier.categorie !== "titre" || pionnier.achetable !== false) {
+    signaler(fichier, "$.cosmetiques", `le titre « ${TITRE_PIONNIER} » doit exister, de catégorie titre et non achetable : le site le donne aux pionniers`);
+  }
 }
 
 /** Suit un chemin « a.b.c » dans un objet ; undefined si un maillon manque. */
@@ -294,6 +334,11 @@ function controlesPersonnel(fichier, d) {
   }
   croissant(fichier, "$.raretes", ordre.map((r) => raretes[r]?.bonusProductionPourcent), "les bonus de production (COMMUN, RARE, EPIQUE)");
   croissant(fichier, "$.raretes", ordre.map((r) => raretes[r]?.coutHeuresDeRevenu), "les prix d'embauche (COMMUN, RARE, EPIQUE)");
+  // Le nom que les joueurs lisent : deux raretés ne s'appellent pas pareil.
+  const nomsRaretes = ordre.map((r) => raretes[r]?.nom).filter((n) => typeof n === "string").map((n) => n.trim().toLowerCase());
+  if (new Set(nomsRaretes).size !== nomsRaretes.length) {
+    signaler(fichier, "$.raretes", "deux raretés portent le même nom");
+  }
   const facteursRoles = d.roles && typeof d.roles === "object" ? d.roles : {};
   for (const r of ordre) {
     const bonus = raretes[r]?.bonusProductionPourcent;
@@ -483,7 +528,7 @@ function jourUtc(valeur) {
   return Number.isNaN(instant) || new Date(instant).toISOString().slice(0, 10) !== valeur ? null : instant;
 }
 
-function controlesPass(fichier, d) {
+function controlesPass(fichier, d, dossier) {
   const debut = jourUtc(d.saison?.debut);
   const fin = jourUtc(d.saison?.fin);
   if (typeof d.saison?.debut === "string" && debut === null) {
@@ -514,6 +559,21 @@ function controlesPass(fichier, d) {
       vus.set(id, i + 1);
     }
   });
+  // Le pass donne le cosmétique, la boutique ne le vend pas : il est déclaré dans boutique.json, achetable à faux.
+  const boutique = lireVoisin(dossier, "boutique.json");
+  if (boutique) {
+    const declares = new Map(liste(boutique.cosmetiques).map((c) => [c?.id, c]));
+    paliers.forEach((p, i) => {
+      const id = texte(p?.premium?.cosmetique);
+      if (id === null) return;
+      const chemin = `$.paliers[${i}].premium.cosmetique`;
+      if (!declares.has(id)) {
+        signaler(fichier, chemin, `le cosmétique « ${id} » n'est pas déclaré dans boutique.json (cosmetiques)`);
+      } else if (declares.get(id)?.achetable !== false) {
+        signaler(fichier, chemin, `le cosmétique « ${id} » est vendu par boutique.json (achetable) : un cosmétique du pass ne s'achète pas`);
+      }
+    });
+  }
 }
 
 const CONTROLES = {

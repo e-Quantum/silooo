@@ -17,6 +17,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -229,6 +231,9 @@ class DefinitionsLoaderTest {
         refused(listOf("raretes", "COMMUN", "repartitionPourcent"), JsonPrimitive(74), "doivent faire 100")
         refused(listOf("raretes", "COMMUN", "salairePourcent"), JsonPrimitive(10), "salaire")
         refused(listOf("raretes", "RARE", "coutHeuresDeRevenu"), JsonPrimitive(0), "coutHeuresDeRevenu")
+        refused(listOf("raretes", "RARE", "nom"), JsonPrimitive(" "), "raretes.RARE.nom doit avoir de 1 à")
+        refused(listOf("raretes", "RARE", "nom"), JsonPrimitive("x".repeat(DefinitionsChecks.RARITY_NAME_MAX_LENGTH + 1)), "raretes.RARE.nom doit avoir de 1 à")
+        refused(listOf("raretes", "RARE", "nom"), parseJson(personnelText).getValue("raretes").jsonObject.getValue("COMMUN").jsonObject.getValue("nom"), "deux raretés portent le même nom")
         refused(listOf("agence", "candidatsParJour"), JsonPrimitive(6), "candidatsParJour")
         refused(listOf("agence", "rolesParPlace"), strings("SALARIE", "CHEF"), "rolesParPlace")
         refused(listOf("agence", "noms"), strings("Adèle", "Basile"), "agence.noms")
@@ -700,6 +705,103 @@ class DefinitionsLoaderTest {
         assertEquals(null, pass.tier(0))
         assertEquals(null, pass.tier(pass.tiers.size + 1))
         assertTrue(pass.tiers.none { it.premium == null && it.free == null })
+    }
+
+    @Test
+    @DisplayName("Chaque cosmétique de la piste premium est déclaré dans boutique.json et n'y est pas achetable ; un inconnu ou un cosmétique vendu fait échouer le chargement")
+    fun passCosmeticsAreDeclaredAndNotSold() {
+        val loaded = load()
+        val given = loaded.pass.tiers.mapNotNull { it.premium?.cosmeticId }
+        assertTrue(given.isNotEmpty())
+        for (id in given) {
+            val declared = loaded.shop.cosmetics.singleOrNull { it.id == id }
+            assertNotNull(declared, "« $id » est donné par le pass : boutique.json (cosmetiques) doit le déclarer")
+            assertFalse(declared!!.purchasable, "« $id » est donné par le pass : la boutique ne le vend pas")
+            assertEquals(0L, declared.gems, "« $id » n'est pas vendu : son prix est 0")
+        }
+
+        val tier = loaded.pass.tiers.indexOfFirst { it.premium != null }
+        val path = listOf("paliers", tier, "premium", "cosmetique")
+        val unknown = assertThrows<DefinitionsException> { load(pass = passWith(path, JsonPrimitive("s1-inconnu"))) }.message!!
+        assertTrue(unknown.contains("pass.json") && unknown.contains("n'est pas déclaré dans boutique.json"), unknown)
+        val sold = loaded.shop.cosmetics.first { it.purchasable }.id
+        val selling = assertThrows<DefinitionsException> { load(pass = passWith(path, JsonPrimitive(sold))) }.message!!
+        assertTrue(selling.contains("pass.json") && selling.contains("est vendu par boutique.json"), selling)
+    }
+
+    /** boutique.json avec la valeur au chemin [path] (des clés, et des positions pour les listes) remplacée par [value]. */
+    private fun shopWith(path: List<Any>, value: JsonElement): String {
+        fun replace(node: JsonElement, rest: List<Any>): JsonElement {
+            if (rest.isEmpty()) return value
+            val head = rest.first()
+            return when (node) {
+                is JsonObject -> JsonObject(node + ((head as String) to replace(node.getValue(head), rest.drop(1))))
+                is JsonArray -> JsonArray(node.mapIndexed { i, e -> if (i == head) replace(e, rest.drop(1)) else e })
+                else -> error("Chemin impossible : $path")
+            }
+        }
+        return replace(parseJson(shopText), path).toString()
+    }
+
+    @Test
+    @DisplayName("Une boutique qui n'a pas de sens est refusée : noms, cosmétiques (id, nom, prix, titre Pionnier), boost collectif")
+    fun shopMustMakeSense() {
+        fun refused(text: String, expected: String) {
+            val message = assertThrows<DefinitionsException>(expected) { load(shop = text) }.message!!
+            assertTrue(message.contains("boutique.json") && message.contains(expected), message)
+        }
+        val loaded = load().shop
+        val cosmetics = parseJson(shopText).getValue("cosmetiques").jsonArray
+        val sold = loaded.cosmetics.indexOfFirst { it.purchasable }
+        val other = loaded.cosmetics.indexOfFirst { it.purchasable && it.id != loaded.cosmetics[sold].id }
+        val pioneer = loaded.cosmetics.indexOfFirst { it.id == ShopDefinitions.PIONEER_TITLE_ID }
+        assertTrue(sold >= 0 && other >= 0 && pioneer >= 0)
+        fun cosmetic(index: Int, key: String, value: JsonElement) = shopWith(listOf("cosmetiques", index, key), value)
+
+        // Les noms que les joueurs voient.
+        refused(shopWith(listOf("abonnements", 0, "nom"), JsonPrimitive(" ")), "abonnements[].nom doit avoir de 1 à")
+        refused(cosmetic(sold, "nom", JsonPrimitive(" ")), "cosmetiques[$sold].nom doit avoir de 1 à")
+        refused(cosmetic(sold, "nom", JsonPrimitive("x".repeat(DefinitionsChecks.DISPLAY_NAME_MAX_LENGTH + 1))), "cosmetiques[$sold].nom doit avoir de 1 à")
+        refused(cosmetic(sold, "nom", JsonPrimitive(" " + loaded.cosmetics[other].name.uppercase())), "deux cosmétiques portent le nom")
+
+        // Les identifiants : kebab-case, uniques, et un article n'en partage pas avec un grade, un abonnement ou le boost.
+        refused(cosmetic(sold, "id", JsonPrimitive("Usine-Brique")), "doit être en kebab-case")
+        refused(cosmetic(sold, "id", JsonPrimitive("x".repeat(DefinitionsChecks.COSMETIC_ID_MAX_LENGTH + 1))), "doit être en kebab-case")
+        refused(cosmetic(sold, "id", JsonPrimitive(loaded.cosmetics[other].id)), "deux cosmétiques ont le même id")
+        refused(cosmetic(sold, "id", JsonPrimitive(loaded.grades.first().id)), "désigne déjà un grade")
+        refused(cosmetic(sold, "id", JsonPrimitive(loaded.subscriptions.first().id)), "désigne déjà un abonnement")
+        refused(cosmetic(sold, "id", JsonPrimitive(ShopDefinitions.BOOST_ID)), "désigne déjà le boost collectif")
+
+        // Le prix : un cosmétique en vente coûte au moins 1 Gemme, un cosmétique qui ne se vend pas coûte 0.
+        refused(cosmetic(sold, "prixGemmes", JsonPrimitive(0)), "d'un cosmétique achetable doit être au moins 1")
+        refused(cosmetic(other, "achetable", JsonPrimitive(false)), "d'un cosmétique qui n'est pas vendu doit être 0")
+
+        // Le titre Pionnier : présent, de catégorie titre, jamais en vente.
+        refused(cosmetic(pioneer, "achetable", JsonPrimitive(true)), "doit contenir le titre")
+        refused(cosmetic(pioneer, "categorie", JsonPrimitive("decor")), "doit contenir le titre")
+        refused(shopWith(listOf("cosmetiques"), JsonArray(cosmetics.filterIndexed { i, _ -> i != pioneer })), "doit contenir le titre")
+
+        // Le boost collectif.
+        refused(shopWith(listOf("boostCollectif", "prixGemmes"), JsonPrimitive(0)), "boostCollectif.prixGemmes doit être au moins 1")
+        refused(shopWith(listOf("boostCollectif", "bonusPourcent"), JsonPrimitive(0)), "boostCollectif.bonusPourcent doit être entre 1 et 100")
+        refused(shopWith(listOf("boostCollectif", "bonusPourcent"), JsonPrimitive(101)), "boostCollectif.bonusPourcent doit être entre 1 et 100")
+        refused(shopWith(listOf("boostCollectif", "dureeMinutes"), JsonPrimitive(0)), "boostCollectif.dureeMinutes doit être au moins 1")
+    }
+
+    @Test
+    @DisplayName("Les cosmétiques et le boost sont lus comme ils sont écrits : mêmes ids, même ordre, mêmes prix, le titre Pionnier hors vente")
+    fun shopCosmeticsAreReadAsWritten() {
+        val loaded = load().shop
+        val written = parseJson(shopText).getValue("cosmetiques").jsonArray.map { it.jsonObject }
+        assertEquals(written.map { it.getValue("id").jsonPrimitive.content }, loaded.cosmetics.map { it.id })
+        assertEquals(written.map { it.getValue("prixGemmes").jsonPrimitive.content.toLong() }, loaded.cosmetics.map { it.gems })
+        assertEquals(written.map { it.getValue("achetable").jsonPrimitive.content.toBoolean() }, loaded.cosmetics.map { it.purchasable })
+        assertEquals(CosmeticCategory.TITLE, loaded.cosmetics.single { it.id == ShopDefinitions.PIONEER_TITLE_ID }.category)
+        assertEquals(CosmeticCategory.entries.toSet(), loaded.cosmetics.map { it.category }.toSet(), "chaque rayon a au moins un cosmétique")
+        val boost = parseJson(shopText).getValue("boostCollectif").jsonObject
+        assertEquals(boost.getValue("prixGemmes").jsonPrimitive.content.toLong(), loaded.collectiveBoost.gems)
+        assertEquals(boost.getValue("bonusPourcent").jsonPrimitive.content.toInt(), loaded.collectiveBoost.bonusPercent)
+        assertEquals(boost.getValue("dureeMinutes").jsonPrimitive.content.toLong(), loaded.collectiveBoost.durationMinutes)
     }
 
     /** ville.json avec la valeur au chemin [path] (des clés, et des positions pour les listes) remplacée par [value]. */

@@ -31,6 +31,7 @@ const NOMS_IDENTIFIANTS = {
   "usines.usines": "FactoryId",
   "boutique.grades": "ShopGradeId",
   "boutique.abonnements": "ShopSubscriptionId",
+  "boutique.cosmetiques": "ShopCosmeticId",
   "missions.missions": "MissionId",
   "incidents.sortes": "IncidentKindId",
   "ville.batiments": "CityBuildingId",
