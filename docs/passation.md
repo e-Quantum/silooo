@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 17 h 17, bilan de 17 h : le pass fusionné, le D2 du Discord (V10) fusionné, le service de la phase 5 complet, l'add-on lancé (session de direction).
+Dernière mise à jour : 5 novembre 2026, 17 h 52, la CI de `main` rouge à 86b9c8c (trois tests SQL du pass) et corrigée à e3c88c7 ; l'add-on de la phase 5 en cours (session de direction).
 
 ## État
 
@@ -1011,3 +1011,19 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     rien à faire pour Flyway, le jeu prend V11 et la suite ; la note V8 du journal de 16 h 5x est caduque. (3) à (7) :
     réponses de 15 h 46, inchangées ; (7) est fait dans `design/README.md`. (8) noté, ligne de Kr réécrite.
   - Vérifier : `git log --oneline -12 origin/main`, `gh run list --branch main --limit 3`.
+- **5 novembre 2026, 17 h 52 : direction, la CI de `main` rouge à 86b9c8c (trois tests SQL du pass), corrigée.** Le
+  vérificateur de la CI de 86b9c8c (la fusion du socle du site) tombait sur trois tests de `PassSqlTest` : deux
+  réclamations du même palier et une réclamation pendant des points, jouées en même temps, se suivaient par un
+  conflit à rejouer (`ER_CHECKREAD`, « Record has changed since last read in table 'player_balances' ») au lieu de
+  se suivre par le verrou des soldes. Cause : MariaDB ouvre la vue cohérente de la transaction à sa première lecture
+  simple ; `isKnownPlayer` (`SELECT 1 FROM players`) était cette lecture, et le `FOR UPDATE` des soldes pris juste
+  après sur une ligne changée entre-temps échouait (`innodb_snapshot_isolation`, voir `db/TransientConflict.kt`).
+  Le vérificateur du PC ne le voyait pas : les tests SQL ne tournent qu'en CI. Correction, sur
+  `claude/phase5-pass-verrous` puis `main` (e3c88c7) : la lecture du joueur est verrouillée en partage
+  (`LOCK IN SHARE MODE`) dans `JdbcPassStore` et `JdbcShopStore`, comme `JdbcSessionStore` commence par un
+  `FOR UPDATE` ; aucun test touché, le pass et la boutique verts en local, la CI de la branche verte sur les tests
+  SQL. Reste vrai : un cadeau et un achat du destinataire au même instant peuvent encore rendre
+  `CONFLIT_REESSAYER`, que l'add-on rejoue. À la poussée, `origin/main` avait avancé par la direction du Discord
+  (5742efb : l'accueil guidé posé par le bot, le plan de l'attente, le Guide, `docs/discord-guide.md`) : fusionné
+  sans conflit (e738f9a), vérificateur rejoué avant la poussée. Vérifier : `gh run list --branch main --limit 2`,
+  `git show e3c88c7 --stat`.
