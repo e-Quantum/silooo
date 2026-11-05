@@ -167,6 +167,8 @@ Critère de fin : le plan s'applique au faux Discord, puis au serveur Silooo (à
 - [x] Le plan appliqué au faux Discord (`PlanApplierTest` : attente, bêta après attente, à blanc, refus isolé, dérive)
 - [ ] Le plan appliqué au serveur Silooo, à blanc puis pour de vrai (**après Kr** : les intentions privilégiées et les
   droits du bot sur le serveur Silooo, le mode Communauté ; puis le compte rendu à blanc lu dans `#📒・journal-du-bot`)
+  - À blanc : fait le 5 novembre 2026 vers 21 h 30, compte rendu lu par Kr (19 rôles, 8 catégories et 21 salons
+    manquants, rien de changé sauf le salon du journal). Pour de vrai : au prochain lancement de Kr en `-Mode oui`.
 
 ### D1 : les visuels
 
@@ -414,7 +416,10 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 Chaque lancement du bot sur le serveur Silooo ajoute ici ce qu'il a créé ou écrit (rôles, salons, messages, règles
 AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
 
-- Aucun lancement pour l'instant.
+- 5 novembre 2026, vers 21 h 30, à blanc depuis le PC de Kr (`tools/bot-pc.ps1`) : le bot a créé le seul salon
+  `#📒・journal-du-bot` (sans catégorie Staff, elle n'existait pas) et y a écrit son compte rendu. À garder. Un premier
+  lancement en mode `oui`, un peu plus tôt, s'était arrêté avant de rien créer (intention `GUILD_EXPRESSIONS` manquante,
+  corrigée en 306f292).
 
 ## Décisions de Kr
 
