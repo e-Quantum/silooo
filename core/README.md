@@ -132,7 +132,8 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `SpoilStore` et `JdbcSpoilStore` (`discord_spoils`), `WelcomeFeature`, `StatusFeature`, `InfoVoiceFeature` et `SpoilFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `SpoilStore` et `JdbcSpoilStore` (`discord_spoils`), `AdmissionStore` et `JdbcAdmissionStore` (`discord_admissions`), `BotJournal` (la ligne dans `#journal-du-bot`), `WelcomeFeature`, `StatusFeature`, `InfoVoiceFeature`, `SpoilFeature`, `AdmissionFeature` et `AnnounceFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `wording/` | Le garde anti-IA des textes : `AntiIa.check(text)` rend les trouvailles, `AntiIa.summary` les met en une phrase ; mêmes règles et mêmes noms que `tools/anti_ia.py`. `/annonce` s'en sert. Il est hors de `discord/` parce que le garde du dépôt relit les chaînes de ce paquet et refuserait les mots bannis que sa liste contient |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -963,6 +964,22 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   redémarrage ne perd ni les spoils ni le compte. Une option de commande est du texte ou un fichier (`OptionKind`) : `JdaEvents`
   reçoit la pièce jointe hors du fil de JDA et répond en différé ; un fichier trop gros ou ni png ni gif est refusé sans rien
   déposer. Si Discord refuse la publication, le spoil reste déposé et le tic suivant la retente.
+- **Les admissions.** Toutes les `admissions.relectureSecondes` secondes (60), `AdmissionFeature` lit les inscriptions de
+  `site_registrations` qui n'ont pas de ligne dans `discord_admissions` et poste une carte par inscription dans `#admissions` (vingt au
+  plus par passage, les plus anciennes d'abord), avec Admettre, Refuser et Plus tard ; les boutons vérifient le rôle Staff. Admettre pose `admitted_at` par `SiteRegistrationStore.admit`,
+  modifie la carte d'abord (Discord attend la réponse trois secondes), puis, quand le Discord est relié, donne le rôle Bêta et écrit
+  l'invitation en privé ; sans liaison, le journal le note et le rôle et l'invitation attendent `/lier` (D3 lira `admitted_at`).
+  Refuser et Plus tard ne touchent pas à l'inscription, Plus tard garde les deux autres boutons, une carte admise ou refusée ne se
+  rejoue pas. `AdmissionStore` (`JdbcAdmissionStore` sur `discord_admissions`, V10, SQL en minuscules) relit `site_registrations` en
+  lecture seule (`registration`) et sait quelle carte est postée : un redémarrage ne double rien. Chaque geste va dans
+  `#journal-du-bot` par `BotJournal`, qui avale un refus de Discord pour qu'une ligne perdue ne casse pas le geste.
+- **Les annonces.** `/annonce` est réservée au staff : un titre (100 caractères au plus), un texte (1 800 au plus), une image png ou gif
+  de 16 Mo au plus, et `mention` (non par défaut : mentionner le rôle Actus). `AnnounceFeature` fait relire le titre et le texte par
+  `AntiIa` (paquet `wording/`) : à la moindre trouvaille rien n'est gardé et la réponse donne le résumé. Sinon le staff seul voit
+  l'aperçu, sans prévenir personne, avec Publier et Annuler ; Publier poste dans `#annonces` (sans mention si le rôle Actus manque)
+  et écrit au journal. Un brouillon par membre du staff, en mémoire (un redémarrage le perd), remplacé par le suivant, expiré après
+  quinze minutes ; si Discord refuse la publication, le brouillon est remis. L'option « Publier aussi dans les Actus du site » n'est
+  pas faite : le site n'a pas encore d'Actus sur `main`.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
   sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
   (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
@@ -978,6 +995,15 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   faux `InMemorySpoilStore` : le premier dépôt publié tout de suite, de nuit aussi, les suivants en attente, les trois derniers dans la
   réponse, la ligne d'état modifiée seulement quand le compte change, le seuil de jour puis de nuit, l'attente du matin, le seuil par
   défaut, les refus, le dernier compte gardé quand Discord refuse, le redémarrage, le salon absent, la commande déclarée),
-  `discord/SpoilSqlTest` (MariaDB, CI, ignoré sans Docker : les numéros, l'ordre de publication, le compte, l'image) et `ConfigDiscordTest`
-  pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
+  `discord/SpoilSqlTest` (MariaDB, CI, ignoré sans Docker : les numéros, l'ordre de publication, le compte, l'image),
+  `discord/AdmissionTest` (dix-sept cas sur le faux Discord et le faux `InMemoryAdmissionStore` : une carte par inscription, la carte
+  d'un Discord relié, vingt cartes au plus par passage, l'inscription arrivée après le démarrage, Admettre avec et sans liaison, le message privé fermé, le rôle absent
+  ou refusé, Refuser, Plus tard, un bouton hors staff, la clé inconnue, la carte déjà traitée, les autres boutons ignorés, le salon
+  ou le journal absent, les textes en français), `discord/AdmissionSqlTest` (MariaDB, CI, ignoré sans Docker : les inscriptions sans
+  carte, la relecture d'une inscription, la carte puis la décision) avec le cas `admit` de `registration/SiteRegistrationSqlTest`,
+  `discord/BotJournalTest` (la ligne postée, le salon absent, le refus de Discord avalé), `discord/AnnounceTest` (seize cas : l'aperçu,
+  les tics refusés, Publier et le journal, la mention absente par défaut ou sans rôle, Annuler, Publier sans brouillon, un brouillon
+  par auteur, l'expiration à quinze minutes, le brouillon remplacé, un membre hors staff, les refus, le texte le plus long, le salon
+  absent, la publication refusée qui garde le brouillon), `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
+  `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).

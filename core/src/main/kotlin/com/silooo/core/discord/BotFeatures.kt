@@ -1,6 +1,7 @@
 package com.silooo.core.discord
 
 import com.silooo.core.db.Database
+import com.silooo.core.registration.JdbcSiteRegistrationStore
 import java.nio.file.Path
 
 /**
@@ -12,11 +13,14 @@ object BotFeatures {
     fun build(definitionsDir: Path, database: Database, onlineCount: () -> Int): (BotContext) -> List<Feature> = { context ->
         val definitions = DiscordDefinitions.loadChecked(definitionsDir, ServerPlan.fromClasspath())
         val members = JdbcMemberStore(database)
+        val journal = BotJournal(context)
         listOf(
             WelcomeFeature(context, definitions.welcome, members),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),
             SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),
+            AdmissionFeature(context, definitions.admissions, definitions.zone, JdbcAdmissionStore(database), JdbcSiteRegistrationStore(), database, journal),
+            AnnounceFeature(context, journal),
         )
     }
 }

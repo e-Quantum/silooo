@@ -55,4 +55,10 @@ class JdbcSiteRegistrationStore : SiteRegistrationStore {
         if (updated == 1) return LinkOutcome.LINKED
         return if (find(connection, key) == null) LinkOutcome.NOT_REGISTERED else LinkOutcome.ALREADY_LINKED
     }
+
+    override fun admit(connection: Connection, key: String): Boolean =
+        connection.prepareStatement("UPDATE site_registrations SET admitted_at = UTC_TIMESTAMP(3) WHERE gamertag_key = ? AND admitted_at IS NULL").use {
+            it.setString(1, key)
+            it.executeUpdate() == 1
+        }
 }

@@ -106,7 +106,7 @@ export type BoutiquePourcentage = number;
 
 // ---- discord.json
 
-/** Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways et les concours. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+/** Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours et les admissions. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
 export type DiscordDefinitions = {
   readonly version: number;
   readonly commentaire: string;
@@ -225,6 +225,11 @@ export type DiscordDefinitions = {
   readonly aides: {
     /** À partir de ce nombre de membres, la commande de candidature s'ouvre. */
     readonly candidaturesDesMembres: number;
+  };
+  /** Les cartes d'admission du salon du staff : les inscriptions de la page d'attente, relues dans la base. */
+  readonly admissions: {
+    /** Toutes ces secondes, le bot cherche les inscriptions sans carte et en poste une par inscription. */
+    readonly relectureSecondes: number;
   };
 };
 

@@ -39,6 +39,7 @@ data class DiscordDefinitions(
     @SerialName("giveaways") val giveaways: GiveawayRules,
     @SerialName("concours") val contests: ContestRules,
     @SerialName("aides") val helpers: HelperRules,
+    @SerialName("admissions") val admissions: AdmissionRules,
 ) {
     /** Le fuseau des heures du fichier. */
     val zone: ZoneId get() = ZoneId.of(timeZone)
@@ -237,3 +238,10 @@ data class ContestRules(
 /** Les Aides sur candidature. */
 @Serializable
 data class HelperRules(@SerialName("candidaturesDesMembres") val applicationsFromMembers: Int)
+
+/** Les cartes d'admission du staff. */
+@Serializable
+data class AdmissionRules(
+    /** Toutes ces secondes, le bot cherche les inscriptions sans carte. */
+    @SerialName("relectureSecondes") val refreshSeconds: Int,
+)

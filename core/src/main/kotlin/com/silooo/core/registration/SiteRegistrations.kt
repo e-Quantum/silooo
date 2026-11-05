@@ -42,6 +42,12 @@ interface SiteRegistrationStore {
 
     /** Range [discordUserId] sur l'inscription [key] ; [admit] pose `admitted_at` si l'inscription ne l'a pas encore. */
     fun link(connection: Connection, key: String, discordUserId: String, admit: Boolean): LinkOutcome
+
+    /**
+     * Pose `admitted_at` à maintenant (UTC) sur l'inscription [key] si elle ne l'a pas encore ; `true` si la ligne a changé.
+     * Le staff admet par ici depuis `#admissions` (bot Discord) ; une admission n'est jamais retirée.
+     */
+    fun admit(connection: Connection, key: String): Boolean
 }
 
 /** Pourquoi un gamertag est refusé ; la phrase que le visiteur lit est écrite par la page (`site/pages/Pionniers.kt`). */
