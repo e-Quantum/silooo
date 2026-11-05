@@ -1,0 +1,94 @@
+package com.silooo.core
+
+/** Une variable d'environnement absente ou invalide. Le message les liste toutes d'un coup. */
+class ConfigException(message: String) : Exception(message)
+
+/** Connexion à la base `silooo`. Le mot de passe ne s'affiche jamais. */
+data class DatabaseConfig(val url: String, val user: String, val password: String) {
+    override fun toString() = "DatabaseConfig(url=$url, user=$user, password=***)"
+}
+
+/** Tout ce qu'il faut pour démarrer le service. La clé ne s'affiche jamais. */
+data class ServiceConfig(val port: Int, val apiKey: String, val database: DatabaseConfig) {
+    override fun toString() = "ServiceConfig(port=$port, apiKey=***, database=$database)"
+}
+
+/**
+ * La configuration vient des variables d'environnement, et d'elles seules : pas de fichier lu par
+ * le code, rien d'écrit dans le dépôt (règle 9 du socle). Les fonctions prennent la table des
+ * variables en paramètre, pour qu'un test n'ait pas à toucher à l'environnement du processus.
+ */
+object Config {
+    const val PORT = "SILOOO_PORT"
+    const val DB_URL = "SILOOO_DB_URL"
+    const val DB_USER = "SILOOO_DB_USER"
+    const val DB_PASSWORD = "SILOOO_DB_PASSWORD"
+    const val API_KEY = "SILOOO_API_KEY"
+
+    /** Port d'écoute quand `SILOOO_PORT` n'est pas posé : celui de l'OpenAPI (`http://silooo-core:8080`). */
+    const val DEFAULT_PORT = 8080
+
+    /**
+     * Seulement la base : c'est tout ce que le mode `migrate` demande. Le service `silooo-migrate`
+     * du compose n'a donc pas besoin de la clé du serveur.
+     */
+    fun database(env: Map<String, String>): DatabaseConfig {
+        val reader = Reader(env)
+        val database = reader.database()
+        reader.finish()
+        return checkNotNull(database)
+    }
+
+    /** Démarrage normal : le service refuse de partir sans la base ni la clé. */
+    fun service(env: Map<String, String>): ServiceConfig {
+        val reader = Reader(env)
+        val database = reader.database()
+        val apiKey = reader.required(API_KEY)
+        val port = reader.port()
+        reader.finish()
+        return ServiceConfig(checkNotNull(port), checkNotNull(apiKey), checkNotNull(database))
+    }
+
+    /** Lit les variables en gardant chaque problème, pour tout signaler en une fois. */
+    private class Reader(private val env: Map<String, String>) {
+        private val problems = mutableListOf<String>()
+
+        fun required(name: String): String? {
+            val value = env[name]
+            if (value.isNullOrBlank()) {
+                problems += "$name est absente ou vide"
+                return null
+            }
+            return value
+        }
+
+        fun database(): DatabaseConfig? {
+            val url = required(DB_URL)
+            val user = required(DB_USER)
+            val password = required(DB_PASSWORD)
+            if (url != null && !url.startsWith("jdbc:")) {
+                problems += "$DB_URL doit être une URL JDBC (jdbc:mariadb://hôte:3306/silooo)"
+                return null
+            }
+            if (url == null || user == null || password == null) return null
+            return DatabaseConfig(url, user, password)
+        }
+
+        fun port(): Int? {
+            val raw = env[PORT]
+            if (raw.isNullOrBlank()) return DEFAULT_PORT
+            val port = raw.trim().toIntOrNull()
+            if (port == null || port !in 1..65535) {
+                problems += "$PORT doit être un numéro de port entre 1 et 65535"
+                return null
+            }
+            return port
+        }
+
+        fun finish() {
+            if (problems.isNotEmpty()) {
+                throw ConfigException("Configuration invalide : " + problems.joinToString(" ; ") + ".")
+            }
+        }
+    }
+}
