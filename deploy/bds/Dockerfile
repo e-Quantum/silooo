@@ -60,7 +60,7 @@ COPY deploy/bds/bds.sha256 /tmp/bds.sha256
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates curl unzip jq libcurl4t64; \
-    curl --fail --silent --show-error --location --retry 3 --retry-delay 5 \
+    curl --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-delay 5 \
       --connect-timeout 30 --max-time 300 --user-agent "${BDS_USER_AGENT}" \
       --output "/tmp/bedrock-server-${BDS_VERSION}.zip" \
       "https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-${BDS_VERSION}.zip"; \

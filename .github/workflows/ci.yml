@@ -130,6 +130,22 @@ jobs:
       BUILDKIT_PROGRESS: plain
     steps:
       - uses: actions/checkout@v4
+      # Information, ne bloque pas : ce que répond le site de Minecraft au téléchargement de BDS depuis un runner, avec
+      # l'identité honnête de la construction (le User-Agent du Dockerfile), en HTTP/2 puis en HTTP/1.1. Elle sert à
+      # lire l'erreur quand la construction échoue au téléchargement. Rien n'est déguisé : le User-Agent ne change pas.
+      - name: Sonder le téléchargement de BDS
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          version="$(sed -n 's/^ARG BDS_VERSION=//p' deploy/bds/Dockerfile)"
+          agent="$(sed -n 's/^ARG BDS_USER_AGENT="\(.*\)"$/\1/p' deploy/bds/Dockerfile)"
+          url="https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-${version}.zip"
+          echo "version=$version ; agent=$agent"
+          curl --version | head -n 1
+          for protocole in --http2 --http1.1; do
+            echo "--- HEAD $protocole"
+            curl -sS -I "$protocole" --max-time 30 --user-agent "$agent" "$url" 2>&1 | head -n 25 || true
+          done
       - uses: docker/setup-buildx-action@v3
       - name: Construire l'image
         uses: docker/build-push-action@v6
