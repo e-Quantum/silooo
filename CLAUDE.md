@@ -20,6 +20,8 @@ sessions et tous les agents. Le détail est dans docs/ : commence par docs/READM
 - Les types de l'add-on tirés de definitions/ sont générés : ne les édite pas à la main.
 - Avant de rendre la main : tools/verifier.sh doit finir sans erreur (tant qu'il n'existe pas : les
   builds et tests qui existent).
+- Le site silooo.com est un module de silooo-core (core/.../site/) : il affiche, il ne décide rien, et
+  SILOOO_SITE_MODE reste à attente partout sauf sur le poste de Kr (docs/site-direction.md).
 
 ## Mode autonome (accordé par Kr le 5 novembre 2026, révocable en modifiant ce fichier)
 
@@ -54,4 +56,5 @@ sessions et tous les agents. Le détail est dans docs/ : commence par docs/READM
 - docs/passation.md : l'état, la tâche suivante, le journal.
 - docs/plan-construction.md : le plan en 8 phases ; docs/game-design.md : le jeu.
 - docs/direction.md : comment la session de direction pilote les autres sessions.
+- docs/site-direction.md et docs/site-passation.md : la direction du site silooo.com, son état, ses étapes.
 - design/README.md : le design system Silooo Atelier.

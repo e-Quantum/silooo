@@ -1,4 +1,4 @@
-# 0006 : Le site silooo.com, statique, servi par un conteneur du projet silooo
+# 0006 : Le site silooo.com vit dans silooo-core, sur son propre port, en deux modes
 
 Date : 5 novembre 2026. Statut : Proposée, à valider par Kr.
 
@@ -6,50 +6,55 @@ Date : 5 novembre 2026. Statut : Proposée, à valider par Kr.
 
 Le game design demande un site public ([site.md](../site.md)) : le jeu en une phrase, comment rejoindre, ce qui se
 vend et à quel prix avant la connexion, un wiki, des classements hebdomadaires, une fiche par entreprise, la page
-de vote, les mentions. Quatre questions restaient ouvertes : où vit le site, d'où viennent les données vivantes,
-quel design, comment s'écrit la page des mises à jour. Les contraintes : le VPS manque de mémoire
-([plan-construction.md](../plan-construction.md)) ; silooo-core ne répond que sur le réseau Docker, jamais sur
-Internet ([architecture.md](../architecture.md)) ; une seule source par donnée (`definitions/`) ; le seul point
-d'entrée web du VPS est le Caddy de SileneMC, dont la configuration est dans `/var/www/minecraft`, qu'une session
-Silooo ne touche jamais ; la marque est indépendante et en français seulement.
+de vote, les mentions. La décision 37 de Kr ([passation.md](../passation.md)) fixe le cadre : le code du site vit
+dans `core/.../site/` et `core/src/main/resources/site/` ; le site écrit dans `shop_deliveries` les commandes du
+webhook PayNow, que la phase 5 du jeu crédite ; le site dit quelle table ou quel champ rend un joueur « admis »,
+et le jeu refuse les autres dans `join` ; la direction du jeu déploie silooo-core, site compris, quand la
+passation du site dit « Prêt à mettre en ligne ». Les contraintes : le VPS manque de mémoire ; `/v1` ne doit
+jamais être joignable d'Internet ([architecture.md](../architecture.md)) ; une seule source par donnée
+(`definitions/`) ; le seul point d'entrée web du VPS est le Caddy de SileneMC, dans `/var/www/minecraft`, qu'une
+session Silooo ne touche jamais ; la marque est indépendante et en français seulement.
 
 ## Décision
 
-- **Un site à part, dans ce dépôt** (`site/`), servi sur `silooo.com`, pas un espace dans le site de SileneMC :
-  la marque est indépendante, et le site de SileneMC garde son seul rôle, la boutique qui écrit dans
-  `shop_deliveries` ([ADR 0003](0003-base-partagee.md)).
-- **Statique.** Un script Node (`site/construire.mjs`, Node 22, sans framework) rend du HTML et du CSS à partir de
-  contenus Markdown, de gabarits, de `definitions/` et de `design/`. Un peu de JavaScript, sans dépendance, pour
-  les seules données vivantes. La CI construit l'image `ghcr.io/e-quantum/silooo-site` (serveur de fichiers Caddy),
-  service `silooo-site` du compose, quelques dizaines de Mo de mémoire, réseaux `silooo` et `silenemc`, aucun port
-  publié par défaut : Kr ajoute au Caddy de SileneMC un bloc `silooo.com` qui mandate vers `silooo-site:80`.
-- **Deux modes**, lus dans `SILOOO_SITE_MODE` : `attente` (défaut partout : la page d'attente et les mentions) et
-  `ouvert` (le site entier). L'image contient les deux rendus ; le conteneur sert celui du mode. Le mode se pose
-  dans le fichier d'environnement de Kr ; jamais `ouvert` dans le dépôt, la CI ou un déploiement par une session.
-- **Les données vivantes par des routes publiques de silooo-core**, sous `/public/v1/`, sans `X-Silooo-Key`, en
-  lecture seule, déclarées dans l'OpenAPI avec `security: []`, mises en cache une minute dans le service. Le Caddy
-  du site ne mandate que `/api/*` vers `http://silooo-core:8080/public/`. silooo-core reste hors d'Internet ; seul ce
-  petit espace en lecture est joignable, à travers le site. Elles ne montrent que ce qu'un joueur voit déjà en jeu :
-  gamertag, nom d'entreprise, époque, étoiles, Lingots gagnés dans la semaine ; jamais de XUID ni de solde.
-  Écartées : un compte de base en lecture seule pour le site (un second lecteur du schéma, et seul le service
-  connaît les règles, par exemple la semaine du classement) ; un site dynamique (une seconde pile à faire tourner).
+- **Le site est un module de silooo-core**, paquet `com.silooo.core.site`, ressources dans
+  `core/src/main/resources/site/`. Une seule JVM, pas de conteneur de plus. Écartés : un site statique à part dans
+  un conteneur (un service de plus sur un VPS serré, et un second lecteur du schéma pour les classements) ; un
+  espace dans le site de SileneMC (la marque est à part, et ce site garde son seul rôle, la boutique qui écrit
+  dans `shop_deliveries`, [ADR 0003](0003-base-partagee.md)).
+- **Son propre port.** Le serveur Ktor ouvre un second connecteur, `SILOOO_SITE_PORT` (8081 par défaut), et les
+  routes du site n'écoutent que lui (sélecteur de port du routage) ; `/v1` reste sur `SILOOO_PORT`. Le Caddy de
+  SileneMC mandate `silooo.com` vers `silooo-core:8081` sur le réseau `silenemc` que silooo-core rejoint déjà ;
+  rien n'est publié sur l'hôte, et l'API ne se voit pas d'Internet.
+- **Deux modes**, lus dans `SILOOO_SITE_MODE` : `attente` (défaut : la page d'attente, les mentions, et
+  l'inscription des pionniers quand elle existe) et `ouvert` (le site entier). Une autre valeur arrête le service
+  au démarrage, comme une variable manquante. Jamais `ouvert` dans le dépôt, la CI ou un déploiement par une
+  session : c'est Kr qui le pose dans le fichier d'environnement.
+- **Rendu côté serveur en Kotlin**, par le DSL HTML de Ktor (`ktor-server-html-builder`, version épinglée dans
+  `libs.versions.toml`) ; les textes longs (wiki, mises à jour, mentions) en Markdown dans les ressources, rendus
+  par commonmark-java au démarrage. Pas de moteur de gabarits, pas de JavaScript obligatoire : les pages se
+  lisent sans script. Les données vivantes (joueurs en ligne, classements, fiches) se lisent dans la base par
+  les accès du service, avec un cache d'une minute. Aucune route JSON publique.
+- **Ce que le site écrit** : les lignes de `shop_deliveries` du webhook PayNow (signé par
+  `SILOOO_PAYNOW_WEBHOOK_SECRET`), et la table des inscriptions des pionniers et de l'admission, par une migration
+  prise au moment de la fusion. Jamais un solde ni un état du jeu : le jeu décide ([ADR 0002](0002-service-autoritaire.md)).
 - **Le design est Silooo Atelier** adapté au web : les jetons de `design/tokens.css`, les textures 9-slice par
-  `border-image`, les trois polices, les mots de la charte. Ce que le web ajoute (textes longs en police de corps,
-  tailles lisibles sur téléphone) se décide à l'étape S1 et s'écrit dans [site.md](../site.md).
-- **La page des mises à jour s'écrit à la main**, une entrée par tag déployé, dans `site/contenu/mises-a-jour/`.
-  Écartée : la tirer des tags git, dont les messages ne sont pas écrits pour les joueurs.
-- **Les chiffres viennent de `definitions/`** à la construction (packs et grades de `boutique.json`, usines de
-  `usines.json`, associés de `monde.json`). L'adresse du serveur vit dans `site/site.json` ; le port affiché est
-  comparé par un test à la valeur par défaut de `deploy/compose.yml`.
+  `border-image`, les trois polices, les mots de la charte. Textures et icônes sont copiées de `design/` dans les
+  ressources et un test les compare octet pour octet ; les polices (licence OFL, paquets Fontsource) sont
+  commises avec leur licence. Rien n'est chargé depuis un autre hôte, pas de cookie, pas de traceur.
+- **Les chiffres viennent de `definitions/`** par les définitions déjà chargées par le service ; la page des mises
+  à jour s'écrit à la main, une entrée par tag déployé.
 
 ## Conséquences
 
-- Un dossier `site/`, une étape dans `tools/verifier.sh`, `site/` dans la liste de `tools/anti_ia.py`, un job
-  d'image dans la CI, un service dans le compose, `deploy.sh` qui le démarre, ses tests dans `tools/tests/`.
-- L'OpenAPI gagne un espace `/public/v1/` de trois opérations ; le test de contrat apprend `security: []`.
-- Kr : le DNS de `silooo.com`, le bloc Caddy (mandat et TLS), l'identité légale des mentions, l'adresse de la
-  boutique, les sites de vote, puis le passage à `ouvert` à l'ouverture.
-- Coût : un quatrième conteneur ; les routes publiques doivent rester peu coûteuses (cache) puisqu'elles se
-  joignent sans clé ; la limitation du débit revient au Caddy.
-- À vérifier au premier déploiement : que le Caddy de SileneMC atteint `silooo-site` sur le réseau `silenemc`, la
-  mémoire réelle du conteneur, le rendu des polices et des textures sur téléphone.
+- `core/` gagne un paquet `site/`, deux dépendances (DSL HTML, commonmark), un connecteur, trois variables
+  (`SILOOO_SITE_PORT`, `SILOOO_SITE_MODE`, plus tard `SILOOO_PAYNOW_WEBHOOK_SECRET`), des tests Ktor sans Docker et
+  des tests SQL ; `core/README.md` décrit le site. Le compose ne change pas : `env_file` passe déjà tout
+  l'environnement à silooo-core.
+- `tools/anti_ia.py` lit les textes du site (ressources Markdown, littéraux du paquet `site/`).
+- Kr : le DNS de `silooo.com`, le bloc Caddy (mandat vers `silooo-core:8081`, TLS), l'identité légale des
+  mentions, l'adresse de la boutique, les sites de vote, l'application Discord, le secret du webhook PayNow, puis
+  le passage à `ouvert` à l'ouverture.
+- Coût : silooo-core sert aussi des pages ; le cache borne le poids des classements, et la limitation du débit
+  revient au Caddy. Remplace la première version de cet ADR (site statique à part), écrite le même jour avant la
+  lecture de la décision 37.

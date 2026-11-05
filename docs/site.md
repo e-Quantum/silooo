@@ -8,8 +8,9 @@ et ce qu'on apprend du site que Kr a choisi comme référence, `skyblock.rinaorc
 
 Le chantier du site est piloté par [site-direction.md](site-direction.md), son état et ses étapes S0 à S5
 sont dans [site-passation.md](site-passation.md), et ses choix d'architecture dans
-l'[ADR 0006](adr/0006-site-silooo-com.md) : un site statique à part, dans `site/`, servi par un conteneur du
-projet `silooo`, deux modes (`attente`, `ouvert`), des routes publiques de silooo-core pour les données vivantes.
+l'[ADR 0006](adr/0006-site-silooo-com.md) : le site est un module de silooo-core (`core/.../site/`,
+`core/src/main/resources/site/`, décision 37 de Kr), sur son propre port, en deux modes (`attente`, `ouvert`),
+rendu côté serveur, qui lit la base par les accès du service pour les données vivantes.
 
 État de l'audit de la référence au 5 novembre 2026 : le domaine n'est pas joignable depuis la session cloud
 (hors des domaines réseau autorisés), et il ne l'est toujours pas depuis la session de direction du site.
@@ -47,8 +48,9 @@ seulement, comme la marque.
 - Le design du site est Silooo Atelier ([design/README.md](../design/README.md),
   [design/tokens.css](../design/tokens.css)), adapté au web par l'étape S1 ; ce que le web ajoute s'écrit dans
   la section « Comment le site se construit » ci-dessous, à confirmer par Kr.
-- Aucun hôte tiers : les polices sont servies par le site lui-même (paquets Fontsource, licence OFL), pas de
-  script de mesure, pas de cookie. Le site n'a rien à déclarer dans un bandeau.
+- Aucun hôte tiers : les polices sont servies par le site lui-même (fichiers des paquets Fontsource, licence
+  OFL, commis avec leur licence), pas de script de mesure, pas de cookie. Le site n'a rien à déclarer dans un
+  bandeau.
 
 ## La référence : skyblock.rinaorc.com
 
@@ -135,8 +137,8 @@ faire monter, des grades payants.
 
 Section tenue par la direction du site, étape par étape ([site-passation.md](site-passation.md)) :
 
-- S0 : le dossier `site/`, le générateur `site/construire.mjs`, les deux modes, la page d'attente, l'étape du
-  vérificateur. À écrire quand S0 est sur `main`.
+- S0 : le paquet `site/` de silooo-core, le port et les deux modes, la page d'attente, les mentions, où vont les
+  ressources. À écrire quand S0 est sur `main`.
 - S1 : ce que Silooo Atelier devient sur le web. À écrire quand S1 est sur `main`.
 
 ## Ce qui est tranché, provisoirement
@@ -144,13 +146,17 @@ Section tenue par la direction du site, étape par étape ([site-passation.md](s
 Les quatre questions laissées ouvertes par la phase 0 sont tranchées par l'[ADR 0006](adr/0006-site-silooo-com.md),
 au statut « Proposée, à valider par Kr » :
 
-- **Où vit le site** : un site à part sur `silooo.com`, dans `site/`, servi par le conteneur `silooo-site` du
-  projet Docker `silooo`, derrière le Caddy de SileneMC dont Kr écrit le bloc.
-- **D'où viennent les classements et les fiches** : des routes publiques de silooo-core (`/public/v1/`), en lecture
-  seule, sans clé, mandatées par le Caddy du site sous `/api/`. Pas de compte de base pour le site.
+- **Où vit le site** : dans silooo-core (décision 37 de Kr), paquet `com.silooo.core.site` et ressources
+  `core/src/main/resources/site/`, servi sur son propre port (`SILOOO_SITE_PORT`) derrière le Caddy de SileneMC
+  dont Kr écrit le bloc ; `/v1` reste sur l'autre port, hors d'Internet.
+- **D'où viennent les classements et les fiches** : de la base, par les accès du service, avec un cache d'une
+  minute. Pas de route JSON publique, pas de compte de base à part.
 - **Le design du site** : Silooo Atelier, mêmes jetons et textures, adapté au web.
 - **La page des mises à jour** : écrite à la main, une entrée par tag déployé.
+- **Ce que le site écrit** : les livraisons du webhook PayNow dans `shop_deliveries`, et la table des pionniers et
+  de l'admission (migration prise à la fusion). Le jeu crédite et décide.
 
 Ce que Kr décide encore : le DNS de `silooo.com`, le bloc Caddy, l'identité légale des mentions, l'adresse de
-la boutique de SileneMC, les sites de vote, et le passage du site en mode `ouvert`. La liste à jour est dans
+la boutique de SileneMC, les sites de vote, l'application Discord, le secret du webhook PayNow, et le passage du
+site en mode `ouvert`. La liste à jour est dans
 [site-passation.md](site-passation.md), « À faire par Kr ».
