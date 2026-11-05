@@ -89,6 +89,7 @@ class JdaConnection private constructor(
             GatewayIntent.MESSAGE_CONTENT,
             GatewayIntent.GUILD_MESSAGE_REACTIONS,
             GatewayIntent.GUILD_VOICE_STATES,
+            GatewayIntent.GUILD_EXPRESSIONS,
         )
 
         /** Se connecte et trouve le serveur de [config] ; lève si le jeton est refusé ou si le bot n'y est pas. */
