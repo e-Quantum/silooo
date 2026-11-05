@@ -28,6 +28,8 @@ export interface Factory {
   nextCost: number;
   nextMilestone: number;
   incidentId?: number | null;
+  /** La sorte de l'incident ouvert (`definitions/incidents.json`, tableau `sortes`) ; nulle sans incident. Elle dit quel mini-jeu proposer. */
+  incidentKind?: string | null;
   stoppedNoPower?: boolean;
 }
 
@@ -289,6 +291,7 @@ function readFactory(value: unknown, path: string): Factory {
   };
   if (rec["restoreStep"] !== undefined) factory.restoreStep = num(rec, "restoreStep", path);
   if (rec["incidentId"] !== undefined) factory.incidentId = rec["incidentId"] === null ? null : num(rec, "incidentId", path);
+  if (rec["incidentKind"] !== undefined) factory.incidentKind = rec["incidentKind"] === null ? null : str(rec, "incidentKind", path);
   if (rec["stoppedNoPower"] !== undefined) factory.stoppedNoPower = bool(rec, "stoppedNoPower", path);
   return factory;
 }
@@ -440,12 +443,13 @@ export interface CollectResponse {
   state: CompanyState;
 }
 
-/** Les gabarits de chemin du contrat. `{companyId}` et `{factoryId}` sont remplacés par `companyPath` et ses voisins. */
+/** Les gabarits de chemin du contrat. `{companyId}`, `{factoryId}` et `{incidentId}` sont remplacés par `companyPath` et ses voisins. */
 export const COMPANY_PATHS = {
   company: "/v1/companies/{companyId}",
   collect: "/v1/companies/{companyId}/collect",
   levels: "/v1/companies/{companyId}/factories/{factoryId}/levels",
   restore: "/v1/companies/{companyId}/factories/{factoryId}/restore",
+  resolveIncident: "/v1/companies/{companyId}/incidents/{incidentId}/resolve",
   prestige: "/v1/companies/{companyId}/prestige",
   prestigePreview: "/v1/companies/{companyId}/prestige/preview",
 } as const;
@@ -474,6 +478,12 @@ export function levelsPath(companyId: number, factoryId: string): string {
 
 export function restorePath(companyId: number, factoryId: string): string {
   return COMPANY_PATHS.restore.replace("{companyId}", companySegment(companyId)).replace("{factoryId}", factorySegment(factoryId));
+}
+
+/** Le chemin de `resolveIncident`. `incidentId` est un entier du service (int64 dans le contrat) : un identifiant illisible lève une erreur. */
+export function resolveIncidentPath(companyId: number, incidentId: number): string {
+  if (!Number.isSafeInteger(incidentId) || incidentId < 0) throw new RangeError(`incidentId invalide : ${incidentId}`);
+  return COMPANY_PATHS.resolveIncident.replace("{companyId}", companySegment(companyId)).replace("{incidentId}", String(incidentId));
 }
 
 export function prestigePath(companyId: number): string {

@@ -15,6 +15,8 @@ import {
   FACTORY_NAMES,
   FICHE_TEXTES,
   HUD_TEXTES,
+  INCIDENT_TEXTES,
+  INCIDENT_TEXTES_KINDS,
   MENU_TEXTES,
   MISSION_TEXTES,
   MISSION_TEXTES_IDS,
@@ -22,16 +24,19 @@ import {
   PERSONNEL_TEXTES,
   PRESTIGE_TEXTES,
   REFUSAL_BUBBLE_REASONS,
+  REPARATION_TEXTES,
   SILO_TEXTES,
   USINES_TEXTES,
   eraName,
   factoryName,
   failureBubble,
+  incidentTexts,
   missionEndBubble,
   missionTexts,
   missionTitle,
   refusalBubble,
   renderBubble,
+  repairSteps,
   staffRefusalBubble,
   type Bubble,
 } from "../src/ui/textes";
@@ -58,6 +63,10 @@ function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
     }
   }
   for (const [id, textes] of Object.entries(MISSION_TEXTES)) liste.push({ nom: `fin de ${id}`, bulle: textes.fin });
+  // L'indice d'Oooscar à chaque étape du mini-jeu de réparation, pour chaque sorte et pour le mini-jeu général.
+  for (const kind of [...INCIDENT_TEXTES_KINDS, null]) {
+    repairSteps(kind).forEach((step, index) => liste.push({ nom: `réparation ${kind ?? "générale"} étape ${index + 1}`, bulle: step.erreur }));
+  }
   return liste;
 }
 
@@ -176,6 +185,8 @@ const TOUS = [
   ...feuilles(CARTE_TEXTES, "CARTE_TEXTES"),
   ...feuilles(PERSONNEL_TEXTES, "PERSONNEL_TEXTES"),
   ...feuilles(AGENCE_TEXTES, "AGENCE_TEXTES"),
+  ...feuilles(INCIDENT_TEXTES, "INCIDENT_TEXTES"),
+  ...feuilles(REPARATION_TEXTES, "REPARATION_TEXTES"),
   ...Object.entries(MISSION_TEXTES).flatMap(([id, t]) => [
     { chemin: `MISSION_TEXTES.${id}.titre`, texte: t.titre },
     { chemin: `MISSION_TEXTES.${id}.consigne`, texte: t.consigne },
@@ -603,5 +614,120 @@ describe("textes du personnel", () => {
       assert.ok(PERSONNEL_TEXTES.raretes[rarete] !== "", rarete);
     }
     assert.equal(new Set(STAFF_RARITIES.map((rarete) => RARITY_COLOR[rarete])).size, STAFF_RARITIES.length);
+  });
+});
+
+// ---------------------------------------------------------------- les incidents et leur réparation
+
+describe("textes des incidents", () => {
+  const donnees = JSON.parse(readFileSync(resolve("..", "definitions", "incidents.json"), "utf8")) as {
+    sortes: Array<{ id: string }>;
+  };
+  const idsDuJeu = donnees.sortes.map((sorte) => sorte.id);
+
+  it("le contrôle trouve les sortes du jeu", () => {
+    assert.ok(idsDuJeu.length >= 3);
+    assert.ok(idsDuJeu.includes("incendie"));
+  });
+
+  it("chaque sorte de definitions/incidents.json a ses textes (nom, phrase, mini-jeu), et rien d'autre", () => {
+    assert.deepEqual([...INCIDENT_TEXTES_KINDS].sort(), [...idsDuJeu].sort());
+    assert.deepEqual(Object.keys(REPARATION_TEXTES.sortes).sort(), [...idsDuJeu].sort());
+  });
+
+  it("un nom court sans ponctuation finale, une phrase de dix mots au plus sur une ligne, aucun chiffre du jeu", () => {
+    const noms = new Set<string>();
+    for (const kind of idsDuJeu) {
+      const { nom, phrase } = incidentTexts(kind);
+      assert.ok(mots(nom).length >= 1 && mots(nom).length <= 3, nom);
+      assert.doesNotMatch(nom, /[.!?]$/, nom);
+      assert.ok(mots(phrase).length <= 10, phrase);
+      assert.doesNotMatch(phrase, /\n/);
+      // Le facteur de ralentissement et la récompense sont au service (definitions/incidents.json) : jamais écrits ici.
+      assert.doesNotMatch(`${nom} ${phrase}`, /\d/, kind);
+      noms.add(nom);
+    }
+    assert.equal(noms.size, idsDuJeu.length, "deux sortes portent le même nom");
+  });
+
+  it("une sorte inconnue, absente ou qui ressemble à un champ d'objet prend le mot général", () => {
+    for (const kind of ["sorte-du-futur", "", null, undefined, "constructor", "toString", "__proto__"]) {
+      assert.equal(incidentTexts(kind), INCIDENT_TEXTES.inconnue, String(kind));
+    }
+    assert.equal(INCIDENT_TEXTES.inconnue.nom, "Incident");
+  });
+
+  it("les noms des sortes sont ceux du design : incendie, panne, courroie", () => {
+    assert.equal(incidentTexts("incendie").nom, "Début d'incendie");
+    assert.equal(incidentTexts("panne").nom, "Machine en panne");
+    assert.equal(incidentTexts("courroie").nom, "Courroie cassée");
+  });
+
+  it("la récompense se dit avec la somme du service et sans chiffre écrit en dur", () => {
+    assert.equal(INCIDENT_TEXTES.reparation.recompense("1,5 k"), "Récompense 1,5 k Donar");
+    for (const texte of [INCIDENT_TEXTES.reparation.aucune, INCIDENT_TEXTES.reparation.dejaFaite, INCIDENT_TEXTES.ouverture.conseil]) {
+      assert.doesNotMatch(texte, /\d/, texte);
+    }
+  });
+
+  it("les bulles d'incident : panique quand il s'ouvre, joie quand l'usine repart", () => {
+    assert.equal(BULLES.incident.expression, "panique");
+    for (const bulle of [BULLES.usineRepart, BULLES.repareeParToi, BULLES.repareeParUnAssocie]) {
+      assert.equal(bulle.expression, "joie", bulle.text);
+    }
+  });
+});
+
+describe("textes du mini-jeu de réparation", () => {
+  const sortes = [...INCIDENT_TEXTES_KINDS, null];
+
+  it("titre en un mot de capitales, ligne d'étape et Retour", () => {
+    assert.match(REPARATION_TEXTES.titre, /^[A-ZÉ]+$/);
+    assert.equal(REPARATION_TEXTES.etape(2, 3), "Étape 2 sur 3");
+    assert.equal(REPARATION_TEXTES.retour, MENU_TEXTES.retour);
+  });
+
+  it("trois étapes au moins, quatre au plus, par sorte et pour le mini-jeu général", () => {
+    for (const kind of sortes) {
+      const etapes = repairSteps(kind);
+      assert.ok(etapes.length >= 3 && etapes.length <= 4, String(kind));
+    }
+  });
+
+  it("une consigne d'une ligne et de dix mots au plus ; deux ou trois boutons courts, sans ponctuation finale, tous différents", () => {
+    for (const kind of sortes) {
+      for (const etape of repairSteps(kind)) {
+        assert.ok(mots(etape.consigne).length >= 1 && mots(etape.consigne).length <= 10, etape.consigne);
+        assert.doesNotMatch(etape.consigne, /\n/);
+        assert.ok(etape.choix.length >= 2 && etape.choix.length <= 3, etape.consigne);
+        assert.equal(new Set(etape.choix).size, etape.choix.length, etape.consigne);
+        for (const choix of etape.choix) {
+          assert.ok(mots(choix).length >= 1 && mots(choix).length <= 5, choix);
+          assert.doesNotMatch(choix, /[.!?]$/, choix);
+        }
+        assert.ok(Number.isInteger(etape.bonne) && etape.bonne >= 0 && etape.bonne < etape.choix.length, etape.consigne);
+      }
+    }
+  });
+
+  it("l'indice d'une erreur est une bulle « oups » qui ne donne pas la réponse mot pour mot", () => {
+    for (const kind of sortes) {
+      for (const etape of repairSteps(kind)) {
+        assert.equal(etape.erreur.expression, "oups", etape.consigne);
+        assert.notEqual(etape.erreur.text, etape.choix[etape.bonne], etape.consigne);
+      }
+    }
+  });
+
+  it("la bonne réponse ne tombe pas toujours au même rang, dans chaque sorte", () => {
+    for (const kind of sortes) {
+      assert.ok(new Set(repairSteps(kind).map((etape) => etape.bonne)).size >= 2, String(kind));
+    }
+  });
+
+  it("aucun chiffre du jeu dans les consignes et les boutons", () => {
+    for (const kind of sortes) {
+      for (const etape of repairSteps(kind)) assert.doesNotMatch([etape.consigne, ...etape.choix].join(" "), /\d/, etape.consigne);
+    }
   });
 });

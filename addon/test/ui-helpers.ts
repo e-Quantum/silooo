@@ -69,7 +69,17 @@ export function joinOf(store: PlayerStore): JoinResponse {
 
 export type Company = Pick<
   CoreApi,
-  "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview" | "getCandidates" | "hire" | "assignStaff" | "fireStaff"
+  | "getCompany"
+  | "collect"
+  | "buyLevels"
+  | "restoreStep"
+  | "resolveIncident"
+  | "prestige"
+  | "prestigePreview"
+  | "getCandidates"
+  | "hire"
+  | "assignStaff"
+  | "fireStaff"
 >;
 
 export type Call =
@@ -77,6 +87,7 @@ export type Call =
   | { readonly op: "collect"; readonly companyId: number; readonly action: ActionBase }
   | { readonly op: "buyLevels"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly amount: BuyAmount }
   | { readonly op: "restoreStep"; readonly companyId: number; readonly factoryId: string; readonly action: ActionBase; readonly step: number }
+  | { readonly op: "resolveIncident"; readonly companyId: number; readonly incidentId: number; readonly action: ActionBase }
   | { readonly op: "prestige"; readonly companyId: number; readonly action: ActionBase }
   | { readonly op: "prestigePreview"; readonly companyId: number }
   | { readonly op: "getCandidates"; readonly companyId: number }
@@ -89,6 +100,7 @@ export interface Script {
   collect?: Array<ApiResult<CollectResponse>>;
   buyLevels?: Array<ApiResult<CompanyUpdated>>;
   restoreStep?: Array<ApiResult<CompanyUpdated>>;
+  resolveIncident?: Array<ApiResult<CompanyUpdated>>;
   prestige?: Array<ApiResult<CompanyUpdated>>;
   prestigePreview?: Array<ApiResult<PrestigePreview>>;
   getCandidates?: Array<ApiResult<Candidate[]>>;
@@ -126,6 +138,10 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     restoreStep(companyId, factoryId, action, step) {
       calls.push({ op: "restoreStep", companyId, factoryId, action, step });
       return next("restoreStep", script.restoreStep);
+    },
+    resolveIncident(companyId, incidentId, action) {
+      calls.push({ op: "resolveIncident", companyId, incidentId, action });
+      return next("resolveIncident", script.resolveIncident);
     },
     prestige(companyId, action) {
       calls.push({ op: "prestige", companyId, action });

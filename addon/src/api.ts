@@ -31,6 +31,7 @@ import {
   PATHS,
   prestigePath,
   prestigePreviewPath,
+  resolveIncidentPath,
   restorePath,
   restoreStepBody,
   staffPath,
@@ -65,6 +66,11 @@ export interface CoreApi {
   buyLevels(companyId: number, factoryId: string, action: ActionBase, amount: BuyAmount): Promise<ApiResult<CompanyUpdated>>;
   /** POST /v1/companies/{companyId}/factories/{factoryId}/restore (restoreStep), 200 CompanyUpdated ou 409 Refused. */
   restoreStep(companyId: number, factoryId: string, action: ActionBase, step: number): Promise<ApiResult<CompanyUpdated>>;
+  /**
+   * POST /v1/companies/{companyId}/incidents/{incidentId}/resolve (resolveIncident), 200 CompanyUpdated ou 409 Refused.
+   * Le service ne juge pas le mini-jeu : l'add-on l'a joué, le service clôt l'incident. Un incident déjà clos rend le même 200.
+   */
+  resolveIncident(companyId: number, incidentId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
   /** GET /v1/players/{xuid}/missions (getMissions), 200 MissionState. */
   getMissions(xuid: Xuid): Promise<ApiResult<MissionState>>;
   /** GET /v1/companies/{companyId}/prestige/preview (prestigePreview), 200 PrestigePreview. */
@@ -144,6 +150,11 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => restorePath(companyId, factoryId));
       if ("failure" in target) return target.failure;
       return readBody(await client.post(target.path, restoreStepBody(action, step)), parseCompanyUpdated);
+    },
+    async resolveIncident(companyId, incidentId, action) {
+      const target = pathOrError(() => resolveIncidentPath(companyId, incidentId));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
     },
     async getMissions(xuid) {
       const target = pathOrError(() => missionsPath(xuid));

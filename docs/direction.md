@@ -27,7 +27,8 @@ vérifie leur travail, fusionne, déploie et tient le journal.
 | PC | `git worktree add ../silooo-wt/<sujet> -b claude/<sujet>` puis, dans ce dossier, `claude -p --permission-mode auto "<prompt>"` | Les tâches qui ont besoin de Docker, de Gradle ou des fichiers du PC |
 | VPS | `ssh ubuntu@silenemc.eu "<commande>"` | Déployer le projet `silooo`, lire `free -m`, `df -h /`, `docker ps`, tests de fumée. Pas de session Claude sur le VPS |
 
-Garde au plus 3 sessions en même temps : elles partagent le quota de Kr.
+Garde au plus 2 sessions en même temps tant que la direction du site tourne (Kr, 5 novembre 2026 ; 3 avant) :
+elles partagent le quota de Kr, et la direction du site en lance une de son côté.
 
 ## Déployer (phase 2 et suivantes)
 
@@ -40,11 +41,24 @@ Garde au plus 3 sessions en même temps : elles partagent le quota de Kr.
   Si elle manque, ne déploie pas silooo-core et note-le dans « À faire par Kr ».
 - Après un déploiement : test de fumée, puis `free -m`. Si la mémoire disponible passe sous 800 Mo,
   arrête les conteneurs `silooo` et note-le.
+- Tu restes seul à déployer silooo-core, site compris : quand `docs/site-passation.md` dit « Prêt à mettre
+  en ligne » et que Kr a fait sa part, c'est toi qui déploies `main`.
+
+## La direction du site
+
+Depuis le 5 novembre 2026, une deuxième direction construit le site silooo.com dans le worktree `silooo-site`,
+en même temps que toi. Elle écrit `docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md` et le code
+du site (`core/.../site/`, `core/src/main/resources/site/`) ; elle ajoute une fois des lignes à `docs/README.md`
+et `CLAUDE.md` ; elle n'écrit jamais `docs/passation.md` ni `docs/direction.md`, et toi jamais ses fichiers.
+Numéros de migration et d'ADR : pris au moment de la fusion ; si elle a pris le numéro, prends le suivant.
+Phase 5 : les votes arrivent de Hubyy au format Votifier v2 (jeton) et silooo-core les reçoit ; les Gemmes
+arrivent par le webhook PayNow que le site écrit dans `shop_deliveries`, et par le site SileneMC ; ta phase 5
+crédite ces lignes.
 
 ## Quand t'arrêter
 
-- Tu enchaînes les phases du plan dans l'ordre, 0, 1, 2, 3, 4 puis 5, avec au plus 3 sessions à la fois
-  (cloud et PC). Au début de chaque phase, tu écris sa liste de tâches cochables dans `docs/passation.md`
+- Tu enchaînes les phases du plan dans l'ordre, 0, 1, 2, 3, 4 puis 5, avec au plus 2 sessions à la fois
+  (cloud et PC, voir « La direction du site »). Au début de chaque phase, tu écris sa liste de tâches cochables dans `docs/passation.md`
   à partir de `docs/plan-construction.md`. Une phase est finie quand toutes ses cases sont cochées et que
   sa condition de sortie est remplie.
 - Si la condition de sortie demande Kr (base de données, port, DNS, test sur console, achat réel) : note-la
@@ -52,7 +66,8 @@ Garde au plus 3 sessions en même temps : elles partagent le quota de Kr.
   ce qui avance sans lui (code, tests, pack de ressources, docs), sans rien déployer qui en dépende.
 - Tu ne commences jamais la phase 6 (bêta avec des joueurs) ni la phase 7 (ouverture) : elles demandent Kr.
 - Toutes les 2 heures environ, et avant de t'arrêter, écris un bilan dans `docs/passation.md` (ce qui est
-  fait, ce qui reste, les décisions prises seul, la liste « À faire par Kr »), commite et pousse.
+  fait, ce qui reste, les décisions prises seul, la liste « À faire par Kr »), commite et pousse. Au même
+  bilan, lis la section « Pour la direction du jeu » de `docs/site-passation.md` et réponds dans ton journal.
 - Condition de fin : les phases 0 à 5 sont cochées dans `docs/passation.md` sur `main`, sauf les cases
   notées « À faire par Kr » ; le dernier bilan est poussé ; `main` est vert ; `git status` est propre ;
   aucune session lancée n'est encore en cours. Avant de t'arrêter, toutes les sessions lancées sont finies
@@ -61,5 +76,5 @@ Garde au plus 3 sessions en même temps : elles partagent le quota de Kr.
 ## Ce que tu ne fais jamais
 
 Les interdits de `CLAUDE.md` s'appliquent à toi et à chaque session que tu lances. En plus : ne lance pas
-plus de 3 sessions, ne fusionne jamais une branche dont la vérification échoue, et n'invente pas de chiffre
+plus de 2 sessions, ne fusionne jamais une branche dont la vérification échoue, et n'invente pas de chiffre
 de jeu hors de `definitions/`.

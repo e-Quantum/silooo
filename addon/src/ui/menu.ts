@@ -2,6 +2,7 @@
 //
 //   MENU ─┬─ SILO ─────────── Encaisser
 //         ├─ USINES ── fiche ─ Monter de 1 / de 10 / au palier / au max   (usine en ruine : l'étape suivante)
+//         │                  └ Réparer (usine en incident) : le mini-jeu de reparation.ts, puis resolveIncident
 //         ├─ CARTE ────────── une île par usine ; choisir une île de l'entreprise y téléporte (le menu se ferme)
 //         ├─ OBJECTIFS ────── la mission en cours et les missions terminées (relues à l'ouverture)
 //         ├─ PRESTIGE ─────── l'aperçu du service (relu à l'ouverture) ─ Prestige ! ─ l'écran d'après
@@ -52,11 +53,13 @@ import type { ActionFormSpec, FormAnswer, FormPresenter } from "./formulaires";
 import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
 import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
+import { playRepair } from "./reparation";
 import {
   BULLES,
   CARTE_TEXTES,
   FACTORY_IDS,
   FICHE_TEXTES,
+  INCIDENT_TEXTES,
   MENU_TEXTES,
   OBJECTIFS_TEXTES,
   PRESTIGE_TEXTES,
@@ -65,6 +68,7 @@ import {
   eraName,
   factoryName,
   failureBubble,
+  incidentTexts,
   missionTexts,
   missionTitle,
   refusalBubble,
@@ -171,6 +175,9 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
   if (factory === undefined) return undefined;
   const status = factoryStatus(factory);
   const step = nextRestoreStep(factory);
+  // Une usine en incident : la sorte (son nom, sa phrase) vient de la fiche du service ; une sorte inconnue garde le mot « Incident ».
+  const incident = status === "INCIDENT" ? incidentTexts(factory.incidentKind) : undefined;
+  const incidentId = factory.incidentId;
 
   const infos: string[] = [];
   if (canBuyLevels(factory)) {
@@ -184,6 +191,13 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
   }
 
   const entries: Entry[] = [];
+  // Réparer passe avant la montée : c'est l'action qui rend à l'usine son rythme. Sans courant, il n'y a rien à appeler.
+  if (incident !== undefined && incidentId !== undefined && incidentId !== null) {
+    entries.push({
+      text: INCIDENT_TEXTES.reparer,
+      target: { kind: "repair", factoryId, incidentId, incidentKind: factory.incidentKind ?? null },
+    });
+  }
   if (canBuyLevels(factory)) {
     for (const amount of BUY_AMOUNTS) {
       entries.push({
@@ -197,15 +211,19 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
   entries.push({ text: FICHE_TEXTES.retour, target: go({ screen: "usines", page }) });
 
   const lines = [
-    colored(STATUS_COLOR[status], FICHE_TEXTES.sorte[status]),
+    colored(STATUS_COLOR[status], incident === undefined ? FICHE_TEXTES.sorte[status] : incident.nom.toUpperCase()),
     `${COLOR.bold}${factoryName(factoryId)}${COLOR.reset}`,
-    FICHE_TEXTES.phrase[status],
+    incident === undefined ? FICHE_TEXTES.phrase[status] : incident.phrase,
     "",
     ...infos,
   ];
   // La ligne d'équipe vient de la liste du personnel du service ; sans personne dans l'usine, elle n'existe pas.
   const team = teamLine(view, factoryId);
   if (team !== undefined) lines.push(team);
+  // Faute de courant, la dernière ligne dit quoi faire (design/composants/Fiche.md) : une Centrale en marche.
+  if (factory.stoppedNoPower === true && (status === "SANS_COURANT" || status === "INCIDENT")) {
+    lines.push(colored(COLOR.blocked, INCIDENT_TEXTES.sansCourant));
+  }
   return screenOf(FICHE_TEXTES.titre, bodyOf(notice, lines), entries);
 }
 
@@ -242,11 +260,13 @@ export function objectifsScreen(missions: MissionState | undefined, notice?: Not
 
 // ---------------------------------------------------------------- la carte
 
-/** La ligne d'info d'une usine de l'entreprise sur la carte : entière ou en ruine, d'après l'état du service. */
-function carteDetail(factory: Factory): string {
+/** La ligne d'info d'une usine de l'entreprise sur la carte : entière, en incident, sans courant ou en ruine, d'après l'état du service. */
+function carteDetail(factory: Factory, status: FactoryStatus): string {
   const etat = CARTE_TEXTES.etat;
   switch (factory.state) {
     case "ACTIVE":
+      if (status === "INCIDENT") return etat.incident(incidentTexts(factory.incidentKind).nom, formatCount(factory.level));
+      if (status === "SANS_COURANT") return etat.sansCourant(formatCount(factory.level));
       return etat.entiere(formatCount(factory.level));
     case "EN_RUINE":
       return etat.enRuine;
@@ -272,8 +292,9 @@ export function carteScreen(view: CompanyView, page: number, tilesPerScreen: num
         target: { kind: "soon", bubble: BULLES.usinePasEncore },
       });
     } else {
+      const status = factoryStatus(factory);
       rows.push({
-        text: button(`${STATUS_MARK[factoryStatus(factory)]} ${factoryName(id)}`, carteDetail(factory)),
+        text: button(`${STATUS_MARK[status]} ${factoryName(id)}`, carteDetail(factory, status)),
         target: { kind: "travel", factoryId: id },
       });
     }
@@ -416,6 +437,8 @@ export function noticeOf(outcome: ActionOutcome, staff = false): Notice | undefi
       return { bubble: BULLES.montee };
     case "stepDone":
       return { bubble: BULLES.etape };
+    case "incidentResolved":
+      return { bubble: BULLES.usineRepart };
     case "prestiged":
       return { bubble: BULLES.prestige };
     case "hired":
@@ -590,6 +613,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "hire":
       case "assign":
       case "fire":
+      case "repair":
       case "prestige":
       case "travel":
       case "go":
@@ -655,6 +679,11 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         const outcome = await actions.fireStaff(xuid, target.staffId);
         notice = noticeOf(outcome, true);
         if (outcome.kind === "fired") route = { screen: "personnel", page: 0 };
+      } else if (target.kind === "repair") {
+        // Le mini-jeu a ses propres écrans. Réussi, le service clôt l'incident et rend l'état d'aujourd'hui ; la fiche revient.
+        const played = await playRepair({ show: (spec) => present(player, spec) }, target.factoryId, target.incidentKind);
+        if (played === "closed") return;
+        if (played === "done") notice = noticeOf(await actions.resolveIncident(xuid, target.incidentId));
       } else if (target.kind === "travel") {
         if (deps.travel === undefined) {
           notice = { bubble: BULLES.bientot };

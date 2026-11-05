@@ -41,6 +41,7 @@ import {
   REFUSAL_REASONS,
   RESTORE_STEP_MAX,
   RESTORE_STEP_MIN,
+  resolveIncidentPath,
   restorePath,
   restoreStepBody,
   SLOT_MAX,
@@ -252,6 +253,19 @@ describe("corps et chemins des quatre routes de l'entreprise", () => {
     assert.equal(restorePath(7, "scierie"), "/v1/companies/7/factories/scierie/restore");
   });
 
+  it("le chemin de résolution d'un incident remplace companyId et incidentId", () => {
+    assert.equal(resolveIncidentPath(7, 31), "/v1/companies/7/incidents/31/resolve");
+    assert.equal(resolveIncidentPath(7, 0), "/v1/companies/7/incidents/0/resolve");
+    assert.equal(COMPANY_PATHS.resolveIncident, "/v1/companies/{companyId}/incidents/{incidentId}/resolve");
+  });
+
+  it("un identifiant d'incident ou d'entreprise illisible lève une erreur : rien ne part au service", () => {
+    for (const id of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 60]) {
+      assert.throws(() => resolveIncidentPath(7, id), RangeError);
+    }
+    assert.throws(() => resolveIncidentPath(1.5, 31), RangeError);
+  });
+
   it("l'identifiant d'usine est encodé, et un identifiant illisible lève une erreur", () => {
     assert.equal(levelsPath(7, "a/b c"), "/v1/companies/7/factories/a%2Fb%20c/levels");
     assert.throws(() => companyPath(1.5), RangeError);
@@ -283,6 +297,28 @@ describe("lecture des réponses des quatre routes", () => {
     assert.ok(parsed.ok);
     assert.equal(parsed.value.donar, 12.5);
     assert.equal(parsed.value.factories[0]?.incidentId, 9);
+  });
+
+  it("parseCompanyState lit la sorte de l'incident (incidentKind), nulle ou absente", () => {
+    const avec = parseCompanyState(companyState({ factories: [factory({ incidentId: 31, incidentKind: "incendie" })] }));
+    assert.ok(avec.ok);
+    assert.equal(avec.value.factories[0]?.incidentKind, "incendie");
+    const nulle = parseCompanyState(companyState({ factories: [factory({ incidentId: null, incidentKind: null })] }));
+    assert.ok(nulle.ok);
+    assert.equal(nulle.value.factories[0]?.incidentKind, null);
+    // Un service plus ancien ne la donne pas : la clé reste absente, sans valeur inventée.
+    const absente = parseCompanyState(companyState({ factories: [factory({ incidentId: 31 })] }));
+    assert.ok(absente.ok);
+    assert.equal("incidentKind" in (absente.value.factories[0] ?? {}), false);
+  });
+
+  it("parseCompanyState refuse une sorte d'incident qui n'est pas du texte et nomme la clé", () => {
+    const parsed = parseCompanyState({
+      ...companyState(),
+      factories: [{ ...factory({ incidentId: 31 }), incidentKind: 7 }],
+    });
+    assert.equal(parsed.ok, false);
+    if (!parsed.ok) assert.match(parsed.problem, /incidentKind/);
   });
 
   it("parseCompanyState nomme la clé fautive", () => {
@@ -352,7 +388,7 @@ describe("accord avec api/silooo-core.openapi.yaml, routes de l'entreprise", () 
       .filter((mot) => mot !== "");
   }
 
-  it("les six chemins existent", () => {
+  it("les sept chemins existent", () => {
     for (const chemin of Object.values(COMPANY_PATHS)) {
       assert.ok(yaml.includes(`\n  ${chemin}:`), `${chemin} absent de l'OpenAPI`);
     }

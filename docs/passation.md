@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 12 h 10, l'entreprise partagée fusionnée (session de direction).
+Dernière mise à jour : 5 novembre 2026, 12 h 45, nouvelle organisation avec la direction du site (session de direction).
 
 ## État
 
@@ -33,10 +33,11 @@ Dernière mise à jour : 5 novembre 2026, 12 h 10, l'entreprise partagée fusion
   et le simulateur des treize cibles les rejoue en CI (toutes dans leur fourchette) ; le personnel aussi (agence
   du jour, embauche, affectation, renvoi, salaires retenus sur le revenu), la commande du jour et le Carnet de
   trouvailles (`todayOrder`, `deliverOrder`, `getFindings`, migration V3) ; côté add-on, l'écran de prestige (avant,
-  après), la carte des îles avec la téléportation et les écrans du personnel et de l'agence (932 tests). En cours :
-  la ville (`claude/phase4-ville`), l'add-on des incidents (`claude/phase4-addon-incidents`), l'add-on de
-  l'entreprise partagée (`claude/phase4-addon-partagee`). Les incidents, l'électricité et l'entreprise partagée
-  (`invite`, `acceptInvite`, `setShares`) sont sur `main` côté service ; l'add-on ne les montre pas encore.
+  après), la carte des îles avec la téléportation les écrans du personnel et de l'agence, les incidents et l'électricité avec le mini-jeu de réparation (1019
+  tests). En cours :
+  la ville (`claude/phase4-ville`), l'add-on de l'entreprise partagée (`claude/phase4-addon-partagee`).
+  L'entreprise partagée (`invite`, `acceptInvite`, `setShares`) est sur `main` côté service ; l'add-on ne la
+  montre pas encore.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -124,7 +125,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [x] add-on : carte et îles (`ui/menu.ts` écran CARTE, formulaire natif sur deux pages, une icône par île, « ????? » pour les usines à découvrir, île principale verrouillée ; `monde/voyage.ts` : téléportation sur l'île choisie, attente de sa pose 10 s au plus) et écran de prestige avant / après (`prestigePreview` relu à chaque ouverture, bouton seulement si le service l'autorise, parts dès deux membres « Ta part » / « Un associé », bulle « Prestige accompli, patron ! » ; textes `PRESTIGE_TEXTES`, `CARTE_TEXTES` et noms d'époque **à valider par Kr**)
 - [x] add-on : écrans du personnel (`ui/personnel.ts`, `ui/ecran.ts` ; tuile Personnel, septième du menu avant Amis ; écrans PERSONNEL (équipe usine par usine, membres sans usine), MEMBRE (affecter, renvoyer en deux appuis), AGENCE et CANDIDAT (cinq candidats du jour relus à l'ouverture, prix et salaire tels que le service les donne, marque « Déjà embauché ») ; `getCandidates`, `hire`, `assignStaff`, `fireStaff` dans `api.ts`, PATCH et DELETE dans `http.ts` sans rejeu ; ligne d'équipe dans la fiche d'usine ; pas de bouton de nouvelle liste contre du Donar ; textes `PERSONNEL_TEXTES`, `AGENCE_TEXTES` et cinq bulles **à valider par Kr**)
 - [ ] add-on : écrans de la ville et de l'entreprise partagée (textes **à valider par Kr**), et l'île principale posée zone par zone quand la mairie les débloque (verrouillée au départ, `docs/game-design.md` : la phase 3 ne la construit pas)
-- [ ] add-on : incidents et électricité (sorte d'incident lue dans `Factory.incidentKind` sur la fiche d'usine et la carte, mini-jeu de réparation puis `resolveIncident`, état « sans courant », événements `INCIDENT` ; textes **à valider par Kr**)
+- [x] add-on : incidents et électricité (`ui/incidents.ts`, `ui/reparation.ts` ; `Factory.incidentKind` lu par le protocole ; la tuile, la fiche et la carte nomment la sorte ; bouton Réparer puis mini-jeu de trois formulaires par sorte, plus un général pour une sorte inconnue, un seul bon geste par étape, un mauvais choix rejoue l'étape avec une bulle, jamais de perte ; `resolveIncident` dans `api.ts`, refus 409 par le mécanisme actuel ; sans courant : « Il faut une Centrale en marche. », pas de bouton, achat de niveaux gardé ; `INCIDENT` écouté dans `main.ts` : message au tchat, puis relecture de l'état ; la récompense n'est jamais calculée, elle vient de l'événement ; 1019 tests ; textes `INCIDENT_TEXTES`, `REPARATION_TEXTES`, quatre bulles et le nombre d'étapes **à valider par Kr**)
 - [ ] `definitions/` : les chiffres que la phase 4 révèle manquants, ajoutés avec leurs schémas et le tableur, jamais dans le code : salaires (`personnel.json`, fait), incidents et électricité (`incidents.json`, fait), bonus des bâtiments (`ville.json`, `claude/phase4-ville` en cours), coût de la remise en état (Kr)
 
 ## À faire par Kr
@@ -135,9 +136,9 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
-- [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions ; et pour le prestige et la carte : la téléportation vers une zone déchargée, le rendu des formulaires Carte (deux pages) et Prestige, les repères `[P]` et `[C]` ; et pour le personnel : les PATCH et DELETE par `http.request` (DELETE sans corps), la longueur des formulaires PERSONNEL et AGENCE, le rendu des repères `[M]` et `[R]` et des couleurs de rareté
+- [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions ; et pour le prestige et la carte : la téléportation vers une zone déchargée, le rendu des formulaires Carte (deux pages) et Prestige, les repères `[P]` et `[C]` ; et pour le personnel : les PATCH et DELETE par `http.request` (DELETE sans corps), la longueur des formulaires PERSONNEL et AGENCE, le rendu des repères `[M]` et `[R]` et des couleurs de rareté ; et pour les incidents : les repères flamme et éclair sur la tuile et la carte, le mini-jeu en trois formulaires, le message du tchat à l'ouverture et à la réparation
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
-- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques ; l'add-on ne branche aucun événement de prestige (le service n'en publie qu'un `ANNONCE` par membre, `payload` non décrit) ; `deliverOrder` sur une commande déjà terminée rend 200 sans effet (pas de code de refus : un nouveau code casserait les tests de l'add-on) ; `getFindings` n'était pas au contrat de départ (31 opérations) ; pour le personnel vu de l'add-on : pas de capacité de postes dans `CompanyState.factories[]` (l'add-on ne sait pas combien de places restent), pas de désaffectation ni de promotion en chef, pas de nom lisible pour une apparence (`skinId` montré brut), le rôle du joueur (PDG ou associé) n'est pas dans l'état (l'add-on montre Renvoyer à tous et laisse le service refuser) ; `resolveIncident` sur un incident déjà clos rend 200 sans effet (pas de code `INCIDENT_CLOS`, il aurait touché l'add-on) ; l'add-on ignore encore `Factory.incidentKind` et les événements `INCIDENT` ; pas d'alerte Discord quand le courant manque (`docs/game-design.md`, ligne 204) ; entreprise partagée : aucune route pour quitter l'entreprise, reprendre ou libérer l'entreprise de départ laissée sans membre ; l'add-on ne lit pas encore `CompanyState.members`
+- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques ; l'add-on ne branche aucun événement de prestige (le service n'en publie qu'un `ANNONCE` par membre, `payload` non décrit) ; `deliverOrder` sur une commande déjà terminée rend 200 sans effet (pas de code de refus : un nouveau code casserait les tests de l'add-on) ; `getFindings` n'était pas au contrat de départ (31 opérations) ; pour le personnel vu de l'add-on : pas de capacité de postes dans `CompanyState.factories[]` (l'add-on ne sait pas combien de places restent), pas de désaffectation ni de promotion en chef, pas de nom lisible pour une apparence (`skinId` montré brut), le rôle du joueur (PDG ou associé) n'est pas dans l'état (l'add-on montre Renvoyer à tous et laisse le service refuser) ; `resolveIncident` sur un incident déjà clos rend 200 sans effet (pas de code `INCIDENT_CLOS`, il aurait touché l'add-on) ; pas d'alerte Discord quand le courant manque (`docs/game-design.md`, ligne 204) ; entreprise partagée : aucune route pour quitter l'entreprise, reprendre ou libérer l'entreprise de départ laissée sans membre ; l'add-on ne lit pas encore `CompanyState.members` ; relevés par l'add-on des incidents : la réponse de `resolveIncident` ne donne pas la récompense (elle vient de l'événement), aucun événement quand l'incident était déjà clos, la charge de `INCIDENT` n'a pas de schéma, et l'événement ne porte pas l'état, d'où un `getCompany` par événement
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`). **Le simulateur montre que ce trou compte** : avec une remise en état gratuite, la Scierie et la Mine profonde tombent à 0,08 h, le prestige 2 à 20,9 h, le prestige 3 à 48,5 h, la première étoile à 17,5 h, tous hors cible ; le tableur suppose un rachat payant. Deux cibles ont peu de marge (première amélioration : 13 s ; Mine profonde : 1 min)
 - [ ] La clé `decouverte` de `usines.json` (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`) n'est pas lue par le service : rien ne révèle une usine, rien ne la rachète (pas de route). `EconomyEngine.isDiscovered` la lit maintenant (`apres-<usine>` = usine remise en état, à valider) ; la route de découverte et de rachat reste à écrire une fois le coût fixé
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
@@ -149,6 +150,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Trancher les huit points d'interprétation du tableur et la règle d'arrondi des Lingots : `core/src/test/resources/golden/README.md`, section « Points d'interprétation ». En attendant, le moteur suit le tableur.
 - [ ] Dans l'application Claude, ouvrir les deux sessions « Phase 0 : outillage » et « Phase 0 : recettes » restées en attente de « Trust repository » et les fermer (leur travail a été fait par la direction) ; au prochain lancement d'une session PC en worktree, cliquer « Trust repository » une fois
 - [ ] Trancher trois trous du contrat relevés par les tests : aucune route pour nommer l'entreprise (le game design le demande à l'étape 1 de l'onboarding ; en attendant, nom provisoire « Entreprise de <gamertag> ») ; aucune route ne fait avancer `tutorial_step` (à prévoir en phase 3) ; `PAS_ASSEZ_DE_JETONS` et `PAS_ASSEZ_DE_CLES` manquent dans `Refused` (les clés dépendent de ta décision sur les lootbox)
+- [ ] Les fichiers de la direction du site (`docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md`, `docs/references/site/`) apparaissent **non suivis dans le dossier de la direction du jeu** (`C:\Users\largu\Documents\silooo`), alors qu'elle devait travailler dans le worktree `silooo-site` : vérifier où elle écrit. La direction du jeu ne les touche ni ne les ajoute jamais ; tant qu'ils ne sont pas commités, `git status` n'est pas propre de son fait.
 
 ## Décisions prises sans Kr
 
@@ -321,6 +323,19 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     elle reste sans membre avec ses usines et son île ; le nouvel associé a 0 % tant que le PDG n'a pas appelé
     `setShares` (parts entières qui font 100, 400 sinon). Les tables de V1 suffisent : V5 reste un trou, comme V2
     et V4 ; la prochaine migration est V6. À relire par Kr.
+37. **Deux directions, décidé par Kr le 5 novembre 2026 (ce n'est pas une décision prise seule, elle est notée
+    ici pour qu'on la retrouve).** Une deuxième direction construit le site silooo.com dans le worktree
+    `silooo-site`, en même temps que la direction du jeu. (1) La direction du jeu passe à 2 sessions de travail
+    au plus ; la direction du site en lance une. (2) Elle écrit `docs/site.md`, `docs/site-direction.md`,
+    `docs/site-passation.md` et le code du site (`core/.../site/`, `core/src/main/resources/site/`) ; elle ajoute
+    une fois des lignes à `docs/README.md` et `CLAUDE.md` ; elle n'écrit jamais `docs/passation.md` ni
+    `docs/direction.md`. (3) À chaque bilan, la direction du jeu lit « Pour la direction du jeu » dans
+    `docs/site-passation.md` et répond dans son journal. (4) Phase 5 : les votes arrivent de Hubyy au format
+    Votifier v2 (jeton) et silooo-core les reçoit ; les Gemmes arrivent par le webhook PayNow que le site écrit
+    dans `shop_deliveries`, et par le site SileneMC ; la phase 5 crédite ces lignes. (5) Numéros de migration et
+    d'ADR : pris au moment de la fusion ; si l'autre direction a pris le numéro, le suivant. (6) La direction du
+    jeu reste seule à déployer silooo-core : quand `docs/site-passation.md` dit « Prêt à mettre en ligne » et que
+    Kr a fait sa part, elle déploie `main`. Reporté dans `docs/direction.md` (section « La direction du site »).
 
 ## À valider par Kr
 
@@ -376,6 +391,11 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - L'entreprise partagée : 4 membres au plus, invitation valable 48 h, l'invité doit encore être à son départ, son
   entreprise reste en l'état, part nulle jusqu'à `setShares` (décision 36) ; la bulle « Tu as déjà lancé ton
   entreprise. » (refus `ENTREPRISE_EN_COURS`).
+- L'add-on des incidents : les noms des trois sortes et leurs phrases, les quatre bulles (« Vite, une usine a un
+  souci. », « L'usine repart ! », « Bien joué, l'usine repart ! », « Un associé a tout réparé. »), les messages du
+  tchat, les consignes, boutons et indices des quatre mini-jeux (trois sortes et un général), le nombre d'étapes
+  (trois) et la place des bonnes réponses, la phrase de fiche « Un incident ralentit sa production. » ; la liste
+  est dans `addon/README.md`.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -581,3 +601,23 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   Décision 36 ; `docs/README.md` et `docs/game-design.md` passent à 32 opérations. Lancée dans la foulée :
   l'add-on de l'entreprise partagée (`claude/phase4-addon-partagee` : écran Associés, invitation reçue, parts).
   Vérifier : `git log --oneline -3 origin/main`, `cd core && ./gradlew test --tests '*Member*'`.
+- **5 novembre 2026, 12 h 31 : direction, l'add-on des incidents fusionné.** `claude/phase4-addon-incidents` en
+  avance rapide (`a4d1b35` : `ui/incidents.ts`, `ui/reparation.ts`, `incidentKind` au protocole, `resolveIncident`
+  dans `api.ts`, écoute de `INCIDENT`, 1019 tests). Relu : la branche contient `main`, rien hors de `addon/`, les
+  lignes de test retirées sont des titres qui comptent les routes, aucun fichier de plus ne parle à `@minecraft`
+  (quatorze avant, quatorze après), aucun calcul, textes sans slop. Quatre écarts de contrat notés pour Kr.
+  Vérifier : `git log --oneline -3 origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 12 h 45 : direction, nouvelle organisation avec la direction du site (décision 37).**
+  Kr ajoute une direction du site ; la direction du jeu passe à deux sessions (deux tournent : la ville,
+  l'add-on de l'entreprise partagée ; rien de plus ne sera lancé avant qu'une finisse). `docs/direction.md` mis
+  à jour. Réponses à « Pour la direction du jeu » de `docs/site-passation.md` : (1) votes : d'accord, la phase 5
+  fera recevoir Votifier v2 par silooo-core (jeton et port dans l'environnement, à ouvrir par Kr), écrire
+  `server_votes`, tenir la Vote party et les séries ; (2) Gemmes : la phase 5 relève les lignes de
+  `shop_deliveries` sans `delivered_at`, quelle que soit leur origine (webhook PayNow du site, site SileneMC),
+  crédite une fois par `order_id` et publie `GEMMES_RECUES` ; la ligne du plan est reformulée dans la liste de
+  la phase 5 ; (3) Pionnier : l'add-on montrera le titre et l'objet quand la tranche add-on de la boutique lira
+  les cosmétiques possédés ; le contrat n'a pas encore de champ pour un titre de joueur, il sera ajouté par
+  `api/` d'abord ; (4) sessions : noté, deux ; (5) S3 : l'écran « Relier Discord » et le refus des non-admis
+  dans `join` passent par le contrat (`api/`, un code `Refused` nommé) avant tout code : dites-nous la table ou le
+  champ qui dit « admis » et la direction du jeu fera la route et l'écran. Observé : les fichiers du site sont
+  non suivis dans le dossier de la direction du jeu, noté dans « À faire par Kr ».
