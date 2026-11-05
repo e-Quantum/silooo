@@ -18,9 +18,12 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
 | `src/ui/` | Les écrans : HUD, menu, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
+| `src/monde/` | Le monde : îles des usines, arrivée, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
+| `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
+| `pack/entities/oooscar.json` | L'entité `silooo:oooscar`, copiée telle quelle dans `dist/pack/` par le build. Le côté client est dans `resource-pack/`. |
 | `src/generated/definitions.ts` | Types tirés de `definitions/`. Généré, ne pas éditer. |
 | `test/` | Tests de la logique, sans Bedrock. |
-| `scripts/` | `construire.mjs` (le build) et `tester.mjs` (les tests). |
+| `scripts/` | `construire.mjs` (le build : esbuild, puis copie de `pack/`) et `tester.mjs` (les tests). |
 
 ## Construire et tester
 
@@ -96,7 +99,7 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
 
-Seuls `main.ts`, `beta.ts` et `ui/formulaires.ts` importent des modules `@minecraft/*`. Les tests ne les chargent jamais.
+Seuls `main.ts`, `beta.ts`, `ui/formulaires.ts` et `monde/bedrock.ts` importent des modules `@minecraft/*` (`bedrock.ts` n'est importé que par `main.ts`). Les tests ne les chargent jamais.
 
 ### Le HUD
 
@@ -126,6 +129,46 @@ Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert 
 réessaie alors `config.ui.formBusyRetries` fois, toutes les `config.ui.formBusyRetrySeconds` secondes, puis
 abandonne sans bruit. Un joueur qui part pendant qu'un formulaire est ouvert ne fait rien tomber : l'erreur est
 journalisée.
+
+## Le monde
+
+Seconde tranche de la phase 3 : les îles des usines, l'arrivée du joueur, la cinématique et Oooscar. Toujours aucune
+règle de jeu. L'add-on pose ce que le service décrit (`CompanyState.island` et la liste des usines), et chaque chiffre
+de l'archipel vit dans `definitions/iles.json` (schéma `definitions/schemas/iles.schema.json`, types générés).
+
+```
+join ── island présent ? ── non ── une ligne de journal, rien posé, personne déplacé
+                         └─ oui ── mini-îles posées (Carrière d'abord) ── île de départ prête ── téléportation
+                                   ── Oooscar près du joueur ── cinématique, au premier passage seulement
+```
+
+| Fichier de `src/monde/` | Rôle |
+|---|---|
+| `definitions.ts` | `definitions/iles.json`, typé. |
+| `geometrie.ts` | Les cases de l'archipel, le repère local d'une île (l'avant regarde l'île principale), le point d'arrivée. |
+| `plan.ts` | Le plan d'une mini-île par usine et par état : une liste d'opérations, sans bloc Bedrock. En ruine : abîmée et sans toit, au hasard d'un hachage fixe (même résultat à chaque pose). Active : entière. Plate-forme, bâtiment, panneau au nom de l'usine. |
+| `constructeur.ts` | Pose les plans par lots entre deux pauses, un chantier à la fois, la zone chargée par une ticking area. Un échec se rejoue après 2 s, puis le délai double jusqu'à 30 s. Une marque par usine et par état, rangée dans une propriété dynamique du monde : une île n'est posée qu'une fois par état. |
+| `arrivee.ts` | La suite de l'arrivée, et le moment où le joueur est « occupé » : HUD silencieux, boussole en attente, menu fermé. |
+| `cinematique.ts` | Le lecteur de cinématique : plans, caméra libre et glissé, fondus pour cacher les coupes, HUD masqué, sous-titres par le canal de titre, saut en restant accroupi une seconde, remise en état à la fin. |
+| `oooscar.ts` | Une Oooscar par joueur, jamais deux, retirée au départ, balayée au démarrage et à chaque relevé. |
+| `synchro.ts` | Le relevé périodique : l'état des usines de chaque joueur est montré au constructeur, qui ne refait que ce qui a changé. Une usine remise en état change de visage au relevé suivant. |
+| `bedrock.ts` | L'enveloppe de `@minecraft/server` : blocs, panneaux, zones chargées, caméra, entité, téléportation. |
+
+Choix faits ici, à relire :
+
+- Les chiffres de l'archipel sont dans un fichier à part, `definitions/iles.json`, parce que `monde.json` n'était pas à
+  modifier dans cette tranche. Il ne répète pas la taille de la case : le test des définitions la lit dans `monde.json`
+  et vérifie que l'archipel y tient, centré.
+- `island` est lu comme le coin de la case de l'archipel du joueur ; l'île principale en occupe le centre
+  (`centreDansLaCase`, +300 +300). Les mini-îles forment un carré autour d'elle, une par usine, à l'angle que
+  donne `iles.json`.
+- L'entité d'Oooscar est en `format_version` `1.21.0` : un fichier plus récent que le moteur n'est pas chargé, et un
+  monstre sans comportement n'a pas besoin des nouveautés. Elle n'a ni comportement, ni dégâts, ni butin, et ne
+  persiste jamais.
+- `npm run build` copie `pack/` dans `dist/pack/` (`--statique` change le dossier source, `--sortie` le dossier de
+  sortie, qui doit être vide ou absent). Une collision avec `manifest.json` ou `scripts/`, ou un JSON invalide, arrête le build.
+- Le balayage des Oooscar oubliées après un plantage attend `startupDelaySeconds`, comme le reste du démarrage.
+- Tous les textes de la cinématique sont dans `ui/textes.ts`, à valider par Kr comme les autres.
 
 ## Textes à valider
 
@@ -255,6 +298,16 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Pas de route pour racheter une ruine ni pour résoudre un incident : une usine en incident ou sans courant se
   voit, mais l'écran n'a rien à proposer.
 
+À la tranche du monde :
+
+- Le service doit remplir `island` (l'origine de la case d'archipel de l'entreprise). Sans lui, rien n'est posé et le
+  journal le dit une fois : les joueurs restent où Bedrock les met.
+- Le coin de la case et le centre de l'île principale à +300 +300 sont une hypothèse de cette tranche.
+- L'île principale n'est pas posée : les mini-îles s'ordonnent autour d'un centre où rien n'est encore construit.
+- Le côté client d'Oooscar (géométrie, texture, apparence) est au pack de ressources, hors de cette tranche : le
+  serveur sait la faire apparaître, pas la montrer.
+- Les phrases de la cinématique sont des textes à valider, de même que le découpage et le cadrage des plans.
+
 Au design system :
 
 - Pas d'icône pour Objectifs, Amis et Silo, ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
@@ -277,6 +330,13 @@ Au design system :
 - Le don de l'objet au tout premier tick : le délai de `config.ui.menuItemDelaySeconds` est une hypothèse.
 - Un formulaire envoyé à un joueur qui vient de partir.
 - Les signes `§` dans les boutons des formulaires.
+- Les îles : le délai de chargement d'une ticking area, la pose par lots sans à-coup, l'orientation du panneau mural
+  d'après `facing_direction`, le sort de l'île quand la zone est déchargée.
+- La caméra : le cadrage de chaque plan, le glissé (`easeOptions`), les fondus qui cachent les coupes, le masquage du
+  HUD, le sous-titre par le canal de titre sans le préfixe du HUD.
+- Le blocage des déplacements pendant la cinématique et la lecture de l'accroupissement (le même geste doit faire passer).
+- La téléportation vers une zone encore non chargée, et la remise du joueur à la fin de la cinématique.
+- L'entité `silooo:oooscar` : validité du JSON au format `1.21.0`, absence de dégâts et de butin, disparition au départ.
 
 ## Points ouverts
 
