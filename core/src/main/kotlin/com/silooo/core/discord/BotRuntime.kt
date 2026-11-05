@@ -38,11 +38,17 @@ class BotContext(
     val phase: ServerPhase,
 )
 
-/** Les identifiants Discord des rôles et salons du plan, par identifiant du plan ; `null` : absent du serveur. */
-class ServerIds(val roles: Map<String, String>, val channels: Map<String, String>) {
+/** Les identifiants Discord des rôles, salons et catégories du plan, par identifiant du plan ; `null` : absent du serveur. */
+class ServerIds(
+    val roles: Map<String, String>,
+    val channels: Map<String, String>,
+    val categories: Map<String, String> = emptyMap(),
+) {
     fun role(planId: String): String? = roles[planId]
 
     fun channel(planId: String): String? = channels[planId]
+
+    fun category(planId: String): String? = categories[planId]
 
     companion object {
         val NONE = ServerIds(emptyMap(), emptyMap())

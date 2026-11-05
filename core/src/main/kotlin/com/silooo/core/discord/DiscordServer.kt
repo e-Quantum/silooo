@@ -1,11 +1,14 @@
 package com.silooo.core.discord
 
+import java.time.Instant
+
 /**
  * Tout ce que le bot peut faire sur le serveur Discord, et rien d'autre (ADR 0007). Le paquet `discord/jda/`
  * l'implémente avec JDA ; les tests posent un faux en mémoire. Les identifiants sont ceux de Discord, en texte.
  *
- * Aucune méthode ne supprime un rôle, une catégorie ni un salon du plan : le bot crée et modifie, l'interface
- * ne sait pas effacer ce que Kr voit.
+ * Aucune méthode ne supprime un rôle ni une catégorie, et [deleteChannel] ne touche qu'un salon de texte ou un vocal
+ * : le bot ne l'appelle que pour les salons qu'il a créés lui-même (un ticket, un vocal de membre), jamais pour ceux
+ * du plan. L'interface ne sait pas effacer ce que Kr voit.
  */
 interface DiscordServer {
     /** Les rôles, catégories et salons tels qu'ils sont maintenant. */
@@ -55,6 +58,27 @@ interface DiscordServer {
      */
     suspend fun reactors(channelId: String, messageId: String, emojiName: String): Set<String>
 
+    /**
+     * Supprime un salon que le bot a créé (un ticket, un vocal de membre) ; salon disparu, autre chose qu'un salon de
+     * texte ou un vocal, droit manquant : [DiscordRefusal].
+     */
+    suspend fun deleteChannel(id: String)
+
+    /**
+     * Les [limit] derniers messages de [channelId], du plus ancien au plus récent. Une pièce jointe se réduit à son nom
+     * entre crochets. Salon disparu ou droit manquant : [DiscordRefusal].
+     */
+    suspend fun history(channelId: String, limit: Int): List<ChannelMessage>
+
+    /** Déplace [userId] dans le vocal [channelId] ; le membre n'est pas en vocal, ou Discord refuse : [DiscordRefusal]. */
+    suspend fun moveToVoice(userId: String, channelId: String)
+
+    /** Combien de membres sont dans le vocal [channelId] en ce moment. */
+    suspend fun voiceMembers(channelId: String): Int
+
+    /** Le nom que le serveur affiche pour [userId] (son surnom, sinon son nom) ; `null` s'il n'est plus là. */
+    suspend fun memberName(userId: String): String?
+
     /** Pose les commandes du bot sur le serveur, à la place des précédentes. */
     suspend fun installCommands(commands: List<CommandSpec>)
 
@@ -102,7 +126,9 @@ data class CategorySpec(val name: String, val viewers: Set<String>?)
 
 /**
  * [writers] : les rôles qui écrivent ; vide, le bot seul ; `null`, tout le monde. [viewers] : comme [CategorySpec].
- * [locked] : un vocal où personne ne se connecte.
+ * [locked] : un vocal où personne ne se connecte. [memberViewers] : les membres (identifiants Discord) qui voient et
+ * écrivent dans le salon, ou se connectent et parlent dans un vocal, en plus des rôles de [viewers] et [writers] ; un
+ * salon qui en a reste caché à tout le monde sauf eux, le bot et les rôles de [viewers], même si [viewers] est `null`.
  */
 data class ChannelSpec(
     val name: String,
@@ -111,4 +137,8 @@ data class ChannelSpec(
     val writers: Set<String>?,
     val viewers: Set<String>?,
     val locked: Boolean,
+    val memberViewers: Set<String> = emptySet(),
 )
+
+/** Un message d'un salon tel que le bot le relit ; [text] porte les pièces jointes réduites à leur nom entre crochets. */
+data class ChannelMessage(val authorId: String, val authorName: String, val text: String, val at: Instant)

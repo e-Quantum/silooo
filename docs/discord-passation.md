@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 18 h 59, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 19 h 34, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -55,6 +55,24 @@ est recopiée sous l'étape qu'elle touche.
 - `/annonce` est écrite et branchée (`AnnounceFeature`) : titre, texte, image, mention ; le garde anti-IA, l'aperçu pour
   le staff seul, Publier et Annuler. Elle ne publie pas encore dans les Actus du site (décision 31). Jamais vue sur un
   vrai serveur.
+- Les tickets et « Crée ton vocal » sont écrits et branchés (`BotMessageStore` et `JdbcBotMessageStore` sur
+  `discord_bot_messages`, `TicketStore` et `JdbcTicketStore` sur `discord_tickets`, `TicketFeature`, `VoiceRoomFeature`) :
+  le menu de `#🎫・tickets` retrouvé ou posté au démarrage, un salon privé par ticket, archivé dans le journal puis supprimé
+  à la fermeture ; un vocal « Vocal de Nom » créé quand un membre entre dans « Crée ton vocal », supprimé quand il se vide.
+  Le bot a besoin des droits Gérer les salons, Déplacer les membres et Lire l'historique des messages. Jamais vus sur un
+  vrai serveur.
+- L'XP de tchat est écrite et branchée (`XpStore` et `JdbcXpStore` sur `discord_chat_xp` et `discord_xp_messages`,
+  `XpFeature`, `/niveau`) : 15 à 25 points par message et par minute, les rôles aux niveaux 5, 10, 20 et 30, le
+  classement de la semaine publié le lundi à l'heure du rapport. Jamais vue sur un vrai serveur.
+- Les giveaways sont écrits et branchés (`GiveawayStore` et `JdbcGiveawayStore` sur `discord_giveaways`,
+  `discord_giveaway_entries` et `discord_prizes`, `GiveawayFeature`, `/giveaway`) : un par mois, Participer, le tirage à
+  la date dite, le gagnant et le lot en base avant tout message. Le lot n'est pas crédité en jeu (`delivered_at` nul) : il
+  attend une route du contrat (« Pour la direction du jeu », 9). Règlement en brouillon dans
+  `docs/discord-reglement-giveaways.md`. Jamais vus sur un vrai serveur.
+- Le socle du bot s'est élargi pour ces fonctions : `ServerIds.categories` et `category(planId)` (remplis par
+  `PlanApplier`, `PlanReport.categoryIds`), `ChannelSpec.memberViewers`, `ChannelMessage`, `DiscordServer.deleteChannel`,
+  `history`, `moveToVoice`, `voiceMembers` et `memberName`, `MessagePosted.parentChannelId`. Le code JDA correspondant
+  compile mais ne se teste que sur le serveur de test. Jamais vu sur un vrai serveur.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
@@ -152,9 +170,11 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   avec le contrôle anti-IA avant l'aperçu ; écrit avec ses tests sur le faux Discord et sur MariaDB (CI), pas encore vu
   sur un vrai serveur ; l'option « Publier aussi dans les Actus du site » attend les Actus (décision 31), le rôle et
   l'invitation d'un inscrit non relié attendent `/lier` (D3, décision 29)
-- [ ] Les tickets par menu, « Crée ton vocal », l'XP de tchat (un message par minute, rôles aux niveaux 5, 10, 20, 30,
-  classement de la semaine), les giveaways (lot gardé sur l'identifiant Discord, crédité à la liaison prouvée) et leur
-  règlement en brouillon
+- [x] Les tickets par menu (remis à neuf après chaque choix, un par membre, archivés au journal puis supprimés), « Crée ton
+  vocal », l'XP de tchat (un message par minute, rôles aux niveaux 5, 10, 20, 30, classement de la semaine), les
+  giveaways (lot gardé sur l'identifiant Discord, crédité à la liaison prouvée) et leur règlement en brouillon
+  (`docs/discord-reglement-giveaways.md`) ; écrit avec ses tests sur le faux Discord et sur MariaDB (CI), pas encore vu sur
+  un vrai serveur ; le crédit en jeu des lots attend une route du contrat (décision 44, D5)
 - [ ] L'AutoMod posé par l'API (la liste du filtre, le spam de mentions, les liens), l'icône et l'image d'accueil de
   `#👋・bienvenue` posées par le bot
 - [ ] Les tableaux du QG : top réactions de la semaine, meilleurs moments, Aide du mois, le chantier en direct, avec
@@ -253,6 +273,10 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
    `resource-pack/`.
 7. **`design/README.md`** : la règle « Pas d'emoji, jamais » doit dire l'exception des noms de salons Discord, décidée
    par Kr le 5 novembre ; la session Discord n'écrit pas dans `design/README.md`.
+9. **Le crédit en jeu des lots des giveaways.** Le tirage écrit le lot dans `discord_prizes` (`delivered_at` nul tant que
+   rien n'est crédité), gardé sur l'identifiant Discord du gagnant. Le crédit en jeu (Gemmes, Lingots, cosmétique, une seule
+   fois, au compte relié par la liaison prouvée) demande une route du contrat ; la session Discord la proposera par la
+   recette `silooo-route` quand la direction du jeu dit où elle la veut. Rien ne s'annonce comme crédité avant.
 
 ## Pour la direction du site
 
@@ -261,7 +285,8 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 2. La case « Rejoindre aussi le Discord » à l'inscription demande la portée `guilds.join` en plus d'`identify` ; à
    prévoir quand Kr aura posé l'application.
 3. Le règlement des giveaways et la page Confidentialité (journal du tchat relié gardé 30 jours) : textes à publier sur
-   le site, fournis en brouillon par la session Discord.
+   le site, fournis en brouillon par la session Discord ; celui des giveaways est dans
+   `docs/discord-reglement-giveaways.md`, à valider par Kr avant publication.
 4. Une page « Mises à jour » du site devient une carte dans `#🆕・patch-notes` ; un champ de la page dira si elle passe
    aussi dans `#📢・annonces`.
 
@@ -296,6 +321,10 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 - [ ] Rejouer les admissions et `/annonce` sur le serveur de test (une inscription sur la page d'attente, puis Admettre ;
   puis `/annonce` avec et sans image, avec un texte à tics pour voir le refus).
 - [ ] Dire à la session du site que `/annonce` écrira dans les Actus quand leur registre sera sur `main`.
+- [ ] Donner au bot de test les droits Gérer les salons, Déplacer les membres et Lire l'historique des messages, puis
+  rejouer un ticket (ouvrir, écrire, fermer), « Crée ton vocal », quelques messages d'XP et `/niveau`, un `/giveaway`
+  d'une journée.
+- [ ] Relire `docs/discord-reglement-giveaways.md` et le donner à la session du site pour publication.
 - [ ] Choisir les paliers de prestige qui donnent un rôle, et trancher les rôles liés de Discord (option, ou rien)
 - [ ] Retirer les récompenses par invitation de SileneMC (`#🎁・inviter`), interdites par Discord (critique, point 14)
 - [ ] Plus tard, aux boosts : le badge SILO à 3 boosts, la bannière en arrière-plan d'invitation à 2, en haut des
@@ -398,6 +427,43 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     donc pas dans `definitions/`). L'aperçu n'est vu que du staff et ne prévient personne, même avec la mention. Sans
     rôle Actus sur le serveur, l'annonce part sans mention. Si Discord refuse la publication, le brouillon est remis pour
     que le staff puisse réessayer.
+33. **`BotMessageStore`, la façon commune de retrouver un message à clé du bot.** Une clé (`tickets-menu`) et le message
+    que le bot a posé sont gardés dans `discord_bot_messages` (`JdbcBotMessageStore`) : après un redémarrage, le bot retrouve
+    son message, le remet à neuf ou le reposte s'il a disparu, au lieu d'en poser un second. Les prochains messages à clé du
+    bot passeront par lui.
+34. **Le menu des tickets est remis à neuf après chaque choix.** Discord garde la sélection affichée dans le menu : sans
+    remise à neuf, le même choix ne se déclenche plus au clic suivant.
+35. **Un seul ticket ouvert par membre.** Le salon n'est visible que du membre, du staff et de la modération
+    (`ChannelSpec.memberViewers`). À la fermeture, le salon est copié dans `#📒・journal-du-bot` puis supprimé ; si la copie
+    ne se lit pas, le salon reste.
+36. **`deleteChannel` est réservé aux salons créés par le bot** (un salon de texte ou un vocal) : un salon posé à la main
+    ne peut pas être effacé par un bug d'une fonction.
+37. **Les vocaux de membre sont supprimés quand ils se vident.** Au démarrage, le nettoyage ne touche que les vocaux dont le
+    nom commence par « Vocal », hors plan et vides ; les occupés sont repris. Un vocal dont le déplacement du membre a été
+    refusé et qui reste vide est supprimé 30 secondes plus tard.
+38. **L'XP ne dit « passe au niveau » qu'aux paliers à rôle** (5, 10, 20 et 30) : une phrase à chaque niveau serait du bruit
+    dans `#💬・discussion`. Un membre ne porte qu'un rôle de niveau : celui du palier atteint, le précédent est retiré.
+39. **La semaine d'XP change à l'heure du rapport du lundi, pas à minuit.** Le rapport part à 9 h : les messages du lundi
+    matin comptent encore pour la semaine qui finit. Limite connue : la purge coupe à minuit UTC du lundi, donc un message du
+    lundi avant 9 h supprimé après le rapport retire ses points à la nouvelle semaine (négligeable).
+40. **Les sujets de forum comptent pour leur forum.** Un message dans un sujet de forum est compté si le forum figure dans
+    `xp.salons` (`MessagePosted.parentChannelId`).
+41. **`/niveau` sans option membre.** Le socle n'a pas de type d'option « membre » : la commande ne montre que son auteur,
+    en réponse à lui seul. Voir le niveau d'un autre viendra avec ce type d'option, si Kr le veut.
+42. **Les giveaways en message classique, pas en conteneur récent.** Le conteneur de Discord (composants V2) ne se mêle pas à
+    une mention de rôle : la carte est un message classique, et le rôle Giveaways n'est prévenu qu'au premier envoi, pas à
+    chaque modification du nombre de participants.
+43. **Le gagnant et le lot sont en base avant tout message.** Le tirage écrit le gagnant et le lot (`discord_prizes`) avant
+    de toucher à Discord ; un refus de Discord fait reprendre les étapes restantes une minute plus tard, 30 fois au plus,
+    sans second tirage. Après un redémarrage entre le tirage et les messages, le gagnant et le lot restent en base mais les
+    messages ne sont pas refaits.
+44. **Le lot reste sur l'identifiant Discord jusqu'au crédit en jeu.** `discord_prizes` garde le lot sans `delivered_at`
+    tant que rien n'est crédité ; le crédit viendra par une route du contrat, une fois, au compte relié par la liaison
+    prouvée (« Pour la direction du jeu », 9).
+45. **Un giveaway `etape` compte dans le mois.** Aucune colonne de `discord_giveaways` ne distingue une grande étape : une
+    migration le ferait, plus tard, si Kr le veut. En attendant, `etape` lève seulement la limite d'un par mois au lancement.
+46. **Pas d'événement du calendrier Discord pour l'instant.** Le giveaway n'est que sa carte dans `#🎁・giveaways` ; l'événement
+    planifié viendra si Kr le veut.
 
 ## À valider par Kr
 
@@ -491,13 +557,61 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   - Après les boutons : « Publié dans #annonces. », « Annulé. », « Aucune annonce en attente : relance /annonce. », « Le
     salon des annonces n'existe pas sur le serveur. »
   - La ligne du journal : « Annonce publiée par @staff : Titre. »
+- Les tickets (`Tickets.kt`, `TicketTexts`, D2). Dans les textes, `@membre` est la mention du membre, `@staff` celle de qui
+  ferme, `#aide` et `#salon` les mentions des salons ; la date s'écrit « 5 novembre 2026 à 18 h 10 ».
+  - Le menu, dans `#🎫・tickets` : « Pour ce qui ne se dit pas en public. Choisis, et un salon privé s'ouvre entre toi et le
+    staff. Une question de jeu se pose dans #aide. », l'invite « Choisis ta demande », et les choix « Une question de jeu »
+    (« Elle va dans le salon d'aide »), « Un achat ou des Gemmes », « Mon compte ou ma liaison », « Contester une sanction »,
+    « Créateurs ».
+  - Les réponses au membre seul : « Une question de jeu se pose dans #aide : la réponse sert à tous. Si c'est privé,
+    choisis un autre sujet. » (aucun ticket), « Ton ticket est ouvert : #salon. », « Tu as déjà un ticket ouvert : #salon. »,
+    « Les tickets ne sont pas prêts sur ce serveur. »
+  - Le salon : le nom `ticket-achat-12`, le sujet « Ticket n°12 de Nom : achat », le premier message « @membre Ton ticket
+    est ouvert. Dis-nous tout ici : le staff lit. » et le bouton « Fermer le ticket ».
+  - Les refus du bouton : « Ce bouton est pour le staff et l'auteur du ticket. », « Ce ticket est déjà fermé. »
+  - Le journal : « Ticket n°12 (achat) de @membre, fermé par @staff. » puis les lignes « 5 novembre 2026 à 18 h 10, Nom :
+    texte », par messages de 2 000 caractères ; « Ticket n°N : l'archive n'a pas pu être lue, le salon reste. » ; « Ticket
+    n°12 : salon supprimé à la main, fermé. »
+- Les vocaux (`VoiceRooms.kt`, D2) : le nom du vocal créé, « Vocal de Nom », et « Vocal N » quand le membre n'a pas de nom.
+- L'XP de tchat (`Xp.kt`, `XpTexts`, D2). Dans les textes, `@id` est la mention du membre.
+  - La commande `/niveau` : « Montre ton niveau d'XP de tchat ». Ses réponses, au joueur seul : « Niveau 7, 1 800 points, 180
+    cette semaine. Prochain niveau à 2 200 points. » ou « Pas encore de points : écris dans #discussion. »
+  - Le passage de niveau, dans `#discussion`, sans mention (aux niveaux 5, 10, 20 et 30 seulement) : « @id passe au niveau
+    5. »
+  - Le classement du lundi, dans `#discussion` : « Les dix de la semaine : » (« Le classement de la semaine : » si la taille
+    n'est pas dix), puis « 1. @id, 540 points », ou « Personne n'a écrit cette semaine. »
+- Les giveaways (`Giveaways.kt`, `GiveawayTexts`, D2). Dans les textes, `@id` est la mention du gagnant ; la date s'écrit « le
+  12 novembre 2026 à 18 h 00 ».
+  - La commande `/giveaway` : « Lance un giveaway dans le salon des giveaways ». Ses options : `titre` (80 caractères au
+    plus), `lot` (cosmetique, gemmes ou lingots), `quantite`, `cosmetique`, `duree` (1, 3 ou 7 jours) et `etape` (oui).
+  - La carte, dans `#🎁・giveaways`, avec le rôle Giveaways prévenu au premier envoi seulement : « Giveaway : Titre », « Lot :
+    500 Gemmes », « Lot : 2 000 Lingots » ou « Lot : le cosmétique nom », « Fin le 12 novembre 2026 à 18 h 00. », « Gratuit,
+    sans achat, sans invitation ni boost. Un compte relié reçoit le lot en jeu ; sinon il attend la liaison. », « 0
+    participant » puis « 37 participants », et le bouton « Participer ».
+  - Les réponses au staff : « Giveaway n°3 lancé. » ; les refus : « Cette commande est pour le staff. », « Le titre est vide :
+    rien n'est lancé. », « Le titre fait N caractères : 80 au plus. Rien n'est lancé. », « Le lot doit être cosmetique,
+    gemmes ou lingots. Rien n'est lancé. », « La quantité doit être un entier positif : le nombre de Gemmes ou de Lingots.
+    Rien n'est lancé. », « Un cosmétique demande son identifiant dans l'option cosmetique. Rien n'est lancé. »,
+    « L'identifiant du cosmétique fait N caractères : 80 au plus. Rien n'est lancé. », « La durée doit être de 1, 3 ou 7
+    jours. Rien n'est lancé. », « Un giveaway par mois : le prochain à partir du 1er décembre. Pour une grande étape, ajoute
+    l'option etape. », « Le salon des giveaways n'existe pas sur le serveur. », « Discord a refusé la carte : le giveaway
+    n'est pas lancé. Relance la commande. »
+  - Les réponses du bouton, au membre seul : « Tu participes. Tirage le 12 novembre 2026 à 18 h 00. », « Tu participes
+    déjà. », « Ce giveaway est fini. », « Les bots ne participent pas. »
+  - Le tirage : la carte devient « Gagné par @id. » (le gagnant prévenu) ou « Personne n'a participé : pas de tirage. », sans
+    bouton ; au gagnant, en privé : « Tu as gagné le giveaway « Titre » : 500 Gemmes. Le lot arrive en jeu sur ton compte
+    relié ; sinon, relie ton compte avec /lier et il suivra. » ; au journal : « Giveaway n°3 « Titre » : 37 participants,
+    gagné par @id. » (ou « 0 participant, pas de tirage. »), puis les participants en mentions sans prévenir, par messages
+    de 2 000 caractères.
+- Le règlement des giveaways, en brouillon : `docs/discord-reglement-giveaways.md`, à publier par la session du site une
+  fois validé.
 - Le format « Gamertag · P3 », les lignes d'Oooscar et les textes des rappels : écrits à D3, listés ici au fur et à
   mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
 - La fiche Silooo des outils de rendu (`_outils\references\marque.md`, D1) : le « ooo » en rouge clair `#e0614f` sur
   fond sombre, le gris de texte pris sur `email-creme`, le détail, l'IP et le lien Discord affichés, les polices
   bitmap lissées à toute taille alors que la règle dit « sans lissage ».
-- Les lots des concours, le règlement des giveaways, les paliers du parrainage (D5).
+- Les lots des concours, les paliers du parrainage (D5).
 - Le plan de promotion par Hubyy, à travailler avec Kr.
 
 ## Journal
@@ -578,3 +692,17 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   n'écrit pas encore dans les Actus du site (décision 31) et le rôle et l'invitation d'un inscrit non relié attendent
   `/lier` (décision 29). Suite : vérificateur, fusion sur `main`, puis les tickets, « Crée ton vocal », l'XP et les
   giveaways.
+- 5 novembre 2026, 19 h 03 à 19 h 34 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Les tickets, « Crée ton vocal », l'XP de tchat et les giveaways : `BotMessageStore` (`JdbcBotMessageStore` sur
+  `discord_bot_messages`), `TicketStore` (`JdbcTicketStore`), `Tickets.kt` (`TicketTexts`, `TicketFeature`), `VoiceRooms.kt`
+  (`VoiceRoomFeature`), `XpStore` (`JdbcXpStore`), `Xp.kt` (`XpTexts`, `XpFeature`), `GiveawayStore` (`JdbcGiveawayStore`,
+  `GiveawayPrize`), `Giveaways.kt` (`GiveawayTexts`, `GiveawayFeature`), le socle élargi (`ServerIds.categories`,
+  `ChannelSpec.memberViewers`, `ChannelMessage`, `deleteChannel`, `history`, `moveToVoice`, `voiceMembers`, `memberName`,
+  `MessagePosted.parentChannelId`), `BotFeatures` et le règlement en brouillon `docs/discord-reglement-giveaways.md`.
+  Écrit par trois agents en parallèle sur des fichiers disjoints (les tickets et les vocaux, l'XP, les giveaways), relu par
+  la session. Tests verts sur les fausses briques : `TicketTest` 19, `VoiceRoomTest` 12, `PlanCategoryIdsTest` 2, `XpTest` 20,
+  `GiveawayTest` 18 ; `TicketSqlTest`, `BotMessageSqlTest`, `XpSqlTest` et `GiveawaySqlTest` (MariaDB, ignorés sans Docker :
+  la CI les joue). Les décisions 33 à 46 et les textes à valider sont ci-dessus ; `core/README.md` à jour. Rien n'a tourné
+  contre un vrai Discord, rien n'est encore commité et `tools/verifier.sh` n'a pas encore tourné. Restent : le crédit en
+  jeu des lots (route du contrat, décision 44), le marquage de `etape` en base (45) et le calendrier Discord (46). Suite :
+  vérificateur, fusion sur `main`, puis l'AutoMod, les tableaux et les petits jeux.

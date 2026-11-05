@@ -4,6 +4,7 @@ import com.silooo.core.discord.BotConfig
 import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.CategorySpec
 import com.silooo.core.discord.ChannelKind
+import com.silooo.core.discord.ChannelMessage
 import com.silooo.core.discord.ChannelSpec
 import com.silooo.core.discord.CommandSpec
 import com.silooo.core.discord.DiscordConnection
@@ -32,6 +33,7 @@ import net.dv8tion.jda.api.entities.channel.attribute.ICategorizableChannel
 import net.dv8tion.jda.api.entities.channel.concrete.ForumChannel
 import net.dv8tion.jda.api.entities.channel.concrete.NewsChannel
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel
 import net.dv8tion.jda.api.exceptions.ErrorResponseException
@@ -143,7 +145,11 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             ChannelKind.FORUM -> category.createForumChannel(channel.name).setTopic(channel.topic)
             ChannelKind.VOCAL -> category.createVoiceChannel(channel.name)
         }
-        viewers(action, channel.viewers)
+        viewers(action, channel.viewers ?: if (channel.memberViewers.isEmpty()) null else emptySet())
+        if (channel.memberViewers.isNotEmpty()) {
+            val allowed = if (channel.kind == ChannelKind.VOCAL) VOICE_MEMBER else TEXT_MEMBER
+            channel.memberViewers.forEach { action.addMemberPermissionOverride(it.toLong(), allowed, EnumSet.noneOf(Permission::class.java)) }
+        }
         channel.writers?.let { writers ->
             action.addPermissionOverride(guild.publicRole, EnumSet.noneOf(Permission::class.java), WRITE)
             writers.forEach { action.addRolePermissionOverride(it.toLong(), WRITE, EnumSet.noneOf(Permission::class.java)) }
@@ -210,6 +216,62 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         }
     }
 
+    override suspend fun deleteChannel(id: String) {
+        val channel = guild.getGuildChannelById(id) ?: throw DiscordRefusal("le salon " + id + " n'existe plus")
+        if (channel !is TextChannel && channel !is VoiceChannel) throw DiscordRefusal("le salon " + id + " n'est ni un salon de texte ni un vocal : le bot ne le supprime pas")
+        try {
+            channel.delete().submit().await()
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse de supprimer le salon " + id + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de supprimer le salon " + id)
+        }
+    }
+
+    override suspend fun history(channelId: String, limit: Int): List<ChannelMessage> {
+        try {
+            val newestFirst = messageChannel(channelId).iterableHistory.takeAsync(limit).await()
+            return newestFirst.reversed().map { message ->
+                val names = message.attachments.map { "[" + it.fileName + "]" }
+                ChannelMessage(
+                    authorId = message.author.id,
+                    authorName = message.member?.effectiveName ?: message.author.effectiveName,
+                    text = (listOf(message.contentRaw) + names).filter { it.isNotBlank() }.joinToString(" "),
+                    at = message.timeCreated.toInstant(),
+                )
+            }
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse de lire le salon " + channelId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de lire le salon " + channelId)
+        }
+    }
+
+    override suspend fun moveToVoice(userId: String, channelId: String) {
+        val target = guild.getVoiceChannelById(channelId) ?: throw DiscordRefusal("le vocal " + channelId + " n'existe plus")
+        val member = guild.getMemberById(userId) ?: throw DiscordRefusal("le membre " + userId + " n'est pas en vocal")
+        if (member.voiceState?.inAudioChannel() != true) throw DiscordRefusal("le membre " + userId + " n'est pas en vocal")
+        try {
+            guild.moveVoiceMember(member, target).submit().await()
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse de déplacer le membre " + userId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de déplacer le membre " + userId)
+        }
+    }
+
+    override suspend fun voiceMembers(channelId: String): Int =
+        (guild.getVoiceChannelById(channelId) ?: throw DiscordRefusal("le vocal " + channelId + " n'existe plus")).members.size
+
+    override suspend fun memberName(userId: String): String? {
+        guild.getMemberById(userId)?.let { return it.effectiveName }
+        return try {
+            guild.retrieveMemberById(userId).submit().await().effectiveName
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_MEMBER || e.errorResponse == ErrorResponse.UNKNOWN_USER) null else throw e
+        }
+    }
+
     override suspend fun installCommands(commands: List<CommandSpec>) {
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
     }
@@ -259,6 +321,10 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         /** Combien de membres au plus un message compte : bien au-delà de ce que le serveur aura jamais. */
         const val MAX_REACTORS = 50_000
         val VIEW: EnumSet<Permission> = EnumSet.of(Permission.VIEW_CHANNEL)
+
+        /** Ce qu'un membre nommé par `memberViewers` reçoit : voir et écrire dans un salon, se connecter et parler dans un vocal. */
+        val TEXT_MEMBER: EnumSet<Permission> = EnumSet.of(Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_HISTORY)
+        val VOICE_MEMBER: EnumSet<Permission> = EnumSet.of(Permission.VIEW_CHANNEL, Permission.VOICE_CONNECT, Permission.VOICE_SPEAK)
         val WRITE: EnumSet<Permission> = EnumSet.of(Permission.MESSAGE_SEND, Permission.MESSAGE_SEND_IN_THREADS, Permission.CREATE_PUBLIC_THREADS)
     }
 }

@@ -63,7 +63,8 @@ internal class JdaEvents(
     override fun onMessageReceived(event: MessageReceivedEvent) {
         if (!event.isFromGuild || event.guild.idLong != guildId) return
         val author = event.member?.let(::user) ?: DiscordUser(event.author.id, event.author.effectiveName, event.author.isBot)
-        offer(DiscordEvent.MessagePosted(event.channel.id, event.messageId, author, event.message.contentRaw, event.message.timeCreated.toInstant()))
+        val parent = if (event.isFromThread) event.channel.asThreadChannel().parentChannel.id else null
+        offer(DiscordEvent.MessagePosted(event.channel.id, event.messageId, author, event.message.contentRaw, event.message.timeCreated.toInstant(), parent))
     }
 
     override fun onMessageDelete(event: MessageDeleteEvent) {

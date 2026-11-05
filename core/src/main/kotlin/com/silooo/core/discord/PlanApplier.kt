@@ -56,6 +56,7 @@ class PlanApplier(
                     }
                 }
             }
+            categoryId?.let { report.categoryIds[category.id] = it }
             for (channel in category.salons.filter { it.phase.existsIn(phase) }) {
                 val spec = ChannelSpec(
                     name = channel.discordName,
@@ -129,8 +130,9 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
     /** Les identifiants Discord trouvés ou créés, par identifiant du plan ; ce qui manque (à blanc, échec) n'y est pas. */
     val roleIds = mutableMapOf<String, String>()
     val channelIds = mutableMapOf<String, String>()
+    val categoryIds = mutableMapOf<String, String>()
 
-    val ids: ServerIds get() = ServerIds(roleIds.toMap(), channelIds.toMap())
+    val ids: ServerIds get() = ServerIds(roleIds.toMap(), channelIds.toMap(), categoryIds.toMap())
 
     val nothingToDo: Boolean
         get() = missingRoles.isEmpty() && missingCategories.isEmpty() && missingChannels.isEmpty() &&

@@ -2,8 +2,9 @@ package com.silooo.core.discord
 
 /**
  * Un Discord en mémoire pour les tests : ce que le bot crée s'y retrouve, avec la demande telle qu'il l'a faite,
- * et rien ne s'y efface. [community] faux : les forums et les salons d'annonces sont refusés, comme sur un serveur
- * qui n'est pas en mode Communauté. [refused] : les noms que le serveur refuse de créer, pour isoler un échec.
+ * et rien ne s'y efface, hors les salons que `deleteChannel` supprime. [community] faux : les forums et les salons
+ * d'annonces sont refusés, comme sur un serveur qui n'est pas en mode Communauté. [refused] : les noms que le serveur
+ * refuse de créer, pour isoler un échec.
  */
 class FakeDiscordServer(
     private val community: Boolean = true,
@@ -42,6 +43,22 @@ class FakeDiscordServer(
 
     /** Le refus que le faux Discord oppose à la lecture des réactions, ou rien. */
     var refusedReactors: String? = null
+
+    /** Les salons supprimés par le bot, dans l'ordre ; ils quittent [channels] (les demandes de [channelSpecs] restent). */
+    val deleted = mutableListOf<String>()
+
+    /** Les messages de chaque salon que `history` rend, du plus ancien au plus récent : les tests le remplissent. */
+    val histories = mutableMapOf<String, MutableList<ChannelMessage>>()
+
+    /** Les déplacements demandés au bot : membre et vocal ; [notInVoice] : les membres qui ne sont pas en vocal (le déplacement est refusé). */
+    val moves = mutableListOf<Pair<String, String>>()
+    val notInVoice = mutableSetOf<String>()
+
+    /** Combien de membres sont dans chaque vocal ; un vocal absent compte zéro. */
+    val voiceCounts = mutableMapOf<String, Int>()
+
+    /** Le nom affiché de chaque membre ; un membre absent de la table n'est plus sur le serveur. */
+    val names = mutableMapOf<String, String>()
 
     /** L'accueil guidé tel que le faux Discord le garde ; [onboardingWrites] : chaque envoi, dans l'ordre. */
     var onboarding: OnboardingState = OnboardingState.NONE
@@ -155,6 +172,27 @@ class FakeDiscordServer(
         refusedReactors?.let { throw DiscordRefusal(it) }
         return reactors[Triple(channelId, messageId, emojiName)]?.toSet() ?: emptySet()
     }
+
+    override suspend fun deleteChannel(id: String) {
+        if (channels.none { it.id == id }) throw DiscordRefusal("le salon " + id + " n'existe plus")
+        channels.removeAll { it.id == id }
+        deleted += id
+    }
+
+    override suspend fun history(channelId: String, limit: Int): List<ChannelMessage> {
+        if (channels.none { it.id == channelId }) throw DiscordRefusal("le salon " + channelId + " n'existe plus")
+        return histories[channelId].orEmpty().takeLast(limit)
+    }
+
+    override suspend fun moveToVoice(userId: String, channelId: String) {
+        if (userId in notInVoice) throw DiscordRefusal("le membre " + userId + " n'est pas en vocal")
+        if (channels.none { it.id == channelId }) throw DiscordRefusal("le vocal " + channelId + " n'existe plus")
+        moves += userId to channelId
+    }
+
+    override suspend fun voiceMembers(channelId: String): Int = voiceCounts[channelId] ?: 0
+
+    override suspend fun memberName(userId: String): String? = names[userId]
 
     override suspend fun installCommands(commands: List<CommandSpec>) {
         this.commands = commands

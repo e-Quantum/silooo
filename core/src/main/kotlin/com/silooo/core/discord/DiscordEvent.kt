@@ -22,14 +22,20 @@ sealed interface DiscordEvent {
 
     data class MemberLeft(val userId: String, val at: Instant) : DiscordEvent
 
+    /**
+     * Un message écrit. [parentChannelId] : le forum ou le salon qui porte le fil, quand le message est écrit dans un fil
+     * (un sujet de forum a son propre identifiant) ; `null` hors d'un fil.
+     */
     data class MessagePosted(
         val channelId: String,
         val messageId: String,
         val author: DiscordUser,
         val text: String,
         val at: Instant,
+        val parentChannelId: String? = null,
     ) : DiscordEvent
 
+    /** Un message supprimé, quel qu'en soit l'auteur : Discord ne dit plus rien de lui. */
     data class MessageRemoved(val channelId: String, val messageId: String) : DiscordEvent
 
     /** [emoji] : le caractère d'un emoji de Discord, ou le nom d'un emoji du serveur. */

@@ -132,7 +132,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `SpoilStore` et `JdbcSpoilStore` (`discord_spoils`), `AdmissionStore` et `JdbcAdmissionStore` (`discord_admissions`), `BotJournal` (la ligne dans `#journal-du-bot`), `WelcomeFeature`, `StatusFeature`, `InfoVoiceFeature`, `SpoilFeature`, `AdmissionFeature` et `AnnounceFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `SpoilStore` et `JdbcSpoilStore` (`discord_spoils`), `AdmissionStore` et `JdbcAdmissionStore` (`discord_admissions`), `BotMessageStore` et `JdbcBotMessageStore` (`discord_bot_messages`, la façon commune de retrouver un message à clé du bot après un redémarrage), `TicketStore` et `JdbcTicketStore` (`discord_tickets`), `XpStore` et `JdbcXpStore` (`discord_chat_xp`, `discord_xp_messages`), `GiveawayStore` et `JdbcGiveawayStore` (`discord_giveaways`, `discord_giveaway_entries`, `discord_prizes`), `BotJournal` (la ligne dans `#journal-du-bot`), `WelcomeFeature`, `StatusFeature`, `InfoVoiceFeature`, `SpoilFeature`, `AdmissionFeature`, `AnnounceFeature`, `TicketFeature`, `VoiceRoomFeature`, `XpFeature` et `GiveawayFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
 | `wording/` | Le garde anti-IA des textes : `AntiIa.check(text)` rend les trouvailles, `AntiIa.summary` les met en une phrase ; mêmes règles et mêmes noms que `tools/anti_ia.py`. `/annonce` s'en sert. Il est hors de `discord/` parce que le garde du dépôt relit les chaînes de ce paquet et refuserait les mots bannis que sa liste contient |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
@@ -932,7 +932,10 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   Discord) ou du texte, avec boutons, menu, image ; les formulaires et les commandes ont leurs modèles. `discord/jda/JdaMessages`
   et `JdaEvents` traduisent dans les deux sens. Les chiffres du Discord sont dans `definitions/discord.json`
   (`DiscordDefinitions`, chargé à part du jeu, vérifié contre le plan : rôles et salons cités, niveaux qui montent) ; ses tables
-  sont celles de la migration V10, toutes préfixées `discord_`.
+  sont celles de la migration V10, toutes préfixées `discord_`. `ServerIds` garde aussi les catégories (`categories`, `category(planId)`,
+  remplis par `PlanApplier`) ; `ChannelSpec.memberViewers` ouvre un salon à des membres précis ; `DiscordServer.deleteChannel` ne supprime
+  qu'un salon de texte ou un vocal créé par le bot ; `history` lit les messages d'un salon, `moveToVoice` déplace un membre vers un
+  vocal, `voiceMembers` dit qui s'y trouve et `memberName` rend le nom d'un membre ; `MessagePosted.parentChannelId` donne le forum d'un sujet.
 - **L'accueil guidé.** La clé `accueil` du plan : des questions dont chaque réponse donne un rôle du plan (la plateforme, une
   seule réponse, obligatoire ; les notifications, plusieurs). `OnboardingPlanner` en fait l'état que Discord attend, avec pour
   salons par défaut tous les salons publics de la phase, et compte avant d'envoyer la règle de Discord (7 salons par défaut, dont
@@ -980,6 +983,38 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   et écrit au journal. Un brouillon par membre du staff, en mémoire (un redémarrage le perd), remplacé par le suivant, expiré après
   quinze minutes ; si Discord refuse la publication, le brouillon est remis. L'option « Publier aussi dans les Actus du site » n'est
   pas faite : le site n'a pas encore d'Actus sur `main`.
+- **Les tickets et les vocaux.** Au démarrage, `TicketFeature` retrouve le menu de `#tickets` (clé `tickets-menu`, par `BotMessageStore`
+  sur `discord_bot_messages`, la façon commune de retrouver un message à clé du bot) et le remet à neuf, ou le poste ; il est remis à
+  neuf après chaque choix, parce que Discord garde la sélection affichée. Une question de jeu renvoie vers `#aide` sans ticket ; un autre
+  choix ouvre dans la catégorie Aide un salon `ticket-<sujet>-<n>`, visible du membre, du staff et de la modération, avec le bouton
+  « Fermer le ticket ». Un seul ticket ouvert par membre. Fermer (l'auteur, le staff ou la modération) copie le salon dans
+  `#journal-du-bot`, ligne par ligne et par messages de 2 000 caractères, puis le supprime ; si l'archive ne se lit pas, le salon reste.
+  Un salon supprimé à la main est fermé au démarrage. `TicketStore` (`JdbcTicketStore` sur `discord_tickets`, V10) numérote et garde l'état.
+  `VoiceRoomFeature` fait de « Crée ton vocal » une porte : le membre qui y entre reçoit « Vocal de Nom » dans la catégorie Vocaux et y est
+  déplacé ; il le retrouve s'il l'a déjà ; un vocal créé est supprimé quand il se vide (30 secondes après un déplacement refusé).
+  Au démarrage, les vocaux dont le nom commence par « Vocal », vides et hors plan, sont supprimés ; les occupés sont repris. Le bot a besoin des droits
+  « Gérer les salons », « Déplacer les membres » et « Lire l'historique des messages ».
+- **L'XP de tchat.** `XpFeature` donne 15 à 25 points par message, une fois par minute et par membre, dans les salons de
+  `xp.salons` (`definitions/discord.json`) ; un sujet de forum compte pour son forum (`MessagePosted.parentChannelId`), les bots sont
+  exclus, et un message supprimé (`MessageRemoved`) perd ses points. Le niveau n demande `niveauBase × n + niveauCroissance × n × (n - 1) / 2`
+  points. Aux niveaux 5, 10, 20 et 30, le rôle du plan est donné et celui du palier d'avant retiré, et « passe au niveau N » part dans le
+  salon sans mention ; aux autres niveaux, rien. `/niveau` répond au joueur seul. Le lundi à l'heure du rapport (`rapport`, pas minuit :
+  les messages du lundi matin restent à la semaine), le classement de la semaine est publié dans `#discussion`, puis les points de la
+  semaine sont remis à zéro et purgés ; après un lundi manqué, la publication part au démarrage. `XpStore` (`JdbcXpStore` sur
+  `discord_chat_xp` et `discord_xp_messages`, V10) garde le total, la semaine et les messages comptés. Limite connue : la purge coupe à
+  minuit UTC du lundi, donc un message du lundi avant 9 h supprimé après le rapport retire ses points à la nouvelle semaine.
+- **Les giveaways.** `/giveaway` est réservée au staff : un titre (80 caractères au plus), un lot (cosmétique, Gemmes ou Lingots), sa
+  quantité ou son cosmétique, une durée de 1, 3 ou 7 jours, et `etape`. Un seul par mois (`giveaways.parMois`), sauf `etape` pour une
+  grande étape. `GiveawayFeature` poste la carte dans `#giveaways`, avec le rôle Giveaways mentionné au premier envoi seulement ; c'est
+  un message classique, le conteneur récent de Discord ne se mêlant pas à la mention de rôle. Participer ajoute le membre une fois, les
+  bots sont refusés, la carte suit le nombre de participants. À la date dite (réarmée au démarrage, tout de suite si elle est échue),
+  le tirage écrit le gagnant et le lot en base (`discord_prizes`, `delivered_at` nul) avant tout message ; puis la carte annonce le
+  gagnant, qui est prévenu en privé, et le journal garde les participants. Un refus de Discord fait reprendre les étapes restantes une
+  minute plus tard, 30 fois au plus, sans second tirage. `GiveawayStore` (`JdbcGiveawayStore` sur `discord_giveaways`,
+  `discord_giveaway_entries` et `discord_prizes`, V10) garde les trois. Le lot reste sur l'identifiant Discord : le crédit en jeu viendra
+  par une route du contrat. Limites connues : un giveaway `etape` compte dans le mois (aucune colonne ne le distingue) ; après un
+  redémarrage entre le tirage et les messages, le gagnant et le lot restent en base mais les messages ne sont pas refaits ; pas
+  d'événement du calendrier Discord. Le règlement est en brouillon dans `docs/discord-reglement-giveaways.md`.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
   sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
   (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
@@ -1004,6 +1039,16 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   `discord/BotJournalTest` (la ligne postée, le salon absent, le refus de Discord avalé), `discord/AnnounceTest` (seize cas : l'aperçu,
   les tics refusés, Publier et le journal, la mention absente par défaut ou sans rôle, Annuler, Publier sans brouillon, un brouillon
   par auteur, l'expiration à quinze minutes, le brouillon remplacé, un membre hors staff, les refus, le texte le plus long, le salon
-  absent, la publication refusée qui garde le brouillon), `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
+  absent, la publication refusée qui garde le brouillon), `discord/TicketTest` (dix-neuf cas sur le faux Discord et le faux
+  `InMemoryTicketStore` : le menu posté puis retrouvé et remis à neuf, la question de jeu sans ticket, l'ouverture, un seul ticket par
+  membre, le serveur pas prêt, la fermeture par l'auteur, le staff ou la modération, un tiers refusé, l'archive au journal, l'archive
+  illisible qui garde le salon, le salon supprimé à la main), `discord/VoiceRoomTest` (douze cas : le vocal créé et le membre déplacé, le
+  retour dans le sien, la suppression à la sortie, le déplacement refusé, le nettoyage au démarrage), `discord/PlanCategoryIdsTest` (deux
+  cas : les catégories du plan dans `PlanReport.categoryIds`), `discord/XpTest` (vingt cas : les points par message, une fois par minute,
+  les salons et les forums, les bots, le message supprimé, les niveaux et les rôles de palier, `/niveau`, le rapport du lundi, le lundi
+  manqué), `discord/GiveawayTest` (dix-huit cas : le lancement et ses refus, un par mois, `etape`, Participer, le tirage, le gagnant et le
+  lot écrits avant les messages, la reprise sans second tirage, personne n'a participé), avec `discord/TicketSqlTest`,
+  `discord/BotMessageSqlTest`, `discord/XpSqlTest` et `discord/GiveawaySqlTest` (MariaDB, CI, ignorés sans Docker : les lignes de
+  chaque magasin), `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
   `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).

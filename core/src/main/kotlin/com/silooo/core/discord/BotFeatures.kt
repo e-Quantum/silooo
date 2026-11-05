@@ -21,6 +21,10 @@ object BotFeatures {
             SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),
             AdmissionFeature(context, definitions.admissions, definitions.zone, JdbcAdmissionStore(database), JdbcSiteRegistrationStore(), database, journal),
             AnnounceFeature(context, journal),
+            XpFeature(context, definitions.xp, definitions.report, definitions.zone, JdbcXpStore(database)),
+            GiveawayFeature(context, definitions.giveaways, definitions.zone, JdbcGiveawayStore(database), journal),
+            TicketFeature(context, JdbcTicketStore(database), JdbcBotMessageStore(database), journal, definitions.zone),
+            VoiceRoomFeature(context),
         )
     }
 }
