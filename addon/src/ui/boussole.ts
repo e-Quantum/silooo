@@ -47,6 +47,13 @@ export interface MenuItemDeps<P extends { readonly name: string }, Item extends 
   /** L'identifiant de l'objet qui ouvre le menu. */
   readonly itemId?: string;
   readonly delaySeconds?: number;
+  /**
+   * Vrai tant que le joueur ne doit pas encore recevoir la boussole (son arrivée sur son île, la cinématique) :
+   * la remise attend, par pas de `waitStepSeconds`, au plus `waitMaxSeconds`, puis a lieu quand même.
+   */
+  readonly waitWhile?: (player: P) => boolean;
+  readonly waitStepSeconds?: number;
+  readonly waitMaxSeconds?: number;
 }
 
 export type GiveResult = "given" | "already" | "full" | "noInventory";
@@ -80,7 +87,34 @@ export function registerMenuItem<P extends { readonly name: string }, Item exten
 ): void {
   const itemId = deps.itemId ?? config.ui.menuItem;
   const delaySeconds = deps.delaySeconds ?? config.ui.menuItemDelaySeconds;
+  const waitStepSeconds = deps.waitStepSeconds ?? config.ui.menuItemWaitStepSeconds;
+  const waitMaxSeconds = deps.waitMaxSeconds ?? config.ui.menuItemWaitMaxSeconds;
   const { log } = deps;
+
+  function give(player: P): void {
+    try {
+      const result = giveMenuItem(player, deps);
+      if (result === "noInventory") log.warn(`boussole de ${player.name} : inventaire illisible`);
+    } catch (error) {
+      // Le joueur est parti entre-temps : son objet n'existe plus.
+      log.info(`boussole de ${player.name} : ${describeError(error)}`);
+    }
+  }
+
+  /** Donne la boussole quand le joueur n'est plus occupé, ou quand l'attente est épuisée. */
+  function giveWhenFree(player: P, waitedSeconds: number): void {
+    if (deps.waitWhile?.(player) === true) {
+      if (waitedSeconds < waitMaxSeconds) {
+        deps.scheduler.after(
+          waitStepSeconds,
+          guard(log, "menuItem.wait", () => giveWhenFree(player, waitedSeconds + waitStepSeconds)),
+        );
+        return;
+      }
+      log.warn(`boussole de ${player.name} : toujours occupé après ${waitMaxSeconds} s, boussole donnée quand même`);
+    }
+    give(player);
+  }
 
   world.afterEvents.playerSpawn.subscribe(
     guard(log, "menuItem.spawn", (event) => {
@@ -88,15 +122,7 @@ export function registerMenuItem<P extends { readonly name: string }, Item exten
       const { player } = event;
       deps.scheduler.after(
         delaySeconds,
-        guard(log, "menuItem.give", () => {
-          try {
-            const result = giveMenuItem(player, deps);
-            if (result === "noInventory") log.warn(`boussole de ${player.name} : inventaire illisible`);
-          } catch (error) {
-            // Le joueur est parti entre-temps : son objet n'existe plus.
-            log.info(`boussole de ${player.name} : ${describeError(error)}`);
-          }
-        }),
+        guard(log, "menuItem.give", () => giveWhenFree(player, 0)),
       );
     }),
   );
