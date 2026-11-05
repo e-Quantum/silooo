@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 11 h 28, les écrans du personnel fusionnés (session de direction).
+Dernière mise à jour : 5 novembre 2026, 11 h 47, les incidents et l'électricité fusionnés (session de direction).
 
 ## État
 
@@ -10,8 +10,8 @@ Dernière mise à jour : 5 novembre 2026, 11 h 28, les écrans du personnel fusi
   `X-Silooo-Key`, heartbeat, filet 501, Dockerfile) avec les données dorées du tableur
   (`core/src/test/resources/golden/`), les routes de session (`join`, `leave`, `GET /v1/events`,
   idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 31 opérations) et le moteur
-  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Sept
-  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`, `iles`, `missions`, `personnel`.
+  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Huit
+  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`, `iles`, `missions`, `personnel`, `incidents`.
 - `main` est vert : `tools/verifier.sh` passe sur le PC (tests Gradle compris, tests Docker ignorés) et
   la CI passe (jobs `verifier` avec les deux tests Testcontainers, `migration`, `image`).
 - Sur le VPS : `/var/www/silooo` existe avec un fichier d'environnement posé par Kr. La base `silooo`
@@ -34,7 +34,9 @@ Dernière mise à jour : 5 novembre 2026, 11 h 28, les écrans du personnel fusi
   du jour, embauche, affectation, renvoi, salaires retenus sur le revenu), la commande du jour et le Carnet de
   trouvailles (`todayOrder`, `deliverOrder`, `getFindings`, migration V3) ; côté add-on, l'écran de prestige (avant,
   après), la carte des îles avec la téléportation et les écrans du personnel et de l'agence (932 tests). En cours :
-  les incidents et l'électricité (`claude/phase4-incidents`), l'entreprise partagée (`claude/phase4-partagee`).
+  l'entreprise partagée (`claude/phase4-partagee`), la ville (`claude/phase4-ville`). Les incidents et l'électricité
+  sont sur `main` côté service (ralentissement tiré par créneau, mini-jeu à résoudre, Centrale obligatoire dès
+  l'époque 3) ; l'add-on ne les montre pas encore.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -115,14 +117,15 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [x] silooo-core : `prestigePreview` et `prestige` (PDG seul, 403 `PAS_LE_PDG` ; 409 `SEUIL_NON_ATTEINT` avec les Donar qui manquent ; seuil, Lingots, rendement décroissant et départ de course lus par `EconomyEngine` dans `economie.json` ; partage selon `share_percent`, reste au PDG ; `prestige_history` ; course suivante : époque, étoiles ; Carrière au niveau de départ, autres usines en ruine ; un événement par membre ; règles **à valider par Kr**, `core/README.md` « Le prestige », décision 31)
 - [x] silooo-core : simulateur Kotlin (`core/src/test/.../simulation/`, `GameSimulator`, barrière `ThirteenTargetsTest`) qui rejoue les treize cibles du tableur avec la stratégie du tableur (l'achat qui minimise prix / revenu + prix / gain, attente du prix exact, prestige au seuil) ; cibles et fourchettes dans `golden/simulation.json` ; treize temps dans leur fourchette, égaux au tableur ; `docs/economie.md` « Le simulateur » ; décision 32
 - [x] silooo-core : personnel (`getCandidates`, `hire`, `assignStaff`, `fireStaff` ; `staff/`, `AgencyDraw`, `StaffService`, `StaffRoutes`, `JdbcStaffStore`, sans migration) : cinq candidats du jour tirés d'une suite figée par l'entreprise et la date (pas de tirage payant), raretés `COMMUN`, `RARE`, `EPIQUE` lues dans `definitions/personnel.json` ; prix d'embauche en heures de revenu net du moment ; salaire en pourcent du revenu de l'usine, retenu dans `ratePerHour` (net des salaires, bonus compris) ; postes par niveau d'usine, un chef par usine ; le chef relève le plafond hors ligne de son usine ; seul le PDG renvoie (403 `PAS_LE_PDG`) ; 19 tests SQL ; `core/README.md` et `docs/economie.md` « Le personnel » ; règles, noms et apparences des candidats **à valider par Kr** ; décision 33
-- [ ] silooo-core : incidents (`resolveIncident`) et énergie (`stoppedNoPower`), avec leurs événements
+- [x] silooo-core : incidents (`resolveIncident` ; paquet `incident/` : `IncidentDraw`, `IncidentTicker`, `IncidentService`, `IncidentRoutes`, `JdbcIncidentStore`, sans migration) et énergie (`stoppedNoPower` calculé dans `EngineFigures`) : un minuteur de trente secondes tire, pour les joueurs présents à deux passages de suite, au plus un incident par entreprise et par créneau de `frequence.creneauMinutes`, d'une suite figée par l'entreprise, le jour et le créneau (pas de hasard payant), sorte pondérée de `sortes[]`, ralentissement au régime en ligne seulement ; `resolveIncident` clôt, relance et verse `recompense.minutesDeRevenu` ; événement `INCIDENT` avec sa charge au contrat, `Factory.incidentKind` ; dès `electricite.aPartirDeEpoque`, une usine qui demande du courant s'arrête sans Centrale active, à tous les régimes, sans salaire ; `definitions/incidents.json` et son schéma ; 13 tests SQL ; `core/README.md` et `docs/economie.md` « Les incidents », « L'électricité » ; chiffres et règles **à valider par Kr** ; décision 35
 - [ ] silooo-core : ville (`buyZone`, `placeBuilding`, `upgradeBuilding`) : prix fixes en Lingots de `ville.zonesPrixLingots`, niveau de mairie, bonus des bâtiments seulement une fois chiffrés dans `definitions/`
 - [ ] silooo-core : entreprise partagée (`invite`, `setShares`) : PDG et associés, parts qui font 100, Lingots partagés au prestige
 - [x] silooo-core : commandes du jour (`todayOrder`, `deliverOrder` ; `orders/`, `OrderPlan`, `OrderService`, `OrderRoutes`, `JdbcOrderStore`) et Carnet de trouvailles (`getFindings`, ajoutée au contrat : 31 opérations ; `findings/`, migration `V3__carnet.sql`, table `player_findings`) : ressource du jour par rang du jour UTC, objectif `commandeDuJour.objectifUnites`, prix en minutes de revenu (`minutesDeProductionParUnite`), prime en Lingots par participant à la fin et par trouvaille au premier `collect` qui la sort (`lingotsHorsPrestige.commandeDuJour`, `trouvaille`) ; `core/README.md` « La commande du jour », « Le Carnet de trouvailles », `docs/economie.md` « Les commandes du jour et le Carnet » ; règles **à valider par Kr** ; décision 34
 - [x] add-on : carte et îles (`ui/menu.ts` écran CARTE, formulaire natif sur deux pages, une icône par île, « ????? » pour les usines à découvrir, île principale verrouillée ; `monde/voyage.ts` : téléportation sur l'île choisie, attente de sa pose 10 s au plus) et écran de prestige avant / après (`prestigePreview` relu à chaque ouverture, bouton seulement si le service l'autorise, parts dès deux membres « Ta part » / « Un associé », bulle « Prestige accompli, patron ! » ; textes `PRESTIGE_TEXTES`, `CARTE_TEXTES` et noms d'époque **à valider par Kr**)
 - [x] add-on : écrans du personnel (`ui/personnel.ts`, `ui/ecran.ts` ; tuile Personnel, septième du menu avant Amis ; écrans PERSONNEL (équipe usine par usine, membres sans usine), MEMBRE (affecter, renvoyer en deux appuis), AGENCE et CANDIDAT (cinq candidats du jour relus à l'ouverture, prix et salaire tels que le service les donne, marque « Déjà embauché ») ; `getCandidates`, `hire`, `assignStaff`, `fireStaff` dans `api.ts`, PATCH et DELETE dans `http.ts` sans rejeu ; ligne d'équipe dans la fiche d'usine ; pas de bouton de nouvelle liste contre du Donar ; textes `PERSONNEL_TEXTES`, `AGENCE_TEXTES` et cinq bulles **à valider par Kr**)
 - [ ] add-on : écrans de la ville et de l'entreprise partagée (textes **à valider par Kr**), et l'île principale posée zone par zone quand la mairie les débloque (verrouillée au départ, `docs/game-design.md` : la phase 3 ne la construit pas)
-- [ ] `definitions/` : les chiffres que la phase 4 révèle manquants (bonus des bâtiments, coût de la remise en état, salaires), ajoutés avec leurs schémas et le tableur, jamais dans le code
+- [ ] add-on : incidents et électricité (sorte d'incident lue dans `Factory.incidentKind` sur la fiche d'usine et la carte, mini-jeu de réparation puis `resolveIncident`, état « sans courant », événements `INCIDENT` ; textes **à valider par Kr**)
+- [ ] `definitions/` : les chiffres que la phase 4 révèle manquants, ajoutés avec leurs schémas et le tableur, jamais dans le code : salaires (`personnel.json`, fait), incidents et électricité (`incidents.json`, fait), bonus des bâtiments (`ville.json`, `claude/phase4-ville` en cours), coût de la remise en état (Kr)
 
 ## À faire par Kr
 
@@ -134,7 +137,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
 - [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions ; et pour le prestige et la carte : la téléportation vers une zone déchargée, le rendu des formulaires Carte (deux pages) et Prestige, les repères `[P]` et `[C]` ; et pour le personnel : les PATCH et DELETE par `http.request` (DELETE sans corps), la longueur des formulaires PERSONNEL et AGENCE, le rendu des repères `[M]` et `[R]` et des couleurs de rareté
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
-- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques ; l'add-on ne branche aucun événement de prestige (le service n'en publie qu'un `ANNONCE` par membre, `payload` non décrit) ; `deliverOrder` sur une commande déjà terminée rend 200 sans effet (pas de code de refus : un nouveau code casserait les tests de l'add-on) ; `getFindings` n'était pas au contrat de départ (31 opérations) ; pour le personnel vu de l'add-on : pas de capacité de postes dans `CompanyState.factories[]` (l'add-on ne sait pas combien de places restent), pas de désaffectation ni de promotion en chef, pas de nom lisible pour une apparence (`skinId` montré brut), le rôle du joueur (PDG ou associé) n'est pas dans l'état (l'add-on montre Renvoyer à tous et laisse le service refuser)
+- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques ; l'add-on ne branche aucun événement de prestige (le service n'en publie qu'un `ANNONCE` par membre, `payload` non décrit) ; `deliverOrder` sur une commande déjà terminée rend 200 sans effet (pas de code de refus : un nouveau code casserait les tests de l'add-on) ; `getFindings` n'était pas au contrat de départ (31 opérations) ; pour le personnel vu de l'add-on : pas de capacité de postes dans `CompanyState.factories[]` (l'add-on ne sait pas combien de places restent), pas de désaffectation ni de promotion en chef, pas de nom lisible pour une apparence (`skinId` montré brut), le rôle du joueur (PDG ou associé) n'est pas dans l'état (l'add-on montre Renvoyer à tous et laisse le service refuser) ; `resolveIncident` sur un incident déjà clos rend 200 sans effet (pas de code `INCIDENT_CLOS`, il aurait touché l'add-on) ; l'add-on ignore encore `Factory.incidentKind` et les événements `INCIDENT` ; pas d'alerte Discord quand le courant manque (`docs/game-design.md`, ligne 204)
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`). **Le simulateur montre que ce trou compte** : avec une remise en état gratuite, la Scierie et la Mine profonde tombent à 0,08 h, le prestige 2 à 20,9 h, le prestige 3 à 48,5 h, la première étoile à 17,5 h, tous hors cible ; le tableur suppose un rachat payant. Deux cibles ont peu de marge (première amélioration : 13 s ; Mine profonde : 1 min)
 - [ ] La clé `decouverte` de `usines.json` (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`) n'est pas lue par le service : rien ne révèle une usine, rien ne la rachète (pas de route). `EconomyEngine.isDiscovered` la lit maintenant (`apres-<usine>` = usine remise en état, à valider) ; la route de découverte et de rachat reste à écrire une fois le coût fixé
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
@@ -300,6 +303,16 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     primaire de `player_findings` est le garde-fou) ; livrer une commande terminée ne fait rien et rend 200. Les
     commandes lisent l'horloge de `Dependencies.clock`. V3 pour le Carnet, V2 inutilisée, prochaine migration V4.
     À relire par Kr.
+35. **Les incidents se tirent sans hasard payant, par créneau, en ligne seulement ; l'électricité agit partout.**
+    Tranché par la tranche de service, détaillé dans `core/README.md` et `docs/economie.md` (« Les incidents »,
+    « L'électricité ») : un minuteur de trente secondes du service regarde les joueurs présents à deux passages de
+    suite ; pour chaque entreprise et chaque créneau de `frequence.creneauMinutes`, un tirage figé par l'entreprise, le
+    jour et le créneau (SplitMix64, rien à acheter) décide d'au plus un incident, d'une sorte pondérée (`sortes[]`), qui
+    ralentit l'usine tant qu'il est ouvert et seulement au régime en ligne ; `resolveIncident` (le mini-jeu réussi) le
+    clôt et verse `recompense.minutesDeRevenu` de revenu de l'usine ; un incident déjà clos rend 200 sans effet. Dès
+    l'époque `electricite.aPartirDeEpoque`, une usine qui demande du courant s'arrête (`stoppedNoPower`) sans Centrale
+    active, à tous les régimes, et ne coûte alors pas de salaire. Pas de migration : V4 reste un trou, V5 et V6 sont
+    réservées à l'entreprise partagée et à la ville. À relire par Kr.
 
 ## À valider par Kr
 
@@ -348,6 +361,10 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   par `design/README.md`) ; les couleurs de rareté (§7, §9, §e) et les repères `[M]`, `[R]`. Choix d'écran : Personnel
   est la septième tuile, avant Amis ; l'Agence s'ouvre depuis PERSONNEL ; seules les équipes habitées sont listées ;
   le renvoi demande deux appuis ; l'apparence s'affiche par son identifiant brut.
+- Les chiffres de `definitions/incidents.json` : un créneau de 30 min avec 20 % de chance d'incident par entreprise,
+  trois sortes (incendie, ralentissement 0,5, poids 1 ; panne, 0,6, poids 2 ; courroie, 0,7, poids 2), récompense de
+  10 minutes de revenu de l'usine, électricité obligatoire dès l'époque 3 avec la Centrale (`usineCentrale`) ; et les
+  règles de la décision 35.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -536,3 +553,12 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   partagée côté service (`claude/phase4-partagee`, paquet `members/`, `invite` et `setShares`). Numéros de migration :
   V4 réservée aux incidents, V5 à l'entreprise partagée, V2 trou volontaire. Vérifier : `git log --oneline -3
   origin/main`, `cd addon && npm test`.
+- **5 novembre 2026, 11 h 47 : direction, les incidents et l'électricité fusionnés ; ville lancée.**
+  `claude/phase4-incidents` en avance rapide (`b3253db` : paquet `incident/` avec `IncidentDraw`, `IncidentTicker`,
+  `IncidentService`, `IncidentRoutes`, `definitions/incidents.json` et son schéma, `Factory.incidentKind` et la charge
+  de l'événement `INCIDENT` au contrat, 13 tests SQL en CI, pas de migration). Relu : tirage figé par l'entreprise, le
+  jour et le créneau (pas de hasard payant), ralentissement ajouté au moteur sans changer un calcul sans incident
+  (treize cibles vertes), tests de contrat réécrits avec les incidents sans rien retirer, le lecteur de l'add-on
+  ignore les champs inconnus. Décision 35. Lancée vers 11 h 35 : la ville côté service (`claude/phase4-ville`,
+  paquet `city/`, `definitions/ville.json`, V6 si besoin). Vérifier : `git log --oneline -3 origin/main`,
+  `cd core && ./gradlew test --tests '*Incident*'`.
