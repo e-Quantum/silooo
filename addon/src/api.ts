@@ -5,16 +5,22 @@ import { describeError } from "./runtime";
 import type { ApiResult, CoreClient } from "./http";
 import {
   actionBody,
+  agencyPath,
+  assignStaffBody,
   buyLevelsBody,
   collectPath,
   companyPath,
   eventsUrl,
+  fireStaffPath,
   heartbeatBody,
+  hireBody,
+  hirePath,
   isRestoreStep,
   joinBody,
   leaveBody,
   levelsPath,
   missionsPath,
+  parseCandidates,
   parseCollectResponse,
   parseCompanyState,
   parseCompanyUpdated,
@@ -27,8 +33,10 @@ import {
   prestigePreviewPath,
   restorePath,
   restoreStepBody,
+  staffPath,
   type ActionBase,
   type BuyAmount,
+  type Candidate,
   type CollectResponse,
   type CompanyState,
   type CompanyUpdated,
@@ -63,6 +71,14 @@ export interface CoreApi {
   prestigePreview(companyId: number): Promise<ApiResult<PrestigePreview>>;
   /** POST /v1/companies/{companyId}/prestige (prestige), 200 CompanyUpdated, 403 PAS_LE_PDG ou 409 SEUIL_NON_ATTEINT. */
   prestige(companyId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
+  /** GET /v1/companies/{companyId}/agency (getCandidates), 200 : les candidats du jour. */
+  getCandidates(companyId: number): Promise<ApiResult<Candidate[]>>;
+  /** POST /v1/companies/{companyId}/agency/{slot}/hire (hire), 200 CompanyUpdated ou 409 Refused. Sans usine, le candidat reste sans poste. */
+  hire(companyId: number, slot: number, action: ActionBase, factoryId?: string): Promise<ApiResult<CompanyUpdated>>;
+  /** PATCH /v1/companies/{companyId}/staff/{staffId} (assignStaff), 200 CompanyUpdated ou 409 Refused. */
+  assignStaff(companyId: number, staffId: number, action: ActionBase, factoryId: string): Promise<ApiResult<CompanyUpdated>>;
+  /** DELETE /v1/companies/{companyId}/staff/{staffId} (fireStaff), 200 CompanyUpdated, 403 PAS_LE_PDG ou 409 Refused. */
+  fireStaff(companyId: number, staffId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -143,6 +159,28 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => prestigePath(companyId));
       if ("failure" in target) return target.failure;
       return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
+    },
+    async getCandidates(companyId) {
+      const target = pathOrError(() => agencyPath(companyId));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parseCandidates);
+    },
+    async hire(companyId, slot, action, factoryId) {
+      const target = pathOrError(() => hirePath(companyId, slot));
+      if ("failure" in target) return target.failure;
+      if (factoryId === "") return invalidArgument("factoryId vide");
+      return readBody(await client.post(target.path, hireBody(action, factoryId)), parseCompanyUpdated);
+    },
+    async assignStaff(companyId, staffId, action, factoryId) {
+      const target = pathOrError(() => staffPath(companyId, staffId));
+      if ("failure" in target) return target.failure;
+      if (factoryId === "") return invalidArgument("factoryId vide");
+      return readBody(await client.patch(target.path, assignStaffBody(action, factoryId)), parseCompanyUpdated);
+    },
+    async fireStaff(companyId, staffId, action) {
+      const target = pathOrError(() => fireStaffPath(companyId, staffId, action));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.delete(target.path), parseCompanyUpdated);
     },
   };
 }

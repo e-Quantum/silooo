@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import {
   actionBody,
+  agencyPath,
+  assignStaffBody,
   BUY_AMOUNTS,
   buyLevelsBody,
   collectPath,
@@ -13,14 +15,18 @@ import {
   EVENTS_LIMIT_MAX,
   EVENTS_LIMIT_MIN,
   eventsUrl,
+  fireStaffPath,
   GAME_EVENT_KINDS,
   heartbeatBody,
+  hireBody,
+  hirePath,
   isRestoreStep,
   joinBody,
   leaveBody,
   levelsPath,
   MISSIONS_PATH,
   missionsPath,
+  parseCandidates,
   parseCollectResponse,
   parseCompanyState,
   parseCompanyUpdated,
@@ -37,6 +43,12 @@ import {
   RESTORE_STEP_MIN,
   restorePath,
   restoreStepBody,
+  SLOT_MAX,
+  SLOT_MIN,
+  STAFF_PATHS,
+  STAFF_RARITIES,
+  STAFF_ROLES,
+  staffPath,
 } from "../src/protocol";
 import { balances, companyState, factory, joinResponse } from "./helpers";
 
@@ -683,5 +695,296 @@ describe("accord avec api/silooo-core.openapi.yaml, prestige", () => {
     const ligne = yaml.slice(yaml.indexOf("next:", debut), yaml.indexOf("\n", yaml.indexOf("next:", debut)));
     const valeurs = ligne.slice(ligne.indexOf("[") + 1, ligne.indexOf("]")).split(",").map((mot) => mot.trim());
     assert.deepEqual([...PRESTIGE_NEXT], valeurs);
+  });
+});
+
+describe("le personnel : chemins, corps et lecture", () => {
+  const action = { requestId: "0197f2a0-0000-7000-8000-000000000001", actor: "9007199254740993123" };
+
+  it("les chemins remplacent companyId, slot et staffId", () => {
+    assert.equal(agencyPath(7), "/v1/companies/7/agency");
+    assert.equal(hirePath(7, 3), "/v1/companies/7/agency/3/hire");
+    assert.equal(staffPath(7, 11), "/v1/companies/7/staff/11");
+  });
+
+  it("une place hors de 1 à 5 lève une erreur : rien ne part au service", () => {
+    for (const slot of [0, 6, 1.5, Number.NaN, -1]) {
+      assert.throws(() => hirePath(7, slot), RangeError, `place ${slot}`);
+    }
+    assert.equal(hirePath(7, SLOT_MIN), "/v1/companies/7/agency/1/hire");
+    assert.equal(hirePath(7, SLOT_MAX), "/v1/companies/7/agency/5/hire");
+  });
+
+  it("un staffId ou un identifiant d'entreprise illisible lève une erreur", () => {
+    for (const id of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.throws(() => staffPath(7, id), RangeError);
+      assert.throws(() => fireStaffPath(7, id, action), RangeError);
+    }
+    assert.throws(() => agencyPath(-1), RangeError);
+    assert.throws(() => hirePath(Number.NaN, 1), RangeError);
+    assert.throws(() => staffPath(1.5, 11), RangeError);
+  });
+
+  it("fireStaffPath porte requestId et actor dans la requête, sans corps", () => {
+    assert.equal(
+      fireStaffPath(7, 11, action),
+      "/v1/companies/7/staff/11?requestId=0197f2a0-0000-7000-8000-000000000001&actor=9007199254740993123",
+    );
+  });
+
+  it("fireStaffPath encode le requestId et refuse un acteur qui n'est pas un XUID", () => {
+    assert.match(fireStaffPath(7, 11, { requestId: "a b&c", actor: "42" }), /requestId=a%20b%26c&actor=42$/);
+    for (const actor of ["", "abc", "4 2", "42&x=1", "-5"]) {
+      assert.throws(() => fireStaffPath(7, 11, { requestId: "r", actor }), RangeError, `acteur « ${actor} »`);
+    }
+  });
+
+  it("hireBody : sans usine, la clé factoryId n'existe pas ; avec usine, elle part telle quelle", () => {
+    const sans = hireBody(action);
+    assert.deepEqual(sans, action);
+    assert.equal("factoryId" in sans, false);
+    assert.deepEqual(hireBody(action, "scierie"), { ...action, factoryId: "scierie" });
+  });
+
+  it("assignStaffBody porte toujours l'usine, et l'acteur reste une chaîne", () => {
+    const body = assignStaffBody(action, "carriere");
+    assert.deepEqual(body, { ...action, factoryId: "carriere" });
+    assert.equal(JSON.stringify(body).includes('"actor":"9007199254740993123"'), true);
+  });
+
+  const libre = {
+    slot: 1,
+    name: "Basile",
+    skinId: "ouvrier-casque",
+    role: "SALARIE",
+    rarity: "COMMUN",
+    bonusPercent: 10,
+    salaryPercent: 2.5,
+    hireCost: 4_800,
+  };
+  const embauche = {
+    slot: 2,
+    staffId: 11,
+    name: "Adèle",
+    skinId: "ouvriere-gilet",
+    role: "CHEF",
+    rarity: "RARE",
+    bonusPercent: 25,
+    salaryPercent: 4,
+    salaryPerHour: 360,
+    factoryId: "carriere",
+  };
+
+  it("parseCandidates lit la liste telle que le service la donne, dans son ordre", () => {
+    const parsed = parseCandidates([libre, embauche]);
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, [libre, embauche]);
+  });
+
+  it("une liste vide est lue : l'add-on ne fixe pas le nombre de candidats", () => {
+    const parsed = parseCandidates([]);
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value, []);
+  });
+
+  it("un candidat libre n'a ni staffId ni usine ; un facultatif absent reste absent", () => {
+    const parsed = parseCandidates([{ slot: 3, name: "Zoé", skinId: "x", role: "DIRECTEUR", rarity: "EPIQUE", bonusPercent: 40 }]);
+    assert.ok(parsed.ok);
+    const [candidat] = parsed.value;
+    for (const cle of ["staffId", "salaryPercent", "salaryPerHour", "hireCost", "factoryId"]) {
+      assert.equal(cle in (candidat ?? {}), false, cle);
+    }
+  });
+
+  it("factoryId nul est lu comme nul : le membre est sans usine", () => {
+    const parsed = parseCandidates([{ ...embauche, factoryId: null }]);
+    assert.ok(parsed.ok);
+    assert.equal(parsed.value[0]?.factoryId, null);
+  });
+
+  it("chaque rôle et chaque rareté du contrat est lu", () => {
+    for (const role of STAFF_ROLES) {
+      for (const rarity of STAFF_RARITIES) {
+        const parsed = parseCandidates([{ ...libre, role, rarity }]);
+        assert.ok(parsed.ok, `${role} ${rarity}`);
+      }
+    }
+  });
+
+  it("refuse un rôle ou une rareté hors contrat", () => {
+    assert.equal(parseCandidates([{ ...libre, role: "PATRON" }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, rarity: "LEGENDAIRE" }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, rarity: "commun" }]).ok, false);
+  });
+
+  it("refuse un candidat sans place, ou avec une place hors de 1 à 5", () => {
+    const { slot: _omise, ...sansPlace } = libre;
+    assert.equal(parseCandidates([sansPlace]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, slot: 0 }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, slot: 6 }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, slot: 1.5 }]).ok, false);
+  });
+
+  it("refuse une clé obligatoire absente ou mal typée", () => {
+    for (const cle of ["name", "skinId", "role", "rarity", "bonusPercent"]) {
+      const sans: Record<string, unknown> = { ...libre };
+      delete sans[cle];
+      assert.equal(parseCandidates([sans]).ok, false, `sans ${cle}`);
+    }
+    assert.equal(parseCandidates([{ ...libre, bonusPercent: "10" }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, hireCost: Number.NaN }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, salaryPerHour: "180" }]).ok, false);
+    assert.equal(parseCandidates([{ ...libre, factoryId: 4 }]).ok, false);
+  });
+
+  it("refuse ce qui n'est pas une liste de candidats", () => {
+    for (const corps of [null, {}, "x", 4, [null], [4], [[]]]) {
+      assert.equal(parseCandidates(corps).ok, false);
+    }
+  });
+
+  it("dit quel candidat est faux", () => {
+    const parsed = parseCandidates([libre, { ...libre, slot: 2, rarity: "MYTHIQUE" }]);
+    assert.equal(parsed.ok, false);
+    if (!parsed.ok) assert.match(parsed.problem, /agence\[1\]\.rarity/);
+  });
+
+  const base = {
+    companyId: 7,
+    name: "Les Carrières",
+    era: 1,
+    stars: 0,
+    courseNumber: 1,
+    donar: 10,
+    donarEarned: 10,
+    ratePerHour: 3_600,
+    multiplier: 1,
+    threshold: 1_000,
+    factories: [],
+    version: 3,
+  };
+
+  it("CompanyState.staff est facultatif : absent, il reste absent", () => {
+    const parsed = parseCompanyState(base);
+    assert.ok(parsed.ok);
+    assert.equal("staff" in parsed.value, false);
+  });
+
+  it("CompanyState.staff est lu membre par membre, avec son staffId", () => {
+    const membre = { ...embauche };
+    delete (membre as Record<string, unknown>)["slot"];
+    const parsed = parseCompanyState({ ...base, staff: [membre] });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value.staff, [membre]);
+  });
+
+  it("un membre du personnel sans staffId est refusé", () => {
+    const { staffId: _omis, ...sansId } = embauche;
+    const parsed = parseCompanyState({ ...base, staff: [sansId] });
+    assert.equal(parsed.ok, false);
+    if (!parsed.ok) assert.match(parsed.problem, /staff\[0\]\.staffId/);
+  });
+
+  it("un membre au rôle, à la rareté ou au staffId hors contrat est refusé", () => {
+    assert.equal(parseCompanyState({ ...base, staff: [{ ...embauche, role: "PATRON" }] }).ok, false);
+    assert.equal(parseCompanyState({ ...base, staff: [{ ...embauche, rarity: "ORDINAIRE" }] }).ok, false);
+    assert.equal(parseCompanyState({ ...base, staff: [{ ...embauche, staffId: -1 }] }).ok, false);
+    assert.equal(parseCompanyState({ ...base, staff: [{ ...embauche, staffId: "11" }] }).ok, false);
+    assert.equal(parseCompanyState({ ...base, staff: {} }).ok, false);
+  });
+
+  it("l'état d'une entreprise sans personnel donne une liste vide, lue telle quelle", () => {
+    const parsed = parseCompanyState({ ...base, staff: [] });
+    assert.ok(parsed.ok);
+    assert.deepEqual(parsed.value.staff, []);
+  });
+});
+
+/** Le contrat est dans l'OpenAPI : si un chemin, un verbe ou une énumération du personnel dérive, ces tests échouent. */
+describe("accord avec api/silooo-core.openapi.yaml, personnel", () => {
+  const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+
+  function blocOf(chemin: string): string {
+    const debut = yaml.indexOf(`\n  ${chemin}:`);
+    assert.notEqual(debut, -1, `${chemin} absent de l'OpenAPI`);
+    const fin = yaml.indexOf("\n  /v1/", debut + 1);
+    return yaml.slice(debut, fin === -1 ? undefined : fin);
+  }
+
+  function enumOf(champ: string): string[] {
+    const debut = yaml.indexOf("    Staff:\n");
+    assert.notEqual(debut, -1);
+    const ligne = yaml.slice(yaml.indexOf(`${champ}:`, debut), yaml.indexOf("\n", yaml.indexOf(`${champ}:`, debut)));
+    return ligne
+      .slice(ligne.indexOf("enum: [") + "enum: [".length, ligne.indexOf("]"))
+      .split(",")
+      .map((mot) => mot.trim());
+  }
+
+  it("les gabarits des chemins sont ceux du contrat", () => {
+    assert.ok(yaml.includes(`\n  ${STAFF_PATHS.agency}:`));
+    assert.ok(yaml.includes(`\n  ${STAFF_PATHS.hire}:`));
+    assert.ok(yaml.includes(`\n  ${STAFF_PATHS.staff}:`));
+  });
+
+  it("getCandidates est un GET, hire un POST, assignStaff un PATCH, fireStaff un DELETE", () => {
+    const agence = blocOf(STAFF_PATHS.agency);
+    assert.match(agence, /\n {4}get:\n/);
+    assert.match(agence, /operationId: getCandidates/);
+    const embauche = blocOf(STAFF_PATHS.hire);
+    assert.match(embauche, /\n {4}post:\n/);
+    assert.match(embauche, /operationId: hire\n/);
+    assert.match(embauche, /'409': \{ \$ref: '#\/components\/responses\/Refused' \}/);
+    const membre = blocOf(STAFF_PATHS.staff);
+    assert.match(membre, /\n {4}patch:\n/);
+    assert.match(membre, /operationId: assignStaff/);
+    assert.match(membre, /\n {4}delete:\n/);
+    assert.match(membre, /operationId: fireStaff/);
+  });
+
+  it("le renvoi (DELETE) refuse en 403 et en 409 et porte requestId et acteur dans la requête, pas dans un corps", () => {
+    const membre = blocOf(STAFF_PATHS.staff);
+    const suppression = membre.slice(membre.indexOf("\n    delete:\n"));
+    assert.match(suppression, /'403': \{ \$ref: '#\/components\/responses\/Refused' \}/);
+    assert.match(suppression, /'409': \{ \$ref: '#\/components\/responses\/Refused' \}/);
+    assert.match(suppression, /parameters\/ActorXuid/);
+    assert.match(suppression, /parameters\/RequestId/);
+    assert.doesNotMatch(suppression, /requestBody/);
+  });
+
+  it("l'affectation exige factoryId ; l'embauche le laisse facultatif", () => {
+    const membre = blocOf(STAFF_PATHS.staff);
+    const affectation = membre.slice(membre.indexOf("\n    patch:\n"), membre.indexOf("\n    delete:\n"));
+    assert.match(affectation, /required: \[factoryId\]/);
+    const embauche = blocOf(STAFF_PATHS.hire);
+    assert.doesNotMatch(embauche, /required: \[factoryId\]/);
+    assert.match(embauche, /minimum: 1, maximum: 5/);
+  });
+
+  it("les rôles et les raretés lus sont ceux du contrat, ni plus ni moins", () => {
+    assert.deepEqual([...STAFF_ROLES], enumOf("role"));
+    assert.deepEqual([...STAFF_RARITIES], enumOf("rarity"));
+  });
+
+  it("Staff : les clés obligatoires sont lues et exigées", () => {
+    const debut = yaml.indexOf("    Staff:\n");
+    const ouvre = yaml.indexOf("required: [", debut);
+    const requises = yaml
+      .slice(ouvre + "required: [".length, yaml.indexOf("]", ouvre))
+      .split(",")
+      .map((mot) => mot.trim());
+    assert.deepEqual(requises, ["name", "role", "rarity", "bonusPercent", "skinId"]);
+    const modele: Record<string, unknown> = { slot: 1, name: "A", skinId: "s", role: "SALARIE", rarity: "COMMUN", bonusPercent: 1 };
+    for (const cle of requises) {
+      const sans = { ...modele };
+      delete sans[cle];
+      assert.equal(parseCandidates([sans]).ok, false, `la lecture accepte un Staff sans « ${cle} »`);
+    }
+  });
+
+  it("le contrat ne promet ni nouvelle liste ni tirage payant", () => {
+    const agence = blocOf(STAFF_PATHS.agency);
+    assert.match(agence, /ni nouvelle liste contre du Donar/);
+    assert.doesNotMatch(yaml, /operationId: (rerollCandidates|refreshAgency|newCandidates)/);
   });
 });

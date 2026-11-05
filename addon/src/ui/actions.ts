@@ -1,6 +1,6 @@
-// Les quatre actions que les écrans peuvent demander au service : encaisser, monter une usine, avancer sa remise
-// en état, faire le prestige. Chacune envoie un `requestId` neuf (UUID) et l'identifiant du joueur (`actor`), range
-// la réponse dans le ViewStore, et rend un résultat que le menu transforme en bulle d'Oooscar.
+// Les actions que les écrans peuvent demander au service : encaisser, monter une usine, avancer sa remise en état,
+// faire le prestige, embaucher, affecter et renvoyer. Chacune envoie un `requestId` neuf (UUID) et l'identifiant du
+// joueur (`actor`), range la réponse dans le ViewStore, et rend un résultat que le menu transforme en bulle d'Oooscar.
 //
 // Sur `CONFLIT_REESSAYER` (le verrou optimiste du service a bougé), on recharge l'état avec getCompany puis on
 // rejoue l'action UNE fois, avec le même `requestId` : le service ne garde pas ce refus, et le même identifiant
@@ -8,15 +8,15 @@
 //
 // Un seul appel à la fois par joueur : un doigt qui appuie deux fois ne paie pas deux fois.
 //
-// L'aperçu du prestige n'est pas une action : une lecture, sans identifiant de requête ni verrou, qui ne change rien
-// chez le service ni dans la vue du joueur.
+// L'aperçu du prestige et les candidats du jour ne sont pas des actions : des lectures, sans identifiant de requête
+// ni verrou, qui ne changent rien chez le service ni dans la vue du joueur.
 //
 // Après un encaissement réussi, `afterCollect` est appelé : c'est le moment où le service a pu faire avancer la
 // mission en cours (ui/missions.ts relit alors les missions). Ce qu'il rend ne change rien au résultat de l'action.
 
 import type { CoreApi } from "../api";
 import { describeFailure, type ApiResult } from "../http";
-import type { ActionBase, BuyAmount, PrestigePreview, Xuid } from "../protocol";
+import type { ActionBase, BuyAmount, Candidate, PrestigePreview, Xuid } from "../protocol";
 import { describeError, type Logger } from "../runtime";
 import type { ViewStore, ViewUpdate } from "./etat";
 
@@ -29,6 +29,10 @@ export type ActionOutcome =
   | { readonly kind: "stepDone" }
   /** Le prestige est fait : la vue du joueur est celle de la course suivante. */
   | { readonly kind: "prestiged" }
+  /** Un candidat est embauché : la vue du joueur a son équipe à jour et son Donar débité. */
+  | { readonly kind: "hired" }
+  | { readonly kind: "assigned" }
+  | { readonly kind: "fired" }
   | { readonly kind: "refused"; readonly reason: string; readonly missing?: number }
   | { readonly kind: "failed"; readonly failure: "network" | "error" | "unavailable"; readonly reason: string }
   /** Une action du même joueur est encore en cours : celle-ci est ignorée. */
@@ -39,6 +43,9 @@ type FailedOutcome = Extract<ActionOutcome, { readonly kind: "failed" }>;
 /** Ce que rend la lecture de l'aperçu du prestige : l'aperçu du service, ou l'échec technique. */
 export type PreviewOutcome = { readonly kind: "preview"; readonly preview: PrestigePreview } | FailedOutcome;
 
+/** Ce que rend la lecture des candidats du jour : la liste du service, ou l'échec technique. */
+export type CandidatesOutcome = { readonly kind: "candidates"; readonly candidates: readonly Candidate[] } | FailedOutcome;
+
 export interface Actions {
   collect(xuid: Xuid): Promise<ActionOutcome>;
   buyLevels(xuid: Xuid, factoryId: string, amount: BuyAmount): Promise<ActionOutcome>;
@@ -47,10 +54,21 @@ export interface Actions {
   prestige(xuid: Xuid): Promise<ActionOutcome>;
   /** Lit ce que rapporterait un prestige maintenant (GET prestigePreview). */
   preview(xuid: Xuid): Promise<PreviewOutcome>;
+  /** Embauche le candidat de la place `slot`, dans une usine ou, sans `factoryId`, sans usine. Le service fixe le prix et refuse si le Donar manque. */
+  hire(xuid: Xuid, slot: number, factoryId?: string): Promise<ActionOutcome>;
+  /** Change l'usine d'un membre du personnel. Le service refuse si l'usine n'a plus de poste libre. */
+  assignStaff(xuid: Xuid, staffId: number, factoryId: string): Promise<ActionOutcome>;
+  /** Renvoie un membre du personnel. Le service refuse si le joueur n'est pas le PDG. */
+  fireStaff(xuid: Xuid, staffId: number): Promise<ActionOutcome>;
+  /** Lit les candidats du jour (GET getCandidates), à chaque ouverture de l'agence. */
+  candidates(xuid: Xuid): Promise<CandidatesOutcome>;
 }
 
 export interface ActionsDeps {
-  readonly api: Pick<CoreApi, "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview">;
+  readonly api: Pick<
+    CoreApi,
+    "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview" | "getCandidates" | "hire" | "assignStaff" | "fireStaff"
+  >;
   readonly views: ViewStore;
   /** Un UUID neuf à chaque appel (runtime.ts, createRequestIdGenerator). */
   readonly newRequestId: () => string;
@@ -116,7 +134,8 @@ export function createActions(deps: ActionsDeps): Actions {
 
   /**
    * Un échec technique : journalisé, rendu sans détail. Les refus du jeu des actions ne passent pas ici ; seul un
-   * refus de getCompany ou de prestigePreview (le contrat n'en prévoit pas) y arrive, et il est traité comme une erreur du service.
+   * refus de getCompany, de prestigePreview ou de getCandidates (le contrat n'en prévoit pas) y arrive, et il est
+   * traité comme une erreur du service.
    */
   function failure(label: string, result: Exclude<ApiResult<unknown>, { kind: "ok" }>): FailedOutcome {
     log.warn(`${label} : ${describeFailure(result)}`);
@@ -162,6 +181,31 @@ export function createActions(deps: ActionsDeps): Actions {
       const result = await api.prestigePreview(view.state.companyId);
       if (result.kind === "ok") return { kind: "preview", preview: result.body };
       return failure("prestigePreview", result);
+    },
+    hire: (xuid, slot, factoryId) =>
+      run(xuid, {
+        label: "hire",
+        send: (companyId, action) => api.hire(companyId, slot, action, factoryId),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "hired" } }),
+      }),
+    assignStaff: (xuid, staffId, factoryId) =>
+      run(xuid, {
+        label: "assignStaff",
+        send: (companyId, action) => api.assignStaff(companyId, staffId, action, factoryId),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "assigned" } }),
+      }),
+    fireStaff: (xuid, staffId) =>
+      run(xuid, {
+        label: "fireStaff",
+        send: (companyId, action) => api.fireStaff(companyId, staffId, action),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "fired" } }),
+      }),
+    candidates: async (xuid) => {
+      const view = views.get(xuid);
+      if (view === undefined) return { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" };
+      const result = await api.getCandidates(view.state.companyId);
+      if (result.kind === "ok") return { kind: "candidates", candidates: result.body };
+      return failure("getCandidates", result);
     },
   };
 }

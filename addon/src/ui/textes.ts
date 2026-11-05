@@ -9,7 +9,7 @@
 // tools/anti_ia.py lit les chaînes de ce fichier comme celles de tout addon/src/**/*.ts.
 
 import type { FactoryId, MissionId } from "../generated/definitions";
-import type { BuyAmount, RefusalReason } from "../protocol";
+import type { BuyAmount, RefusalReason, StaffRarity, StaffRole } from "../protocol";
 import { COLOR, EXPRESSION_MARK, type Expression } from "./apparence";
 import { formatAmount } from "./nombres";
 import type { FactoryStatus } from "./usines";
@@ -95,6 +95,16 @@ export const BULLES = {
   ilePasPrete: say("oups", "L'île n'est pas encore prête."),
   /** La fin d'une mission dont cet add-on n'a pas les textes. */
   missionInconnue: say("joie", "Bien joué, patron !"),
+  /** Un candidat de l'agence est embauché. */
+  recrue: say("joie", "Nouvelle recrue embauchée !"),
+  /** Un membre du personnel a changé d'usine. */
+  affectation: say("joie", "Affectation faite."),
+  /** Un membre du personnel est renvoyé. */
+  renvoi: say("oups", "Membre renvoyé."),
+  /** Le service refuse d'affecter ou d'embaucher : plus de poste libre pour ce rôle dans l'usine (EMPLACEMENT_OCCUPE). */
+  postesPleins: say("oups", "Plus de poste libre ici."),
+  /** Le service refuse d'embaucher un candidat déjà embauché (DEJA_POSSEDE). */
+  dejaEmbauche: say("fier", "Déjà embauché."),
 } as const satisfies Record<string, Bubble>;
 
 function missing(what: string, amount: number | undefined, fallback: string): Bubble {
@@ -124,6 +134,17 @@ function isRefusalReason(reason: string): reason is RefusalReason {
 /** La bulle d'un refus du service. `amount` est le `missing` du contrat, quand c'est une somme. */
 export function refusalBubble(reason: string, amount?: number): Bubble {
   return isRefusalReason(reason) ? REFUSAL_BUBBLES[reason](amount) : BULLES.refusInconnu;
+}
+
+/**
+ * La bulle d'un refus du service pour une action sur le personnel (embaucher, affecter, renvoyer). Deux codes y disent
+ * autre chose que dans le reste du jeu : un emplacement occupé est un poste que l'usine n'a plus, une chose déjà
+ * possédée est un candidat déjà embauché. Les autres codes gardent la bulle de `refusalBubble`.
+ */
+export function staffRefusalBubble(reason: string, amount?: number): Bubble {
+  if (reason === "EMPLACEMENT_OCCUPE") return BULLES.postesPleins;
+  if (reason === "DEJA_POSSEDE") return BULLES.dejaEmbauche;
+  return refusalBubble(reason, amount);
 }
 
 /** Les codes de refus qui ont une bulle : pour le test qui les compare à l'OpenAPI. */
@@ -212,6 +233,7 @@ export const MENU_TEXTES = {
   carte: "Carte",
   prestige: "Prestige",
   objectifs: "Objectifs",
+  personnel: "Personnel",
   amis: "Amis",
   /** Le mot d'une tuile verrouillée. */
   bientot: "Bientôt",
@@ -219,6 +241,12 @@ export const MENU_TEXTES = {
   revenu: (rate: string): string => `Revenu ${rate}`,
   nombreUsines: (count: number): string => (count === 1 ? "1 usine" : `${count} usines`),
   nombreIles: (count: number): string => (count === 1 ? "1 île" : `${count} îles`),
+  /** La ligne d'info de la tuile Personnel, et des tuiles d'usine quand on choisit où affecter quelqu'un. */
+  nombreMembres: (count: number): string => {
+    if (count === 0) return "Aucun membre";
+    if (count === 1) return "1 membre";
+    return `${count} membres`;
+  },
 } as const;
 
 export const USINES_TEXTES = {
@@ -261,6 +289,8 @@ export const FICHE_TEXTES = {
   palier: (level: string): string => `Palier ×2 au niveau ${level}`,
   cout: (amount: string): string => `Coût ${amount} Donar`,
   etape: (step: number, total: number, name: string): string => `Étape ${step} sur ${total} : ${name}`,
+  /** L'équipe de l'usine, d'après la liste du personnel du service : combien de membres, et s'il y a un chef. */
+  equipe: (membres: string, avecChef: boolean): string => `Équipe : ${membres}, ${avecChef ? "avec chef" : "sans chef"}`,
   /** Les boutons d'achat, dans l'ordre du contrat : un verbe, une quantité. */
   monter: {
     "1": "Monter de 1",
@@ -295,6 +325,91 @@ export const OBJECTIFS_TEXTES = {
     plusDeMission: "Plus de mission",
   },
   retour: "Retour",
+} as const;
+
+// ---------------------------------------------------------------- le personnel
+
+export const PERSONNEL_TEXTES = {
+  titre: "PERSONNEL",
+  phrase: "Ton équipe, usine par usine.",
+  vide: "Personne dans ton équipe pour l'instant.",
+  /** Le nom du groupe des membres qui n'ont pas d'usine. */
+  sansUsine: "Sans usine",
+  /** Les rôles du contrat (Staff.role), tels que le joueur les lit. */
+  roles: {
+    SALARIE: "Salarié",
+    CHEF: "Chef",
+    DIRECTEUR: "Directeur",
+  } satisfies Record<StaffRole, string>,
+  /** Les raretés du contrat (Staff.rarity). Le nom de la troisième est à confirmer par Kr : la charte bannit le mot du game design. */
+  raretes: {
+    COMMUN: "Commun",
+    RARE: "Rare",
+    EPIQUE: "Exceptionnel",
+  } satisfies Record<StaffRarity, string>,
+  /** Rareté et rôle, en tête de la fiche d'un membre ou d'un candidat. */
+  sorte: (rarete: string, role: string): string => `${rarete} · ${role}`,
+  /** La ligne d'info d'un membre ou d'un candidat : rareté, rôle, bonus de production du service. */
+  ligne: (rarete: string, role: string, bonus: string): string => `${rarete} · ${role} · +${bonus} %`,
+  retour: "Retour",
+  /** La tuile qui mène à l'agence. */
+  agence: "Agence",
+  agenceDetail: "Les candidats du jour",
+  /** L'équipe d'une usine. */
+  equipe: {
+    titre: "ÉQUIPE",
+  },
+  /** La fiche d'un membre. */
+  membre: {
+    titre: "MEMBRE",
+    bonus: (percent: string): string => `Bonus +${percent} % de production`,
+    salaire: (amount: string): string => `Salaire ${amount} Donar/h`,
+    apparence: (skin: string): string => `Apparence ${skin}`,
+    usine: (name: string): string => `Usine ${name}`,
+    sansUsine: "Pas d'usine pour l'instant",
+    affecter: "Affecter à une usine",
+    renvoyer: "Renvoyer",
+    retour: "Retour",
+  },
+  /** Le choix de l'usine d'un membre. */
+  affecter: {
+    titre: "AFFECTATION",
+    phrase: "Choisis son usine.",
+    aucune: "Aucune autre usine.",
+    retour: "Retour",
+  },
+  /** La confirmation d'un renvoi. */
+  renvoi: {
+    titre: "RENVOI",
+    phrase: "Cette personne quitte ton entreprise.",
+    renvoyer: "Renvoyer",
+    garder: "Garder",
+  },
+} as const;
+
+export const AGENCE_TEXTES = {
+  titre: "AGENCE",
+  phrase: "Choisis qui rejoint ton équipe.",
+  vide: "Aucun candidat aujourd'hui.",
+  /** La marque d'un candidat que l'entreprise a déjà embauché. */
+  dejaEmbauche: "Déjà embauché",
+  retour: "Retour",
+  /** La fiche d'un candidat. */
+  candidat: {
+    titre: "CANDIDAT",
+    cout: (amount: string): string => `Embauche ${amount} Donar`,
+    salaire: (percent: string): string => `Salaire ${percent} % du revenu de l'usine`,
+    embaucher: "Embaucher",
+    retour: "Retour",
+  },
+  /** Le choix de l'usine d'un candidat qu'on embauche. */
+  embauche: {
+    titre: "EMBAUCHE",
+    phrase: "Choisis son usine, ou aucune.",
+    sansUsine: "Sans usine",
+    sansUsineDetail: "Rejoint l'équipe sans poste",
+    retour: "Retour",
+  },
 } as const;
 
 /** Les noms des époques, par numéro d'époque (docs/glossaire.md) : l'indice 0 est l'époque 1. */

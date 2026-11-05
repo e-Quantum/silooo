@@ -4,13 +4,13 @@
 //
 // Appels bêta de ce fichier :
 //   @minecraft/server-net   : http.request, HttpRequest (uri, method, timeout, headers, body),
-//                             HttpHeader, HttpRequestMethod, HttpResponse (status, body)
+//                             HttpHeader, HttpRequestMethod (Get, Post, Patch, Delete), HttpResponse (status, body)
 //   @minecraft/server-admin : secrets.get, variables.get, SecretString (type seulement)
 
 import { secrets, variables, type SecretString } from "@minecraft/server-admin";
 import { http, HttpHeader, HttpRequest, HttpRequestMethod } from "@minecraft/server-net";
 import { DEFAULT_SERVER_ID, SETTING_NAMES } from "./config";
-import type { Header, OpaqueSecret, Transport, TransportResponse } from "./http";
+import type { Header, HttpMethod, OpaqueSecret, Transport, TransportResponse } from "./http";
 import { describeError } from "./runtime";
 
 export type { Transport } from "./http";
@@ -26,11 +26,19 @@ function nativeValue(value: Header["value"]): string | SecretString {
   return typeof value === "string" ? value : (value as unknown as SecretString);
 }
 
+/** Les quatre méthodes du contrat (GET, POST, PATCH, DELETE) et leur nom chez Bedrock. */
+const NATIVE_METHODS: Readonly<Record<HttpMethod, HttpRequestMethod>> = {
+  GET: HttpRequestMethod.Get,
+  POST: HttpRequestMethod.Post,
+  PATCH: HttpRequestMethod.Patch,
+  DELETE: HttpRequestMethod.Delete,
+};
+
 export function createBetaTransport(): Transport {
   return {
     async send(method, url, headers, body, timeoutSeconds): Promise<TransportResponse> {
       const request = new HttpRequest(url);
-      request.method = method === "GET" ? HttpRequestMethod.Get : HttpRequestMethod.Post;
+      request.method = NATIVE_METHODS[method];
       request.timeout = timeoutSeconds;
       request.headers = headers.map((header) => new HttpHeader(header.name, nativeValue(header.value)));
       if (body !== undefined) request.body = body;
