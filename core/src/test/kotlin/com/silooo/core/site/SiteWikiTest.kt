@@ -32,7 +32,7 @@ class SiteWikiTest {
     private fun withSite(mode: SiteMode = SiteMode.OUVERT, wiki: List<ContentPage> = wikiPages, block: suspend ApplicationTestBuilder.(HttpClient) -> Unit) =
         testApplication {
             application {
-                siteModule(Dependencies(FakeDatabase(), "cle", definitions = definitions, siteMode = mode), updates = emptyList(), wiki = wiki)
+                siteModule(Dependencies(FakeDatabase(), "cle", definitions = definitions, siteMode = mode), articles = emptyList(), wiki = wiki)
             }
             block(createClient { followRedirects = false })
         }

@@ -19,31 +19,27 @@ internal class NavItem(val url: String, val label: String, val kind: NavKind = N
  * Tant que le compte du joueur n'existe pas, « Mon compte » et « Me prévenir » mènent à l'inscription des pionniers.
  */
 internal object Navigation {
-    /** L'entrée Discord de l'attente : son adresse vient de la configuration, pas d'une page. */
-    private const val DISCORD = "discord"
-
     private val OUVERT = listOf(
         NavItem("/rejoindre/", "Rejoindre"),
         NavItem("/boutique/", "Boutique"),
         NavItem("/classements/", "Classements"),
         NavItem("/vote/", "Vote"),
         NavItem("/wiki/", "Guide"),
-        NavItem("/mises-a-jour/", "Actus"),
+        NavItem("/actus/", "Actus"),
         NavItem("/pionniers/", "Mon compte", NavKind.BOUTON),
     )
 
+    // L'entrée Discord mène à la page du Discord (demande de Kr du 5 novembre 2026), qui porte l'invitation quand elle existe.
     private val ATTENTE = listOf(
-        NavItem("/mises-a-jour/", "Actus"),
-        NavItem(DISCORD, "Discord"),
+        NavItem("/actus/", "Actus"),
+        NavItem("/discord/", "Discord"),
         NavItem("/pionniers/", "Me prévenir", NavKind.BOUTON),
     )
 
-    fun items(mode: SiteMode, pages: List<ContentPage>, discordUrl: String? = null): List<NavItem> {
+    fun items(mode: SiteMode, pages: List<ContentPage>): List<NavItem> {
         val rendered = pages.map { it.url }.toSet()
         val order = if (mode == SiteMode.OUVERT) OUVERT else ATTENTE
-        return order.mapNotNull { item ->
-            if (item.url == DISCORD) discordUrl?.let { NavItem(it, item.label) } else item.takeIf { it.url in rendered }
-        }
+        return order.filter { it.url in rendered }
     }
 }
 

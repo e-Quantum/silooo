@@ -11,12 +11,12 @@ lit « Pour la direction du jeu », la direction du Discord lit « Pour la direc
 - **Le jeu** : phase 5 en cours (`docs/passation.md`). Dernière migration du site sur `main` : `V7__site_registrations.sql` ;
   la suivante prend le numéro libre à la fusion.
 - **Le site** : les six étapes S0 à S5 de la première direction sont sur `main` (commit `69d98b1`), revues dans
-  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, treize corrigées (`claude/site-socle`,
-  `claude/site-gabarit`), treize à corriger, douze à refaire, trois posées à Kr (T1 appliquée par sa recommandation,
+  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, seize corrigées, R49 pour moitié (`claude/site-socle`,
+  `claude/site-gabarit`, `claude/site-attente`), onze à corriger, onze à refaire, trois posées à Kr (T1 appliquée par sa recommandation,
   décision 15 ; T2 et T3 attendent). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
   est dans `docs/references/site-kit/`.
-- **Étape en cours** : `claude/site-socle` et `claude/site-gabarit` sont finies (fusionnées sur `main` après
-  `tools/verifier.sh` vert) ; la suivante est `claude/site-attente`.
+- **Étape en cours** : `claude/site-socle`, `claude/site-gabarit` et `claude/site-attente` sont finies (fusionnées sur
+  `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-comptes`.
 - **Kr** : deux questions encore ouvertes dans la révision (T2, T3) ; T1 a été appliquée par sa recommandation
   (décision 15), Kr peut la retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
 
@@ -35,8 +35,9 @@ La page d'attente :
 - [x] `claude/site-gabarit` (5 novembre 2026) : R26 (Oooscar vivant sur chaque page, `oooscar.js`), R31 (navigation du
   kit), R32 (pied avec SileneMC et Hubyy), R33 (ciel, sol, nuages et échelle ×2 ; le dessin d'île des maquettes va
   dans `claude/site-attente`), R36 (bandeau direct et `/site/direct.json`)
-- [ ] `claude/site-attente` : R34 (page d'attente de la maquette), R25 (quatre pages légales), R49 pour moitié
-  (`/actus` et `/actus/<slug>` au plan fixe, lues dans des fichiers avec la marque « étape »)
+- [x] `claude/site-attente` : R34 (page d'attente de la maquette), R25 (quatre pages légales), R49 pour moitié
+  (`/actus` et `/actus/<slug>` au plan fixe, lues dans des fichiers avec la marque « étape ») ; la page `/discord/`
+  demandée par Kr le 5 novembre 2026
 - [ ] `claude/site-comptes` : R6 (mode `beta`), R15 (Xbox prototypé en premier, Discord), R16 (inscription), R17
   (migration des comptes et sessions Redis), R18 (admission par le staff, refus de `join` en bêta par le contrat),
   R19 (Pionnier côté jeu), R21 pour `/compte/lier`, R23 selon T3
@@ -293,6 +294,21 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
     sur `data-textes`, pour que `tools/anti_ia.py` les relise ; les scripts n'en contiennent aucun. La nuit (22 h à 7 h,
     heure du joueur) endort Oooscar sans changer le ciel : le ciel de nuit des maquettes attend un dessin.
 
+18. **L'attente, tranché par la branche `claude/site-attente`** (5 novembre 2026). Les actus se lisent dans des fichiers
+    `contenu/actus/<slug>.md` du jar (en-tête `titre`, `description`, `date`, `etape`, `publie`, `ordre` ; plan fixe
+    Nouveau, Changements, Corrections, chaque partie une liste de points) tant que l'admin n'existe pas ;
+    `claude/site-admin` les fera écrire dans `news_articles` avec le même modèle (`Actus.kt`). Le chantier de la page
+    d'attente est la liste des actus « étape » : les publiées sont faites (dans l'ordre de leur date), la première non
+    publiée est en cours, les autres à venir dans l'ordre de `ordre`. L'invitation Discord quitte l'accueil de l'attente
+    et le pied : la page `/discord/`, demandée par Kr en séance, la porte (le seul bouton rouge de la page), la
+    navigation de l'attente y mène, le pied cite toujours « Discord Silooo » vers elle, avant les quatre pages légales ;
+    sans `SILOOO_SITE_URL_DISCORD`, la page dit que l'invitation arrive. L'accueil du mode ouvert garde son bouton
+    « Rejoins le Discord » jusqu'à la vitrine (R35). Les icônes des rangs portent `alt=""` (décoratives, le titre dit
+    tout) : les tests acceptent un `alt` vide, jamais un `alt` absent. Le dessin d'île vit en CSS seul (`.ile`, caché
+    sous 700 px, réduit par `zoom` entre 700 et 1 191 px) et ses blocs ont leur largeur par leurs bords : la règle
+    « aucune largeur fixe au-dessus de 360 px » reste entière. Les textes légaux sont des brouillons entiers, avec des
+    hypothèses à confirmer (« À valider par Kr »).
+
 ## À valider par Kr
 
 Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne. Tous ceux de S0 sont dans
@@ -386,6 +402,36 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   « Fermé », « Bedrock », « Vote party ». `pages/Navigation.kt` : « Guide », « Actus », « Mon compte », « Me prévenir ».
   `pages/Erreur.kt` : la description de la 500 « Le site a eu un problème. ». La scène elle-même (sol, nuages, Oooscar
   qui saute, dort et se laisse attraper) est à regarder sur `http://localhost:8081/` ou dans les captures.
+
+Depuis `claude/site-attente` (5 novembre 2026), les pages de l'attente ont été réécrites : les textes de S0 et S1
+ci-dessus pour `attente.md`, `mentions.md`, `Attente.kt` (« Rejoins le Discord », « Le serveur ouvre bientôt ») n'existent
+plus. Ce qui les remplace, tout à valider :
+
+- `contenu/attente.md` : la description « Silooo, un tycoon d'usines dans le ciel sur Minecraft Bedrock. Pas encore
+  ouvert : inscris-toi pour la bêta. » et la phrase « Serveur Minecraft Bedrock : tu fais tourner des usines sur une île
+  dans le ciel et tu y bâtis ta ville. Sur console, téléphone et PC. Pas encore ouvert. » ; `pages/Attente.kt` :
+  « Produis de jour comme de nuit », « Me prévenir », « Par Xbox ou Discord. Les inscrits entrent en bêta et reçoivent
+  le titre Pionnier. », « Le chantier », « Fait », « En cours », « Dans le jeu » et ses trois rangs (« Usines : Pose des
+  usines et monte leurs niveaux. Chaque palier double leur production. », « Ville : Bâtis ta ville sur ton île, zone par
+  zone. », « Prestige : Repars de zéro et gagne des Lingots, qui accélèrent la course suivante. »).
+- `contenu/actus.md` et `contenu/actus/*.md` : « Ce qui change sur Silooo, la plus récente en tête. », l'actu « Les
+  plans du jeu sont prêts » (datée du 5 novembre 2026, trois points « Nouveau ») et les quatre étapes à venir du chantier
+  (« Le moteur du jeu tourne », « Premier joueur sur son île », « La première heure se joue », « Bêta fermée pour les
+  inscrits ») ; `pages/Actus.kt` : « min de lecture », la ligne du bogue vers le Discord en fin d'actu. Les étapes
+  sont celles du plan de construction : Kr peut en changer l'ordre ou les mots dans les fichiers.
+- `contenu/mentions-legales.md`, `cgv.md`, `confidentialite.md`, `parents.md` : quatre brouillons entiers. Les
+  hypothèses prises : les lignes « À compléter par Kr. » (nom, Siret et adresse de la micro-entreprise, courriel de
+  contact, médiateur de la consommation), l'hébergeur OVH SAS (2 rue Kellermann, 59100 Roubaix, sans téléphone), les
+  durées (le journal du tchat relié trente jours, et celles de la page de confidentialité), le journal du tchat relié
+  lu pour la modération, les données que le bot Oooscar garde, le contrôle parental de Microsoft, le recours à la CNIL,
+  « 13 ans » et « 18 ans » en chiffres, le tutoiement de la page des parents, la case de renonciation L221-28 décrite
+  avant la boutique PayNow (R39).
+- `contenu/discord.md` et `pages/Discord.kt` (la page `/discord/` demandée par Kr) : la description, « Le Discord de
+  Silooo est l'endroit où l'on suit le chantier et où l'on parle avec ceux qui jouent. », les six sections (À quoi sert
+  le Discord, Oooscar le bot, Relier ton compte, Le tchat relié au jeu, Les règles, À la bêta), « Rejoindre le
+  Discord », « L'invitation au Discord arrive bientôt sur cette page. » ; `pages/Oooscar.kt` : la bulle « Sur Discord
+  aussi, c'est moi. ». Le code de liaison y est dit « à la bêta », et « les lots d'un giveaway ne suivent qu'un compte
+  relié » frôle une promesse : à relire en premier.
 
 ## Journal
 
@@ -507,3 +553,13 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   réveil d'Oooscar vérifiés dans un navigateur. `tools/verifier.sh` vert au second passage (au premier, les deux
   variables manquaient au modèle d'environnement de `deploy/`). Rebase sur `origin/main` (le Discord D2 avait avancé),
   fusion sur `main`. Suite : `claude/site-attente`.
+- 5 novembre 2026, 18 h 31 à 19 h 26 (direction du site, deuxième passage, en local ; quatre agents Sonnet en parallèle
+  pour les actus, la page d'attente, les pages légales et la page du Discord ; la direction a câblé les routes, fusionné
+  les feuilles de style, corrigé les tests et relu les captures). `claude/site-attente` : la page d'attente des maquettes
+  (le dessin d'île compris), les actus lues dans des fichiers (`Actus.kt`, `/actus/`, `/actus/<slug>/`, le chantier),
+  les quatre pages légales (`Legal.kt`, brouillons), la page `/discord/` demandée par Kr en séance, la navigation et le
+  pied qui y mènent (décision 18). R25 et R34 corrigés, R33 fini, R49 pour moitié. Tests Gradle verts en local (1 822,
+  SQL ignorés sans Docker), 52 pages à 360 et 1 280 px sans débordement ni erreur console, captures relues (attente aux
+  deux tailles, actus, article, Discord, CGV). `tools/verifier_site.mjs` et les tests du module acceptent `alt=""` sur
+  une image décorative (un `alt` absent reste une faute). `tools/verifier.sh` vert, rebase sur `origin/main`, fusion sur
+  `main`. Suite : `claude/site-comptes`.

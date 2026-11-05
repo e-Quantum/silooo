@@ -43,7 +43,7 @@ class SiteStyleTest {
     @Test
     @DisplayName("Chaque page porte og:title, og:description, og:image absolu, theme-color, l'icône et la feuille de style")
     fun headMetadata() = withSite(SiteMode.ATTENTE) { client ->
-        for (path in listOf("/", "/mentions/", "/wiki/")) {
+        for (path in listOf("/", "/mentions-legales/", "/wiki/")) {
             val html = client.get(path).bodyAsText()
             assertTrue(Regex("""<meta property="og:title" content="[^"]+"""").containsMatchIn(html), "$path : og:title")
             assertTrue(Regex("""<meta property="og:description" content="[^"]+"""").containsMatchIn(html), "$path : og:description")
@@ -64,24 +64,18 @@ class SiteStyleTest {
     }
 
     @Test
-    @DisplayName("Navigation : en attente Actus, Discord (s'il est configuré) puis Me prévenir, selon les pages que le mode rend ; en ouvert les sept entrées")
+    @DisplayName("Navigation : en attente Actus, Discord puis Me prévenir, selon les pages que le mode rend ; en ouvert les sept entrées")
     fun navigationByMode() {
-        // Ce que l'attente rend vient des contenus : une entrée n'apparaît que si sa page est rendue dans le mode (« Me prévenir » mène à /pionniers/, « Actus » à /mises-a-jour/).
+        // L'attente rend toujours /actus/ et /discord/ (les deux existent dans les deux modes) et /pionniers/ (le bouton « Me prévenir »).
         val waiting = SiteContent.fromClasspath().forMode(SiteMode.ATTENTE).map { it.url }
-        fun expectedWaiting(withDiscord: Boolean): List<String> = buildList {
-            if ("/mises-a-jour/" in waiting) add("Actus")
-            if (withDiscord) add("Discord")
-            if ("/pionniers/" in waiting) add("Me prévenir")
-        }
-        assertTrue("/pionniers/" in waiting, "l'attente rend /pionniers/ : c'est son bouton « Me prévenir »")
-        withSite(SiteMode.ATTENTE) { client ->
-            for (path in listOf("/", "/mentions/", "/wiki/")) assertEquals(expectedWaiting(false), navLabels(client.get(path).bodyAsText()), path)
-        }
-        withSite(SiteMode.ATTENTE, discordUrl = "https://discord.gg/exemple") { client ->
-            for (path in listOf("/", "/mentions/", "/wiki/")) {
-                val html = client.get(path).bodyAsText()
-                assertEquals(expectedWaiting(true), navLabels(html), path)
-                assertTrue(html.contains("""<a href="https://discord.gg/exemple" class="navigation__lien">Discord</a>"""), "$path : le lien Discord mène à l'adresse configurée")
+        for (url in listOf("/actus/", "/discord/", "/pionniers/")) assertTrue(url in waiting, "l'attente rend $url : c'est une entrée de sa navigation")
+        for (discordUrl in listOf(null, "https://discord.gg/exemple")) {
+            withSite(SiteMode.ATTENTE, discordUrl = discordUrl) { client ->
+                for (path in listOf("/", "/mentions-legales/", "/wiki/")) {
+                    val html = client.get(path).bodyAsText()
+                    assertEquals(listOf("Actus", "Discord", "Me prévenir"), navLabels(html), path)
+                    assertTrue(html.contains("""<a href="/discord/" class="navigation__lien">Discord</a>"""), "$path : l'entrée Discord mène à la page du Discord, invitation configurée ou non")
+                }
             }
         }
         withSite(SiteMode.OUVERT) { client ->
@@ -90,33 +84,29 @@ class SiteStyleTest {
             assertEquals(1, Regex("""aria-current="page"""").findAll(html).count(), "la page courante est marquée une fois")
             assertTrue(html.contains("""<a href="/rejoindre/" class="navigation__lien" aria-current="page">Rejoindre</a>"""), "et c'est Rejoindre")
             // Les mentions sont au pied et le logo mène à l'accueil : aucune des deux n'est dans la navigation, donc aucune n'est « courante ».
-            assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/mentions/").bodyAsText()).count())
+            assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/mentions-legales/").bodyAsText()).count())
             assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/").bodyAsText()).count())
         }
     }
 
     @Test
-    @DisplayName("Navigation : l'ordre est celui de la liste du mode, Discord vient de la configuration, et une page absente n'a pas de lien")
+    @DisplayName("Navigation : l'ordre est celui de la liste du mode, et une page absente n'a pas de lien")
     fun navigationOrder() {
-        val discord = "https://discord.gg/exemple"
         fun page(url: String) = ContentPage(url.trim('/'), "t", "d", url, SiteMode.entries.toSet(), "")
-        val every = listOf("/mentions/", "/vote/", "/", "/wiki/", "/mises-a-jour/", "/boutique/", "/classements/", "/rejoindre/", "/pionniers/").map(::page)
-        val open = listOf("/rejoindre/", "/boutique/", "/classements/", "/vote/", "/wiki/", "/mises-a-jour/", "/pionniers/")
+        val every = listOf("/mentions-legales/", "/vote/", "/", "/wiki/", "/actus/", "/discord/", "/boutique/", "/classements/", "/rejoindre/", "/pionniers/").map(::page)
+        val open = listOf("/rejoindre/", "/boutique/", "/classements/", "/vote/", "/wiki/", "/actus/", "/pionniers/")
         assertEquals(open, Navigation.items(SiteMode.OUVERT, every).map { it.url })
         assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), Navigation.items(SiteMode.OUVERT, every).map { it.label })
-        assertEquals(listOf("/mises-a-jour/", "/pionniers/"), Navigation.items(SiteMode.ATTENTE, every).map { it.url })
-        assertEquals(listOf("Actus", "Me prévenir"), Navigation.items(SiteMode.ATTENTE, every).map { it.label })
-        // Discord n'est pas une page : son adresse est celle de la configuration, entre Actus et Me prévenir, et l'ouvert ne le montre pas.
-        assertEquals(listOf("/mises-a-jour/", discord, "/pionniers/"), Navigation.items(SiteMode.ATTENTE, every, discord).map { it.url })
-        assertEquals(listOf("Actus", "Discord", "Me prévenir"), Navigation.items(SiteMode.ATTENTE, every, discord).map { it.label })
-        assertEquals(listOf(discord), Navigation.items(SiteMode.ATTENTE, emptyList(), discord).map { it.url })
-        assertEquals(open, Navigation.items(SiteMode.OUVERT, every, discord).map { it.url })
+        // L'attente : les actus, la page du Discord (demande de Kr du 5 novembre 2026) et « Me prévenir ». L'ouvert ne montre pas le Discord.
+        assertEquals(listOf("/actus/", "/discord/", "/pionniers/"), Navigation.items(SiteMode.ATTENTE, every).map { it.url })
+        assertEquals(listOf("Actus", "Discord", "Me prévenir"), Navigation.items(SiteMode.ATTENTE, every).map { it.label })
+        assertEquals(listOf("/actus/", "/pionniers/"), Navigation.items(SiteMode.ATTENTE, every.filter { it.url != "/discord/" }).map { it.url })
         // Deux boutons de fonte seulement : le compte et « Me prévenir ». Le reste est un lien simple.
         assertEquals(listOf("Mon compte"), Navigation.items(SiteMode.OUVERT, every).filter { it.kind == NavKind.BOUTON }.map { it.label })
-        assertEquals(listOf("Me prévenir"), Navigation.items(SiteMode.ATTENTE, every, discord).filter { it.kind == NavKind.BOUTON }.map { it.label })
+        assertEquals(listOf("Me prévenir"), Navigation.items(SiteMode.ATTENTE, every).filter { it.kind == NavKind.BOUTON }.map { it.label })
         // Les mentions sont au pied, le logo mène à l'accueil : ni l'un ni l'autre n'est dans la navigation, même rendus.
-        assertEquals(emptyList<String>(), Navigation.items(SiteMode.OUVERT, listOf(page("/mentions/"), page("/"))).map { it.url })
-        assertEquals(listOf("/vote/"), Navigation.items(SiteMode.OUVERT, listOf(page("/vote/"), page("/mentions/"))).map { it.url })
+        assertEquals(emptyList<String>(), Navigation.items(SiteMode.OUVERT, listOf(page("/mentions-legales/"), page("/"))).map { it.url })
+        assertEquals(listOf("/vote/"), Navigation.items(SiteMode.OUVERT, listOf(page("/vote/"), page("/mentions-legales/"))).map { it.url })
         assertEquals(emptyList<String>(), Navigation.items(SiteMode.ATTENTE, emptyList()).map { it.url })
     }
 
@@ -135,11 +125,11 @@ class SiteStyleTest {
     @Test
     @DisplayName("Un seul bouton rouge par page : le Discord sur l'attente, le retour à l'accueil sur l'erreur, aucun sur les mentions ; « Me prévenir » est un bouton de fonte")
     fun singleRedButton() = withSite(SiteMode.ATTENTE, discordUrl = "https://discord.gg/exemple") { client ->
-        fun red(html: String) = Regex("""class="sa-bouton"""").findAll(html).count()
+        fun red(html: String) = Regex("""class="sa-bouton(?! sa-bouton--)""").findAll(html).count()
         // Les boutons de la navigation (« Me prévenir », le bouton Menu) sont des boutons de fonte : ils ne comptent pas parmi les rouges.
         assertTrue(client.get("/").bodyAsText().contains("""class="sa-bouton sa-bouton--fonte navigation__bouton""""))
         assertEquals(1, red(client.get("/").bodyAsText()))
-        assertEquals(0, red(client.get("/mentions/").bodyAsText()))
+        assertEquals(0, red(client.get("/mentions-legales/").bodyAsText()))
         assertEquals(1, red(client.get("/wiki/").bodyAsText()))
     }
 

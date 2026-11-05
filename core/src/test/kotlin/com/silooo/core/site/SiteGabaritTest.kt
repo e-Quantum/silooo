@@ -126,7 +126,7 @@ class SiteGabaritTest {
     @Test
     @DisplayName("Chaque page a sa scène : Oooscar au visage de son humeur, une bulle de six mots au plus, ses textes en JSON")
     fun everyPageHasItsScene() {
-        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions/", SiteMode.OUVERT to "/rejoindre/")) {
+        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions-legales/", SiteMode.OUVERT to "/rejoindre/")) {
             withSite(mode) { client ->
                 val response = client.get(path)
                 assertEquals(HttpStatusCode.OK, response.status, path)
@@ -138,7 +138,7 @@ class SiteGabaritTest {
     @Test
     @DisplayName("L'attente : la bulle dit « On construit. Reviens vite ! », et l'ancienne annonce n'existe plus")
     fun waitingBubble() = withSite(SiteMode.ATTENTE) { client ->
-        for (path in listOf("/", "/mentions/")) {
+        for (path in listOf("/", "/mentions-legales/")) {
             val html = client.get(path).bodyAsText()
             val (_, bubble) = checkScene(html, path)
             if (path == "/") assertEquals("On construit. Reviens vite !", bubble)
@@ -190,7 +190,7 @@ class SiteGabaritTest {
     @Test
     @DisplayName("Le bouton Menu (caché, replié, lié à nav#menu) précède la navigation, dans les deux modes")
     fun menuButtonAndNavigation() {
-        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions/", SiteMode.OUVERT to "/rejoindre/")) {
+        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions-legales/", SiteMode.OUVERT to "/rejoindre/")) {
             withSite(mode) { client ->
                 val html = client.get(path).bodyAsText()
                 val button = Regex("""<button[^>]*menu__bouton[^>]*>""").find(html)?.value ?: error("$path : pas de bouton Menu")
@@ -209,20 +209,22 @@ class SiteGabaritTest {
     }
 
     @Test
-    @DisplayName("Sans entrée de navigation, ni bouton Menu ni nav : un Discord configuré suffit à les ramener")
+    @DisplayName("Sans entrée de navigation, ni bouton Menu ni nav : une seule page de la navigation suffit à les ramener")
     fun noMenuWithoutNavigation() {
-        // Sans le contenu des pionniers, l'attente ne rend aucune page de la navigation (ni Actus, ni Me prévenir).
-        val bare = SiteContent(SiteContent.fromClasspath().pages.filter { it.name != PIONEERS_PAGE })
-        withSite(SiteMode.ATTENTE, content = bare) { client ->
+        // Sans les contenus des actus, du Discord et des pionniers, l'attente ne rend aucune page de sa navigation.
+        val navigationPages = setOf("actus", "discord", PIONEERS_PAGE)
+        val bare = SiteContent(SiteContent.fromClasspath().pages.filter { it.name !in navigationPages })
+        withSite(SiteMode.ATTENTE, discordUrl = discord, content = bare) { client ->
             val html = client.get("/").bodyAsText()
-            assertFalse(html.contains("<nav"), "pas de navigation vide")
+            assertFalse(html.contains("<nav"), "pas de navigation vide, même avec un Discord configuré : l'invitation vit sur la page du Discord")
             assertFalse(html.contains("menu__bouton"), "pas de bouton Menu pour rien")
             assertTrue(html.contains("""class="marque""""), "le logo mène toujours à l'accueil")
         }
-        withSite(SiteMode.ATTENTE, discordUrl = discord, content = bare) { client ->
+        val withDiscord = SiteContent(SiteContent.fromClasspath().pages.filter { it.name !in navigationPages || it.name == "discord" })
+        withSite(SiteMode.ATTENTE, content = withDiscord) { client ->
             val html = client.get("/").bodyAsText()
             assertTrue(html.contains("menu__bouton") && html.contains("""id="menu""""))
-            assertTrue(html.contains("""<a href="$discord" class="navigation__lien">Discord</a>"""))
+            assertTrue(html.contains("""<a href="/discord/" class="navigation__lien">Discord</a>"""))
         }
     }
 
@@ -234,7 +236,7 @@ class SiteGabaritTest {
         val direct = """<script src="/public/direct.js" defer="defer"></script>"""
         for ((mode, expected) in listOf(SiteMode.ATTENTE to listOf(menu, oooscar), SiteMode.OUVERT to listOf(menu, oooscar, direct))) {
             withSite(mode) { client ->
-                for (path in listOf("/", "/mentions/", "/nulle-part/")) {
+                for (path in listOf("/", "/mentions-legales/", "/nulle-part/")) {
                     val html = client.get(path).bodyAsText()
                     val inHead = Regex("""<script[^>]*></script>""").findAll(html.substringBefore("</head>")).map { it.value }.toList()
                     assertEquals(expected, inHead, "$path (${mode.word}) : les scripts du head, dans l'ordre")
@@ -246,18 +248,24 @@ class SiteGabaritTest {
     }
 
     @Test
-    @DisplayName("Le pied : « Mentions légales » toujours, « Discord Silooo » seulement si le Discord est configuré, avant les mentions")
+    @DisplayName("Le pied : « Discord Silooo » mène à la page du Discord, puis les quatre pages légales dans l'ordre, dans les deux modes")
     fun footerLinks() {
-        withSite(SiteMode.ATTENTE) { client ->
-            val html = client.get("/").bodyAsText()
-            assertTrue(Regex("""<a href="/mentions/">Mentions légales</a>""").containsMatchIn(footer(html)))
-            assertFalse(footer(html).contains("Discord"), "sans Discord configuré, le pied ne le cite pas")
-        }
-        for (mode in SiteMode.entries) {
-            withSite(mode, discordUrl = discord) { client ->
-                val footer = footer(client.get("/mentions/").bodyAsText())
-                assertTrue(footer.contains("""<a href="$discord">Discord Silooo</a>"""), mode.word)
-                assertTrue(footer.indexOf("Discord Silooo") < footer.indexOf("Mentions légales"), "${mode.word} : le Discord vient avant les mentions")
+        val legalLinks = listOf(
+            """<a href="/mentions-legales/">Mentions légales</a>""",
+            """<a href="/cgv/">CGV</a>""",
+            """<a href="/confidentialite/">Confidentialité</a>""",
+            """<a href="/parents/">Parents</a>""",
+        )
+        // Le lien mène à la page /discord/ même sans invitation configurée : c'est elle qui porte l'invitation, ou son absence.
+        for (mode in SiteMode.entries) for (discordUrl in listOf(null, discord)) {
+            withSite(mode, discordUrl = discordUrl) { client ->
+                val footer = footer(client.get("/mentions-legales/").bodyAsText())
+                assertTrue(footer.contains("""<a href="/discord/">Discord Silooo</a>"""), "${mode.word} : le pied mène à la page du Discord")
+                assertFalse(footer.contains(discord), "${mode.word} : l'invitation n'est pas dans le pied")
+                val positions = legalLinks.map { footer.indexOf(it) }
+                assertTrue(positions.all { it >= 0 }, "${mode.word} : les quatre liens légaux sont dans le pied : $positions")
+                assertEquals(positions.sorted(), positions, "${mode.word} : ordre des liens légaux")
+                assertTrue(footer.indexOf("Discord Silooo") < positions.first(), "${mode.word} : le Discord vient avant les pages légales")
             }
         }
     }
@@ -273,7 +281,7 @@ class SiteGabaritTest {
         }
         for (mode in SiteMode.entries) {
             withSite(mode, settings = both) { client ->
-                val html = client.get("/mentions/").bodyAsText()
+                val html = client.get("/mentions-legales/").bodyAsText()
                 assertTrue(Regex("""<p class="pied__voir"[^>]*>""").containsMatchIn(footer(html)), "${mode.word} : p.pied__voir dans le pied")
                 assertTrue(footerText(html).contains("Voir aussi : SileneMC · Hubyy"), "${mode.word} : ${footerText(html)}")
                 assertTrue(Regex("""<a href="https://silenemc.example">SileneMC</a>""").containsMatchIn(footer(html)), mode.word)
@@ -302,7 +310,7 @@ class SiteGabaritTest {
             }
         }
         withSite(SiteMode.ATTENTE) { client ->
-            for (path in listOf("/", "/mentions/", "/nulle-part/")) {
+            for (path in listOf("/", "/mentions-legales/", "/nulle-part/")) {
                 val html = client.get(path).bodyAsText()
                 assertFalse(html.contains("""class="direct""""), "$path : pas de bandeau en attente")
                 assertFalse(html.contains("data-direct"), path)

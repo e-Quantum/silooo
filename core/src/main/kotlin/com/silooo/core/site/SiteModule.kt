@@ -21,6 +21,9 @@ import io.ktor.server.routing.routing
 /** La page des règles du wiki, que la case des pionniers cite quand elle existe. */
 private const val RULES_URL = "/wiki/regles/"
 
+/** Les mentions légales, la page de lecture que l'attente a toujours (la case des règles y mène faute de wiki). */
+private const val LEGAL_URL = "/mentions-legales/"
+
 /** Le préfixe des fichiers statiques : le seul endroit où une réponse peut se garder en cache. */
 internal const val PUBLIC_PREFIX = "/public/"
 
@@ -54,12 +57,12 @@ private val SiteHeaders = createApplicationPlugin("SiteHeaders") {
  * pas de `/v1`, pas de clé, pas de JSON. Il ne sert que des pages HTML et des fichiers.
  *
  * Les contenus se lisent ici, une fois : un contenu cassé fait échouer le démarrage avec le nom du fichier.
- * [content], [updates] et [wiki] ne changent que dans les tests.
+ * [content], [articles] et [wiki] ne changent que dans les tests.
  */
 fun Application.siteModule(
     dependencies: Dependencies,
     content: SiteContent = SiteContent.fromClasspath(),
-    updates: List<UpdateEntry> = UpdateEntries.fromClasspath(),
+    articles: List<NewsArticle> = NewsArticles.fromClasspath(),
     wiki: List<ContentPage> = WikiContent.fromClasspath(),
 ) {
     install(SiteHeaders)
@@ -72,7 +75,7 @@ fun Application.siteModule(
     val shell = SiteShell(
         dependencies.siteUrl,
         dependencies.discordUrl,
-        Navigation.items(mode, pages, dependencies.discordUrl),
+        Navigation.items(mode, pages),
         dependencies.siteSettings,
         dependencies.definitions.shop,
         dependencies.definitions,
@@ -91,14 +94,14 @@ fun Application.siteModule(
     }
 
     routing {
-        siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") }, SiteDirectSource(dependencies)) { playersOnline(dependencies.serverPresence, clock) }
+        siteRoutes(pages, shell, articles, pages.filter { it.name.startsWith("wiki/") }, SiteDirectSource(dependencies)) { playersOnline(dependencies.serverPresence, clock) }
         // Les classements et les fiches d'entreprise : le mode ouvert seulement (la page n'existe pas en attente).
         pages.firstOrNull { it.name == RANKING_PAGE }?.let { statsRoutes(dependencies, shell, it) }
         // Le webhook de PayNow répond dans les deux modes : une commande payée avant l'ouverture doit être écrite.
         payNowRoutes(dependencies)
-        // Les pionniers : en mode ouvert la case des règles mène au wiki, en attente aux mentions (le wiki n'y existe pas).
+        // Les pionniers : en mode ouvert la case des règles mène au wiki, en attente aux mentions légales (le wiki n'y existe pas).
         pages.firstOrNull { it.name == PIONEERS_PAGE }?.let { page ->
-            val rules = if (pages.any { it.url == RULES_URL }) RULES_URL else "/mentions/"
+            val rules = if (pages.any { it.url == RULES_URL }) RULES_URL else LEGAL_URL
             pioneerRoutes(dependencies, shell, page, rules)
         }
     }
