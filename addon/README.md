@@ -16,9 +16,9 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, objectifs, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
-| `src/monde/` | Le monde : îles des usines, arrivée, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
+| `src/monde/` | Le monde : îles des usines, arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
 | `pack/entities/oooscar.json` | L'entité `silooo:oooscar`, copiée telle quelle dans `dist/pack/` par le build. Le côté client est dans `resource-pack/`. |
 | `src/generated/definitions.ts` | Types tirés de `definitions/`. Généré, ne pas éditer. |
@@ -72,14 +72,18 @@ Appels bêta, tous dans `src/beta.ts` :
 
 Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
 la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
-de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service).
+de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service). La phase 4
+y ajoute le prestige et la carte des îles : voir « La carte et le prestige » plus bas.
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
                   ├─ Usines ─── tuile ─── fiche ─┬─ Monter de 1, de 10, au palier, au max ... buyLevels
                   │                              └─ Parler, Réparer, Livrer, Recruter ....... restoreStep
                   ├─ Objectifs ─ la mission en cours, les missions terminées ................ getMissions
-                  └─ Carte, Amis : tuiles verrouillées, avec le mot « Bientôt »
+                  ├─ Carte ──── une ligne par usine ─── île choisie ... téléportation (monde/voyage.ts)
+                  ├─ Prestige ─ l'aperçu du service ─── Prestige ! ... prestige ── écran d'après
+                  │                                     (lecture de l'aperçu .......... prestigePreview)
+                  └─ Amis : tuile verrouillée, avec le mot « Bientôt »
 ```
 
 La boussole (`minecraft:compass`, réglable dans `config.ui.menuItem`) est donnée à la première arrivée si le joueur
@@ -93,11 +97,11 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
 | `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne est ignorée) et l'état de la liaison avec le service. |
-| `actions.ts` | Les trois actions : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). |
+| `actions.ts` | Les quatre actions (encaisser, acheter des niveaux, remettre en état, prestige) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige est une lecture : ni verrou ni identifiant. |
 | `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
-| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, et le parcours entre eux. |
+| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre eux. |
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
 
@@ -152,6 +156,48 @@ la bulle de fin de la mission puis les Lingots que le payload donne, et les miss
 événements repart de 0 quand BDS redémarre : l'add-on retient les missions déjà terminées à l'arrivée du joueur et ne
 redit pas une annonce déjà dite pendant sa visite.
 
+### La carte et le prestige
+
+Troisième tranche des écrans (phase 4). Toujours aucun calcul : le prestige est la décision du service, et la carte ne
+montre que ce que le service dit des usines. Les phrases sont dans `PRESTIGE_TEXTES` et `CARTE_TEXTES`
+(`ui/textes.ts`), tous à valider par Kr.
+
+**Avant le prestige.** La tuile Prestige du menu (ligne d'info « Course `<n>` ») ouvre l'écran d'avant. À chaque
+ouverture, et après un refus, il relit l'aperçu du service (`prestigePreview`, une lecture : ni verrou, ni
+identifiant) et montre ce qu'il dit : la course et l'époque, le seuil quand le prestige n'est pas permis, les
+Lingots en tout, la part de chaque membre, ce que donneraient deux fois plus de Donar, la course suivante (époque 2, 3,
+4 ou une étoile de plus), puis, en mots, ce qui repart à zéro (le Donar, le niveau des usines, toutes les usines hors
+la Carrière) et ce qui reste (les Lingots, les Gemmes, l'entreprise et ses associés). Les parts ne s'affichent qu'à
+partir de deux membres, et en deux mots, « Ta part » et « Un associé » : l'aperçu ne donne que des XUID, jamais un nom.
+Le bouton « Prestige ! » n'existe que si l'aperçu dit `allowed`. Sans aperçu (lecture ratée), Oooscar le dit et il ne
+reste que « Retour ».
+
+**Le prestige.** Le bouton appelle `prestige` : un identifiant d'action et un seul nouvel essai après
+`CONFLIT_REESSAYER`, comme les autres actions. Les refus deviennent des bulles d'Oooscar : `PAS_LE_PDG`, et
+`SEUIL_NON_ATTEINT` avec la somme de Donar qui manque quand le service la donne. L'add-on ne lit pas le rôle du joueur :
+le service refuse, l'écran le dit. Après un refus, l'aperçu est relu.
+
+**Après le prestige.** Le service renvoie l'état de l'entreprise (`CompanyUpdated`) : la vue et le HUD se mettent
+à jour comme après toute autre action, et l'écran d'après montre les étoiles et les Lingots tels que le
+service les rend, avec une phrase sur la Carrière qui tourne et le bouton « Voir les usines ». Les îles n'ont rien à
+brancher de plus : les usines sont revenues en ruine dans l'état du service, et le relevé suivant
+(`config.world.syncSeconds`) les redessine.
+
+**La carte.** La tuile Carte (ligne d'info « 1 île », « `<n>` îles ») ouvre une liste : l'île principale en tête,
+verrouillée (« Bientôt », elle n'est pas construite), puis une ligne par usine dans l'ordre de `definitions/usines.json`,
+qui est celui de `iles.json` (un test le vérifie). Une usine de l'entreprise montre son nom et son état d'après le
+service : « Entière · niv. `<niveau>` », « En ruine », « En travaux `<étape>`/`<total>` ». Une usine qu'elle n'a pas
+reste cachée (« ????? ») et Oooscar dit qu'elle n'est pas encore à elle. La liste se pagine comme celle des usines
+(`config.ui.tilesPerScreen`).
+
+**Le voyage.** Choisir une île de l'entreprise appelle le `travel` que `main.ts` injecte dans le menu
+(`monde/voyage.ts`) : le menu n'importe rien de Bedrock. Le voyage retrouve l'origine de l'archipel (celle de l'état du
+service, sinon la dernière retenue par le relevé), montre au constructeur les îles de l'état du service (il ne refait que
+ce qui a changé), attend l'île voulue au plus `config.world.travelWaitSeconds`, puis téléporte le joueur à son point
+d'arrivée, face au bâtiment. Arrivé, le menu se ferme. Si l'on ne sait pas où aller, ou si l'île n'est pas prête dans le
+délai, le joueur reste où il est et Oooscar le dit. Sans `travel` (le menu seul, sans monde), la réponse est
+« Pas encore disponible. ».
+
 ### Les formulaires
 
 Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert (le tchat, un autre menu). Le menu
@@ -174,13 +220,14 @@ join ── island présent ? ── non ── une ligne de journal, rien posé
 | Fichier de `src/monde/` | Rôle |
 |---|---|
 | `definitions.ts` | `definitions/iles.json`, typé. |
-| `geometrie.ts` | Les cases de l'archipel, le repère local d'une île (l'avant regarde l'île principale), le point d'arrivée. |
+| `geometrie.ts` | Les cases de l'archipel, le repère local d'une île (l'avant regarde l'île principale), le point d'arrivée de chaque île (`arrivalAt`, et `arrivalOf` pour l'île de départ). |
 | `plan.ts` | Le plan d'une mini-île par usine et par état : une liste d'opérations, sans bloc Bedrock. En ruine : abîmée et sans toit, au hasard d'un hachage fixe (même résultat à chaque pose). Active : entière. Plate-forme, bâtiment, panneau au nom de l'usine. |
 | `constructeur.ts` | Pose les plans par lots entre deux pauses, un chantier à la fois, la zone chargée par une ticking area. Un échec se rejoue après 2 s, puis le délai double jusqu'à 30 s. Une marque par usine et par état, rangée dans une propriété dynamique du monde : une île n'est posée qu'une fois par état. |
 | `arrivee.ts` | La suite de l'arrivée, et le moment où le joueur est « occupé » : HUD silencieux, boussole en attente, menu fermé. |
 | `cinematique.ts` | Le lecteur de cinématique : plans, caméra libre et glissé, fondus pour cacher les coupes, HUD masqué, sous-titres par le canal de titre, saut en restant accroupi une seconde, remise en état à la fin. |
 | `oooscar.ts` | Une Oooscar par joueur, jamais deux, retirée au départ, balayée au démarrage et à chaque relevé. |
-| `synchro.ts` | Le relevé périodique : l'état des usines de chaque joueur est montré au constructeur, qui ne refait que ce qui a changé. Une usine remise en état change de visage au relevé suivant. |
+| `synchro.ts` | Le relevé périodique : l'état des usines de chaque joueur est montré au constructeur, qui ne refait que ce qui a changé. Une usine remise en état, ou retombée en ruine par un prestige, change de visage au relevé suivant. Il retient aussi l'origine d'archipel de chaque entreprise (`originOf`), pour le voyage. |
+| `voyage.ts` | Le voyage depuis la carte : origine de l'archipel, point d'arrivée de l'île choisie (`arrivalAt`), îles montrées au constructeur, attente de l'île voulue, téléportation. Il n'importe pas `@minecraft/*` : le monde est un `ArrivalWorld`, comme pour l'arrivée. |
 | `bedrock.ts` | L'enveloppe de `@minecraft/server` : blocs, panneaux, zones chargées, caméra, entité, téléportation. |
 
 Choix faits ici, à relire :
@@ -207,7 +254,7 @@ définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun 
 
 Les noms des usines ne sont pas dans ce tableau : ils viennent de `definitions/usines.json` (clé « nom »), recopiés
 dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoires (`[D] [L] [G] [U] [T] [!] [E] [X]
-[S] [C] [O] [A]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
+[S] [C] [O] [A] [P]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
 `ui/apparence.ts` : ce sont des places gardées pour des images, pas des textes.
 
 | Où | Avant | Après |
@@ -220,11 +267,14 @@ dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoir
 | Menu, tuile | rien | Usines |
 | Menu, tuile | rien | Carte |
 | Menu, tuile | rien | Objectifs |
+| Menu, tuile | rien | Prestige |
 | Menu, tuile | rien | Amis |
 | Menu, tuile verrouillée | rien | Bientôt |
 | Menu, bouton | rien | Retour |
 | Menu, ligne d'une tuile | rien | Revenu `<revenu>` |
 | Menu, nombre d'usines | rien | 1 usine, puis `<n>` usines |
+| Menu, tuile Carte, ligne d'info (la tuile était verrouillée) | Bientôt (tuile verrouillée) | 1 île, puis `<n>` îles |
+| Menu, tuile Prestige, ligne d'info | rien | Course `<n>` |
 | Usines, titre | rien | USINES |
 | Usines, liste vide | rien | Aucune usine pour l'instant. |
 | Usines, pagination | rien | Page `<n>` sur `<total>` |
@@ -303,16 +353,59 @@ dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phr
 | Refus `PAS_ASSEZ_DE_LINGOTS` | rien | Il te manque `<somme>` Lingots. Sans somme : Il te manque des Lingots. |
 | Refus `PAS_ASSEZ_DE_GEMMES` | rien | Il te manque `<somme>` Gemmes. Sans somme : Il te manque des Gemmes. |
 | Refus `PAS_LE_PDG` | rien | Seul le PDG peut le faire. |
-| Refus `SEUIL_NON_ATTEINT` | rien | Le seuil n'est pas atteint. |
+| Refus `SEUIL_NON_ATTEINT` (avec la somme, puis sans) | rien | Il te manque `<somme>` Donar. Sans somme : Le seuil n'est pas atteint. |
 | Refus `USINE_VERROUILLEE` | rien | Cette usine est verrouillée. |
 | Refus `ZONE_VERROUILLEE` | rien | Cette zone est verrouillée. |
 | Refus `EMPLACEMENT_OCCUPE` | rien | Cet emplacement est occupé. |
 | Refus `ENTREPRISE_PLEINE` | rien | Ton entreprise est pleine. |
-| Refus `DEJA_POSSEDE`, la seule bulle fière | rien | Tu l'as déjà. |
+| Refus `DEJA_POSSEDE`, bulle fière | rien | Tu l'as déjà. |
 | Refus `GRADE_PRECEDENT_REQUIS` | rien | Il faut d'abord le grade précédent. |
 | Refus `CONFLIT_REESSAYER`, si le second essai échoue aussi | rien | Ça a bougé. Réessaie. |
 | Bulle joie, fin de la mission `bienvenue-mairie` (dite dans le tchat, avant la ligne Récompense) | rien | Premier encaissement, bien joué ! |
 | Bulle joie, fin d'une mission dont l'add-on n'a pas les textes | rien | Bien joué, patron ! |
+
+Le prestige et la carte (`PRESTIGE_TEXTES`, `CARTE_TEXTES` et les bulles qui s'y ajoutent). Tous les nombres
+viennent du service, mis en forme par `ui/nombres.ts`. Les noms d'époque sont ceux de `docs/game-design.md`.
+
+| Où | Avant | Après |
+|---|---|---|
+| Prestige, titre | rien | PRESTIGE |
+| Prestige, où en est la course | rien | Course `<n>` · Époque `<n>` : `<nom de l'époque>` |
+| Prestige, nom de l'époque 1, 2, 3, 4 | rien | Artisanale, Vapeur, Moderne, Futuriste |
+| Prestige, course suivante (époque 2, 3 ou 4) | rien | Course suivante : époque `<n>`, `<nom>` |
+| Prestige, course suivante (étoile) | rien | Course suivante : une étoile de plus |
+| Prestige, principe | rien | Tu revends tes usines et tu reçois des Lingots. |
+| Prestige, quand le service l'autorise | rien | Le seuil est atteint. |
+| Prestige, quand il ne l'autorise pas (sans bouton de confirmation) | rien | Le seuil n'est pas atteint. |
+| Prestige, seuil | rien | Seuil `<seuil>` Donar |
+| Prestige, total | rien | Lingots en tout `<lingots>` |
+| Prestige, part du joueur (à partir de deux membres) | rien | Ta part `<lingots>` Lingots |
+| Prestige, part d'un autre membre | rien | Un associé `<lingots>` Lingots |
+| Prestige, si le Donar avait doublé | rien | Avec deux fois plus de Donar : `<lingots>` Lingots |
+| Prestige, ce qui repart, titre | rien | REPART À ZÉRO |
+| Prestige, ce qui repart | rien | Ton Donar et le niveau de tes usines. |
+| Prestige, ce qui repart | rien | La Carrière redémarre, les autres usines retombent en ruine. |
+| Prestige, ce qui reste, titre | rien | RESTE |
+| Prestige, ce qui reste | rien | Tes Lingots, tes Gemmes, ton entreprise et ses associés. |
+| Prestige, bouton de confirmation (le point d'exclamation est celui de `design/README.md`) | rien | Prestige ! |
+| Prestige, bouton | rien | Retour |
+| Après le prestige, étoiles | rien | Étoiles `<n>` |
+| Après le prestige, Lingots | rien | Tu as `<lingots>` Lingots |
+| Après le prestige, phrase | rien | La Carrière tourne. Remets les autres usines en état. |
+| Après le prestige, bouton | rien | Voir les usines |
+| Après le prestige, bouton | rien | Retour |
+| Bulle fier, prestige accompli | rien | Prestige accompli, patron ! |
+| Carte, titre | rien | CARTE |
+| Carte, phrase | rien | Choisis une île pour t'y rendre. |
+| Carte, île principale (verrouillée) | rien | Île principale, avec le mot Bientôt |
+| Carte, usine que l'entreprise n'a pas | rien | ????? |
+| Carte, usine entière | rien | Entière · niv. `<niveau>` |
+| Carte, usine en ruine | rien | En ruine |
+| Carte, usine en travaux | rien | En travaux `<étape>`/`<total>` |
+| Carte, boutons | rien | Précédent, Suite, Retour, et la ligne Page `<n>` sur `<total>` des usines |
+| Bulle oups, usine que l'entreprise n'a pas | rien | Tu n'as pas encore cette usine. |
+| Bulle oups, île introuvable (pas d'origine d'archipel, ou île absente de `iles.json`) | rien | Je ne trouve pas cette île. |
+| Bulle oups, île pas prête dans le délai | rien | L'île n'est pas encore prête. |
 
 La cinématique d'arrivée (`design/composants/Cinematique.md`) : quatre plans, une phrase d'Oooscar par plan, plus la
 consigne pour passer. Le nom de qui parle (« Oooscar ») est le titre du sous-titre, la phrase en est le texte. Chaque
@@ -359,6 +452,18 @@ Au contrat (`api/`, non modifié par cette tranche) :
   serveur sait la faire apparaître, pas la montrer.
 - Les phrases de la cinématique sont des textes à valider, de même que le découpage et le cadrage des plans.
 
+À la tranche du prestige et de la carte :
+
+- L'événement `PRESTIGE_ENTREPRISE` (un prestige lancé par un autre membre) n'est pas branché : son payload n'est pas
+  décrit dans le contrat, et aucun écran ne le montre. Les autres membres voient leurs usines et leurs îles changer
+  au relevé suivant, sans qu'Oooscar le leur dise.
+- L'aperçu du prestige ne donne que les XUID des membres : l'écran dit « Ta part » et « Un associé », sans nom.
+- Le contrat ne donne pas le rôle du joueur : l'écran propose « Prestige ! » à tout membre quand le service
+  l'autorise, et `PAS_LE_PDG` revient en bulle pour qui n'est pas le PDG.
+- L'île principale n'est pas construite : sa ligne de la carte est verrouillée (« Bientôt »).
+- Oooscar ne suit pas le joueur sur l'île choisie : il reste là où l'arrivée l'a posé.
+- Pas de texte pour les époques au-delà de la quatrième : un numéro inconnu se montre sans nom.
+
 Au design system :
 
 - Pas d'icône pour Objectifs, Amis et Silo (Objectifs est actif mais garde son repère `[O]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
@@ -374,6 +479,12 @@ Au design system :
 - « Une action en deux clics » : le Silo y est (Silo, Encaisser), pas la montée d'une usine (Usines, la tuile, le
   bouton). Un accès direct depuis le menu principal à l'usine la plus rentable serait possible, mais il demande un
   choix de jeu (laquelle ?) qui n'est pas pris ici.
+
+- Prestige et carte, choix faits sans Kr, à relire : le prestige est une sixième tuile du menu (« Course `<n>` ») ;
+  l'aperçu est relu à chaque ouverture, il n'est pas gardé ; sans autorisation du service il n'y a pas de bouton de
+  confirmation, seulement le seuil ; l'attente d'une île avant de téléporter dure `config.world.travelWaitSeconds`
+  (10 s) ; le bouton de confirmation s'écrit « Prestige ! », seul point d'exclamation d'un bouton, parce que
+  `design/README.md` le prescrit ; « ????? » est le seul point d'interrogation, c'est le nom caché d'une usine.
 
 ## Ce qui ne se vérifie que sur un vrai BDS
 
@@ -392,6 +503,12 @@ Au design system :
 - Le blocage des déplacements pendant la cinématique et la lecture de l'accroupissement (le même geste doit faire passer).
 - La téléportation vers une zone encore non chargée, et la remise du joueur à la fin de la cinématique.
 - L'entité `silooo:oooscar` : validité du JSON au format `1.21.0`, absence de dégâts et de butin, disparition au départ.
+- Le voyage : la téléportation vers une île dont la zone n'est plus chargée (la ticking area est relâchée après la
+  pose), l'attente de `config.world.travelWaitSeconds` quand l'île se redessine après un prestige, et le point
+  d'arrivée de chacune des quinze îles (hors du bâtiment et sur la plateforme, prouvé par les tests de géométrie,
+  mais pas vu).
+- Les formulaires de la carte (seize lignes, deux pages) et du prestige (longueur du corps, retours à la ligne), et les
+  repères provisoires `[P]`, `[C]` et `[X]`.
 - Les missions : `player.sendMessage` avec les codes `§` pour la bulle de fin, la tuile Objectifs à deux lignes, la
   lecture des missions à l'arrivée pendant la cinématique, et une `ANNONCE` reçue pour un joueur qui vient de se
   connecter (le curseur des événements repart de 0 au redémarrage de BDS).

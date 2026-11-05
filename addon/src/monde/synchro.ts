@@ -30,6 +30,8 @@ export interface WorldSync {
   tick(): void;
   /** Retient l'origine d'archipel d'une entreprise. */
   remember(companyId: number, origin: Xz): void;
+  /** La dernière origine d'archipel connue d'une entreprise, ou undefined si le service ne l'a jamais donnée. */
+  originOf(companyId: number): Xz | undefined;
 }
 
 export function createWorldSync<P>(deps: WorldSyncDeps<P>): WorldSync {
@@ -42,6 +44,8 @@ export function createWorldSync<P>(deps: WorldSyncDeps<P>): WorldSync {
       origins.set(companyId, origin);
       missing.delete(companyId);
     },
+
+    originOf: (companyId) => origins.get(companyId),
 
     tick() {
       const online = players();

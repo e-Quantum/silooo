@@ -55,6 +55,7 @@ export const ICON = {
   cadenas: "[X]",
   silo: "[S]",
   carte: "[C]",
+  prestige: "[P]",
   objectifs: "[O]",
   amis: "[A]",
 } as const;

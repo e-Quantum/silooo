@@ -2,8 +2,10 @@
 //
 //   MENU ─┬─ SILO ─────────── Encaisser
 //         ├─ USINES ── fiche ─ Monter de 1 / de 10 / au palier / au max   (usine en ruine : l'étape suivante)
+//         ├─ CARTE ────────── une île par usine ; choisir une île de l'entreprise y téléporte (le menu se ferme)
 //         ├─ OBJECTIFS ────── la mission en cours et les missions terminées (relues à l'ouverture)
-//         └─ Carte, Amis : verrouillés, un mot « Bientôt »
+//         ├─ PRESTIGE ─────── l'aperçu du service (relu à l'ouverture) ─ Prestige ! ─ l'écran d'après
+//         └─ Amis : verrouillé, un mot « Bientôt »
 //
 // Les écrans sont des fonctions pures : une vue de l'entreprise (ce que le service a dit) entre, un écran sort
 // (titre, corps, boutons, et ce que chaque bouton fait). Rien n'y est calculé : chaque chiffre montré est un champ
@@ -15,9 +17,19 @@
 
 import { playerXuid } from "../identity";
 import { config } from "../config";
-import { BUY_AMOUNTS, RESTORE_STEP_MAX, type BuyAmount, type Factory, type MissionState, type Xuid } from "../protocol";
+import {
+  BUY_AMOUNTS,
+  RESTORE_STEP_MAX,
+  type BuyAmount,
+  type CompanyState,
+  type Factory,
+  type MissionState,
+  type PrestigePreview,
+  type Xuid,
+} from "../protocol";
+import type { TravelOutcome } from "../monde/voyage";
 import { describeError, type Clock, type Logger } from "../runtime";
-import type { Actions, ActionOutcome } from "./actions";
+import type { Actions, ActionOutcome, PreviewOutcome } from "./actions";
 import { COLOR, colored, ICON } from "./apparence";
 import { counterValue } from "./compteur";
 import type { CompanyView, ViewStore } from "./etat";
@@ -26,11 +38,15 @@ import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
 import {
   BULLES,
+  CARTE_TEXTES,
+  FACTORY_IDS,
   FICHE_TEXTES,
   MENU_TEXTES,
   OBJECTIFS_TEXTES,
+  PRESTIGE_TEXTES,
   SILO_TEXTES,
   USINES_TEXTES,
+  eraName,
   factoryName,
   failureBubble,
   missionTexts,
@@ -48,15 +64,23 @@ export type Route =
   | { readonly screen: "main" }
   | { readonly screen: "silo" }
   | { readonly screen: "objectifs" }
+  | { readonly screen: "prestige" }
+  /** L'écran d'après le prestige : on n'y arrive que par la réponse du service au prestige. */
+  | { readonly screen: "apres" }
+  | { readonly screen: "carte"; readonly page: number }
   | { readonly screen: "usines"; readonly page: number }
   | { readonly screen: "fiche"; readonly factoryId: string; readonly page: number };
 
 /** Ce que fait un bouton. */
 export type Target =
   | { readonly kind: "go"; readonly route: Route }
-  /** Une tuile verrouillée : l'écran reste, Oooscar dit que ce n'est pas encore là. */
-  | { readonly kind: "soon" }
+  /** Une tuile verrouillée : l'écran reste, Oooscar dit que ce n'est pas encore là (ou la bulle donnée). */
+  | { readonly kind: "soon"; readonly bubble?: Bubble }
   | { readonly kind: "collect" }
+  /** Le bouton « Prestige ! » : demande le prestige au service. */
+  | { readonly kind: "prestige" }
+  /** Une île de l'entreprise sur la carte : y téléporte le joueur. */
+  | { readonly kind: "travel"; readonly factoryId: string }
   | { readonly kind: "buy"; readonly factoryId: string; readonly amount: BuyAmount }
   | { readonly kind: "restore"; readonly factoryId: string; readonly step: number }
   /** Ferme le menu. */
@@ -142,8 +166,15 @@ export function mainScreen(view: CompanyView, missions: MissionState | undefined
       text: button(`${ICON.usine} ${MENU_TEXTES.usines}`, MENU_TEXTES.nombreUsines(view.state.factories.length)),
       target: go({ screen: "usines", page: 0 }),
     },
-    lockedTile(MENU_TEXTES.carte),
+    {
+      text: button(`${ICON.carte} ${MENU_TEXTES.carte}`, MENU_TEXTES.nombreIles(view.state.factories.length)),
+      target: go({ screen: "carte", page: 0 }),
+    },
     objectifsTile(missions),
+    {
+      text: button(`${ICON.prestige} ${MENU_TEXTES.prestige}`, PRESTIGE_TEXTES.tuile(formatCount(view.state.courseNumber))),
+      target: go({ screen: "prestige" }),
+    },
     lockedTile(MENU_TEXTES.amis),
   ];
   return screenOf(MENU_TEXTES.titre, bodyOf(notice, [`${COLOR.bold}${view.state.name}${COLOR.reset}`]), tiles);
@@ -284,6 +315,141 @@ export function objectifsScreen(missions: MissionState | undefined, notice?: Not
   return screenOf(OBJECTIFS_TEXTES.titre, bodyOf(notice, lines), entries);
 }
 
+// ---------------------------------------------------------------- la carte
+
+/** La ligne d'info d'une usine de l'entreprise sur la carte : entière ou en ruine, d'après l'état du service. */
+function carteDetail(factory: Factory): string {
+  const etat = CARTE_TEXTES.etat;
+  switch (factory.state) {
+    case "ACTIVE":
+      return etat.entiere(formatCount(factory.level));
+    case "EN_RUINE":
+      return etat.enRuine;
+    case "REMISE_EN_ETAT":
+      return etat.enTravaux(factory.restoreStep ?? 0, RESTORE_STEP_MAX);
+  }
+}
+
+/**
+ * La carte des îles : l'île principale (pas encore construite, donc verrouillée), puis une ligne par usine dans
+ * l'ordre du jeu. Une usine de l'entreprise mène à son île ; une usine qu'elle n'a pas reste cachée (« ????? »).
+ * Une usine de l'entreprise que cet add-on ne connaît pas encore vient après les autres.
+ */
+export function carteScreen(view: CompanyView, page: number, tilesPerScreen: number, notice?: Notice): Screen {
+  const owned = new Map(view.state.factories.map((factory) => [factory.factoryId, factory]));
+  const ids = [...FACTORY_IDS, ...view.state.factories.map((factory) => factory.factoryId).filter((id) => !FACTORY_IDS.includes(id))];
+  const rows: Entry[] = [lockedTile(CARTE_TEXTES.ilePrincipale)];
+  for (const id of ids) {
+    const factory = owned.get(id);
+    if (factory === undefined) {
+      rows.push({
+        text: `${COLOR.locked}${ICON.cadenas} ${CARTE_TEXTES.inconnue}${COLOR.reset}`,
+        target: { kind: "soon", bubble: BULLES.usinePasEncore },
+      });
+    } else {
+      rows.push({
+        text: button(`${STATUS_MARK[factoryStatus(factory)]} ${factoryName(id)}`, carteDetail(factory)),
+        target: { kind: "travel", factoryId: id },
+      });
+    }
+  }
+
+  const perPage = Math.max(1, Math.floor(tilesPerScreen));
+  const pages = Math.max(1, Math.ceil(rows.length / perPage));
+  const current = Math.min(Math.max(0, Math.floor(page)), pages - 1);
+  const entries = rows.slice(current * perPage, (current + 1) * perPage);
+  if (current > 0) entries.push({ text: USINES_TEXTES.precedent, target: go({ screen: "carte", page: current - 1 }) });
+  if (current < pages - 1) entries.push({ text: USINES_TEXTES.suite, target: go({ screen: "carte", page: current + 1 }) });
+  entries.push({ text: CARTE_TEXTES.retour, target: go(MAIN) });
+
+  const lines: string[] = [CARTE_TEXTES.phrase];
+  if (pages > 1) lines.push(colored(COLOR.muted, USINES_TEXTES.page(current + 1, pages)));
+  return screenOf(CARTE_TEXTES.titre, bodyOf(notice, lines), entries);
+}
+
+// ---------------------------------------------------------------- le prestige
+
+/** « Époque 2 : Vapeur », d'après le numéro d'époque du service. */
+function eraLabel(era: number): string {
+  return PRESTIGE_TEXTES.epoque(formatCount(era), eraName(era));
+}
+
+/** Ce que donnera la course suivante : une époque, ou une étoile. `next` est un champ de l'aperçu du service. */
+function nextLine(next: PrestigePreview["next"]): string {
+  const era = /^EPOQUE_([0-9]+)$/.exec(next);
+  if (era === null) return PRESTIGE_TEXTES.suivante.etoile;
+  const number = Number(era[1]);
+  return PRESTIGE_TEXTES.suivante.epoque(formatCount(number), eraName(number));
+}
+
+/** Les parts de chaque membre, telles que le service les donne. Une entreprise d'une seule personne n'a pas de part à montrer. */
+function shareLines(preview: PrestigePreview, xuid: Xuid): string[] {
+  if (preview.shares.length < 2) return [];
+  return preview.shares.map((share) =>
+    colored(
+      COLOR.lingots,
+      share.xuid === xuid ? PRESTIGE_TEXTES.avant.taPart(formatCount(share.lingots)) : PRESTIGE_TEXTES.avant.unAssocie(formatCount(share.lingots)),
+    ),
+  );
+}
+
+/**
+ * L'écran d'avant le prestige : où en est la course, ce que le service dit que le prestige rapporterait (autorisé ou non,
+ * Lingots, part de chaque membre, ce que donnerait deux fois plus de Donar), la course suivante, puis ce qui repart à
+ * zéro et ce qui reste. Le bouton « Prestige ! » n'existe que si le service dit que c'est permis. Sans aperçu (lecture
+ * pas faite ou échouée), Oooscar le dit et il ne reste que « Retour » : rien n'est inventé.
+ */
+export function prestigeScreen(view: CompanyView, lookup: PreviewOutcome | undefined, xuid: Xuid, notice?: Notice): Screen {
+  const back: Entry = { text: PRESTIGE_TEXTES.avant.retour, target: go(MAIN) };
+  if (lookup?.kind !== "preview") {
+    const bubble = lookup === undefined ? BULLES.serviceInjoignable : failureBubble(lookup.failure, lookup.reason);
+    return screenOf(PRESTIGE_TEXTES.titre, bodyOf(notice ?? { bubble }, []), [back]);
+  }
+
+  const { preview } = lookup;
+  const avant = PRESTIGE_TEXTES.avant;
+  const lines = [colored(COLOR.muted, PRESTIGE_TEXTES.course(formatCount(view.state.courseNumber), eraLabel(view.state.era))), ""];
+  if (preview.allowed) {
+    lines.push(colored(COLOR.success, avant.pret), avant.principe, colored(COLOR.lingots, avant.total(formatCount(preview.lingotsTotal))));
+    lines.push(...shareLines(preview, xuid));
+    if (preview.lingotsIfDoubled !== undefined) lines.push(colored(COLOR.muted, avant.doubler(formatCount(preview.lingotsIfDoubled))));
+  } else {
+    lines.push(colored(COLOR.blocked, avant.pasEncore), avant.seuil(formatAmount(view.state.threshold)));
+  }
+  lines.push(
+    "",
+    nextLine(preview.next),
+    "",
+    colored(COLOR.paper, avant.repartTitre),
+    ...avant.repart,
+    "",
+    colored(COLOR.paper, avant.resteTitre),
+    avant.reste,
+  );
+
+  const entries: Entry[] = [];
+  if (preview.allowed) entries.push({ text: avant.confirmer, target: { kind: "prestige" } });
+  entries.push(back);
+  return screenOf(PRESTIGE_TEXTES.titre, bodyOf(notice, lines), entries);
+}
+
+/**
+ * L'écran d'après le prestige : l'état que le service vient de rendre (époque, course, étoiles, Lingots, Donar), lu dans
+ * la vue du joueur. Les îles changent de visage au relevé suivant du monde (monde/synchro.ts).
+ */
+export function apresScreen(view: CompanyView, notice?: Notice): Screen {
+  const { state, balances } = view;
+  const apres = PRESTIGE_TEXTES.apres;
+  const lines = [`${COLOR.bold}${PRESTIGE_TEXTES.course(formatCount(state.courseNumber), eraLabel(state.era))}${COLOR.reset}`];
+  if (state.stars > 0) lines.push(apres.etoiles(formatCount(state.stars)));
+  lines.push(colored(COLOR.lingots, apres.lingots(formatCount(balances.lingots))), SILO_TEXTES.donar(formatAmount(state.donar)), "", apres.suite);
+  const entries: Entry[] = [
+    { text: apres.usines, target: go({ screen: "usines", page: 0 }) },
+    { text: apres.retour, target: go(MAIN) },
+  ];
+  return screenOf(PRESTIGE_TEXTES.titre, bodyOf(notice, lines), entries);
+}
+
 // ---------------------------------------------------------------- le silo
 
 export function siloScreen(view: CompanyView, nowMs: number, notice?: Notice): Screen {
@@ -322,6 +488,8 @@ export function noticeOf(outcome: ActionOutcome): Notice | undefined {
       return { bubble: BULLES.montee };
     case "stepDone":
       return { bubble: BULLES.etape };
+    case "prestiged":
+      return { bubble: BULLES.prestige };
     case "refused":
       return { bubble: refusalBubble(outcome.reason, outcome.missing) };
     case "failed":
@@ -333,6 +501,19 @@ export function noticeOf(outcome: ActionOutcome): Notice | undefined {
 
 // ---------------------------------------------------------------- le parcours
 
+/** La bulle d'Oooscar quand le voyage n'a pas eu lieu. `arrived` et `gone` n'en ont pas : le menu se ferme. */
+export function travelNotice(outcome: TravelOutcome): Notice | undefined {
+  switch (outcome) {
+    case "unavailable":
+      return { bubble: BULLES.ileIntrouvable };
+    case "waiting":
+      return { bubble: BULLES.ilePasPrete };
+    case "arrived":
+    case "gone":
+      return undefined;
+  }
+}
+
 /** Ce que le menu lit d'un joueur : son nom, d'où vient son identifiant (identity.ts). */
 export interface MenuPlayer {
   readonly name: string;
@@ -343,6 +524,11 @@ export interface MenuDeps<P extends MenuPlayer> {
   /** Les missions : lues pour la tuile Objectifs, relues quand le joueur ouvre l'écran des objectifs. */
   readonly missions: Pick<Missions, "get" | "refresh">;
   readonly actions: Actions;
+  /**
+   * Téléporte le joueur sur l'île d'une usine de son entreprise (monde/voyage.ts), d'après l'état que le service a
+   * donné. Absent quand le monde n'a pas démarré : la carte répond alors « Pas encore disponible ».
+   */
+  readonly travel?: (player: P, state: CompanyState, factoryId: string) => Promise<TravelOutcome>;
   readonly presenter: FormPresenter<P>;
   readonly clock: Clock;
   /** Attend ce nombre de secondes sur l'horloge du serveur (runtime.ts, pause). */
@@ -368,6 +554,9 @@ function parentOf(route: Route): Route {
     case "usines":
     case "silo":
     case "objectifs":
+    case "prestige":
+    case "apres":
+    case "carte":
     case "main":
       return MAIN;
   }
@@ -393,7 +582,13 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     }
   }
 
-  function screenFor(route: Route, xuid: Xuid, view: CompanyView, notice: Notice | undefined): Screen | undefined {
+  function screenFor(
+    route: Route,
+    xuid: Xuid,
+    view: CompanyView,
+    notice: Notice | undefined,
+    preview: PreviewOutcome | undefined,
+  ): Screen | undefined {
     switch (route.screen) {
       case "main":
         return mainScreen(view, missions.get(xuid), notice);
@@ -401,6 +596,12 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         return siloScreen(view, clock.now(), notice);
       case "objectifs":
         return objectifsScreen(missions.get(xuid), notice);
+      case "prestige":
+        return prestigeScreen(view, preview, xuid, notice);
+      case "apres":
+        return apresScreen(view, notice);
+      case "carte":
+        return carteScreen(view, route.page, tilesPerScreen, notice);
       case "usines":
         return usinesScreen(view, route.page, tilesPerScreen, notice);
       case "fiche":
@@ -417,7 +618,9 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "restore":
         return noticeOf(await actions.restoreStep(xuid, target.factoryId, target.step));
       case "soon":
-        return { bubble: BULLES.bientot };
+        return { bubble: target.bubble ?? BULLES.bientot };
+      case "prestige":
+      case "travel":
       case "go":
       case "end":
         return undefined;
@@ -428,13 +631,15 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     const xuid = playerXuid(player);
     let route: Route = MAIN;
     let notice: Notice | undefined;
+    /** Le dernier aperçu du prestige lu : relu à chaque ouverture de l'écran, et après un prestige refusé. */
+    let preview: PreviewOutcome | undefined;
     for (;;) {
       const view = views.get(xuid);
       if (view === undefined) {
         await present(player, unavailableScreen().spec);
         return;
       }
-      const screen = screenFor(route, xuid, view, notice);
+      const screen = screenFor(route, xuid, view, notice, preview);
       if (screen === undefined) {
         // L'usine n'existe plus côté service : retour au parent, la bulle reste.
         route = parentOf(route);
@@ -449,6 +654,22 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
         route = target.route;
         // Les missions avancent côté service : l'écran des objectifs les relit à chaque ouverture.
         if (route.screen === "objectifs") await missions.refresh(xuid);
+        // Le prestige aussi : l'aperçu dépend de la production du moment.
+        if (route.screen === "prestige") preview = await actions.preview(xuid);
+      } else if (target.kind === "prestige") {
+        const outcome = await actions.prestige(xuid);
+        notice = noticeOf(outcome);
+        if (outcome.kind === "prestiged") route = { screen: "apres" };
+        else if (outcome.kind !== "busy") preview = await actions.preview(xuid);
+      } else if (target.kind === "travel") {
+        if (deps.travel === undefined) {
+          notice = { bubble: BULLES.bientot };
+        } else {
+          const outcome = await deps.travel(player, views.get(xuid)?.state ?? view.state, target.factoryId);
+          // Arrivé, le joueur est sur son île : le menu se ferme. Parti, il n'y a plus personne à qui parler.
+          if (outcome === "arrived" || outcome === "gone") return;
+          notice = travelNotice(outcome);
+        }
       } else {
         notice = await act(xuid, target);
       }

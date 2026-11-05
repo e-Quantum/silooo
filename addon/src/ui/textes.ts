@@ -38,6 +38,9 @@ export const FACTORY_NAMES: Readonly<Record<FactoryId, string>> = {
   cristallerie: "Cristallerie",
 };
 
+/** Les identifiants des usines dans l'ordre du jeu (celui de definitions/usines.json, vérifié par un test) : l'ordre de la carte. */
+export const FACTORY_IDS: readonly string[] = Object.keys(FACTORY_NAMES);
+
 function isKnownFactory(id: string): id is FactoryId {
   return Object.prototype.hasOwnProperty.call(FACTORY_NAMES, id);
 }
@@ -82,6 +85,14 @@ export const BULLES = {
   collecteHorsLigne: say("dodo", "Gagné pendant ton absence."),
   montee: say("joie", "Usine améliorée !"),
   etape: say("joie", "Étape terminée !"),
+  /** Le prestige est fait. Fier : c'est l'expression du prestige (docs/design.md). */
+  prestige: say("fier", "Prestige accompli, patron !"),
+  /** Une ligne de la carte que le joueur n'a pas encore. */
+  usinePasEncore: say("oups", "Tu n'as pas encore cette usine."),
+  /** Le service n'a pas donné d'origine d'archipel, ou l'île n'est pas dans iles.json : on ne sait pas où aller. */
+  ileIntrouvable: say("oups", "Je ne trouve pas cette île."),
+  /** L'île est en chantier (elle se redessine après un prestige) et n'est pas prête dans le délai. */
+  ilePasPrete: say("oups", "L'île n'est pas encore prête."),
   /** La fin d'une mission dont cet add-on n'a pas les textes. */
   missionInconnue: say("joie", "Bien joué, patron !"),
 } as const satisfies Record<string, Bubble>;
@@ -96,7 +107,7 @@ const REFUSAL_BUBBLES: Readonly<Record<RefusalReason, (amount: number | undefine
   PAS_ASSEZ_DE_LINGOTS: (amount) => missing("Lingots", amount, "Il te manque des Lingots."),
   PAS_ASSEZ_DE_GEMMES: (amount) => missing("Gemmes", amount, "Il te manque des Gemmes."),
   PAS_LE_PDG: () => say("oups", "Seul le PDG peut le faire."),
-  SEUIL_NON_ATTEINT: () => say("oups", "Le seuil n'est pas atteint."),
+  SEUIL_NON_ATTEINT: (amount) => missing("Donar", amount, "Le seuil n'est pas atteint."),
   USINE_VERROUILLEE: () => say("oups", "Cette usine est verrouillée."),
   ZONE_VERROUILLEE: () => say("oups", "Cette zone est verrouillée."),
   EMPLACEMENT_OCCUPE: () => say("oups", "Cet emplacement est occupé."),
@@ -199,6 +210,7 @@ export const MENU_TEXTES = {
   silo: "Silo",
   usines: "Usines",
   carte: "Carte",
+  prestige: "Prestige",
   objectifs: "Objectifs",
   amis: "Amis",
   /** Le mot d'une tuile verrouillée. */
@@ -206,6 +218,7 @@ export const MENU_TEXTES = {
   retour: "Retour",
   revenu: (rate: string): string => `Revenu ${rate}`,
   nombreUsines: (count: number): string => (count === 1 ? "1 usine" : `${count} usines`),
+  nombreIles: (count: number): string => (count === 1 ? "1 île" : `${count} îles`),
 } as const;
 
 export const USINES_TEXTES = {
@@ -280,6 +293,70 @@ export const OBJECTIFS_TEXTES = {
   tuile: {
     enCours: (progress: string, target: string): string => `Mission ${progress}/${target}`,
     plusDeMission: "Plus de mission",
+  },
+  retour: "Retour",
+} as const;
+
+/** Les noms des époques, par numéro d'époque (docs/glossaire.md) : l'indice 0 est l'époque 1. */
+const EPOQUES = ["Artisanale", "Vapeur", "Moderne", "Futuriste"] as const;
+
+/** Le nom d'une époque, ou une chaîne vide pour une époque que cet add-on ne connaît pas encore. */
+export function eraName(era: number): string {
+  return EPOQUES[era - 1] ?? "";
+}
+
+export const PRESTIGE_TEXTES = {
+  titre: "PRESTIGE",
+  /** La ligne d'info de la tuile du menu : le numéro de la course, tel que le service le donne. */
+  tuile: (course: string): string => `Course ${course}`,
+  /** L'époque d'une course : « Époque 2 : Vapeur ». Sans nom connu, le numéro seul. */
+  epoque: (era: string, name: string): string => (name === "" ? `Époque ${era}` : `Époque ${era} : ${name}`),
+  /** Où en est l'entreprise : sa course et son époque. */
+  course: (course: string, epoque: string): string => `Course ${course} · ${epoque}`,
+  /** Ce que donnera la course suivante, d'après le champ « next » de l'aperçu. */
+  suivante: {
+    epoque: (era: string, name: string): string =>
+      name === "" ? `Course suivante : époque ${era}` : `Course suivante : époque ${era}, ${name}`,
+    etoile: "Course suivante : une étoile de plus",
+  },
+  /** L'écran d'avant : l'aperçu du service, puis ce qui repart et ce qui reste. */
+  avant: {
+    principe: "Tu revends tes usines et tu reçois des Lingots.",
+    pret: "Le seuil est atteint.",
+    pasEncore: "Le seuil n'est pas atteint.",
+    seuil: (donar: string): string => `Seuil ${donar} Donar`,
+    total: (lingots: string): string => `Lingots en tout ${lingots}`,
+    taPart: (lingots: string): string => `Ta part ${lingots} Lingots`,
+    unAssocie: (lingots: string): string => `Un associé ${lingots} Lingots`,
+    doubler: (lingots: string): string => `Avec deux fois plus de Donar : ${lingots} Lingots`,
+    repartTitre: "REPART À ZÉRO",
+    repart: ["Ton Donar et le niveau de tes usines.", "La Carrière redémarre, les autres usines retombent en ruine."],
+    resteTitre: "RESTE",
+    reste: "Tes Lingots, tes Gemmes, ton entreprise et ses associés.",
+    confirmer: "Prestige !",
+    retour: "Retour",
+  },
+  /** L'écran d'après : l'état rendu par le service une fois le prestige fait. */
+  apres: {
+    etoiles: (stars: string): string => `Étoiles ${stars}`,
+    lingots: (amount: string): string => `Tu as ${amount} Lingots`,
+    suite: "La Carrière tourne. Remets les autres usines en état.",
+    usines: "Voir les usines",
+    retour: "Retour",
+  },
+} as const;
+
+export const CARTE_TEXTES = {
+  titre: "CARTE",
+  phrase: "Choisis une île pour t'y rendre.",
+  ilePrincipale: "Île principale",
+  /** La ligne d'une usine que l'entreprise n'a pas encore : son nom reste caché. */
+  inconnue: "?????",
+  /** La ligne d'info d'une usine de l'entreprise, d'après son état dans le service. */
+  etat: {
+    entiere: (level: string): string => `Entière · niv. ${level}`,
+    enRuine: "En ruine",
+    enTravaux: (step: number, total: number): string => `En travaux ${step}/${total}`,
   },
   retour: "Retour",
 } as const;

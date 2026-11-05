@@ -103,9 +103,12 @@ export interface Arrival {
   readonly frame: Frame;
 }
 
-/** Le point d'apparition du joueur : sur la mini-île de départ, du côté de l'île principale, face au bâtiment. */
-export function arrivalOf(origin: Xz, defs: IlesDefinitions): Arrival | undefined {
-  const usine = usineIle(defs, defs.apparition.usine);
+/**
+ * Le point d'arrivée du joueur sur la mini-île d'une usine : du côté de l'île principale, face au bâtiment, à la
+ * distance de definitions/iles.json (`apparition.distance`). C'est le même point pour toutes les usines.
+ */
+export function arrivalAt(origin: Xz, defs: IlesDefinitions, factoryId: string): Arrival | undefined {
+  const usine = usineIle(defs, factoryId);
   if (usine === undefined) return undefined;
   const frame = frameOfIsland(origin, usine, defs);
   const { distance, oooscar } = defs.apparition;
@@ -116,6 +119,11 @@ export function arrivalOf(origin: Xz, defs: IlesDefinitions): Arrival | undefine
     oooscar: standingAt(inFrame(frame, oooscar.avant, oooscar.droite), defs),
     frame,
   };
+}
+
+/** Le point d'apparition du joueur à son arrivée : sur la mini-île de départ (`apparition.usine`). */
+export function arrivalOf(origin: Xz, defs: IlesDefinitions): Arrival | undefined {
+  return arrivalAt(origin, defs, defs.apparition.usine);
 }
 
 /** Les rangées d'un disque de rayon `radius` : pour chaque décalage `dz`, la demi-largeur en x. Rond pour les petits rayons aussi. */

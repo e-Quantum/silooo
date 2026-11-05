@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { IlesDefinitions } from "../src/generated/definitions";
 import {
+  arrivalAt,
   arrivalOf,
   discCells,
   discRows,
@@ -216,5 +217,71 @@ describe("outils", () => {
 
   it("l'usine inconnue n'a pas d'île", () => {
     assert.equal(usineIle(ILES, "ailleurs"), undefined);
+  });
+});
+
+describe("arrivée sur chaque île de la carte", () => {
+  it("l'arrivée du départ est celle de l'usine de départ des définitions", () => {
+    assert.deepEqual(arrivalOf(ORIGINE, ILES), arrivalAt(ORIGINE, ILES, ILES.apparition.usine));
+  });
+
+  it("une usine qui n'a pas d'île dans iles.json n'a pas de point d'arrivée", () => {
+    assert.equal(arrivalAt(ORIGINE, ILES, "usine-du-futur"), undefined);
+  });
+
+  it("chaque île a un point d'arrivée distinct, sur son propre repère", () => {
+    const points = new Set<string>();
+    for (const batiment of ILES.usines) {
+      const arrivee = arrivalAt(ORIGINE, ILES, batiment.id);
+      assert.ok(arrivee !== undefined, batiment.id);
+      assert.equal(arrivee.factoryId, batiment.id);
+      points.add(`${arrivee.position.x},${arrivee.position.z}`);
+    }
+    assert.equal(points.size, ILES.usines.length);
+  });
+
+  it("le point d'arrivée est sur la plateforme de l'île, hors du bâtiment, sur la face du dessus", () => {
+    for (const batiment of ILES.usines) {
+      const arrivee = arrivalAt(ORIGINE, ILES, batiment.id);
+      assert.ok(arrivee !== undefined, batiment.id);
+      const centre = islandCenter(ORIGINE, batiment, ILES);
+      const fp = footprint(centre, batiment);
+      const x = Math.floor(arrivee.position.x);
+      const z = Math.floor(arrivee.position.z);
+      const dansLeBatiment = x >= fp.x0 && x <= fp.x1 && z >= fp.z0 && z <= fp.z1;
+      assert.ok(!dansLeBatiment, `${batiment.id} : dans le bâtiment`);
+      const plateforme = new Set(discCells(ILES.plateforme.rayon).map((c) => `${centre.x + c.dx},${centre.z + c.dz}`));
+      assert.ok(plateforme.has(`${x},${z}`), `${batiment.id} : hors de la plateforme (${x},${z})`);
+      assert.equal(arrivee.position.y, surfaceY(ILES), batiment.id);
+    }
+  });
+
+  it("le point d'arrivée est sur l'île choisie, pas sur sa voisine : plus près de son centre que de tout autre", () => {
+    for (const batiment of ILES.usines) {
+      const arrivee = arrivalAt(ORIGINE, ILES, batiment.id);
+      assert.ok(arrivee !== undefined, batiment.id);
+      const distance = (autre: { readonly angle: number }): number => {
+        const centre = islandCenter(ORIGINE, autre, ILES);
+        return Math.hypot(arrivee.position.x - centre.x, arrivee.position.z - centre.z);
+      };
+      const siennes = distance(batiment);
+      for (const autre of ILES.usines) {
+        if (autre.id !== batiment.id) assert.ok(siennes < distance(autre), `${batiment.id} / ${autre.id}`);
+      }
+    }
+  });
+
+  it("le point d'arrivée suit l'origine de l'archipel : une autre case, la même place dans l'île", () => {
+    const decalage = { x: 3000, z: 1500 };
+    for (const batiment of ILES.usines) {
+      const ici = arrivalAt(ORIGINE, ILES, batiment.id);
+      const la = arrivalAt({ x: ORIGINE.x + decalage.x, z: ORIGINE.z + decalage.z }, ILES, batiment.id);
+      assert.ok(ici !== undefined && la !== undefined, batiment.id);
+      assert.deepEqual(
+        { x: la.position.x - ici.position.x, y: la.position.y - ici.position.y, z: la.position.z - ici.position.z },
+        { x: decalage.x, y: 0, z: decalage.z },
+        batiment.id,
+      );
+    }
   });
 });

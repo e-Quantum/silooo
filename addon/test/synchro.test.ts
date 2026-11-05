@@ -2,12 +2,15 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { config } from "../src/config";
+import { createIslandBuilder } from "../src/monde/constructeur";
 import { ILES } from "../src/monde/definitions";
 import type { Xz } from "../src/monde/geometrie";
 import { createWorldSync } from "../src/monde/synchro";
 import type { Factory, Xuid } from "../src/protocol";
 import type { CompanyView } from "../src/ui/etat";
 import { balances, companyState, factory, recordingLogger } from "./helpers";
+import { fakeMarks, fakeWorld, virtualTime } from "./monde-helpers";
 
 interface Joueur {
   readonly xuid: Xuid;
@@ -115,5 +118,68 @@ describe("le relevé des îles", () => {
       log,
     });
     assert.doesNotThrow(() => sync.tick());
+  });
+});
+
+describe("l'origine retenue pour le voyage", () => {
+  it("dit la dernière origine connue d'une entreprise, celle de la vue ou celle qu'on avait retenue", () => {
+    const b = banc({ a: vue(1, [factory()], { x: 3000, z: 3000 }), b: vue(2, [factory()]) }, [{ xuid: "a" }, { xuid: "b" }]);
+    assert.equal(b.sync.originOf(1), undefined);
+    b.sync.remember(2, ORIGINE);
+    b.sync.tick();
+    assert.deepEqual(b.sync.originOf(1), { x: 3000, z: 3000 });
+    assert.deepEqual(b.sync.originOf(2), ORIGINE);
+    assert.equal(b.sync.originOf(3), undefined);
+  });
+});
+
+describe("après un prestige", () => {
+  /** Le relevé branché sur le vrai constructeur et un faux monde : on voit les îles changer de visage. */
+  function banc2(vues: Record<Xuid, CompanyView>) {
+    const temps = virtualTime();
+    const monde = fakeWorld(temps.clock);
+    const marques = fakeMarks();
+    const log = recordingLogger();
+    const constructeur = createIslandBuilder({
+      defs: ILES,
+      writer: monde,
+      marks: marques,
+      scheduler: temps.scheduler,
+      clock: temps.clock,
+      log,
+      settings: config.world,
+    });
+    const sync = createWorldSync<Joueur>({
+      defs: ILES,
+      players: () => [{ xuid: "a" }],
+      xuidOf: (joueur) => joueur.xuid,
+      views: { get: (xuid) => vues[xuid] },
+      builder: constructeur,
+      log,
+    });
+    return { temps, marques, sync, log };
+  }
+
+  it("les usines passées en ruine par le service sont redessinées au relevé suivant, rien n'est refait avant", async () => {
+    const vues: Record<Xuid, CompanyView> = {
+      a: vue(1, [factory({ factoryId: "carriere" }), factory({ factoryId: "scierie" })], ORIGINE),
+    };
+    const b = banc2(vues);
+    b.sync.tick();
+    await b.temps.advance(10);
+    assert.deepEqual(b.marques.stored.get(1), { carriere: "ACTIVE@1200,600", scierie: "ACTIVE@1200,600" });
+
+    // Le prestige : le service renvoie les usines en ruine ; la vue est remplacée, le monde n'a pas encore bougé.
+    vues["a"] = vue(
+      1,
+      [factory({ factoryId: "carriere", state: "EN_RUINE", level: 0 }), factory({ factoryId: "scierie", state: "EN_RUINE", level: 0 })],
+      ORIGINE,
+    );
+    await b.temps.advance(10);
+    assert.deepEqual(b.marques.stored.get(1), { carriere: "ACTIVE@1200,600", scierie: "ACTIVE@1200,600" });
+
+    b.sync.tick();
+    await b.temps.advance(10);
+    assert.deepEqual(b.marques.stored.get(1), { carriere: "EN_RUINE@1200,600", scierie: "EN_RUINE@1200,600" });
   });
 });
