@@ -1,6 +1,8 @@
 package com.silooo.core.site
 
 import com.silooo.core.Dependencies
+import com.silooo.core.site.pages.Navigation
+import com.silooo.core.site.pages.SiteShell
 import com.silooo.core.site.pages.erreurInterne
 import com.silooo.core.site.pages.introuvable
 import io.ktor.http.HttpHeaders
@@ -23,7 +25,7 @@ internal const val PUBLIC_PREFIX = "/public/"
  * rien depuis l'extérieur (c'est écrit dans les mentions), la politique l'impose.
  */
 internal const val CONTENT_SECURITY_POLICY =
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; frame-ancestors 'none'"
+    "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'"
 
 /**
  * Les en-têtes de toutes les réponses du site. Les pages ne se gardent pas (le mode peut changer au
@@ -52,16 +54,19 @@ private val SiteHeaders = createApplicationPlugin("SiteHeaders") {
 fun Application.siteModule(dependencies: Dependencies, content: SiteContent = SiteContent.fromClasspath()) {
     install(SiteHeaders)
 
+    // Valide les contenus du mode au démarrage (une adresse prise deux fois, un contenu sans page). La navigation
+    // ne liste que les pages que ce mode rend : les pages d'erreur la portent aussi, d'où son calcul avant elles.
+    val pages = content.forMode(dependencies.siteMode)
+    val shell = SiteShell(dependencies.siteUrl, dependencies.discordUrl, Navigation.items(dependencies.siteMode, pages))
+
     install(StatusPages) {
-        status(HttpStatusCode.NotFound) { call, _ -> call.respondHtml(HttpStatusCode.NotFound) { introuvable() } }
+        status(HttpStatusCode.NotFound) { call, _ -> call.respondHtml(HttpStatusCode.NotFound) { introuvable(shell) } }
         // Le détail va dans les journaux, la page ne dit rien du code.
         exception<Throwable> { call, cause ->
             call.application.log.error("Erreur non prévue sur ${call.request.httpMethod.value} ${call.request.uri}", cause)
-            call.respondHtml(HttpStatusCode.InternalServerError) { erreurInterne() }
+            call.respondHtml(HttpStatusCode.InternalServerError) { erreurInterne(shell) }
         }
     }
 
-    // Valide les contenus du mode au démarrage (une adresse prise deux fois, un contenu sans page).
-    val pages = content.forMode(dependencies.siteMode)
-    routing { siteRoutes(pages, dependencies.discordUrl) }
+    routing { siteRoutes(pages, shell) }
 }

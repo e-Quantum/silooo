@@ -2,6 +2,7 @@ package com.silooo.core.site
 
 import com.silooo.core.site.pages.accueil
 import com.silooo.core.site.pages.attente
+import com.silooo.core.site.pages.SiteShell
 import com.silooo.core.site.pages.mentions
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.html.respondHtml
@@ -16,9 +17,9 @@ import kotlinx.html.HTML
  * tombe dans le 404 du module. Les pages du mode `ouvert` ne sont pas enregistrées en mode `attente` : leur
  * adresse y répond 404, comme n'importe quelle adresse inconnue.
  */
-internal fun Route.siteRoutes(pages: List<ContentPage>, discordUrl: String?) {
+internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell) {
     for (page in pages) {
-        val render = renderer(page, discordUrl)
+        val render = renderer(page, shell)
         get(page.url) { call.respondHtml(HttpStatusCode.OK) { render() } }
         // /mentions mène à /mentions/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.
         if (page.url != "/") {
@@ -29,9 +30,9 @@ internal fun Route.siteRoutes(pages: List<ContentPage>, discordUrl: String?) {
 }
 
 /** La fonction de rendu d'un contenu, choisie par son nom de fichier. Un contenu sans page fait échouer le démarrage. */
-private fun renderer(page: ContentPage, discordUrl: String?): HTML.() -> Unit = when (page.name) {
-    "attente" -> { { attente(page, discordUrl) } }
-    "accueil" -> { { accueil(page, discordUrl) } }
-    "mentions" -> { { mentions(page) } }
+private fun renderer(page: ContentPage, shell: SiteShell): HTML.() -> Unit = when (page.name) {
+    "attente" -> { { attente(shell, page) } }
+    "accueil" -> { { accueil(shell, page) } }
+    "mentions" -> { { mentions(shell, page) } }
     else -> throw SiteContentException("Contenu ${page.name}.md : aucune page ne sait l'afficher")
 }

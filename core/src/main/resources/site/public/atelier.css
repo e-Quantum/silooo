@@ -1,0 +1,313 @@
+/*
+ * Silooo Atelier pour le web. Les composants viennent de design/composants/bundle.css, écrits à la main pour les
+ * pages : mêmes noms (sa-*), mêmes textures 9-slice (copies de design/textures/ dans atelier/textures/), même échelle
+ * (1 pixel de texture = 3 pixels d'écran). Les jetons (couleurs, pas, polices de secours) sont dans tokens.css.
+ * Rien ici n'est arrondi, dégradé ni flou : les seules ombres sont ombre-pixel et ombre-texte.
+ */
+
+/* ---------- Polices : sous-ensemble latin, servies par le site (licence OFL, texte dans le dossier de chaque police) */
+@font-face {
+  font-family: "Jersey 10";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("polices/jersey-10/jersey-10-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("polices/pixelify-sans/pixelify-sans-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("polices/pixelify-sans/pixelify-sans-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Silkscreen";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("polices/silkscreen/silkscreen-latin-400-normal.woff2") format("woff2");
+}
+
+/* ---------- Base : le ciel derrière tout, le corps à 20 px et 27 px d'interligne (1,35) */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: 0 var(--pas-4);
+  background: var(--ciel);
+  color: var(--fonte-900);
+  font-family: var(--font-corps);
+  font-size: 20px;
+  line-height: 27px;
+  overflow-wrap: anywhere;
+}
+img { max-width: 100%; }
+a { color: var(--email-bleu); text-decoration-thickness: 3px; text-underline-offset: 3px; }
+a:hover { color: var(--email-rouge-sombre); }
+:focus-visible { outline: 3px solid var(--fonte-900); outline-offset: 3px; }
+main :focus-visible { outline-color: var(--or-lingot); }
+.lecture :focus-visible { outline-color: var(--email-rouge); }
+
+/* ---------- Pixel art et illustrations : le pixel art n'est jamais lissé, Oooscar et le logo le sont */
+.sa-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---------- Panneau : fenêtre en fonte rivetée (ou en laiton pour le prestige) */
+.sa-panneau {
+  border: 15px solid transparent;
+  border-image: url("atelier/textures/panneau-fonte.png") 5 fill / 15px stretch;
+  image-rendering: pixelated;
+  color: var(--papier);
+  padding: var(--pas-4);
+  box-shadow: var(--ombre-pixel);
+}
+.sa-panneau--laiton {
+  border-image-source: url("atelier/textures/panneau-laiton.png");
+  color: var(--fonte-900);
+}
+
+/* ---------- Plaque : titre émaillé (crème, filet bleu ou rouge) */
+.sa-plaque {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  border: 15px solid transparent;
+  border-image: url("atelier/textures/plaque-email-bleue.png") 5 fill / 15px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-affiche);
+  font-size: 50px;
+  line-height: 48px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  padding: 0 var(--pas-4);
+}
+.sa-plaque--rouge { border-image-source: url("atelier/textures/plaque-email-rouge.png"); }
+.sa-plaque--petite { font-size: 30px; line-height: 30px; border-width: 12px; border-image-width: 12px; }
+
+/* ---------- Bouton : émail rouge (action, un seul par page), laiton (secondaire), fonte (neutre) */
+.sa-bouton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pas-2);
+  max-width: 100%;
+  min-height: 60px;
+  margin: 0;
+  padding: 0 var(--pas-2) 3px;
+  border: 12px solid transparent;
+  border-image: url("atelier/textures/bouton-rouge.png") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  background: none;
+  color: var(--papier);
+  font-family: var(--font-affiche);
+  font-size: 40px;
+  line-height: 36px;
+  font-weight: 400;
+  text-align: center;
+  text-decoration: none;
+  text-shadow: var(--ombre-texte);
+  cursor: pointer;
+}
+.sa-bouton:hover { color: var(--papier); }
+.sa-bouton:active, .sa-bouton.is-appuye {
+  border-image-source: url("atelier/textures/bouton-rouge-appuye.png");
+  padding-top: 6px;
+  padding-bottom: 0;
+}
+.sa-bouton--laiton {
+  border-image-source: url("atelier/textures/bouton-laiton.png");
+  color: var(--fonte-900);
+  text-shadow: none;
+}
+.sa-bouton--laiton:hover { color: var(--fonte-900); }
+.sa-bouton--fonte { border-image-source: url("atelier/textures/bouton-fonte.png"); }
+.sa-bouton--fonte:active, .sa-bouton--fonte.is-appuye, .sa-bouton--fonte[aria-current="page"] {
+  border-image-source: url("atelier/textures/bouton-fonte-appuye.png");
+}
+.sa-bouton[disabled] { filter: saturate(0.2) brightness(0.8); cursor: not-allowed; }
+.sa-bouton small { font-family: var(--font-etiquette); font-size: 16px; line-height: 20px; letter-spacing: 1px; }
+/* Le bouton de navigation : bouton fonte en corps de 20 px, pour que huit liens tiennent sur un téléphone. */
+.sa-bouton--nav {
+  font-family: var(--font-corps);
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 600;
+  text-shadow: none;
+}
+.sa-bouton--nav[aria-current="page"] { padding-top: 6px; padding-bottom: 0; }
+
+/* ---------- Icône : 16 pixels de texture, toujours à ×2, ×3 ou ×4 */
+.sa-icone { width: 48px; height: 48px; image-rendering: pixelated; display: inline-block; flex: none; }
+.sa-icone--x2 { width: 32px; height: 32px; }
+.sa-icone--x4 { width: 64px; height: 64px; }
+
+/* ---------- Monnaie : icône et valeur (Donar, Lingots, Gemmes), chacune sa couleur */
+.sa-monnaie {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  font-family: var(--font-affiche);
+  font-size: 40px;
+  line-height: 40px;
+  color: var(--papier);
+}
+.sa-monnaie--donar { color: var(--laiton-clair); }
+.sa-monnaie--lingots { color: var(--or-lingot); }
+.sa-monnaie--gemmes { color: var(--papier); }
+
+/* ---------- Ticket : un prix ou une récompense, sur papier perforé */
+.sa-ticket {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  border: 12px solid transparent;
+  border-image: url("atelier/textures/ticket-papier.png") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-affiche);
+  font-size: 30px;
+  line-height: 30px;
+  padding: 0 var(--pas-2) 0 var(--pas-4);
+}
+
+/* ---------- Puce : une statistique (icône à ×2 et valeur) */
+.sa-puce {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  border: 6px solid transparent;
+  border-image: url("atelier/textures/puce-fonte.png") 2 fill / 6px stretch;
+  image-rendering: pixelated;
+  color: var(--papier);
+  font-family: var(--font-affiche);
+  font-size: 30px;
+  line-height: 30px;
+  padding: 0 var(--pas-2) 0 var(--pas-1);
+  white-space: nowrap;
+}
+.sa-puce img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.sa-puce--laiton { border-image-source: url("atelier/textures/puce-laiton.png"); color: var(--fonte-900); }
+.sa-puce--lingots { color: var(--or-lingot); }
+
+/* ---------- Bulle d'Oooscar : plaque crème rivetée, six mots au plus */
+.sa-bulle {
+  display: inline-block;
+  max-width: 360px;
+  margin: 0;
+  border: 12px solid transparent;
+  border-image: url("atelier/textures/plaque-email-bleue.png") 5 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-corps);
+  font-size: 24px;
+  line-height: 33px;
+  padding: 0 var(--pas-2);
+}
+
+/* ---------- Oooscar : illustration à blocs (PNG de 512 px de haut), affichée lisse et à hauteur fixe */
+.sa-oooscar { height: 120px; width: auto; image-rendering: auto; flex: none; }
+.sa-oooscar--grand { height: 180px; }
+
+/* =================================================================== Mise en page du site */
+.entete, main, .pied { max-width: 720px; margin-left: auto; margin-right: auto; }
+
+.passer:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.passer:focus {
+  position: fixed;
+  top: var(--pas-2);
+  left: var(--pas-2);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  padding: 0 var(--pas-4);
+  background: var(--papier);
+  color: var(--fonte-900);
+  border: 3px solid var(--fonte-900);
+}
+
+.entete { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--pas-4); padding: var(--pas-2) 0 var(--pas-4); }
+.marque {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-4);
+  min-height: 60px;
+  color: var(--fonte-900);
+  text-decoration: none;
+}
+.marque__logo { width: 40px; height: 48px; flex: none; image-rendering: auto; }
+.marque__nom { font-family: var(--font-affiche); font-size: 40px; line-height: 40px; }
+.navigation { flex: 1 1 100%; }
+.navigation ul { display: flex; flex-wrap: wrap; gap: var(--pas-2); margin: 0; padding: 0; list-style: none; }
+.navigation li { display: flex; }
+
+main { margin-bottom: var(--pas-6); }
+
+.pied { padding: 0 0 var(--pas-8); color: var(--fonte-900); }
+.pied p { margin: 0; }
+.pied__mojang {
+  font-family: var(--font-etiquette);
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 1px;
+  margin-bottom: var(--pas-2);
+}
+.pied__liens { display: flex; flex-wrap: wrap; column-gap: var(--pas-8); }
+.pied__liens a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 60px;
+  color: var(--fonte-900);
+  font-weight: 600;
+}
+.pied__liens a:hover { color: var(--email-rouge-sombre); }
+
+/* La page d'attente et l'accueil : le logo, la plaque du nom, la phrase, l'action (un seul bouton rouge). */
+.presentation { display: flex; flex-direction: column; align-items: center; gap: var(--pas-6); text-align: center; }
+.logo-page { display: block; height: 205px; width: auto; image-rendering: auto; }
+.presentation__texte { max-width: 540px; }
+.presentation__texte p { margin: 0 0 var(--pas-4); }
+.presentation__texte p:last-child { margin-bottom: 0; }
+.oooscar { display: flex; align-items: center; gap: var(--pas-4); margin-top: var(--pas-6); }
+.oooscar .sa-bulle { flex: 0 1 auto; min-width: 0; }
+
+/* Une page de lecture : texte fonte-900 sur papier (seize contre six virgule six de contraste avec papier sur fonte). */
+.lecture {
+  margin-top: var(--pas-4);
+  padding: var(--pas-4);
+  background: var(--papier);
+  color: var(--fonte-900);
+  border: 3px solid var(--fonte-900);
+}
+.lecture > :first-child { margin-top: 0; }
+.lecture > :last-child { margin-bottom: 0; }
+.lecture p { margin: 0 0 var(--pas-4); }
+.lecture h2 {
+  margin: var(--pas-8) 0 var(--pas-2);
+  font-family: var(--font-affiche);
+  font-size: 40px;
+  line-height: 40px;
+  font-weight: 400;
+}
+.lecture strong { font-weight: 600; }
+
+@media (min-width: 600px) {
+  body { padding: 0 var(--pas-6); }
+  .sa-panneau { padding: var(--pas-6); }
+  .lecture { padding: var(--pas-6) var(--pas-8); }
+}
