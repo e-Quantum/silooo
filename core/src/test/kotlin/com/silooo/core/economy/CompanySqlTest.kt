@@ -749,13 +749,22 @@ class CompanySqlTest {
         assertGolden(earned, double("SELECT donar_earned FROM prestige_history WHERE company_id = ?", id), "Donar gagnés de la course")
         assertEquals(KR.text, MariaDbSupport.string("SELECT CAST(decided_by AS CHAR) FROM prestige_history WHERE company_id = ?", id))
 
-        // game_events : un ANNONCE par associé, avec la part de chacun.
-        assertEquals(2L, eventCount())
-        assertEquals(List(2) { GameEventKind.ANNONCE.name }, MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"))
-        assertEquals(List(2) { "prestige" }, eventValues("action"))
-        assertEquals(listOf(total - partnerShare, partnerShare).map { it.toString() }, eventValues("lingots"))
-        assertEquals(List(2) { total.toString() }, eventValues("lingotsTotal"))
-        assertEquals(List(2) { id.toString() }, eventValues("companyId"))
+        // game_events : un ANNONCE par associé, avec la part de chacun, puis un PRESTIGE_ENTREPRISE pour tout le serveur
+        // (xuid nul, le total avant partage), que le bot Discord lit.
+        assertEquals(3L, eventCount())
+        assertEquals(
+            listOf(GameEventKind.ANNONCE, GameEventKind.ANNONCE, GameEventKind.PRESTIGE_ENTREPRISE).map { it.name },
+            MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"),
+        )
+        assertEquals(2L, eventCount("prestige"))
+        assertEquals(listOf(total - partnerShare, partnerShare).map { it.toString() }, eventValues("lingots", "prestige"))
+        assertEquals(List(2) { total.toString() }, eventValues("lingotsTotal", "prestige"))
+        assertEquals(List(2) { id.toString() }, eventValues("companyId", "prestige"))
+        assertEquals(
+            listOf(total.toString()),
+            MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.lingots') FROM game_events WHERE kind = 'PRESTIGE_ENTREPRISE' AND xuid IS NULL"),
+            "le total avant partage, pour tout le serveur",
+        )
 
         // Rejoué avec le même requestId : la même réponse, aucun Lingot de plus.
         val replay = prestige(id)
@@ -764,7 +773,7 @@ class CompanySqlTest {
         assertEquals(2, prestigeLedger().size)
         assertEquals(total - partnerShare, lingotsOf(KR))
         assertEquals(1L, MariaDbSupport.count("prestige_history"))
-        assertEquals(2L, eventCount())
+        assertEquals(3L, eventCount())
 
         // Un autre requestId tout de suite : la course 2 vient de commencer, le seuil n'est plus atteint.
         assertRefused(prestige(id, n = 2), RefusalCodes.THRESHOLD_NOT_REACHED)
@@ -851,6 +860,6 @@ class CompanySqlTest {
         assertEquals(total, lingotsOf(KR), "les Lingots ne sont versés qu'une fois")
         assertEquals(1, prestigeLedger().size)
         assertEquals(1L, MariaDbSupport.count("prestige_history"))
-        assertEquals(1L, eventCount())
+        assertEquals(2L, eventCount(), "un ANNONCE au seul associé et un PRESTIGE_ENTREPRISE pour tout le serveur")
     }
 }
