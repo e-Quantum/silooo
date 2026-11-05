@@ -440,6 +440,7 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `missions.json` : `missions[]` (`id`, `evenement`, `cible`, `recompense`) | fichier absent | `bienvenue-mairie`, `collect`, `1`, `lingotsHorsPrestige.missionBienvenue` | Le service compte les missions lui-même (`collect` qui rapporte) et les termine tout seul. Le catalogue n'a aucun chiffre d'économie : la récompense est le chemin d'une clé de `economie.json`, dont `lingotsHorsPrestige.missionBienvenue` (10) ne change pas. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
 | 5 nov. 2026 | `personnel.json` : `agence`, `raretes`, `roles`, `postes`, `chefEquipe` | fichier absent | liste de 5 (4 salariés, 1 chef), parts `75`/`20`/`5`, bonus `10`/`25`/`60`, salaires `2,5`/`6`/`15`, prix `1`/`4`/`20` heures de revenu, chef x`2` de prix et x`1,5` de salaire, 1 salarié + 1 par `25` niveaux et 1 chef, chef `+4` h hors ligne | Le contrat décrit l'agence (cinq candidats, trois raretés 75/20/5) sans chiffres de bonus, de salaire ni de prix : le service en a besoin pour embaucher et pour compter les salaires comme sortie d'argent. Valeurs de départ au plus simple, à recaler quand le joueur type embauchera. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'embauche personne). |
 | 5 nov. 2026 | `lingotsHorsPrestige.commandeDuJour`, `lingotsHorsPrestige.trouvaille`, `commandeDuJour` (`objectifUnites`, `minutesDeProductionParUnite`) | absentes | `1`, `1`, `100` et `1` | La commande mondiale du jour et le Carnet de trouvailles ont besoin de quatre chiffres que le game design ne donne pas. Une prime d'un Lingot reste dans l'ordre de `moyenneParHeureDeJeu` (1 par heure) ; 100 unités à une minute de revenu chacune font 100 minutes de revenu pour toute la commande. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent ni la production ni le prestige. |
+| 5 nov. 2026 | `incidents.json` : `frequence` (`creneauMinutes`, `chancePourcent`), `sortes[]` (`id`, `ralentissement`, `poids`), `recompense.minutesDeRevenu`, `electricite` (`aPartirDeEpoque`, `usineCentrale`) | fichier absent | créneau de `30` minutes, `20` % de chances, incendie x`0,5` (poids `1`), panne x`0,6` (poids `2`), courroie x`0,7` (poids `2`), `10` minutes de revenu, électricité dès l'époque `3`, Centrale `centrale` | Le contrat décrit l'incident (ralentit, réparation par mini-jeu, récompense en Donar) et l'électricité (époque 3 et plus, Centrale) sans chiffres : le service en a besoin pour tirer, ralentir et payer. Valeurs de départ au plus simple (voir la section Les incidents d'usine). **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le simulateur ne joue pas les incidents). |
 
 ## Les commandes du jour et le Carnet
 
@@ -478,3 +479,52 @@ est **à valider par Kr**. Les quatre chiffres sont dans `economie.json` : `comm
 - **Le Carnet est celui de qui encaisse** : un associé qui encaisse remplit le sien.
 - `GET /v1/players/{xuid}/findings` rend les ressources trouvées (identifiant et instant), le nombre de ressources du jeu
   et la prime de chacune.
+
+## Les incidents d'usine
+
+Une usine tombe en panne de temps en temps, pendant qu'on joue. L'incident la ralentit jusqu'à ce qu'un joueur la répare
+dans un mini-jeu ; il ne fait **rien perdre** (ni Donar, ni niveau, ni personnel) et il ne s'achète, ni ne s'évite, ni ne
+se relance contre de l'argent. Le plan de construction (phase 4) demande l'incident et sa réparation ; le service a pris,
+pour ce que le plan laisse ouvert, la règle la plus simple. Tous les chiffres sont dans `definitions/incidents.json`.
+
+- **La cadence** : le temps se découpe en créneaux de `frequence.creneauMinutes` (30) minutes UTC. À chaque créneau,
+  `frequence.chancePourcent` (20) % de chances qu'un incident survienne, soit au plus 0,4 incident par heure de jeu en
+  ligne. Le tirage est figé par l'entreprise, le jour et le rang du créneau (même générateur que l'agence d'emploi) :
+  le rejouer donne la même chose, et rien ne permet de tirer un autre résultat.
+- **Les sortes** (`sortes`) : l'incendie ralentit à x0,5 (poids 1, une fois sur cinq), la panne à x0,6 (poids 2) et la
+  courroie à x0,7 (poids 2). Le facteur multiplie la production de l'usine touchée tant que l'incident dure. La sorte
+  dit à l'add-on quel mini-jeu proposer.
+- **Où il tombe** : sur une usine en marche (`ACTIVE`, niveau 1 au moins) qui n'a pas déjà d'incident et qui n'est pas à
+  l'arrêt faute de courant. Au plus un incident par entreprise et par créneau, au plus un ouvert par usine.
+- **Jamais pendant une absence** : le service ne tire que pour une entreprise dont un membre est connecté depuis deux
+  passages de son minuteur (30 s). Hors ligne, rien n'est ralenti non plus : un incident ouvert ne coûte que le temps
+  passé en ligne, et le calcul de l'absence ([Hors ligne](#hors-ligne)) ne change pas.
+- **Ce que ça coûte** : tant que l'incident dure et que le joueur est en ligne, l'usine rapporte `ralentissement` de son
+  revenu : une panne coûte 40 % du revenu de cette usine par heure en ligne, et presque rien si elle est réparée tout de
+  suite. L'ouverture verse d'abord ce que l'entreprise avait produit, au rythme d'avant.
+- **La récompense** : réparer rapporte `recompense.minutesDeRevenu` (10) minutes du revenu de l'usine sans
+  ralentissement, en Donar, comptées dans le Donar gagné de la course comme n'importe quelle production. Réparer vite
+  est donc toujours gagnant. Un associé peut réparer à la place du PDG ; un incident déjà réparé ne rapporte rien une
+  seconde fois. Un prestige clôt les incidents ouverts, avec le reste de la remise à zéro.
+- **Pas de hasard payant** : la récompense est un montant fixe, jamais tirée ; aucune route n'achète une relance, un
+  bouclier ou une réparation. L'incident reste un événement du jeu, pas une mécanique de dépense.
+
+À valider par Kr : la cadence (30 minutes, 20 %), les trois sortes et leurs parts, les facteurs 0,5 / 0,6 / 0,7, les
+10 minutes de revenu de la récompense, et l'idée qu'une absence n'est jamais ralentie. Les treize cibles du tableur ne
+dépendent d'aucune de ces valeurs : le simulateur ne joue ni incident ni coupure de courant, et sans incident les chiffres
+d'avant sont inchangés.
+
+## L'électricité
+
+À partir de l'époque `electricite.aPartirDeEpoque` (3), une usine marquée `"electricite": true` dans `usines.json`
+(verrerie, menuiserie, conserverie, usine textile, usine robots, cristallerie) s'arrête tant que l'entreprise n'a aucune
+Centrale (`electricite.usineCentrale`, la `centrale` de l'époque 3) en marche, au niveau 1 au moins. La Centrale ne dépend
+elle-même d'aucun courant : on la relève en premier.
+
+- **À l'arrêt** : l'usine ne rapporte rien, **et** son équipe ne coûte aucun salaire, en ligne comme hors ligne. Elle garde
+  son niveau, son état et son personnel ; rien n'est perdu, la production reprend dès qu'une Centrale tourne.
+- **Avant l'époque 3** : aucun effet. Une usine en ruine, en remise en état ou au niveau 0 ne produit pas, donc ne compte
+  pas non plus comme Centrale.
+- **Avec un incident** : une usine arrêtée n'est jamais frappée, et la réparer rapporte 0 (la récompense suit le revenu).
+- **À valider par Kr** : l'époque de départ, et le fait que la règle soit « une Centrale suffit » plutôt qu'une capacité
+  qui se partage entre les usines. Le plan ne la chiffre pas, la description du contrat la dit à son plus simple.
