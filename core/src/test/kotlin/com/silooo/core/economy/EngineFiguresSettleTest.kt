@@ -6,6 +6,7 @@ import com.silooo.core.economy.EngineFixture.Companion.OTHER
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.FactoryRecord
+import com.silooo.core.session.Regime
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -16,8 +17,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 /**
- * `settleOffline` : le Donar de l'absence, compté depuis `last_collect_at` de l'entreprise, au plafond de l'entreprise,
- * écrit par le verrou optimiste. La connexion est un enregistreur : on lit l'`UPDATE` exact qui partirait vers
+ * `settle` : le Donar écoulé depuis `last_collect_at` de l'entreprise, versé selon le régime (hors ligne : plafond de
+ * l'entreprise et efficacité ; en ligne : revenu plein), écrit par le verrou optimiste. La connexion est un enregistreur : on lit l'`UPDATE` exact qui partirait vers
  * MariaDB. Que cet `UPDATE` change bien la base se vérifie dans `EngineFiguresSqlTest`.
  */
 class EngineFiguresSettleTest {
@@ -30,8 +31,8 @@ class EngineFiguresSettleTest {
     private fun startingRate(multiplier: Double = engine.globalMultiplier(0.0, 0)): Double =
         engine.ratePerHour(engine.startingLevels(), multiplier)
 
-    private fun settle(company: CompanyRecord, playerLastSeenAt: Instant? = null): Double =
-        fx.figures.settleOffline(fx.connection, company, playerLastSeenAt)
+    private fun settle(company: CompanyRecord, regime: Regime = Regime.OFFLINE, playerLastSeenAt: Instant? = null): Double =
+        fx.figures.settle(fx.connection, company, regime, playerLastSeenAt)
 
     /** Le seul `UPDATE` noté doit être celui de l'encaissement, avec ces paramètres exacts. */
     private fun assertWrittenOnce(company: CompanyRecord, earned: Double, writtenAt: Instant = fx.clock.instant()) {
@@ -161,26 +162,114 @@ class EngineFiguresSettleTest {
     }
 
     @Test
-    @DisplayName("Rien n'est écrit quand il n'y a rien à payer : même instant, horloge en retard, plafond nul, aucune usine active")
-    fun writesNothingWhenThereIsNothingToPay() {
+    @DisplayName("Rien n'est écrit quand le temps n'a pas avancé pour la base : même instant, ou horloge du service en retard, dans les deux régimes")
+    fun writesNothingWhenNoTimeElapsed() {
         val company = fx.newCompany()
 
-        assertEquals(0.0, settle(company), "même instant que le dernier calcul")
+        for (regime in Regime.entries) {
+            fx.clock.now = company.lastCollectAt
+            assertEquals(0.0, settle(company, regime), "même instant que le dernier calcul ($regime)")
 
-        fx.clock.now = company.lastCollectAt.minus(hours(1.0))
-        assertEquals(0.0, settle(company), "horloge en retard sur la base")
-
-        fx.clock.now = company.lastCollectAt.plus(hours(1.0))
-        assertEquals(0.0, settle(company.copy(offlineCapHours = 0.0)), "plafond nul")
-
-        fx.putFactory(company.id, FactoryRecord(fx.starting.factoryId, FactoryState.EN_RUINE, 0, fx.starting.level, null))
-        assertEquals(0.0, settle(company), "aucune usine ne produit")
+            fx.clock.now = company.lastCollectAt.minus(hours(1.0))
+            assertEquals(0.0, settle(company, regime), "horloge en retard sur la base ($regime)")
+        }
 
         assertTrue(fx.recording.statements.isEmpty(), "aucune écriture : ${fx.recording.statements}")
     }
 
     @Test
-    @DisplayName("Si un autre associé a écrit entre-temps (zéro ligne touchée), settleOffline lève le conflit de version")
+    @DisplayName("Un gain nul sur du temps écoulé remet quand même la date à maintenant : plafond nul, aucune usine qui produit")
+    fun zeroGainStillResetsTheDate() {
+        val company = fx.newCompany()
+        fx.clock.now = company.lastCollectAt.plus(hours(1.0))
+
+        assertEquals(0.0, settle(company.copy(offlineCapHours = 0.0)), "plafond nul, hors ligne")
+        val capped = fx.recording.statements.single()
+        assertEquals(LocalDateTime.ofInstant(fx.clock.instant(), ZoneOffset.UTC), capped.parameters[3], "last_collect_at, plafond nul")
+        assertEquals(company.donar, capped.parameters[1], "donar inchangé")
+        assertEquals(company.donarEarned, capped.parameters[2], "donar_earned inchangé")
+
+        fx.recording.statements.clear()
+        fx.putFactory(company.id, FactoryRecord(fx.starting.factoryId, FactoryState.EN_RUINE, 0, fx.starting.level, null))
+        for (regime in Regime.entries) {
+            assertEquals(0.0, settle(company, regime), "aucune usine ne produit ($regime)")
+        }
+        assertEquals(Regime.entries.size, fx.recording.statements.size, "une écriture par régime, qui ne verse rien")
+        for (statement in fx.recording.statements) {
+            assertEquals(company.donar, statement.parameters[1], "donar inchangé")
+            assertEquals(LocalDateTime.ofInstant(fx.clock.instant(), ZoneOffset.UTC), statement.parameters[3], "last_collect_at")
+        }
+    }
+
+    @Test
+    @DisplayName("En ligne : revenu plein sur toutes les heures, sans efficacité, ajouté au Donar de l'entreprise")
+    fun onlinePaysTheFullRate() {
+        val company = fx.update(fx.newCompany().copy(donar = 125.0, donarEarned = 400.0, version = 3))
+        val away = offline.capHours / 2
+        fx.clock.advance(hours(away))
+
+        val earned = settle(company, Regime.ONLINE)
+
+        assertEquals(engine.onlineEarnings(startingRate(), away), earned)
+        assertGolden(startingRate() * away, earned, "revenu x heures, sans efficacité")
+        assertTrue(earned > engine.offlineEarnings(startingRate(), away, company.offlineCapHours), "plus que le hors ligne")
+        assertWrittenOnce(company, earned)
+    }
+
+    @Test
+    @DisplayName("En ligne, le plafond de l'entreprise ne coupe rien : toutes les heures écoulées sont payées, même au-delà du plafond ou avec un plafond nul")
+    fun onlineHasNoCap() {
+        val company = fx.newCompany()
+        val away = offline.capHours + 10
+        fx.clock.advance(hours(away))
+
+        val earned = settle(company, Regime.ONLINE)
+
+        assertGolden(startingRate() * away, earned, "toutes les heures, au revenu plein")
+        assertWrittenOnce(company, earned)
+
+        fx.recording.statements.clear()
+        assertEquals(earned, settle(company.copy(offlineCapHours = 0.0), Regime.ONLINE), "un plafond nul ne change rien en ligne")
+        assertEquals(1, fx.recording.statements.size)
+    }
+
+    @Test
+    @DisplayName("En ligne, le revenu est aussi celui d'aujourd'hui : Lingots des membres et étoiles de maintenant")
+    fun onlineUsesTodaysMultiplier() {
+        val company = fx.newCompany(ownerLingots = 4)
+        fx.addMember(company.id, OTHER, lingots = 8)
+        val starred = fx.update(fx.store.loadCompany(fx.connection, company.id).copy(stars = 1))
+        val away = offline.capHours / 2
+        fx.clock.advance(hours(away))
+
+        val earned = settle(starred, Regime.ONLINE)
+
+        assertGolden(engine.onlineEarnings(startingRate(engine.globalMultiplier(6.0, 1)), away), earned, "gain en ligne avec Lingots et étoile")
+        assertWrittenOnce(starred, earned)
+    }
+
+    @Test
+    @DisplayName("pendingProduction rend les mêmes montants que settle sans rien écrire : toutes les heures en ligne, les heures plafonnées hors ligne")
+    fun pendingProductionMatchesSettleWithoutWriting() {
+        val company = fx.newCompany()
+        val away = offline.capHours + 10
+        fx.clock.advance(hours(away))
+        val factories = fx.store.loadFactories(fx.connection, company.id)
+
+        val online = fx.figures.pendingProduction(fx.connection, company, factories, Regime.ONLINE)
+        val offlineProduction = fx.figures.pendingProduction(fx.connection, company, factories, Regime.OFFLINE)
+
+        assertEquals(engine.onlineEarnings(startingRate(), away), online.earned)
+        assertGolden(away, online.countedHours, "heures en ligne : toutes celles de l'horloge")
+        assertEquals(engine.offlineEarnings(startingRate(), away, company.offlineCapHours), offlineProduction.earned)
+        assertGolden(offline.capHours, offlineProduction.countedHours, "heures hors ligne : au plafond")
+        assertEquals(fx.clock.instant(), online.at)
+        assertEquals(fx.clock.instant(), offlineProduction.at)
+        assertTrue(fx.recording.statements.isEmpty(), "pendingProduction n'écrit rien : ${fx.recording.statements}")
+    }
+
+    @Test
+    @DisplayName("Si un autre associé a écrit entre-temps (zéro ligne touchée), settle lève le conflit de version")
     fun versionConflictIsRaised() {
         val company = fx.newCompany()
         fx.clock.advance(hours(1.0))

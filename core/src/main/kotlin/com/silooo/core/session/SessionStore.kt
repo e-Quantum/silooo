@@ -87,6 +87,9 @@ interface SessionStore {
      */
     fun loadMemberLingots(connection: Connection, companyId: Long): List<Long>
 
+    /** Les XUID des membres de l'entreprise (PDG et associés), pour savoir si l'un d'eux est connecté. */
+    fun loadMemberXuids(connection: Connection, companyId: Long): List<Xuid>
+
     /** Fige `players.last_seen_at` à maintenant. Rend faux si le joueur est inconnu. */
     fun markLeft(connection: Connection, xuid: Xuid): Boolean
 }

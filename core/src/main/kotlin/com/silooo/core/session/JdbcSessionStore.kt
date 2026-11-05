@@ -261,6 +261,13 @@ class JdbcSessionStore : SessionStore {
             it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
         }
 
+    override fun loadMemberXuids(connection: Connection, companyId: Long): List<Xuid> =
+        // CAST en texte : un BIGINT UNSIGNED ne tient pas dans un Long, et `Xuid.parse` le relit sans perdre de chiffre.
+        connection.prepareStatement("SELECT CAST(xuid AS CHAR) FROM company_members WHERE company_id = ? ORDER BY xuid").use {
+            it.setLong(1, companyId)
+            it.executeQuery().use { rows -> buildList { while (rows.next()) add(checkNotNull(Xuid.parse(rows.getString(1)))) } }
+        }
+
     override fun markLeft(connection: Connection, xuid: Xuid): Boolean =
         connection.prepareStatement("UPDATE players SET last_seen_at = UTC_TIMESTAMP(3) WHERE xuid = ?").use {
             it.setXuid(1, xuid)

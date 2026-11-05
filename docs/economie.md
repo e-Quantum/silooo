@@ -63,20 +63,37 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
 - Elle est comptée à efficacité réduite : clé `horsLigne.efficacite`.
 - L'absence se compte depuis `companies.last_collect_at`, le dernier calcul de production de l'entreprise, et non
   depuis le départ du joueur (`players.last_seen_at`) : la production appartient à l'entreprise, et deux associés
-  qui se relaient ne doivent pas se faire payer la même heure deux fois. `join` encaisse l'absence puis remet
-  `last_collect_at` à maintenant ; le surplus au-delà du plafond est perdu. Le revenu est celui d'aujourd'hui,
-  multiplicateur de maintenant compris. **À valider par Kr.**
-- L'opération `collect` applique le plafond et renvoie `offlineHours`, les heures retenues. À
-  l'arrivée, `JoinResponse.offlineCollected` donne ce qui a été encaissé pendant l'absence.
-- **La production en ligne entre deux `collect`** n'a pas de règle écrite. Le service prend la plus simple, celle
-  de `join` : `collect`, `buyLevels` et `restoreStep` versent chacune la production depuis `last_collect_at` par la
-  formule du hors ligne (revenu d'aujourd'hui, heures plafonnées par la colonne de l'entreprise, efficacité
-  `horsLigne.efficacite`), puis remettent `last_collect_at` à maintenant, dans la même écriture que le reste de
-  l'action. `buyLevels` paie donc l'achat avec ce solde et l'usine ne produit à son nouveau niveau que depuis
-  maintenant. Un `collect` sans temps écoulé ne change rien. Conséquence : un joueur connecté est payé à
-  l'efficacité hors ligne, pas au revenu plein. L'autre lecture, le revenu plein pour le temps passé en ligne,
-  demande que le service connaisse les heures de présence (`join`, `heartbeat`, `leave`) : elle reste ouverte.
+  qui se relaient ne doivent pas se faire payer la même heure deux fois. Le revenu est celui d'aujourd'hui,
+  multiplicateur de maintenant compris. Le surplus au-delà du plafond est perdu.
+- **Deux régimes, selon qu'un membre de l'entreprise était connecté.** La production écoulée depuis
+  `last_collect_at` se verse ainsi, puis `last_collect_at` repart de maintenant dans la même écriture :
+  - **En ligne**, au moins un membre connecté pendant la période : le revenu plein, `revenu par heure × heures`,
+    sans plafond ni efficacité. C'est ce que le compteur de l'add-on a fait défiler (règle 2 de
+    [socle.md](socle.md)).
+  - **Hors ligne**, personne de connecté : la formule de cette section, heures plafonnées par la colonne de
+    l'entreprise et efficacité `horsLigne.efficacite`.
+
   **À valider par Kr.**
+- Pour quatre opérations, le régime se connaît par construction. `collect`, `buyLevels` et `restoreStep` sont
+  demandées par un membre connecté : en ligne. `leave` verse la production en ligne (le partant était connecté
+  jusque-là) et remet `last_collect_at` à maintenant : la période hors ligne commence au départ du dernier membre.
+  Seul `join` choisit : en ligne si un AUTRE membre de l'entreprise est connecté à cet instant, hors ligne sinon.
+- La présence que `join` interroge est `ServerPresence`, que `heartbeat` remplit (l'add-on bat toutes les
+  10 secondes, avec les XUID des joueurs en ligne). Un signal de plus de 30 secondes est périmé : un serveur qui
+  ne bat plus n'a plus de joueurs en ligne. Celui qui arrive ne compte pas pour lui-même. `players.last_seen_at` ne
+  sert pas : il est figé au départ et remis au retour, il ne dit pas qui est connecté maintenant. La présence est en
+  mémoire : si silooo-core redémarre, un `join` qui tombe avant le prochain signal de vie (10 secondes) voit une
+  période hors ligne, ce qui paie moins, jamais plus.
+- `join` verse selon ce régime, puis remet `last_collect_at` à maintenant même quand le gain est nul (plafond nul,
+  aucune usine qui produit) : sans cela, un `collect` ultérieur compterait ces heures au revenu plein. Cela coûte
+  une écriture, donc un coup de version, de plus ; elle n'a lieu que si du temps s'est écoulé.
+- `collect`, `buyLevels` et `restoreStep` versent la production en attente, puis remettent `last_collect_at` à
+  maintenant dans la même écriture que le reste de l'action. `buyLevels` paie donc l'achat avec ce solde, et
+  l'usine ne produit à son nouveau niveau que depuis maintenant. Un `collect` sans temps écoulé ne change rien.
+- `collect` renvoie `offlineHours`, nom du contrat pour les heures comptées : toutes les heures écoulées (il est
+  toujours en ligne), sans plafond. À l'arrivée, `JoinResponse.offlineCollected` donne ce qui a été encaissé au
+  régime hors ligne ; la production versée au régime en ligne va au Donar de l'entreprise (`state.donar`) et n'y
+  figure pas.
 - Sans chef d'équipe, une usine s'arrête quand son stock est plein. Jamais de grève ni d'incident
   pendant une absence.
 
@@ -94,8 +111,8 @@ le service tranche ainsi, **à valider par Kr** :
 - La dernière étape passe l'usine `ACTIVE` au niveau le plus haut entre son niveau (0 en ruine) et
   `prestige.departDeCourse.niveau`, le niveau où la Carrière démarre chaque course. Une usine remise en état
   produit donc dès l'étape 4.
-- Chaque étape verse d'abord la production en attente (règle de la section précédente) : l'usine remise en état ne
-  produit que depuis maintenant.
+- Chaque étape verse d'abord la production en attente, au régime en ligne (voir « Hors ligne ») : l'usine remise
+  en état ne produit que depuis maintenant.
 
 ## Le prestige et les Lingots
 

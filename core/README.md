@@ -102,8 +102,8 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
 | `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde) : classes typées et `DefinitionsLoader` |
 | `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
-| `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock |
-| `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
+| `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock (`ServerPresence`, la source de présence de `join`) |
+| `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -148,13 +148,21 @@ en paramètre pour qu'un test avance le temps sans attendre.
   compte pour zéro) et les étoiles de l'entreprise.
 - **Revenu** : seules les usines `ACTIVE` produisent. Une usine de la base que `usines.json` ne connaît plus est
   ignorée, avec un avertissement dans le journal, au lieu de faire tomber `join`.
-- **Hors ligne** : l'absence se compte depuis `companies.last_collect_at`, le dernier calcul de production de
+- **Production écoulée** : elle se compte depuis `companies.last_collect_at`, le dernier calcul de production de
   l'entreprise, et non depuis le départ du joueur (`players.last_seen_at`) : deux associés qui se relaient
-  se feraient payer la même heure deux fois. Le plafond est la colonne `companies.offline_cap_hours`, que les
-  améliorations étendent ; la création de l'entreprise la remplit avec `horsLigne.plafondHeures`, pour que
-  `definitions/` reste la seule source du chiffre. L'écriture passe par `updateCompany` (Donar, Donar gagnés,
-  `last_collect_at`) dans la transaction de `join` : si l'`UPDATE` perd contre un autre associé, `join` recommence
-  et ne paie pas deux fois. Rien n'est écrit quand le gain est nul.
+  se feraient payer la même heure deux fois. Elle se verse selon un `Regime`. `ONLINE` : le revenu plein,
+  `EconomyEngine.onlineEarnings`, sans plafond ni efficacité. `OFFLINE` : `offlineEarnings`, heures plafonnées par
+  la colonne `companies.offline_cap_hours` (que les améliorations étendent ; la création de l'entreprise la remplit
+  avec `horsLigne.plafondHeures`, pour que `definitions/` reste la seule source du chiffre) et efficacité
+  `horsLigne.efficacite`. `EconomyFigures.settle` écrit par `updateCompany` (Donar, Donar gagnés, `last_collect_at`)
+  dans la transaction de l'appelant : si l'`UPDATE` perd contre un autre associé, l'appelant recommence et ne paie
+  pas deux fois. `last_collect_at` repart de maintenant dès que du temps s'est écoulé, même à gain nul, pour qu'un
+  `collect` ultérieur ne compte pas ces heures au revenu plein ; rien n'est écrit si l'horloge n'a pas avancé.
+- **Qui choisit le régime** : `collect`, `buyLevels`, `restoreStep` et `leave` paient en ligne (leur acteur était
+  connecté). `join` paie en ligne si un AUTRE membre de l'entreprise est connecté, hors ligne sinon. La présence est
+  `ServerPresence`, que `heartbeat` remplit : un joueur est en ligne s'il figure dans le dernier signal d'un serveur
+  reçu il y a moins de 30 secondes (l'add-on bat toutes les 10 secondes). `SessionStore.loadMemberXuids` donne les
+  membres. `join` et `leave` recommencent sur un conflit de version (8 essais).
 - **Seuil** : la liste de `prestige.seuils`, puis, au-delà de la dernière course, le dernier seuil fois
   `prestige.facteurSeuilSuivant`, plafonné à `Double.MAX_VALUE` pour que l'état reste toujours calculable.
 - **Grille des îles** : la case N est dans la colonne `N % casesParRangee` et la rangée `N / casesParRangee` de
@@ -177,19 +185,20 @@ l'événement, l'existence de l'entreprise). Le Donar de l'entreprise s'écrit p
 personnelles.
 
 - **Une action d'écriture** : l'acteur doit être membre de l'entreprise ; les refus du jeu tombent avant la première
-  écriture ; la production en attente est versée d'abord (même règle que le hors ligne de `join`), puis `updateCompany`,
+  écriture ; la production en attente est versée d'abord (au revenu plein, régime `ONLINE`), puis `updateCompany`,
   l'usine, l'événement, le tout dans la transaction de `call.idempotent`. L'état rendu est bâti sur ce qui vient
   d'être écrit.
 - **Les cas que le contrat ne nomme pas** : l'OpenAPI ne déclare ni 403 ni 404 sur ces quatre routes. Une entreprise
   inconnue, un acteur qui n'en est pas membre, une usine inconnue de `usines.json`, un `amount` ou un `step` hors des
   valeurs donnent 400 `REQUETE_INVALIDE`. Une usine que l'entreprise n'a pas, ou qui ne produit pas, donne
-  `USINE_VERROUILLEE` pour `buyLevels`.
+  `USINE_VERROUILLEE` pour `buyLevels`. `leave`, qui verse maintenant la production, peut se heurter à un autre associé : après ses essais il rend
+  409 `CONFLIT_REESSAYER`, que l'OpenAPI ne déclare pas pour lui (`KNOWN_409_GAPS` de `ContractTest`).
 - **Les événements** : l'OpenAPI n'a pas de type propre à ces actions. Elles publient un `ANNONCE` adressé à l'acteur,
   dont `payload.action` vaut `collect`, `buyLevels` ou `restoreStep` ; ajouter un type d'événement commence par
   l'OpenAPI.
-- **Règles à valider par Kr** : la production en ligne entre deux `collect`, le comportement de `max`, la remise en
+- **Règles à valider par Kr** : les deux régimes de production (revenu plein en ligne, plafond et efficacité hors ligne), le comportement de `max`, la remise en
   état sans coût ([economie.md](../docs/economie.md), sections Hors ligne, Le prix des niveaux, La remise en état).
-- **Les tests** : `economy/CompanyRoutesTest` (sans base, 25 tests), `contract/ContractTest` (les quatre opérations
+- **Les tests** : `economy/CompanyRoutesTest` (sans base, 34 tests), `contract/ContractTest` (les quatre opérations
   sont dans `WRITTEN`) et `economy/CompanySqlTest` (MariaDB réelle, ignoré sans Docker : ce qui s'écrit dans `companies`,
   `company_factories` et `game_events`, la transaction unique, et des achats simultanés).
 
@@ -200,6 +209,5 @@ test de contrat, puis code.
 
 - Les routes d'économie qui suivent `restoreStep` (usines à découvrir et à racheter, agence et personnel, prestige,
   associés, ville, marché, boutique) : elles se servent du moteur et de `CompanyService` comme les quatre premières.
-- La production en ligne au revenu plein, qui demande que le service connaisse les heures de présence.
 - Un coût de remise en état dans `definitions/`, et des types d'événement propres dans l'OpenAPI.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).

@@ -28,6 +28,9 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
     /** Une panne à jouer à la place de l'inscription du joueur (tests de refus et d'échec). */
     var failOnEnter: (() -> Throwable?)? = null
 
+    /** Une panne à jouer à la place du départ du joueur (tests de reprise de `leave`). */
+    var failOnLeave: (() -> Throwable?)? = null
+
     private var nextCompanyId = 1L
 
     override fun enterPlayer(connection: Connection, xuid: Xuid, gamertag: String): PlayerEntry {
@@ -76,7 +79,11 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
     override fun loadMemberLingots(connection: Connection, companyId: Long): List<Long> =
         members.filterValues { it.companyId == companyId }.keys.map { balances[it]?.lingots ?: 0L }
 
+    override fun loadMemberXuids(connection: Connection, companyId: Long): List<Xuid> =
+        members.filterValues { it.companyId == companyId }.keys.toList()
+
     override fun markLeft(connection: Connection, xuid: Xuid): Boolean {
+        failOnLeave?.invoke()?.let { throw it }
         leaves += xuid
         val player = players[xuid] ?: return false
         player.lastSeenAt = now
@@ -103,7 +110,13 @@ object TestBootstrap : CompanyBootstrap {
 
 /** Des chiffres d'économie fictifs, reconnaissables, pour vérifier que `join` les recopie sans les calculer. */
 class TestEconomy : EconomyFigures {
-    val settled = mutableListOf<Pair<Long, Instant?>>()
+    /** Un versement demandé au moteur : l'entreprise, le régime, et l'heure de départ précédente que `join` passe. */
+    data class Settle(val companyId: Long, val regime: Regime, val playerLastSeenAt: Instant?)
+
+    /** Les versements demandés, dans l'ordre : ceux de `join` portent l'ancienne heure de départ du joueur, ceux de `leave` aucune. */
+    val settled = mutableListOf<Settle>()
+
+    /** Ce que le faux rend comme Donar versé. */
     var offline = 0.0
 
     override fun forCompany(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = CompanyFigures(
@@ -113,14 +126,14 @@ class TestEconomy : EconomyFigures {
         factories = factories.associate { it.factoryId to FactoryFigures(ratePerHour = 44.0, nextCost = 55.0, nextMilestone = 66, stoppedNoPower = true) },
     )
 
-    override fun settleOffline(connection: Connection, company: CompanyRecord, playerLastSeenAt: Instant?): Double {
-        settled += company.id to playerLastSeenAt
+    override fun settle(connection: Connection, company: CompanyRecord, regime: Regime, playerLastSeenAt: Instant?): Double {
+        settled += Settle(company.id, regime, playerLastSeenAt)
         return offline
     }
 
     /** La production en attente que les routes d'économie verront ; `null` : rien n'est dû, la date de dernier calcul ne bouge pas. */
     var pending: Production? = null
 
-    override fun pendingProduction(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): Production =
+    override fun pendingProduction(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>, regime: Regime): Production =
         pending ?: Production(earned = 0.0, countedHours = 0.0, at = company.lastCollectAt)
 }

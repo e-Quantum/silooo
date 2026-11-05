@@ -129,6 +129,24 @@ class SessionSqlTest {
         assertTrue(economy.settled.isEmpty())
     }
 
+    // --- les membres d'une entreprise
+
+    @Test
+    @DisplayName("loadMemberXuids rend le PDG et les associés de l'entreprise, par XUID croissant, jamais les membres d'une autre")
+    fun memberXuidsOfACompany() = runBlocking {
+        val first = join(kr, "Kr")
+        val partner = xuidOf(2)
+        join(partner, "Associe")
+        val stranger = xuidOf(3)
+        val other = join(stranger, "Autre")
+        MariaDbSupport.update("UPDATE company_members SET company_id = ?, role = 'ASSOCIE' WHERE xuid = ?", first.companyId, partner.number)
+
+        val store = JdbcSessionStore()
+        assertEquals(listOf(kr, partner), database.transaction { store.loadMemberXuids(it, first.companyId) })
+        assertEquals(listOf(stranger), database.transaction { store.loadMemberXuids(it, other.companyId) })
+        assertEquals(emptyList<Xuid>(), database.transaction { store.loadMemberXuids(it, other.companyId + 1000) })
+    }
+
     // --- l'heure de départ
 
     @Test
@@ -143,7 +161,14 @@ class SessionSqlTest {
         MariaDbSupport.update("UPDATE players SET last_seen_at = '2026-11-01 10:00:00.000' WHERE xuid = ?", kr.number)
         val back = join()
 
-        assertEquals(listOf(first.companyId to Instant.parse("2026-11-01T10:00:00Z")), economy.settled)
+        assertEquals(
+            listOf(
+                TestEconomy.Settle(first.companyId, Regime.ONLINE, null),
+                TestEconomy.Settle(first.companyId, Regime.OFFLINE, Instant.parse("2026-11-01T10:00:00Z")),
+            ),
+            economy.settled,
+            "leave verse en ligne, join hors ligne avec l'ancienne heure de départ",
+        )
         assertEquals(first.copy(firstJoin = false), back)
         assertTrue(secondsSinceLastSeen() in 0..60, "join remet l'heure à maintenant")
     }

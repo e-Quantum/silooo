@@ -209,6 +209,15 @@ class EconomyEngine(private val definitions: Definitions) {
     }
 
     /**
+     * Le Donar gagné en ligne : le revenu plein sur toutes les heures écoulées, sans plafond ni efficacité. C'est ce que
+     * le compteur de l'add-on a fait défiler (`ratePerHour`), et le service doit verser ce que le joueur a vu.
+     */
+    fun onlineEarnings(ratePerHour: Double, hours: Double): Double {
+        require(hours >= 0.0) { "Une durée en ligne n'est pas négative : $hours" }
+        return ratePerHour * hours
+    }
+
+    /**
      * Le Donar gagné pendant l'absence : le revenu en ligne, sur les heures comptées ([offlineHours]), à
      * l'efficacité hors ligne.
      */

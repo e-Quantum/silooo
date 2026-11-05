@@ -13,6 +13,7 @@ import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.Production
+import com.silooo.core.session.Regime
 import com.silooo.core.session.SessionStore
 import com.silooo.core.session.buildCompanyState
 import java.sql.Connection
@@ -28,7 +29,10 @@ import kotlinx.serialization.json.put
  */
 class RequestRejected(message: String) : RuntimeException(message, null, false, false)
 
-/** Ce que `collect` rend : le Donar encaissé, les heures retenues (plafond appliqué) et l'état d'après. */
+/**
+ * Ce que `collect` rend : le Donar encaissé, les heures comptées et l'état d'après. `offlineHours` garde le nom du
+ * contrat mais compte toutes les heures écoulées : `collect` paie en ligne, au revenu plein, sans plafond.
+ */
 data class Collected(val collected: Double, val offlineHours: Double, val state: CompanyState)
 
 /**
@@ -40,7 +44,7 @@ data class Collected(val collected: Double, val offlineHours: Double, val state:
  * Une action d'écriture suit toujours le même déroulé :
  *  1. L'acteur est membre de l'entreprise ; sinon [RequestRejected].
  *  2. Les refus du jeu (`Refusal`) tombent avant la première écriture.
- *  3. La production en attente est versée d'abord ([EconomyFigures.pendingProduction]), avec le reste de l'action, en
+ *  3. La production en attente est versée d'abord ([EconomyFigures.pendingProduction], en ligne), avec le reste de l'action, en
  *     UNE écriture `updateCompany` (verrou optimiste sur `companies.version`), puis l'usine est écrite, puis l'événement.
  *  4. L'état rendu est bâti sur ce qui vient d'être écrit, sans nouvelle lecture de l'entreprise.
  *
@@ -62,13 +66,13 @@ class CompanyService(
     }
 
     /**
-     * Verse la production depuis `last_collect_at` (voir [EconomyFigures.pendingProduction] : même règle que le
-     * hors ligne de `join`) et remet `last_collect_at` à maintenant. Rien n'est écrit, ni événement publié, quand
-     * l'horloge du service est en retard sur la base (rien n'est dû).
+     * Verse la production depuis `last_collect_at`, au revenu plein ([Regime.ONLINE] : l'acteur était connecté depuis
+     * le dernier calcul, `join` et `leave` remettent la date), et remet `last_collect_at` à maintenant. Rien n'est
+     * écrit, ni événement publié, quand l'horloge du service est en retard sur la base (rien n'est dû).
      */
     fun collect(connection: Connection, companyId: Long, actor: Xuid): Collected {
         val (company, factories) = loadForActor(connection, companyId, actor)
-        val production = figures.pendingProduction(connection, company, factories)
+        val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
         if (production.at == company.lastCollectAt) {
             return Collected(0.0, 0.0, stateOf(connection, company, factories))
         }
@@ -100,7 +104,7 @@ class CompanyService(
         val factory = factories.firstOrNull { it.factoryId == factoryId } ?: refuse(RefusalCodes.FACTORY_LOCKED)
         if (factory.state != FactoryState.ACTIVE) refuse(RefusalCodes.FACTORY_LOCKED)
 
-        val production = figures.pendingProduction(connection, company, factories)
+        val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
         val balance = company.donar + production.earned
         val quote = engine.quote(factoryId, factory.level, amount, balance)
         if (!quote.affordable) {
@@ -144,7 +148,7 @@ class CompanyService(
         if (factory.state == FactoryState.ACTIVE || step <= factory.restoreStep) refuse(RefusalCodes.ALREADY_OWNED)
         if (step > factory.restoreStep + 1) refuse(RefusalCodes.FACTORY_LOCKED)
 
-        val production = figures.pendingProduction(connection, company, factories)
+        val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
         val after = write(connection, company, production, spent = 0.0)
         val finished = step == LAST_RESTORE_STEP
         val restored = factory.copy(

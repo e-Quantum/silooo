@@ -277,9 +277,10 @@ class ContractTest {
     @DisplayName("409 CONFLIT_REESSAYER : toute opération qui peut le rendre le déclare dans le contrat")
     fun knownGapsOf409() {
         // CONFLIT_REESSAYER sort de l'idempotence (même requestId en cours) et du verrou optimiste : toute opération
-        // avec requestId peut le rendre, et join aussi (conflits répétés). Le contrat le déclare sur chacune depuis
-        // le 5 novembre 2026 : une opération nouvelle avec requestId doit déclarer son 409, sinon ce test le dit.
-        val canConflict = operations.filter { carriesRequestId(it) || it.id == "join" }
+        // avec requestId peut le rendre, et join aussi (conflits répétés). leave aussi depuis qu'il verse la production
+        // de l'entreprise par le verrou optimiste. Le contrat le déclare sur chacune depuis le 5 novembre 2026, sauf leave :
+        // une opération nouvelle avec requestId doit déclarer son 409, sinon ce test le dit.
+        val canConflict = operations.filter { carriesRequestId(it) || it.id == "join" || it.id == "leave" }
         val gaps = canConflict.filter { 409 !in it.responses }.map { it.id }.toSet()
         assertEquals(KNOWN_409_GAPS, gaps)
     }
@@ -485,10 +486,12 @@ class ContractTest {
         )
 
         /**
-         * Les opérations qui peuvent répondre 409 CONFLIT_REESSAYER sans le déclarer dans le contrat. Vide : les six
-         * trous relevés par la session des routes ont été comblés dans l'OpenAPI par la direction. Une entrée ici est
-         * un trou connu, à signaler à la direction, jamais une tolérance durable.
+         * Les opérations qui peuvent répondre 409 CONFLIT_REESSAYER sans le déclarer dans le contrat. Les six trous
+         * relevés par la session des routes ont été comblés dans l'OpenAPI par la direction. Reste `leave` : il verse la
+         * production au revenu plein par le verrou optimiste de l'entreprise, donc deux départs ou un départ et une
+         * arrivée simultanés peuvent se heurter, et le service rend alors 409 CONFLIT_REESSAYER après ses essais. Le
+         * contrat de `leave` ne déclare que 204 : à signaler à la direction, jamais une tolérance durable.
          */
-        val KNOWN_409_GAPS = emptySet<String>()
+        val KNOWN_409_GAPS = setOf("leave")
     }
 }

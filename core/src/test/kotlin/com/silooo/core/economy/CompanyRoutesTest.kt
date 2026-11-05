@@ -13,7 +13,9 @@ import com.silooo.core.api.SERVER_KEY_HEADER
 import com.silooo.core.api.SiloooJson
 import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingDatabase
+import com.silooo.core.db.Xuid
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.siloooModule
@@ -55,6 +57,8 @@ class CompanyRoutesTest {
         val fixture: EngineFixture,
         val database: RecordingDatabase,
         val companies: InMemoryCompanyStore,
+        /** La présence que `join` interroge, sur l'horloge du test : un signal de vie se périme quand le test avance le temps. */
+        val presence: ServerPresence,
     ) {
         val engine get() = fixture.engine
         val recording get() = fixture.recording
@@ -76,9 +80,12 @@ class CompanyRoutesTest {
             return company
         }
 
-        /** La production que `collect` doit verser après [hours] heures : le revenu du moteur, le plafond de l'entreprise. */
+        /**
+         * La production que `collect`, `buyLevels` et `restoreStep` doivent verser après [hours] heures : le revenu du moteur,
+         * plein, sans plafond (l'acteur est connecté).
+         */
         fun production(companyId: Long, hours: Double): Double =
-            engine.offlineEarnings(fixture.figuresOf(companyId).ratePerHour, hours, fixture.store.loadCompany(fixture.connection, companyId).offlineCapHours)
+            engine.onlineEarnings(fixture.figuresOf(companyId).ratePerHour, hours)
 
         fun factory(companyId: Long, factoryId: String): FactoryRecord =
             fixture.store.loadFactories(fixture.connection, companyId).single { it.factoryId == factoryId }
@@ -88,6 +95,7 @@ class CompanyRoutesTest {
         val fixture = EngineFixture()
         val database = RecordingDatabase(fixture.recording)
         val companies = InMemoryCompanyStore(fixture.store)
+        val presence = ServerPresence(clock = fixture.clock)
         application {
             siloooModule(
                 Dependencies(
@@ -100,10 +108,11 @@ class CompanyRoutesTest {
                     economyFigures = fixture.figures,
                     companyBootstrap = fixture.bootstrap,
                     companyStore = companies,
+                    serverPresence = presence,
                 ),
             )
         }
-        block(Harness(fixture, database, companies))
+        block(Harness(fixture, database, companies, presence))
     }
 
     // --- outils
@@ -230,16 +239,32 @@ class CompanyRoutesTest {
     }
 
     @Test
-    @DisplayName("collect : l'absence au-delà du plafond de l'entreprise est perdue, offlineHours donne le plafond")
-    fun collectStopsAtTheCap() = withApp { app ->
-        val company = app.company(awayHours = 1000.0)
-        val cap = company.offlineCapHours
-        assertTrue(cap < 1000.0)
+    @DisplayName("collect : en ligne, toutes les heures écoulées sont payées au revenu plein, même au-delà du plafond hors ligne ; offlineHours les compte toutes")
+    fun collectHasNoCapWhenOnline() = withApp { app ->
+        val company = app.company()
+        val away = company.offlineCapHours + 100.0
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        val rate = app.fixture.figuresOf(company.id).ratePerHour
 
         val body = SiloooJson.parseToJsonElement(collect(company.id).bodyAsText()) as JsonObject
 
-        assertEquals(cap, body.getValue("offlineHours").jsonPrimitive.content.toDouble())
-        assertClose(app.engine.offlineEarnings(app.fixture.figuresOf(company.id).ratePerHour, cap, cap), body.getValue("collected").jsonPrimitive.content.toDouble())
+        val collected = body.getValue("collected").jsonPrimitive.content.toDouble()
+        assertClose(away, body.getValue("offlineHours").jsonPrimitive.content.toDouble(), "offlineHours : toutes les heures comptées")
+        assertClose(app.engine.onlineEarnings(rate, away), collected, "collected au revenu plein")
+        assertTrue(collected > app.engine.offlineEarnings(rate, away, company.offlineCapHours), "plus que ne donnerait le régime hors ligne")
+    }
+
+    @Test
+    @DisplayName("collect : sous le plafond hors ligne, le revenu plein est celui du compteur de l'add-on : revenu x heures, sans efficacité")
+    fun collectPaysWhatTheCounterShowed() = withApp { app ->
+        val company = app.company()
+        val away = company.offlineCapHours / 2
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        val rate = app.fixture.figuresOf(company.id).ratePerHour
+
+        val body = SiloooJson.parseToJsonElement(collect(company.id).bodyAsText()) as JsonObject
+
+        assertClose(rate * away, body.getValue("collected").jsonPrimitive.content.toDouble(), "collected = revenu x heures")
     }
 
     @Test
@@ -488,6 +513,21 @@ class CompanyRoutesTest {
         assertEquals(0, app.companies.published.size)
     }
 
+    @Test
+    @DisplayName("buyLevels : la production en attente est versée au revenu plein, même au-delà du plafond hors ligne")
+    fun buyPaysPendingProductionAtFullRate() = withApp { app ->
+        val cost = app.engine.levelsCost(app.starterId, app.starterLevel, 1)
+        val company = app.company(donar = cost)
+        val away = company.offlineCapHours + 40.0
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        val earned = app.engine.onlineEarnings(app.fixture.figuresOf(company.id).ratePerHour, away)
+
+        val result = updated(buy(company.id, app.starterId, "1"))
+
+        assertClose(earned, result.state.donarEarned, "donarEarned : toute la production, au revenu plein")
+        assertClose(earned, result.state.donar, "donar : production versée, prix débité")
+    }
+
     // --- restoreStep
 
     private fun Harness.ruin(companyId: Long, state: FactoryState = FactoryState.EN_RUINE, step: Int = 0): String {
@@ -610,5 +650,128 @@ class CompanyRoutesTest {
         assertEquals(FactoryState.EN_RUINE, app.factory(company.id, factoryId).state)
         assertEquals(0, app.companies.saved.size)
         assertEquals(0, app.companies.published.size)
+    }
+
+    // --- join et leave : le régime de la période
+
+    private suspend fun ApplicationTestBuilder.join(xuid: Xuid) =
+        post("/v1/session/join", """{"xuid":"${xuid.text}","gamertag":"Joueur"}""")
+
+    private suspend fun ApplicationTestBuilder.leave(xuid: Xuid) =
+        post("/v1/session/leave", """{"xuid":"${xuid.text}"}""")
+
+    @Test
+    @DisplayName("deux associés : A joue, B arrive : la période de A est payée au revenu plein, sans plafond, et la date repart de maintenant")
+    fun partnerArrivingWhileTheOtherPlaysPaysFullRate() = withApp { app ->
+        val company = app.company()
+        app.fixture.addMember(company.id, other, lingots = 0)
+        val away = company.offlineCapHours + 20.0
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        app.presence.record("serveur-1", listOf(kr.text, other.text))
+        val rate = app.fixture.figuresOf(company.id).ratePerHour
+
+        val body = SiloooJson.parseToJsonElement(join(other).bodyAsText()) as JsonObject
+
+        assertEquals(0.0, body.getValue("offlineCollected").jsonPrimitive.content.toDouble(), "le gain en ligne n'est pas un gain hors ligne")
+        val write = app.companyUpdates().single()
+        assertClose(app.engine.onlineEarnings(rate, away), (write.parameters.getValue(1) as Double) - company.donar, "Donar versé : revenu plein")
+        assertTrue(app.engine.onlineEarnings(rate, away) > app.engine.offlineEarnings(rate, away, company.offlineCapHours))
+        assertEquals(utc(app.fixture.clock.now), write.parameters.getValue(3), "last_collect_at repart de maintenant")
+        assertEquals(company.version, write.parameters.getValue(5))
+    }
+
+    @Test
+    @DisplayName("deux associés : B arrive et personne d'autre n'est connecté (il est seul dans le signal de vie) : la période est hors ligne, plafond et efficacité")
+    fun partnerArrivingAloneIsPaidOffline() = withApp { app ->
+        val company = app.company()
+        app.fixture.addMember(company.id, other, lingots = 0)
+        val away = company.offlineCapHours + 20.0
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        app.presence.record("serveur-1", listOf(other.text))
+        val rate = app.fixture.figuresOf(company.id).ratePerHour
+        val expected = app.engine.offlineEarnings(rate, away, company.offlineCapHours)
+
+        val body = SiloooJson.parseToJsonElement(join(other).bodyAsText()) as JsonObject
+
+        assertClose(expected, body.getValue("offlineCollected").jsonPrimitive.content.toDouble(), "offlineCollected")
+        val write = app.companyUpdates().single()
+        assertClose(expected, (write.parameters.getValue(1) as Double) - company.donar, "Donar versé : plafond et efficacité")
+        assertEquals(utc(app.fixture.clock.now), write.parameters.getValue(3))
+    }
+
+    @Test
+    @DisplayName("deux associés : le signal de vie qui nommait A est périmé quand B arrive : la période est hors ligne")
+    fun staleHeartbeatDoesNotCountAsOnline() = withApp { app ->
+        val company = app.company()
+        app.fixture.addMember(company.id, other, lingots = 0)
+        app.presence.record("serveur-1", listOf(kr.text))
+        val away = company.offlineCapHours + 20.0
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        val rate = app.fixture.figuresOf(company.id).ratePerHour
+
+        val body = SiloooJson.parseToJsonElement(join(other).bodyAsText()) as JsonObject
+
+        assertClose(
+            app.engine.offlineEarnings(rate, away, company.offlineCapHours),
+            body.getValue("offlineCollected").jsonPrimitive.content.toDouble(),
+            "offlineCollected",
+        )
+    }
+
+    @Test
+    @DisplayName("join remet last_collect_at à maintenant même quand il n'y a rien à payer (plafond nul) : la version monte, le Donar reste")
+    fun joinResetsTheDateEvenWithNothingToPay() = withApp { app ->
+        val company = app.fixture.update(app.company(donar = 6.0).copy(offlineCapHours = 0.0))
+        app.fixture.clock.advance(EngineFixture.hours(5.0))
+
+        val body = SiloooJson.parseToJsonElement(join(kr).bodyAsText()) as JsonObject
+
+        assertEquals(0.0, body.getValue("offlineCollected").jsonPrimitive.content.toDouble())
+        val write = app.companyUpdates().single()
+        assertEquals(6.0, write.parameters.getValue(1), "donar inchangé")
+        assertEquals(company.donarEarned, write.parameters.getValue(2), "donar_earned inchangé")
+        assertEquals(utc(app.fixture.clock.now), write.parameters.getValue(3), "last_collect_at repart de maintenant")
+        assertEquals(company.version, write.parameters.getValue(5), "le verrou porte la version lue : elle monte d'un cran")
+    }
+
+    @Test
+    @DisplayName("join ne remet rien quand l'horloge n'a pas avancé : aucune écriture, pas de coup de version pour rien")
+    fun joinWritesNothingWhenNoTimeElapsed() = withApp { app ->
+        app.company(donar = 6.0)
+
+        assertEquals(HttpStatusCode.OK, join(kr).status)
+
+        assertEquals(0, app.companyUpdates().size)
+    }
+
+    @Test
+    @DisplayName("leave verse la production au revenu plein, même au-delà du plafond, et remet last_collect_at à maintenant dans la même écriture")
+    fun leavePaysFullRateAndResetsTheDate() = withApp { app ->
+        val company = app.company(donar = 4.0)
+        assertEquals(HttpStatusCode.OK, join(kr).status)
+        val away = company.offlineCapHours + 30.0
+        app.fixture.clock.advance(EngineFixture.hours(away))
+        val expected = app.engine.onlineEarnings(app.fixture.figuresOf(company.id).ratePerHour, away)
+
+        assertEquals(HttpStatusCode.NoContent, leave(kr).status)
+
+        val write = app.companyUpdates().single()
+        assertClose(4.0 + expected, write.parameters.getValue(1) as Double, "donar écrit")
+        assertClose(expected, write.parameters.getValue(2) as Double, "donar_earned écrit")
+        assertEquals(utc(app.fixture.clock.now), write.parameters.getValue(3), "last_collect_at repart de maintenant")
+        assertEquals(company.id, write.parameters.getValue(4))
+        assertEquals(company.version, write.parameters.getValue(5))
+    }
+
+    @Test
+    @DisplayName("leave d'un joueur jamais vu : 204, aucune écriture")
+    fun leaveOfAnUnknownPlayerWritesNothing() = withApp { app ->
+        val company = app.company()
+        app.fixture.clock.advance(EngineFixture.hours(3.0))
+
+        assertEquals(HttpStatusCode.NoContent, leave(stranger).status)
+
+        assertEquals(0, app.companyUpdates().size)
+        assertEquals(company.version, app.fixture.store.loadCompany(app.fixture.connection, company.id).version)
     }
 }

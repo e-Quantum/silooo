@@ -1,6 +1,7 @@
 package com.silooo.core.session
 
 import com.silooo.core.Dependencies
+import com.silooo.core.MutableClock
 import com.silooo.core.TestDefinitions
 import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
@@ -16,6 +17,7 @@ import com.silooo.core.db.NeverUsedApiRequestStore
 import com.silooo.core.db.PassThroughDatabase
 import com.silooo.core.db.VersionConflict
 import com.silooo.core.db.Xuid
+import com.silooo.core.server.ServerPresence
 import com.silooo.core.siloooModule
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -29,6 +31,7 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.sql.SQLException
 import java.sql.SQLTransactionRollbackException
+import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -50,12 +53,17 @@ class SessionRoutesTest {
         val database: PassThroughDatabase,
         val store: InMemorySessionStore,
         val economy: TestEconomy,
+        val clock: MutableClock,
+        /** La présence que `join` interroge, sur l'horloge du test : un signal de vie se périme quand le test avance le temps. */
+        val presence: ServerPresence,
     )
 
     private fun withApp(block: suspend ApplicationTestBuilder.(Harness) -> Unit) = testApplication {
         val database = PassThroughDatabase()
         val store = InMemorySessionStore()
         val economy = TestEconomy()
+        val clock = MutableClock(Instant.parse("2026-11-05T12:00:00Z"))
+        val presence = ServerPresence(clock = clock)
         application {
             siloooModule(
                 Dependencies(
@@ -67,10 +75,11 @@ class SessionRoutesTest {
                     economyFigures = economy,
                     companyBootstrap = TestBootstrap,
                     sessionStore = store,
+                    serverPresence = presence,
                 ),
             )
         }
-        block(Harness(database, store, economy))
+        block(Harness(database, store, economy, clock, presence))
     }
 
     private suspend fun ApplicationTestBuilder.join(body: String, withKey: String? = key): HttpResponse =
@@ -167,7 +176,73 @@ class SessionRoutesTest {
         val back = joined()
 
         assertEquals(1234.5, back.offlineCollected)
-        assertEquals(listOf(back.companyId to Instant.parse("2026-11-05T13:00:00Z")), app.economy.settled)
+        assertEquals(
+            listOf(
+                TestEconomy.Settle(back.companyId, Regime.ONLINE, null),
+                TestEconomy.Settle(back.companyId, Regime.OFFLINE, Instant.parse("2026-11-05T13:00:00Z")),
+            ),
+            app.economy.settled,
+        )
+    }
+
+    /** [other] devient associé de l'entreprise [companyId], déjà créée par le premier `join` de [kr]. */
+    private fun Harness.addPartner(companyId: Long) {
+        store.members[Xuid.parse(other)!!] = Membership(companyId, Role.ASSOCIE)
+    }
+
+    @Test
+    @DisplayName("join d'un associé pendant qu'un autre membre est connecté : la période se verse en ligne, et offlineCollected reste à zéro")
+    fun joinSettlesOnlineWhenAnotherMemberIsConnected() = withApp { app ->
+        val first = joined()
+        app.addPartner(first.companyId)
+        app.presence.record("serveur-1", listOf(kr, other))
+        app.economy.offline = 777.0
+
+        val back = joined(other, "Autre")
+
+        assertEquals(listOf(TestEconomy.Settle(first.companyId, Regime.ONLINE, null)), app.economy.settled)
+        assertEquals(0.0, back.offlineCollected, "le gain en ligne va au Donar de l'entreprise, pas à l'écran de retour")
+    }
+
+    @Test
+    @DisplayName("join d'un associé qui est seul dans le signal de vie : la période se verse hors ligne, offlineCollected la rapporte")
+    fun joinSettlesOfflineWhenOnlyTheJoinerIsConnected() = withApp { app ->
+        val first = joined()
+        app.addPartner(first.companyId)
+        app.presence.record("serveur-1", listOf(other))
+        app.economy.offline = 777.0
+
+        val back = joined(other, "Autre")
+
+        assertEquals(listOf(TestEconomy.Settle(first.companyId, Regime.OFFLINE, null)), app.economy.settled)
+        assertEquals(777.0, back.offlineCollected)
+    }
+
+    @Test
+    @DisplayName("join : un joueur connecté qui n'est pas de l'entreprise ne change pas le régime")
+    fun joinIgnoresConnectedStrangers() = withApp { app ->
+        val first = joined()
+        app.addPartner(first.companyId)
+        app.presence.record("serveur-1", listOf(other, "2535428000000003"))
+
+        joined(other, "Autre")
+
+        assertEquals(listOf(Regime.OFFLINE), app.economy.settled.map { it.regime })
+    }
+
+    @Test
+    @DisplayName("join : le signal de vie compte jusqu'à 30 secondes, pas au-delà (un serveur qui ne bat plus n'a plus de joueurs en ligne)")
+    fun joinDoesNotTrustAStaleHeartbeat() = withApp { app ->
+        val first = joined()
+        app.addPartner(first.companyId)
+        app.presence.record("serveur-1", listOf(kr))
+
+        app.clock.advance(Duration.ofSeconds(29))
+        joined(other, "Autre")
+        app.clock.advance(Duration.ofSeconds(2))
+        joined(other, "Autre")
+
+        assertEquals(listOf(Regime.ONLINE, Regime.OFFLINE), app.economy.settled.map { it.regime }, "frais à 29 s, périmé à 31 s")
     }
 
     @Test
@@ -319,6 +394,7 @@ class SessionRoutesTest {
     fun leaveUnknownPlayer() = withApp { app ->
         assertEquals(HttpStatusCode.NoContent, leave("""{"xuid":"$other"}""").status)
         assertTrue(app.store.players.isEmpty())
+        assertTrue(app.economy.settled.isEmpty(), "rien à verser pour un joueur jamais vu")
     }
 
     @Test
@@ -331,6 +407,47 @@ class SessionRoutesTest {
         assertEquals(HttpStatusCode.NoContent, leave("""{"xuid":"$kr"}""").status)
         assertEquals(Instant.parse("2026-11-05T18:45:00Z"), app.store.players.getValue(Xuid.parse(kr)!!).lastSeenAt)
         assertEquals(1, app.store.companies.size)
+    }
+
+    @Test
+    @DisplayName("leave verse la production de l'entreprise au régime en ligne, une seule fois, sans heure de départ précédente")
+    fun leaveSettlesOnline() = withApp { app ->
+        val first = joined()
+
+        assertEquals(HttpStatusCode.NoContent, leave("""{"xuid":"$kr"}""").status)
+
+        assertEquals(listOf(TestEconomy.Settle(first.companyId, Regime.ONLINE, null)), app.economy.settled)
+    }
+
+    @Test
+    @DisplayName("leave d'un joueur connu mais sans entreprise : 204, l'heure est figée, rien n'est versé")
+    fun leaveWithoutCompanySettlesNothing() = withApp { app ->
+        app.store.players[Xuid.parse(kr)!!] = InMemorySessionStore.PlayerRow("Kr", tutorialStep = 0, lastSeenAt = app.store.now)
+
+        assertEquals(HttpStatusCode.NoContent, leave("""{"xuid":"$kr"}""").status)
+
+        assertEquals(listOf(Xuid.parse(kr)!!), app.store.leaves)
+        assertTrue(app.economy.settled.isEmpty())
+    }
+
+    @Test
+    @DisplayName("leave : un conflit de version se retente comme join ; s'il persiste, 409 CONFLIT_REESSAYER")
+    fun leaveRetriesOnConflict() = withApp { app ->
+        val first = joined()
+        var attempts = 0
+        app.store.failOnLeave = { if (attempts++ == 0) VersionConflict() else null }
+
+        assertEquals(HttpStatusCode.NoContent, leave("""{"xuid":"$kr"}""").status)
+        assertEquals(2, attempts, "un échec, puis la réussite au second essai")
+        assertEquals(listOf(TestEconomy.Settle(first.companyId, Regime.ONLINE, null)), app.economy.settled)
+
+        attempts = 0
+        app.store.failOnLeave = { attempts++; VersionConflict() }
+        val response = leave("""{"xuid":"$kr"}""")
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals(RefusalCodes.CONFLICT_RETRY, SiloooJson.decodeFromString(RefusedBody.serializer(), response.bodyAsText()).reason)
+        assertEquals(MAX_JOIN_ATTEMPTS, attempts)
     }
 
     @Test

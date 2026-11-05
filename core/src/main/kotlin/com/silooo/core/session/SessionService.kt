@@ -25,12 +25,17 @@ internal const val MAX_JOIN_ATTEMPTS = 8
  * Aucune de ces deux opérations n'a de `requestId` : elles sont idempotentes par nature. Un `join` rejoué
  * retrouve le joueur et son entreprise et rend le même état ; il ne crée rien de plus. Un `leave` rejoué
  * remet `last_seen_at` à maintenant, et c'est voulu : le dernier départ gagne.
+ *
+ * Les deux versent la production écoulée depuis `companies.last_collect_at` et remettent cette date à maintenant :
+ * `leave` au revenu plein (le partant était connecté), `join` au revenu plein si un AUTRE membre est connecté d'après
+ * [online], au régime hors ligne sinon. Ainsi la période hors ligne commence au départ du dernier membre connecté.
  */
 class SessionService(
     private val database: Database,
     private val store: SessionStore,
     private val economy: EconomyFigures,
     private val bootstrap: CompanyBootstrap,
+    private val online: OnlinePlayers = OnlinePlayers.NOBODY,
 ) {
     /**
      * Inscrit le joueur, crée son entreprise au premier passage, encaisse l'absence (via [EconomyFigures])
@@ -38,10 +43,22 @@ class SessionService(
      * si la base annule la transaction (blocage), on recommence : tout est relu à neuf. Après
      * [MAX_JOIN_ATTEMPTS] essais, le refus `CONFLIT_REESSAYER` remonte (409).
      */
-    suspend fun join(xuid: Xuid, gamertag: String): JoinResponse {
+    suspend fun join(xuid: Xuid, gamertag: String): JoinResponse = withRetries { joinIn(it, xuid, gamertag) }
+
+    /**
+     * Fige l'heure de départ, verse la production en attente au revenu plein et remet `last_collect_at` à maintenant,
+     * dans la même transaction. Un joueur inconnu, ou sans entreprise, ne fait pas d'erreur : le serveur peut dire
+     * adieu à un XUID jamais vu. Comme `join`, recommence si un autre associé a écrit entre la lecture et l'écriture.
+     */
+    suspend fun leave(xuid: Xuid) {
+        withRetries { leaveIn(it, xuid) }
+    }
+
+    /** Une transaction rejouée sur un conflit de version ou un blocage ; après [MAX_JOIN_ATTEMPTS] essais, `CONFLIT_REESSAYER`. */
+    private suspend fun <T> withRetries(action: (Connection) -> T): T {
         repeat(MAX_JOIN_ATTEMPTS - 1) { attempt ->
             try {
-                return database.transaction { joinIn(it, xuid, gamertag) }
+                return database.transaction(action)
             } catch (_: VersionConflict) {
                 // un autre associé a écrit entre la lecture et l'écriture : on relit
             } catch (e: SQLException) {
@@ -52,16 +69,18 @@ class SessionService(
             delay(Random.nextLong(5L, 20L) * (attempt + 1))
         }
         try {
-            return database.transaction { joinIn(it, xuid, gamertag) }
+            return database.transaction(action)
         } catch (e: SQLException) {
             if (e.isTransientConflict()) throw VersionConflict()
             throw e
         }
     }
 
-    /** Fige l'heure de départ. Un joueur inconnu ne fait pas d'erreur : le serveur peut dire adieu à un XUID jamais vu. */
-    suspend fun leave(xuid: Xuid) {
-        database.transaction { store.markLeft(it, xuid) }
+    private fun leaveIn(connection: Connection, xuid: Xuid) {
+        // Comme `join`, la ligne `players` est touchée en premier : l'ordre des verrous est le même.
+        if (!store.markLeft(connection, xuid)) return
+        val membership = store.membershipOf(connection, xuid) ?: return
+        economy.settle(connection, store.loadCompany(connection, membership.companyId), Regime.ONLINE)
     }
 
     private fun joinIn(connection: Connection, xuid: Xuid, gamertag: String): JoinResponse {
@@ -76,7 +95,12 @@ class SessionService(
             companyCreated = true
         } else {
             val before = store.loadCompany(connection, membership.companyId)
-            offlineCollected = economy.settleOffline(connection, before, entry.previousLastSeenAt)
+            // Un autre membre connecté : la période s'est jouée en ligne. Sinon elle est hors ligne, plafond et efficacité.
+            val othersOnline = store.loadMemberXuids(connection, before.id).any { it != xuid && online.isOnline(it) }
+            val regime = if (othersOnline) Regime.ONLINE else Regime.OFFLINE
+            val paid = economy.settle(connection, before, regime, entry.previousLastSeenAt)
+            // `offlineCollected` ne dit que l'absence : la production en ligne va au Donar de l'entreprise, que `state` montre.
+            if (regime == Regime.OFFLINE) offlineCollected = paid
         }
 
         // Relu après l'encaissement : la version et le Donar ont pu changer.

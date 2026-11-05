@@ -332,6 +332,17 @@ class EconomyEngineTest {
     }
 
     @Test
+    @DisplayName("Le gain en ligne est le revenu fois les heures : ni plafond ni efficacité")
+    fun onlineEarnings() {
+        val rate = 12_345.678
+        assertEquals(rate * 1.5, engine.onlineEarnings(rate, 1.5))
+        assertEquals(rate * offlineRules.capHours * 3, engine.onlineEarnings(rate, offlineRules.capHours * 3), "au-delà du plafond hors ligne, tout est compté")
+        assertEquals(0.0, engine.onlineEarnings(rate, 0.0))
+        assertEquals(0.0, engine.onlineEarnings(0.0, 10.0))
+        assertThrows<IllegalArgumentException> { engine.onlineEarnings(rate, -0.5) }
+    }
+
+    @Test
     @DisplayName("Le multiplicateur hors ligne moyen vaut 1 sans heures libres et baisse quand on joue plus")
     fun dailyOfflineMultiplier() {
         assertEquals(1.0, engine.dailyOfflineMultiplier(EconomyEngine.HOURS_PER_DAY))

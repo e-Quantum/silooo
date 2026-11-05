@@ -30,7 +30,11 @@ data class BuyLevelsRequest(val requestId: String, val actor: String, val amount
 @Serializable
 data class RestoreRequest(val requestId: String, val actor: String, val step: Int)
 
-/** Réponse 200 de `collect`. */
+/**
+ * Réponse 200 de `collect`. `offlineHours` est le nom du contrat pour "heures comptées" : toutes les heures écoulées
+ * depuis `last_collect_at`, car `collect` paie en ligne (revenu plein, sans plafond). Le plafond ne joue qu'à `join`,
+ * quand personne n'était connecté.
+ */
 @Serializable
 data class CollectResponse(val collected: Double, val offlineHours: Double, val state: CompanyState)
 
@@ -41,7 +45,7 @@ internal const val FACTORY_ID_MAX_LENGTH = 32
  * Les quatre routes `companies/{companyId}` de la phase 3.
  *
  *  - `GET /v1/companies/{companyId}` (`getCompany`) : l'état de l'entreprise, calculé comme celui de `join`.
- *  - `POST .../collect` (`collect`) : encaisse la production depuis `last_collect_at`, plafond hors ligne compris.
+ *  - `POST .../collect` (`collect`) : encaisse la production depuis `last_collect_at`, au revenu plein.
  *  - `POST .../factories/{factoryId}/levels` (`buyLevels`) : monte une usine de 1, 10, d'un palier ou du maximum payable.
  *  - `POST .../factories/{factoryId}/restore` (`restoreStep`) : avance la remise en état d'une usine.
  *

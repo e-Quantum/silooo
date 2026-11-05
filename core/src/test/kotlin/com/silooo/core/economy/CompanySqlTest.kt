@@ -16,9 +16,11 @@ import com.silooo.core.api.SiloooJson
 import com.silooo.core.db.MariaDbSupport
 import com.silooo.core.db.Xuid
 import com.silooo.core.economy.EngineFixture.Companion.KR
+import com.silooo.core.economy.EngineFixture.Companion.OTHER
 import com.silooo.core.economy.EngineFixture.Companion.START
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionService
 import com.silooo.core.siloooModule
@@ -67,6 +69,9 @@ class CompanySqlTest {
     private val start = definitions.economy.prestige.courseStart
     private val store = JdbcSessionStore()
     private val clock = MutableClock(START)
+
+    /** La présence que `join` interroge, sur l'horloge du test : le test dit qui est connecté et quand. */
+    private val presence = ServerPresence(clock = clock)
     private val key = "cle-de-test"
 
     @BeforeEach
@@ -84,6 +89,7 @@ class CompanySqlTest {
         economyFigures = EngineFigures(engine, store, clock),
         companyBootstrap = DefinitionsBootstrap(engine, definitions),
         companyStore = companyStore,
+        serverPresence = presence,
     )
 
     /** Crée l'entreprise de [KR] par le vrai `join`, puis monte le service sur la base. */
@@ -233,7 +239,7 @@ class CompanySqlTest {
         collectedNow(id)
         val away = offline.capHours / 2
         clock.advance(hours(away))
-        val earned = engine.offlineEarnings(startingRate(), away, offline.capHours)
+        val earned = engine.onlineEarnings(startingRate(), away)
         assertTrue(earned > 0.0)
 
         val first = collect(id)
@@ -241,7 +247,7 @@ class CompanySqlTest {
         val firstBody = first.bodyAsText()
         val collected = SiloooJson.decodeFromString(CollectResponse.serializer(), firstBody)
         assertGolden(earned, collected.collected, "collected")
-        assertGolden(engine.offlineHours(away, offline.capHours), collected.offlineHours, "offlineHours")
+        assertGolden(away, collected.offlineHours, "offlineHours : toutes les heures, en ligne")
         assertGolden(earned, collected.state.donar, "donar de la réponse")
         assertEquals(1, collected.state.version)
 
@@ -274,18 +280,20 @@ class CompanySqlTest {
     }
 
     @Test
-    @DisplayName("collect : au-delà du plafond de l'entreprise, le gain s'arrête au plafond et last_collect_at repart de maintenant")
-    fun collectIsCappedByTheCompanyCap() = withCompany { joined ->
+    @DisplayName("collect : en ligne, le plafond de l'entreprise ne coupe rien : tout le temps écoulé est payé au revenu plein et last_collect_at repart de maintenant")
+    fun collectHasNoCapOnline() = withCompany { joined ->
         val id = joined.companyId
         val cap = 2.5
         MariaDbSupport.update("UPDATE companies SET offline_cap_hours = ? WHERE id = ?", cap, id)
         collectedNow(id)
-        clock.advance(hours(cap + offline.capHours))
+        val away = cap + offline.capHours
+        clock.advance(hours(away))
 
         val collected = SiloooJson.decodeFromString(CollectResponse.serializer(), collect(id).bodyAsText())
 
-        assertGolden(engine.offlineEarnings(startingRate(), cap + offline.capHours, cap), collected.collected, "gain au plafond")
-        assertGolden(cap, collected.offlineHours, "heures retenues")
+        assertGolden(engine.onlineEarnings(startingRate(), away), collected.collected, "gain au revenu plein")
+        assertTrue(collected.collected > engine.offlineEarnings(startingRate(), away, cap), "plus que ne donnerait le régime hors ligne")
+        assertGolden(away, collected.offlineHours, "heures comptées : toutes")
         assertGolden(collected.collected, donar(id), "donar en base")
         assertEquals(clock.instant(), lastCollectAt(id))
     }
@@ -331,7 +339,7 @@ class CompanySqlTest {
         setDonar(id, oneLevel)
         val away = 2.0
         clock.advance(hours(away))
-        val earned = engine.offlineEarnings(startingRate(), away, offline.capHours)
+        val earned = engine.onlineEarnings(startingRate(), away)
         assertTrue(earned > 0.0)
 
         updated(buy(id, start.factoryId, "1"))
@@ -433,7 +441,7 @@ class CompanySqlTest {
 
         // L'étape 1, après une heure : la production en attente est versée avec elle.
         clock.advance(hours(1.0))
-        val earned = engine.offlineEarnings(startingRate(), 1.0, offline.capHours)
+        val earned = engine.onlineEarnings(startingRate(), 1.0)
         val first = updated(restore(id, ruin, 1, n = 2))
         assertEquals("REMISE_EN_ETAT|1|0", factoryRow(id, ruin))
         assertEquals(1L, version(id))
@@ -466,5 +474,125 @@ class CompanySqlTest {
         assertEquals(listOf("1", "2", "3", "4"), eventValues("step"))
         assertEquals(listOf("REMISE_EN_ETAT", "REMISE_EN_ETAT", "REMISE_EN_ETAT", "ACTIVE"), eventValues("state"))
         assertEquals(List(4) { ruin }, eventValues("factoryId"))
+    }
+
+    // --- join et leave : le régime de la période
+
+    private suspend fun ApplicationTestBuilder.join(xuid: Xuid, gamertag: String = "Kr"): JoinResponse {
+        val response = post("/v1/session/join", """{"xuid":"${xuid.text}","gamertag":"$gamertag"}""")
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        return SiloooJson.decodeFromString(JoinResponse.serializer(), response.bodyAsText())
+    }
+
+    private suspend fun ApplicationTestBuilder.leave(xuid: Xuid) = post("/v1/session/leave", """{"xuid":"${xuid.text}"}""")
+
+    /**
+     * [partner] devient associé de l'entreprise [companyId]. Son premier `join` lui crée une entreprise à lui ; on le
+     * rattache ensuite à celle-ci, comme le fera l'invitation d'un associé.
+     */
+    private suspend fun ApplicationTestBuilder.addPartner(companyId: Long, partner: Xuid) {
+        join(partner, "Associe")
+        MariaDbSupport.update("UPDATE company_members SET company_id = ?, role = 'ASSOCIE' WHERE xuid = ?", companyId, partner.text)
+    }
+
+    @Test
+    @DisplayName("deux associés : A joue, B arrive : la période de A est payée au revenu plein (au-delà du plafond aussi), puis une heure plus tard le collect ne compte qu'elle")
+    fun partnerArrivingWhileTheOtherPlaysPaysFullRate() = withCompany { joined ->
+        val id = joined.companyId
+        addPartner(id, OTHER)
+        collectedNow(id)
+        val away = offline.capHours + 3.0
+        clock.advance(hours(away))
+        presence.record("serveur-1", listOf(KR.text, OTHER.text))
+        val earned = engine.onlineEarnings(startingRate(), away)
+        assertTrue(earned > engine.offlineEarnings(startingRate(), away, offline.capHours))
+
+        val back = join(OTHER, "Associe")
+
+        assertEquals(0.0, back.offlineCollected, "le gain en ligne n'est pas du hors ligne")
+        assertGolden(earned, donar(id), "donar en base")
+        assertGolden(earned, donarEarned(id), "donar gagnés en base")
+        assertEquals(clock.instant(), lastCollectAt(id))
+        assertEquals(1L, version(id))
+
+        clock.advance(hours(1.0))
+        val collected = SiloooJson.decodeFromString(CollectResponse.serializer(), collect(id).bodyAsText())
+        assertGolden(engine.onlineEarnings(startingRate(), 1.0), collected.collected, "une heure de plus, au revenu plein")
+        assertGolden(1.0, collected.offlineHours, "heures comptées")
+        assertGolden(earned + collected.collected, donar(id), "donar en base après le collect")
+    }
+
+    @Test
+    @DisplayName("deux associés : B arrive et personne d'autre n'est connecté : la période est hors ligne, plafond et efficacité, et offlineCollected la rapporte")
+    fun partnerArrivingWhenNobodyElseIsOnlinePaysOffline() = withCompany { joined ->
+        val id = joined.companyId
+        addPartner(id, OTHER)
+        collectedNow(id)
+        val away = offline.capHours + 3.0
+        clock.advance(hours(away))
+        presence.record("serveur-1", listOf(OTHER.text))
+        val earned = engine.offlineEarnings(startingRate(), away, offline.capHours)
+        assertTrue(earned > 0.0)
+
+        val back = join(OTHER, "Associe")
+
+        assertGolden(earned, back.offlineCollected, "offlineCollected")
+        assertGolden(earned, donar(id), "donar en base")
+        assertEquals(clock.instant(), lastCollectAt(id))
+        assertEquals(1L, version(id))
+    }
+
+    @Test
+    @DisplayName("join remet last_collect_at à maintenant même quand il n'y a rien à payer : le collect qui suit ne compte pas ces heures au revenu plein")
+    fun joinResetsTheDateEvenWithNothingToPay() = withCompany { joined ->
+        val id = joined.companyId
+        MariaDbSupport.update("UPDATE companies SET offline_cap_hours = 0 WHERE id = ?", id)
+        collectedNow(id)
+        clock.advance(hours(5.0))
+
+        val back = join(KR)
+
+        assertEquals(0.0, back.offlineCollected)
+        assertEquals(0.0, donar(id))
+        assertEquals(clock.instant(), lastCollectAt(id))
+        assertEquals(1L, version(id), "le coup de version est accepté")
+
+        val nothing = SiloooJson.decodeFromString(CollectResponse.serializer(), collect(id).bodyAsText())
+        assertEquals(0.0, nothing.collected)
+        assertEquals(0.0, nothing.offlineHours)
+        assertEquals(0.0, donar(id))
+    }
+
+    @Test
+    @DisplayName("leave verse la production au revenu plein et remet last_collect_at à maintenant ; le retour compte ensuite l'absence au régime hors ligne, depuis le départ")
+    fun leavePaysOnlineAndTheReturnIsOffline() = withCompany { joined ->
+        val id = joined.companyId
+        collectedNow(id)
+        val away = offline.capHours + 5.0
+        clock.advance(hours(away))
+        val played = engine.onlineEarnings(startingRate(), away)
+        assertTrue(played > engine.offlineEarnings(startingRate(), away, offline.capHours))
+
+        assertEquals(HttpStatusCode.NoContent, leave(KR).status)
+
+        assertGolden(played, donar(id), "donar en base après le départ")
+        assertGolden(played, donarEarned(id), "donar gagnés en base après le départ")
+        assertEquals(clock.instant(), lastCollectAt(id))
+        assertEquals(1L, version(id))
+
+        // Un second départ sans temps écoulé ne paie rien et ne touche pas la version.
+        assertEquals(HttpStatusCode.NoContent, leave(KR).status)
+        assertEquals(1L, version(id))
+
+        // Deux heures d'absence, puis le retour : hors ligne, depuis le départ.
+        val absence = 2.0
+        clock.advance(hours(absence))
+        val absent = engine.offlineEarnings(startingRate(), absence, offline.capHours)
+        val back = join(KR)
+
+        assertGolden(absent, back.offlineCollected, "offlineCollected")
+        assertGolden(played + absent, donar(id), "donar en base après le retour")
+        assertEquals(clock.instant(), lastCollectAt(id))
+        assertEquals(2L, version(id))
     }
 }
