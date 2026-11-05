@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 9 h 40, pack de ressources fusionné (session de direction).
+Dernière mise à jour : 5 novembre 2026, 9 h 55, le monde de l'add-on fusionné (session de direction).
 
 ## État
 
@@ -26,9 +26,9 @@ Dernière mise à jour : 5 novembre 2026, 9 h 40, pack de ressources fusionné (
   et `silooo-bds` publiées par la CI). Restent le déploiement, le test console et la mesure de la mémoire, qui
   attendent la base, le port, le zip de BDS et le DNS (« À faire par Kr »).
 - Phase en cours : **3** (la première heure). Côté service, les quatre routes d'économie sont sur `main` ; côté
-  add-on, le HUD, le menu, la fiche d'usine et le Silo aussi (339 tests). Restent les usines posées sur l'île, la
-  cinématique d'arrivée, Oooscar en entité, la mission de la mairie et le pack de ressources (JSON UI), puis le test
-  de bout en bout après Kr.
+  add-on, le HUD, le menu, la fiche d'usine, le Silo, les mini-îles des usines, l'arrivée, la cinématique et
+  Oooscar aussi (522 tests), et le pack de ressources. Reste la mission de la mairie (le service l'avance sur
+  `claude/phase4-prestige-mission`, l'add-on doit l'afficher), puis le test de bout en bout après Kr.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -89,10 +89,11 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - [x] silooo-core : `restoreStep` (les quatre étapes de remise en état d'une usine `EN_RUINE` puis `REMISE_EN_ETAT` jusqu'à `ACTIVE`, gratuites tant que `definitions/` ne les chiffre pas, événement publié)
 - [x] silooo-core : tests SQL sur MariaDB pour ces quatre routes (`CompanySqlTest`, 13 tests passés dans la CI), `WRITTEN` du test de contrat étendu aux huit opérations écrites, idempotence et verrou optimiste sur chacune
 - [x] add-on : compteur de Donar qui défile entre deux réponses du service (`ui/compteur.ts` : revenu × temps écoulé, jamais sous le solde du service ; affichage seul)
-- [ ] add-on : les usines de l'époque 1 posées sur l'île du joueur (structures dans le monde, sur la grille de `definitions/monde.json`)
+- [x] add-on : les usines de l'époque 1 posées autour de l'île principale, une mini-île par usine (`definitions/iles.json` : plate-forme, bâtiment, panneau ; en ruine ou entière selon l'état du service), posées par lots sous ticking area, une fois par état (`addon/src/monde/`) ; `island` vient du service, l'add-on ne calcule rien (décision 30)
 - [x] add-on : HUD en trois étages (`ui/hud.ts` ; le canal de titre est coupé par `config.ui.hud.titleChannel` tant que le pack de ressources ne masque pas les préfixes, tout passe par la barre d'action), menu à tuiles (boussole « Menu »), liste des usines paginée, fiche d'usine avec Monter de 1, de 10, au palier, au max (`buyLevels`), palier ×2 et coût affichés
 - [x] add-on : le Silo (Encaisser → `collect`, heures hors ligne affichées) et la remise en état en quatre étapes (Parler, Réparer, Livrer, Recruter → `restoreStep`) ; rejeu une fois après `CONFLIT_REESSAYER` ; une bulle d'Oooscar par code `reason`
-- [ ] add-on : cinématique d'arrivée, Oooscar en entité, première mission de la mairie (textes et visuels **à valider par Kr**)
+- [x] add-on : téléportation à l'île de la Carrière, cinématique d'arrivée (quatre plans de `iles.json`, sous-titres d'Oooscar, saut en restant accroupi une seconde), Oooscar en entité `silooo:oooscar` (`addon/pack/entities/`, une par joueur) ; textes **à valider par Kr**
+- [ ] add-on : la première mission de la mairie affichée (tuile Objectifs lue dans `getMissions`, consigne du HUD ; le service la fait avancer, décision 29)
 - [x] `resource-pack/` : manifest, `pack_icon`, textures copiées octet pour octet de `design/` (contrôle `tools/verifier_pack.mjs`), JSON UI (`ui/hud_screen.json`, `ui/silooo/hud.json`) qui masque les préfixes `silooo:hud|` et `silooo:consigne|` et place monnaies et consigne en haut à gauche, Oooscar côté client (géométrie, texture générée par `tools/generer_oooscar.mjs`, animations) ; `start.sh` l'installe dans `resource_packs/silooo` et `world_resource_packs.json`, `texturepack-required=true`. Reste `config.ui.hud.titleChannel: true`, à passer après le test sur un vrai client (**Kr**)
 - [ ] Test de bout en bout de la première heure sur le BDS de test (**après le déploiement**, donc après Kr)
 
@@ -111,7 +112,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] silooo-core : ville (`buyZone`, `placeBuilding`, `upgradeBuilding`) : prix fixes en Lingots de `ville.zonesPrixLingots`, niveau de mairie, bonus des bâtiments seulement une fois chiffrés dans `definitions/`
 - [ ] silooo-core : entreprise partagée (`invite`, `setShares`) : PDG et associés, parts qui font 100, Lingots partagés au prestige
 - [ ] silooo-core : commandes du jour (`todayOrder`, `deliverOrder`) et Carnet de trouvailles, Lingots hors prestige de `lingotsHorsPrestige`
-- [ ] add-on : carte et îles (formulaire natif, une icône par île, « ????? » pour les usines à découvrir, téléportation), écran de prestige avant / après, écrans du personnel, de la ville et de l'entreprise partagée (textes **à valider par Kr**)
+- [ ] add-on : carte et îles (formulaire natif, une icône par île, « ????? » pour les usines à découvrir, téléportation), écran de prestige avant / après, écrans du personnel, de la ville et de l'entreprise partagée (textes **à valider par Kr**), et l'île principale posée zone par zone quand la mairie les débloque (verrouillée au départ, `docs/game-design.md` : la phase 3 ne la construit pas)
 - [ ] `definitions/` : les chiffres que la phase 4 révèle manquants (bonus des bâtiments, coût de la remise en état, salaires), ajoutés avec leurs schémas et le tableur, jamais dans le code
 
 ## À faire par Kr
@@ -122,6 +123,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
+- [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
 - [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`)
@@ -250,6 +252,13 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     la mairie dans `collect`, crédite `lingotsHorsPrestige.missionBienvenue` au joueur et publie un événement. Le
     catalogue des missions va dans `definitions/missions.json`. La migration V1 avait déjà `player_missions` et
     `archipelago_slots` ; le contrat ne les servait pas. À relire par Kr.
+30. **`island` est le coin de la case de l'archipel.** Le service range dans `archipelago_slots` l'origine de la
+    case (`colonne × ecartEntreCases`, `rangée × ecartEntreCases`, depuis `origine` de `monde.json`) ; l'add-on
+    place le centre de l'île principale à `centreDansLaCase` de `definitions/iles.json` (300, 300 : la moitié de la
+    case, qu'un test des définitions compare à `monde.json`) et les mini-îles en carré autour. Les chiffres des îles
+    vivent dans `iles.json`, à part de `monde.json` (la grille) ; l'entité `silooo:oooscar` est en `format_version`
+    1.21.0, sans comportement, sans dégâts, jamais persistée. L'île principale n'est pas posée en phase 3 : elle
+    est verrouillée au départ et se débloque zone par zone avec la ville (phase 4). À relire par Kr.
 
 ## À valider par Kr
 
@@ -262,6 +271,10 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - Le nom du serveur « Silooo » dans la liste des amis (`BDS_SERVER_NAME`, `deploy/exemple.env.txt`).
 - Le pack de ressources : nom « Silooo », description « Interface, HUD et Oooscar, la mascotte du jeu Silooo. »
   (`resource-pack/texts/fr_FR.lang`), et `texturepack-required=true` dans `server.properties` (le HUD en dépend).
+- La cinématique d'arrivée : ses cinq phrases (`CINEMATIQUE_TEXTES` dans `addon/src/ui/textes.ts`, tableau dans
+  `addon/README.md`), le découpage en quatre plans et leur cadrage (`definitions/iles.json`, `cinematique.plans`).
+- La forme des mini-îles (`definitions/iles.json`) : rayon 7, un bâtiment par usine avec son angle autour de l'île
+  principale, 35 % de murs et 30 % de sol abîmés pour une usine en ruine, les matériaux.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -375,3 +388,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   par `start.sh`, `texturepack-required=true`, contrôle du pack dans le vérificateur, CI `image-bds` qui vérifie la
   copie et la liste du monde). Case du pack cochée, moins `titleChannel` qui attend le test client. Vérifier :
   `git log --oneline -3 origin/main`, `node tools/verifier_pack.mjs`.
+- **5 novembre 2026, 9 h 55 : direction, le monde de l'add-on fusionné.** `claude/phase3-addon-monde` en avance
+  rapide (`b9d2b24` : `addon/src/monde/`, `definitions/iles.json` et son schéma, entité `silooo:oooscar` dans
+  `addon/pack/`, build qui copie `pack/`, 522 tests). Deux cases de la phase 3 cochées, la mission de la mairie côté
+  add-on devient une case à part. Décision 30. Reste en vol : `claude/phase4-prestige-mission`. Vérifier :
+  `git log --oneline -3 origin/main`, `cd addon && npm test`.

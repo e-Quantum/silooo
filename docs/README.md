@@ -48,12 +48,13 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 
 ## Le socle, hors de `docs/`
 
-- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles) et leurs schémas dans `definitions/schemas/`.
+- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles, iles : la forme des mini-îles et la cinématique) et leurs schémas dans `definitions/schemas/`.
 - `api/silooo-core.openapi.yaml` : le contrat entre l'add-on et silooo-core, 29 opérations.
 - `core/src/main/resources/db/migration/` : les migrations Flyway, V1 en tête.
 - `design/` : le design system Silooo Atelier (charte, composants, textures, icônes, Oooscar, logo).
 - `addon/` : le pack de comportement (TypeScript, `server-net`), ses écrans dans `addon/src/ui/`, ses textes dans
-  `addon/src/ui/textes.ts` ; `addon/README.md` liste les textes à valider.
+  `addon/src/ui/textes.ts`, son monde dans `addon/src/monde/`, son dossier statique `addon/pack/` ; `addon/README.md`
+  liste les textes à valider.
 - `resource-pack/` : le pack de ressources (JSON UI du HUD, textures copiées de `design/`, Oooscar côté client) ;
   `tools/verifier_pack.mjs` contrôle les copies.
 - `deploy/` : images, `compose.yml`, scripts de déploiement et de sauvegarde ; `deploy/README.md` et
