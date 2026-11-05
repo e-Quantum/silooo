@@ -5,6 +5,7 @@ import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
+import com.silooo.core.registration.HttpDiscordIdentity
 import com.silooo.core.site.siteModule
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -72,6 +73,9 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteUrl = config.siteUrl,
             discordUrl = config.discordUrl,
             siteSettings = config.siteSettings,
+            siteAdmission = config.siteAdmission,
+            discordIdentity = config.discord?.let { HttpDiscordIdentity(it) },
+            siteTrustedProxy = config.siteTrustedProxy,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.
