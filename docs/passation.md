@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de la phase 2 (session de direction).
+Dernière mise à jour : 5 novembre 2026, 6 h 45, phase 1 close, phase 2 en cours (session de direction).
 
 ## État
 
@@ -10,17 +10,19 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
   `X-Silooo-Key`, heartbeat, filet 501, Dockerfile) avec les données dorées du tableur
   (`core/src/test/resources/golden/`), les routes de session (`join`, `leave`, `GET /v1/events`,
   idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 29 opérations) et le moteur
-  d'économie avec ses tests dorés. Le branchement du moteur sur `join` est en cours (sous-agent).
+  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Quatre
+  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`.
 - `main` est vert : `tools/verifier.sh` passe sur le PC (tests Gradle compris, tests Docker ignorés) et
   la CI passe (jobs `verifier` avec les deux tests Testcontainers, `migration`, `image`).
 - Sur le VPS : `/var/www/silooo` existe avec un fichier d'environnement posé par Kr. La base `silooo`
   n'est pas confirmée. Le VPS n'a pas d'accès GitHub.
 - Sur le PC de Kr : Node 24, Java 17, uv (Python géré), Docker Desktop installé mais pas lancé. Pas de
   Gradle global (le wrapper suffit ; Gradle 9.8 est en cache).
-- Phase en cours : **1**, à une case de la fin (le branchement du moteur). Condition de sortie : toutes les
-  cases cochées, `tools/verifier.sh` vert sur `main` (tests Gradle compris), CI verte, image de silooo-core
-  publiée depuis `main` (fait : run `image` vert sur `main`). La phase **2** est ouverte en parallèle pour ce
-  qui ne dépend pas de la phase 1 : le relevé des faits Bedrock (sous-agent).
+- Phase **1 close** le 5 novembre 2026 à 6 h 40 : toutes les cases cochées, `tools/verifier.sh` vert sur `main`
+  (tests Gradle compris), CI verte, image de silooo-core publiée depuis `main`. Ce qui n'est pas de la phase 1
+  et reste pour la phase 3 : les routes d'économie (`getCompany`, `collect`, `buyLevels`, …) et la mécanique
+  d'énergie (`stoppedNoPower` toujours faux).
+- Phase en cours : **2** (Bedrock). Le relevé est fait ; deux sous-agents écrivent `deploy/` et `addon/`.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -48,7 +50,7 @@ Dernière mise à jour : 5 novembre 2026, 5 h 40, fin de la phase 1 et début de
 - [x] Données dorées extraites du tableur (`core/src/test/resources/golden/`) et script d'extraction rejouable
 - [x] Moteur d'économie (prix des niveaux, production, paliers, prestige, notation) et tests dorés
 - [x] Tests de contrat sur les 29 opérations de l'OpenAPI (les routes pas faites répondent 501)
-- [ ] Brancher le moteur sur `join` (`EconomyFigures` : revenu, multiplicateur, seuil, hors ligne ; `CompanyBootstrap` : la Carrière de départ et la grille des cases) : sous-agent en cours, branche `claude/phase1-branchement`
+- [x] Brancher le moteur sur `join` (`EngineFigures` : revenu, multiplicateur, seuil, hors ligne compté depuis `last_collect_at` ; `DefinitionsBootstrap` : la Carrière de départ, le plafond hors ligne et la grille des cases de `monde.json`) ; tests SQL `EngineFiguresSqlTest` passés dans la CI
 - [x] Contrat : le 409 `CONFLIT_REESSAYER` est déclaré sur les six opérations qui peuvent le rendre (`join`, `collect`, `resolveIncident`, `fireStaff`, `assignStaff`, `deliverOrder`) ; `KNOWN_409_GAPS` est vide dans le test de contrat
 - [x] Image Docker de silooo-core construite par la CI, publiée sur le registre GitHub depuis `main`
 
@@ -146,7 +148,7 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
     cases par rangée et l'origine de la grille sont des chiffres du jeu (`docs/game-design.md` : « au moins
     600 × 600 blocs par joueur ») : ils vont dans `definitions/`, pas dans le code. Au-delà des neuf seuils de
     prestige listés, le seuil suivant vaut le précédent × 1000 (prose `etoilesSuivantes`) : clé numérique
-    `prestige.facteurSeuilSuivant`. Les deux à valider par Kr (en cours, sous-agent de branchement).
+    `prestige.facteurSeuilSuivant` = 1000. Les deux sont sur `main`, à valider par Kr.
 20. **Phase 2 ouverte avant la fin de la phase 1.** Le relevé des faits Bedrock ne dépend pas du
     branchement du moteur : il part en parallèle, dans la limite de trois sessions à la fois.
 21. **Build BDS épinglé : 1.26.62.1.** La version 26.60 a reçu deux correctifs (26.61, 26.62) sans changement
@@ -167,8 +169,11 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
   (`core/src/test/resources/golden/README.md`) : le moteur suit le tableur en attendant.
 - Le nom d'entreprise provisoire « Entreprise de <gamertag> » (`core/.../session/CompanyNaming.kt`), premier
   texte vu par les joueurs. Aucun autre texte de joueur n'a été écrit.
-- Les valeurs de `definitions/monde.json` (écart entre les cases, cases par rangée, origine) et
-  `prestige.facteurSeuilSuivant` dans `definitions/economie.json`, une fois la branche de branchement fusionnée.
+- Les valeurs de `definitions/monde.json` (`ecartEntreCases` 600, `casesParRangee` 64, `origine` (0, 0)) et
+  `prestige.facteurSeuilSuivant` = 1000 dans `definitions/economie.json` (`docs/economie.md`, historique du 5 nov.).
+- Trois règles du hors ligne prises par le branchement (`docs/economie.md`) : l'absence se compte depuis
+  `last_collect_at` de l'entreprise et non depuis le départ du joueur ; la colonne `offline_cap_hours` fait foi
+  (recopiée de `horsLigne.plafondHeures` à la création) ; le surplus au-delà du plafond est perdu.
 
 ## Journal
 
@@ -216,3 +221,9 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
   (image BDS, compose, `deploy.sh`, `claude/phase2-deploy`) et `addon/` (projet TypeScript, client
   `server-net`, heartbeat, `join`, `leave`, événements, types générés, `claude/phase2-addon`) ; le branchement
   du moteur (phase 1) est toujours en cours. Vérifier : `git log --oneline -6 origin/main`.
+- **5 novembre 2026, 6 h 45 : direction, phase 1 close.** Le branchement du moteur sur `join` est fusionné en
+  avance rapide (`4a9428a`, deux commits, 42 fichiers : `EngineFigures`, `DefinitionsBootstrap`,
+  `WorldDefinitions`, `definitions/monde.json` et son schéma, six fichiers de tests dont `EngineFiguresSqlTest`
+  sur MariaDB). `tools/verifier.sh` vert sur le PC, CI verte sur la branche avant fusion. Dernière case de la
+  phase 1 cochée ; `docs/README.md` cite `monde.json`. Vérifier : `git log --oneline -3 origin/main`,
+  `gh run list --branch main --limit 2`.
