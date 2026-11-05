@@ -79,7 +79,7 @@ Côté dessin, même filtre : pas de dégradé violet, pas de lueur, pas de verr
 
 - 16 × 16 pixels, contour `fonte-900` d'un pixel, lumière en haut à gauche, ombre en bas à droite. Affichées à ×2, ×3 (`sa-icone`, 48 px) ou ×4, jamais à une taille intermédiaire.
 - Groupe Icônes : donar, lingot, gemme, usine, carte, ville, marche, boutique, cadenas, engrenage, eclair (électricité), flamme (incident), etoile (prestige), fermer.
-- Pas d'emoji, jamais.
+- Pas d'emoji, jamais. Une seule exception, décidée par Kr le 5 novembre 2026 : les noms des salons et des catégories du serveur Discord (`docs/discord.md`, « Le plan du serveur »). Elle ne s'étend à rien d'autre : ni aux messages du bot, ni aux textes du jeu, ni au site.
 
 ## Oooscar et le logo
 
