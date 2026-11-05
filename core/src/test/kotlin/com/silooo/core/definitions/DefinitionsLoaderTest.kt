@@ -7,6 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -30,6 +31,7 @@ class DefinitionsLoaderTest {
     private val factoriesText = TestDefinitions.text(DefinitionsLoader.FACTORIES_FILE)
     private val shopText = TestDefinitions.text(DefinitionsLoader.SHOP_FILE)
     private val worldText = TestDefinitions.text(DefinitionsLoader.WORLD_FILE)
+    private val missionsText = TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
@@ -38,10 +40,11 @@ class DefinitionsLoaderTest {
         factories: String = factoriesText,
         shop: String = shopText,
         world: String = worldText,
-    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world)
+        missions: String = missionsText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions)
 
     @Test
-    @DisplayName("Les quatre fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les cinq fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
@@ -49,6 +52,7 @@ class DefinitionsLoaderTest {
         assertEquals(fromText.factories, fromDirectory.factories)
         assertEquals(fromText.shop, fromDirectory.shop)
         assertEquals(fromText.world, fromDirectory.world)
+        assertEquals(fromText.missions, fromDirectory.missions)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -101,6 +105,91 @@ class DefinitionsLoaderTest {
             val error = assertThrows<DefinitionsException>("monde.json sans ${path.joinToString(".")}") { load(world = damaged) }
             assertTrue(error.message!!.contains("monde.json"), error.message)
         }
+    }
+
+    @Test
+    @DisplayName("Retirer n'importe quelle clé de missions.json fait échouer le chargement")
+    fun everyMissionKeyIsRequired() {
+        val root = parseJson(missionsText)
+        val paths = root.keyPaths()
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("missions.json sans ${path.joinToString(".")}") { load(missions = damaged) }
+            assertTrue(error.message!!.contains("missions.json"), error.message)
+        }
+    }
+
+    /** missions.json avec les clés de la première mission remplacées par [changes]. */
+    private fun missionsWith(vararg changes: Pair<String, JsonElement>): String {
+        val root = parseJson(missionsText)
+        val first = root.getValue("missions").jsonArray.first().jsonObject
+        val changed = JsonObject(first + changes)
+        return JsonObject(root + ("missions" to JsonArray(listOf(changed)))).toString()
+    }
+
+    @Test
+    @DisplayName("Un événement de mission que le service ne sait pas compter est refusé")
+    fun unknownMissionEventIsRefused() {
+        val message = assertThrows<DefinitionsException> { load(missions = missionsWith("evenement" to JsonPrimitive("pas-un-evenement"))) }.message!!
+        assertTrue(message.contains("missions.json"), message)
+    }
+
+    @Test
+    @DisplayName("Une récompense qui ne mène pas à un nombre entier de economie.json est refusée, en disant laquelle")
+    fun unknownMissionRewardIsRefused() {
+        // Un chemin qui n'existe pas, un chemin qui mène à un objet, un chemin qui mène à un nombre à virgule.
+        for (path in listOf("lingotsHorsPrestige.inexistant", "lingotsHorsPrestige", "horsLigne.efficacite")) {
+            val message = assertThrows<DefinitionsException>("récompense $path") { load(missions = missionsWith("recompense" to JsonPrimitive(path))) }.message!!
+            assertTrue(message.contains("recompense") && message.contains(path), message)
+        }
+    }
+
+    @Test
+    @DisplayName("Une cible de mission sous 1 est refusée")
+    fun missionTargetMustBePositive() {
+        for (target in listOf(0, -3)) {
+            val message = assertThrows<DefinitionsException>("cible $target") { load(missions = missionsWith("cible" to JsonPrimitive(target))) }.message!!
+            assertTrue(message.contains("cible"), message)
+        }
+    }
+
+    @Test
+    @DisplayName("Un identifiant de mission qui n'est pas en kebab-case, ou trop long pour player_missions, est refusé")
+    fun missionIdMustFitTheTable() {
+        val tooLong = "a".repeat(DefinitionsChecks.MISSION_ID_MAX_LENGTH + 1)
+        for (id in listOf("Bienvenue", "bienvenue_mairie", "-bienvenue", "", tooLong)) {
+            val message = assertThrows<DefinitionsException>("id « $id »") { load(missions = missionsWith("id" to JsonPrimitive(id))) }.message!!
+            assertTrue(message.contains("missions.json") && message.contains(".id"), message)
+        }
+    }
+
+    @Test
+    @DisplayName("Deux missions de même identifiant, ou aucune mission, sont refusées")
+    fun missionCatalogueMustBeUniqueAndNotEmpty() {
+        val root = parseJson(missionsText)
+        val first = root.getValue("missions").jsonArray.first()
+
+        val twice = JsonObject(root + ("missions" to JsonArray(listOf(first, first)))).toString()
+        val duplicate = assertThrows<DefinitionsException> { load(missions = twice) }.message!!
+        assertTrue(duplicate.contains("même id"), duplicate)
+
+        val none = JsonObject(root + ("missions" to JsonArray(emptyList()))).toString()
+        val empty = assertThrows<DefinitionsException> { load(missions = none) }.message!!
+        assertTrue(empty.contains("missions.json"), empty)
+    }
+
+    @Test
+    @DisplayName("La récompense d'une mission est lue dans economie.json : un autre chiffre là-bas change les Lingots, sans toucher à missions.json")
+    fun missionRewardFollowsEconomy() {
+        val loaded = load()
+        val reward = loaded.missions.missions.first().reward
+        assertEquals(loaded.economy.lingotsOutsidePrestige.welcomeMission, loaded.missionRewards.getValue(loaded.missions.missions.first().id), reward)
+
+        val root = parseJson(economyText)
+        val outside = root.getValue("lingotsHorsPrestige").jsonObject
+        val changed = JsonObject(root + ("lingotsHorsPrestige" to JsonObject(outside + ("missionBienvenue" to JsonPrimitive(7777)))))
+        assertEquals(7777L, load(economy = changed.toString()).missionRewards.getValue(loaded.missions.missions.first().id))
     }
 
     @Test
@@ -219,6 +308,10 @@ class DefinitionsLoaderTest {
         assertTrue(noWorld.message!!.contains(DefinitionsLoader.WORLD_FILE), noWorld.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.WORLD_FILE), worldText)
+        val noMissions = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noMissions.message!!.contains(DefinitionsLoader.MISSIONS_FILE), noMissions.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.MISSIONS_FILE), missionsText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
     }
 }

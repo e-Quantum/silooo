@@ -11,8 +11,8 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 /**
- * Lit definitions/ au démarrage : `economie.json`, `usines.json`, `boutique.json`, `monde.json`, dans un dossier
- * donné (variable `SILOOO_DEFINITIONS_DIR`, voir [com.silooo.core.Config]).
+ * Lit definitions/ au démarrage : `economie.json`, `usines.json`, `boutique.json`, `monde.json`, `missions.json`, dans
+ * un dossier donné (variable `SILOOO_DEFINITIONS_DIR`, voir [com.silooo.core.Config]).
  *
  * Le chargement est strict. Une clé manquante, une clé inconnue, un type qui ne va pas, un fichier
  * absent : tout échoue net avec une [DefinitionsException] qui dit le fichier et le chemin JSON, et le
@@ -23,6 +23,7 @@ object DefinitionsLoader {
     const val FACTORIES_FILE = "usines.json"
     const val SHOP_FILE = "boutique.json"
     const val WORLD_FILE = "monde.json"
+    const val MISSIONS_FILE = "missions.json"
 
     // ignoreUnknownKeys reste faux : le fichier et les classes Kotlin disent la même chose.
     private val json = Json { ignoreUnknownKeys = false }
@@ -36,20 +37,24 @@ object DefinitionsLoader {
             factories = read(directory, FACTORIES_FILE),
             shop = read(directory, SHOP_FILE),
             world = read(directory, WORLD_FILE),
+            missions = read(directory, MISSIONS_FILE),
         )
     }
 
-    /** Les quatre textes JSON déjà lus. Sert au chargement et aux tests qui abîment un fichier à dessein. */
-    fun parse(economy: String, factories: String, shop: String, world: String): Definitions {
+    /** Les cinq textes JSON déjà lus. Sert au chargement et aux tests qui abîment un fichier à dessein. */
+    fun parse(economy: String, factories: String, shop: String, world: String, missions: String): Definitions {
         val problems = mutableListOf<String>()
         val parsedEconomy = decode(EconomyDefinitions.serializer(), ECONOMY_FILE, economy, problems)
         val parsedFactories = decode(FactoriesDefinitions.serializer(), FACTORIES_FILE, factories, problems)
         val parsedShop = decode(ShopDefinitions.serializer(), SHOP_FILE, shop, problems)
         val parsedWorld = decode(WorldDefinitions.serializer(), WORLD_FILE, world, problems)
-        if (problems.isNotEmpty() || parsedEconomy == null || parsedFactories == null || parsedShop == null || parsedWorld == null) {
+        val parsedMissions = decode(MissionsDefinitions.serializer(), MISSIONS_FILE, missions, problems)
+        if (problems.isNotEmpty() || parsedEconomy == null || parsedFactories == null || parsedShop == null || parsedWorld == null ||
+            parsedMissions == null
+        ) {
             throw DefinitionsException("Définitions illisibles :\n" + problems.joinToString("\n") { "  - $it" })
         }
-        return Definitions(parsedEconomy, parsedFactories, parsedShop, parsedWorld)
+        return Definitions(parsedEconomy, parsedFactories, parsedShop, parsedWorld, parsedMissions)
     }
 
     private fun read(directory: Path, name: String): String {
