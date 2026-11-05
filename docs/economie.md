@@ -116,6 +116,25 @@ profonde, les trois prestiges, puis les six premières étoiles. Les tests doré
 « Paramètres » liste les réglages, dans le même ordre que `economie.json`. Le tableur portait
 encore le nom UrbaFactory : c'est le même fichier.
 
+### Ce que le moteur de la phase 1 a dû trancher
+
+Le moteur (`core/.../economy/`) rejoue le tableur à 1e-14 près en relatif, soit l'arrondi à 15 chiffres
+des JSON dorés et rien d'autre. Pour y arriver, il applique les règles suivantes, toutes **à valider par Kr**
+(points 1, 2, 4, 5 et 6 de `core/src/test/resources/golden/README.md`) :
+
+- Paliers ×2 aux niveaux 25 et 50, puis à chaque multiple de 100 (clé `niveaux.paliersX2`).
+- Lingots du prestige : valeur exacte de la formule, arrondie à l'entier inférieur, sauf si elle tombe à
+  moins de 1e-9 (relatif) d'un entier, auquel cas on garde cet entier (100 Lingots au seuil, pas 99).
+- Le multiplicateur de la course est calculé au départ et figé jusqu'au prestige. Il compte les Lingots
+  gardés tels quels, fractionnaires (le joueur type du tableur en garde la moitié).
+- Époque de la course = min(course, plus grande époque de `usines.json`) ; étoiles = course moins cette
+  époque, jamais négatif.
+- Les seuils n'existent que pour les courses de `prestige.seuils` (9 en phase 1). Au-delà, `prestigeThreshold`
+  lève une erreur au lieu d'inventer un chiffre : la clé `etoilesSuivantes` reste du texte à traduire en
+  formule quand Kr aura tranché.
+- Affichage : trois chiffres au plus, virgule, décimale tronquée (le tableur écrit « 195.5 M », la charte
+  veut « 195 M »). Sous 1 000, entier arrondi à l'unité la plus proche.
+
 ## Les garde-fous du long terme
 
 - Chaque entrée d'argent a une sortie en face : salaires, rachats, entretien de la ville, intérêts,
