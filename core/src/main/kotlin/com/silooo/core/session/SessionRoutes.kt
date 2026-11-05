@@ -21,7 +21,7 @@ data class JoinRequest(val xuid: String, val gamertag: String)
 data class LeaveRequest(val xuid: String)
 
 /** `players.gamertag` : VARCHAR(32), et `maxLength: 32` dans l'OpenAPI. */
-private const val GAMERTAG_MAX_LENGTH = 32
+internal const val GAMERTAG_MAX_LENGTH = 32
 
 /**
  * Domaine « session » : l'arrivée et le départ d'un joueur.

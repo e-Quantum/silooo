@@ -19,8 +19,8 @@ data class ErrorBody(val reason: String)
  * Les codes que le service renvoie sans que le jeu y soit pour rien. Les codes de refus du jeu
  * (`PAS_ASSEZ_DE_DONAR`, `CONFLIT_REESSAYER`…) sont dans l'OpenAPI, réponse `Refused`.
  *
- * Ces quatre-là n'y sont pas encore : à ajouter au contrat (réponses 400, 401, 500 et 501) avant que
- * l'add-on les traite. Même convention que l'ADR 0005 : capitales françaises sans accent.
+ * Ces quatre-là sont dans l'OpenAPI (réponse `Erreur`, déclarée par chaque opération pour 400, 401, 500 et 501) ;
+ * `ContractTest` vérifie qu'ils y restent identiques. Même convention que l'ADR 0005 : capitales françaises sans accent.
  */
 object ErrorCodes {
     /** 401 : l'en-tête `X-Silooo-Key` manque ou n'est pas la bonne clé. */
