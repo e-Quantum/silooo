@@ -136,6 +136,56 @@ describe("restoreStep", () => {
   });
 });
 
+describe("resolveIncident", () => {
+  it("poste l'action à l'adresse de l'incident, sans autre champ", async () => {
+    const { transport, api } = setup([json(200, { state: companyState(), balances: balances() })]);
+    const result = await api.resolveIncident(7, 31, action);
+    assert.equal(result.kind, "ok");
+    const request = transport.requests[0];
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.url, "http://core:8080/v1/companies/7/incidents/31/resolve");
+    assert.deepEqual(bodyOf(request ?? { body: undefined }), action);
+  });
+
+  it("rend l'état de l'entreprise tel que le service le dit, sans incident", async () => {
+    const state = companyState({ version: 9, factories: [factory({ incidentId: null, incidentKind: null })] });
+    const { api } = setup([json(200, { state, balances: balances() })]);
+    const result = await api.resolveIncident(7, 31, action);
+    assert.equal(result.kind, "ok");
+    if (result.kind === "ok") {
+      assert.equal(result.body.state.version, 9);
+      assert.equal(result.body.state.factories[0]?.incidentKind, null);
+    }
+  });
+
+  it("un refus 409 garde son code", async () => {
+    const { api } = setup([json(409, { reason: "CONFLIT_REESSAYER" })]);
+    assert.deepEqual(await api.resolveIncident(7, 31, action), { kind: "refused", status: 409, reason: "CONFLIT_REESSAYER" });
+  });
+
+  it("un incident inconnu (400) est une erreur du service, jamais rejouée", async () => {
+    const { transport, api } = setup([json(400, { reason: "INCIDENT_INTROUVABLE" }), json(200, { state: companyState(), balances: balances() })]);
+    assert.deepEqual(await api.resolveIncident(7, 99, action), { kind: "error", status: 400, reason: "INCIDENT_INTROUVABLE" });
+    assert.equal(transport.requests.length, 1);
+  });
+
+  it("un identifiant d'incident illisible n'envoie aucune requête", async () => {
+    const { transport, api } = setup([json(200, { state: companyState(), balances: balances() })]);
+    for (const incidentId of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 60]) {
+      const result = await api.resolveIncident(7, incidentId, action);
+      assert.equal(result.kind, "error");
+    }
+    assert.equal(transport.requests.length, 0);
+  });
+
+  it("un réseau coupé devient un résultat network, sans rejeu (c'est une écriture)", async () => {
+    const { transport, api } = setup([new Error("connexion refusée")]);
+    const result = await api.resolveIncident(7, 31, action);
+    assert.equal(result.kind, "network");
+    assert.equal(transport.requests.length, 1);
+  });
+});
+
 describe("getMissions", () => {
   const missions = { current: { id: "bienvenue-mairie", progress: 0, target: 1, rewardLingots: 10 }, completed: [] };
 

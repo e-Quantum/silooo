@@ -8,7 +8,7 @@
 //
 // tools/anti_ia.py lit les chaînes de ce fichier comme celles de tout addon/src/**/*.ts.
 
-import type { FactoryId, MissionId } from "../generated/definitions";
+import type { FactoryId, IncidentKindId, MissionId } from "../generated/definitions";
 import type { BuyAmount, MemberRole, RefusalReason, StaffRarity, StaffRole } from "../protocol";
 import { COLOR, EXPRESSION_MARK, type Expression } from "./apparence";
 import { formatAmount } from "./nombres";
@@ -95,6 +95,14 @@ export const BULLES = {
   ilePasPrete: say("oups", "L'île n'est pas encore prête."),
   /** La fin d'une mission dont cet add-on n'a pas les textes. */
   missionInconnue: say("joie", "Bien joué, patron !"),
+  /** Un incident vient d'ouvrir dans une usine de l'entreprise. `panique` est l'expression de l'incident à réparer (docs/design.md). */
+  incident: say("panique", "Vite, une usine a un souci."),
+  /** Le service a clos l'incident que le joueur vient de réparer : l'usine reprend son rythme. */
+  usineRepart: say("joie", "L'usine repart !"),
+  /** L'événement du service dit que le joueur lui-même a réparé l'usine. */
+  repareeParToi: say("joie", "Bien joué, l'usine repart !"),
+  /** L'événement du service dit qu'un associé a réparé l'usine. */
+  repareeParUnAssocie: say("joie", "Un associé a tout réparé."),
   /** Un candidat de l'agence est embauché. */
   recrue: say("joie", "Nouvelle recrue embauchée !"),
   /** Un membre du personnel a changé d'usine. */
@@ -285,7 +293,7 @@ export const FICHE_TEXTES = {
     ACTIVE: "Elle livre sa production au Silo.",
     EN_RUINE: "Elle est en ruine. Remets-la en état.",
     REMISE_EN_ETAT: "Les travaux avancent, étape par étape.",
-    INCIDENT: "Un incident bloque sa production.",
+    INCIDENT: "Un incident ralentit sa production.",
     SANS_COURANT: "Elle est à l'arrêt, sans courant.",
   } satisfies Record<FactoryStatus, string>,
   niveau: (level: string): string => `Niveau ${level}`,
@@ -311,6 +319,172 @@ export const FICHE_TEXTES = {
   ],
   retour: "Retour",
 } as const;
+
+// ---------------------------------------------------------------- les incidents et leur réparation
+
+/** Ce que les joueurs lisent d'une sorte d'incident : son nom (tuile, carte, fiche, message) et la phrase de la fiche. */
+export interface IncidentSorteTexts {
+  readonly nom: string;
+  /** Une phrase de dix mots au plus qui dit ce qui se passe. Elle ne chiffre pas le ralentissement : c'est le service qui le décide. */
+  readonly phrase: string;
+}
+
+/**
+ * Les textes de chaque sorte de definitions/incidents.json, par identifiant. Le service ne rend que l'identifiant de la
+ * sorte (Factory.incidentKind) : les mots sont ici. TypeScript refuse une sorte sans textes ou des textes sans sorte, et
+ * un test les compare au fichier de données. Aucun chiffre du jeu ici : ni facteur de ralentissement, ni récompense.
+ */
+export const INCIDENT_TEXTES = {
+  /** Une sorte que cet add-on ne connaît pas encore, ou que le service n'a pas donnée : le mot général. */
+  inconnue: { nom: USINES_TEXTES.tuile.incident, phrase: FICHE_TEXTES.phrase.INCIDENT },
+  sortes: {
+    incendie: { nom: "Début d'incendie", phrase: "Le feu a pris, la production ralentit." },
+    panne: { nom: "Machine en panne", phrase: "Une machine est en panne, la production ralentit." },
+    courroie: { nom: "Courroie cassée", phrase: "Une courroie a cassé, la production ralentit." },
+  } satisfies Record<IncidentKindId, IncidentSorteTexts>,
+  /** Le bouton de la fiche qui ouvre le mini-jeu de réparation. */
+  reparer: "Réparer",
+  /** Une usine arrêtée faute de courant : la dernière ligne de la fiche dit quoi faire, et il n'y a aucun bouton. */
+  sansCourant: "Il faut une Centrale en marche.",
+  /** Le message du tchat quand un incident s'ouvre : l'usine et la sorte, puis où réparer. */
+  ouverture: {
+    usine: (usine: string, sorte: string): string => `${usine} : ${sorte}`,
+    conseil: "Répare-la depuis le menu, dans Usines.",
+  },
+  /** Le message du tchat quand un incident est réparé : l'usine, puis la récompense telle que le service la donne. */
+  reparation: {
+    faite: (usine: string): string => `${usine} : réparation faite`,
+    recompense: (donar: string): string => `Récompense ${donar} Donar`,
+    aucune: "Pas de récompense cette fois.",
+    dejaFaite: "Pas de récompense, un associé avait déjà réparé.",
+  },
+} as const;
+
+function isIncidentKind(kind: string | null | undefined): kind is IncidentKindId {
+  return kind !== null && kind !== undefined && Object.prototype.hasOwnProperty.call(INCIDENT_TEXTES.sortes, kind);
+}
+
+/** Les sortes qui ont des textes : pour le test qui les compare à definitions/incidents.json. */
+export const INCIDENT_TEXTES_KINDS: readonly string[] = Object.keys(INCIDENT_TEXTES.sortes);
+
+/** Les textes d'une sorte d'incident. Une sorte inconnue, ou absente (null), prend le mot général « Incident ». */
+export function incidentTexts(kind: string | null | undefined): IncidentSorteTexts {
+  return isIncidentKind(kind) ? INCIDENT_TEXTES.sortes[kind] : INCIDENT_TEXTES.inconnue;
+}
+
+/** Une étape du mini-jeu de réparation : ce que le joueur lit, ses boutons, et l'indice d'Oooscar quand il se trompe. */
+export interface RepairStepTexts {
+  /** Une consigne d'une ligne : le fait, puis l'ordre. */
+  readonly consigne: string;
+  /** Les boutons de l'étape, dans l'ordre où on les montre : deux ou trois, un seul est le bon. */
+  readonly choix: readonly string[];
+  /**
+   * L'indice du bon bouton dans `choix`. Ce n'est pas un texte, mais il change dès qu'on réordonne les boutons : il vit
+   * donc à côté d'eux. Il varie d'une étape à l'autre pour que le bon bouton ne soit pas toujours le même.
+   */
+  readonly bonne: number;
+  /** Ce que dit Oooscar quand le joueur se trompe : un indice, six mots au plus. L'étape se rejoue, rien n'est perdu. */
+  readonly erreur: Bubble;
+}
+
+/**
+ * Le mini-jeu de réparation. Trois étapes par sorte, toujours dans le même ordre : le geste de sécurité, l'outil ou la
+ * pièce, le geste final. Le nombre d'étapes et leur ordre sont des choix de l'add-on, pas un chiffre d'économie : le
+ * service ne juge pas le mini-jeu. À valider par Kr, comme les phrases.
+ */
+export const REPARATION_TEXTES = {
+  titre: "RÉPARATION",
+  etape: (step: number, total: number): string => `Étape ${step} sur ${total}`,
+  retour: "Retour",
+  sortes: {
+    incendie: [
+      {
+        consigne: "Le feu a pris. Choisis le premier geste.",
+        choix: ["Jeter un seau d'eau", "Couper l'arrivée", "Ouvrir les fenêtres"],
+        bonne: 1,
+        erreur: say("oups", "Coupe d'abord ce qui l'alimente."),
+      },
+      {
+        consigne: "Le feu s'étend. Prends le bon outil.",
+        choix: ["Un seau d'eau", "Une pelle", "L'extincteur"],
+        bonne: 2,
+        erreur: say("oups", "Un extincteur éteint plus vite."),
+      },
+      {
+        consigne: "Vise bien avant d'appuyer.",
+        choix: ["La base des flammes", "Le haut des flammes", "La fumée"],
+        bonne: 0,
+        erreur: say("oups", "Vise plus bas, à la base."),
+      },
+    ],
+    panne: [
+      {
+        consigne: "La machine s'est arrêtée. Choisis le premier geste.",
+        choix: ["La relancer d'un coup", "Couper le courant", "Taper dessus"],
+        bonne: 1,
+        erreur: say("oups", "Coupe le courant avant d'y toucher."),
+      },
+      {
+        consigne: "Le capot est ouvert. Repère la cause.",
+        choix: ["Un engrenage grippé", "Une vitre propre", "Un câble tout neuf"],
+        bonne: 0,
+        erreur: say("oups", "Cherche ce qui est bloqué."),
+      },
+      {
+        consigne: "Remets la machine en route.",
+        choix: ["La relancer sans rien faire", "La débrancher pour de bon", "Graisser, puis la relancer"],
+        bonne: 2,
+        erreur: say("oups", "Graisse avant de relancer."),
+      },
+    ],
+    courroie: [
+      {
+        consigne: "La courroie a lâché. Choisis le premier geste.",
+        choix: ["Arrêter la machine", "Tirer sur la courroie", "Accélérer la machine"],
+        bonne: 0,
+        erreur: say("oups", "Arrête d'abord la machine."),
+      },
+      {
+        consigne: "Prends la bonne pièce.",
+        choix: ["Une corde à linge", "Une ficelle", "Une courroie neuve"],
+        bonne: 2,
+        erreur: say("oups", "Il faut une courroie neuve."),
+      },
+      {
+        consigne: "Pose la courroie, puis règle-la.",
+        choix: ["Serrée à fond", "Tendue sans forcer", "Très lâche"],
+        bonne: 1,
+        erreur: say("oups", "Ni trop lâche, ni trop serrée."),
+      },
+    ],
+  } satisfies Record<IncidentKindId, readonly RepairStepTexts[]>,
+  /** Le mini-jeu d'une sorte que cet add-on ne connaît pas encore, ou que le service n'a pas donnée. */
+  generique: [
+    {
+      consigne: "Une usine a un souci. Choisis le premier geste.",
+      choix: ["Courir dans tous les sens", "Couper l'alimentation", "Attendre que ça passe"],
+      bonne: 1,
+      erreur: say("oups", "Mets l'usine en sécurité d'abord."),
+    },
+    {
+      consigne: "L'usine ralentit. Cherche la cause.",
+      choix: ["Inspecter la machine", "Repeindre le mur", "Compter le stock"],
+      bonne: 0,
+      erreur: say("oups", "Cherche d'abord ce qui cloche."),
+    },
+    {
+      consigne: "Remets l'usine en route.",
+      choix: ["Tout débrancher", "Relancer sans réparer", "Réparer, puis relancer"],
+      bonne: 2,
+      erreur: say("oups", "Répare avant de relancer."),
+    },
+  ] satisfies readonly RepairStepTexts[],
+} as const;
+
+/** Les étapes du mini-jeu d'une sorte d'incident. Une sorte inconnue, ou absente, joue le mini-jeu général. */
+export function repairSteps(kind: string | null | undefined): readonly RepairStepTexts[] {
+  return isIncidentKind(kind) ? REPARATION_TEXTES.sortes[kind] : REPARATION_TEXTES.generique;
+}
 
 export const OBJECTIFS_TEXTES = {
   titre: "OBJECTIFS",
@@ -476,6 +650,9 @@ export const CARTE_TEXTES = {
     entiere: (level: string): string => `Entière · niv. ${level}`,
     enRuine: "En ruine",
     enTravaux: (step: number, total: number): string => `En travaux ${step}/${total}`,
+    /** Une usine active avec un incident : la sorte, puis le niveau. */
+    incident: (sorte: string, level: string): string => `${sorte} · niv. ${level}`,
+    sansCourant: (level: string): string => `Sans courant · niv. ${level}`,
   },
   retour: "Retour",
 } as const;

@@ -1,5 +1,5 @@
 // Les actions que les écrans peuvent demander au service : encaisser, monter une usine, avancer sa remise en état,
-// faire le prestige, embaucher, affecter et renvoyer. Chacune envoie un `requestId` neuf (UUID) et l'identifiant du
+// réparer un incident, faire le prestige, embaucher, affecter et renvoyer. Chacune envoie un `requestId` neuf (UUID) et l'identifiant du
 // joueur (`actor`), range la réponse dans le ViewStore, et rend un résultat que le menu transforme en bulle d'Oooscar.
 //
 // Sur `CONFLIT_REESSAYER` (le verrou optimiste du service a bougé), on recharge l'état avec getCompany puis on
@@ -33,6 +33,8 @@ export type ActionOutcome =
   | { readonly kind: "collected"; readonly collected: number; readonly offlineHours: number }
   | { readonly kind: "levelsBought" }
   | { readonly kind: "stepDone" }
+  /** Le service a clos l'incident (ou l'avait déjà clos) : la vue du joueur a l'usine à son rythme d'aujourd'hui. La récompense vient de l'événement `INCIDENT`, pas d'ici. */
+  | { readonly kind: "incidentResolved" }
   /** Le prestige est fait : la vue du joueur est celle de la course suivante. */
   | { readonly kind: "prestiged" }
   /** Un candidat est embauché : la vue du joueur a son équipe à jour et son Donar débité. */
@@ -65,6 +67,11 @@ export interface Actions {
   collect(xuid: Xuid): Promise<ActionOutcome>;
   buyLevels(xuid: Xuid, factoryId: string, amount: BuyAmount): Promise<ActionOutcome>;
   restoreStep(xuid: Xuid, factoryId: string, step: number): Promise<ActionOutcome>;
+  /**
+   * Le mini-jeu de réparation est réussi : demande au service de clore l'incident `incidentId`. Le service ne juge pas le
+   * mini-jeu et verse la récompense lui-même ; ici, rien n'est calculé.
+   */
+  resolveIncident(xuid: Xuid, incidentId: number): Promise<ActionOutcome>;
   /** Le prestige de l'entreprise du joueur. Le service refuse si le joueur n'est pas le PDG ou si le seuil n'est pas atteint. */
   prestige(xuid: Xuid): Promise<ActionOutcome>;
   /** Lit ce que rapporterait un prestige maintenant (GET prestigePreview). */
@@ -94,6 +101,7 @@ export interface ActionsDeps {
     | "collect"
     | "buyLevels"
     | "restoreStep"
+    | "resolveIncident"
     | "prestige"
     | "prestigePreview"
     | "getCandidates"
@@ -221,6 +229,12 @@ export function createActions(deps: ActionsDeps): Actions {
         label: "restoreStep",
         send: (companyId, action) => api.restoreStep(companyId, factoryId, action, step),
         accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "stepDone" } }),
+      }),
+    resolveIncident: (xuid, incidentId) =>
+      run(xuid, {
+        label: "resolveIncident",
+        send: (companyId, action) => api.resolveIncident(companyId, incidentId, action),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "incidentResolved" } }),
       }),
     prestige: (xuid) =>
       run(xuid, {

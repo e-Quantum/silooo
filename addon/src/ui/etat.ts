@@ -159,6 +159,7 @@ export function observeApi(api: CoreApi, link: LinkState): CoreApi {
     collect: (companyId, action) => watch(api.collect(companyId, action)),
     buyLevels: (companyId, factoryId, action, amount) => watch(api.buyLevels(companyId, factoryId, action, amount)),
     restoreStep: (companyId, factoryId, action, step) => watch(api.restoreStep(companyId, factoryId, action, step)),
+    resolveIncident: (companyId, incidentId, action) => watch(api.resolveIncident(companyId, incidentId, action)),
     getMissions: (xuid) => watch(api.getMissions(xuid)),
     prestigePreview: (companyId) => watch(api.prestigePreview(companyId)),
     prestige: (companyId, action) => watch(api.prestige(companyId, action)),

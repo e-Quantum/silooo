@@ -26,6 +26,7 @@ const INUTILES = {
   hire: () => Promise.reject(new Error("inutile")),
   assignStaff: () => Promise.reject(new Error("inutile")),
   fireStaff: () => Promise.reject(new Error("inutile")),
+  resolveIncident: () => Promise.reject(new Error("inutile")),
   invite: () => Promise.reject(new Error("inutile")),
   setShares: () => Promise.reject(new Error("inutile")),
   acceptInvite: () => Promise.reject(new Error("inutile")),
@@ -112,6 +113,54 @@ describe("remettre une usine en état", () => {
     assert.deepEqual(api.calls, [
       { op: "restoreStep", companyId: 7, factoryId: "scierie", action: { requestId: "id-1", actor: XUID }, step: 2 },
     ]);
+  });
+});
+
+describe("réparer un incident", () => {
+  it("envoie l'incident et l'action, range l'état rendu et rapporte la réparation", async () => {
+    const { actions, api, views } = setup({ resolveIncident: [ok(updated(2, 3))] });
+    assert.deepEqual(await actions.resolveIncident(XUID, 31), { kind: "incidentResolved" });
+    assert.deepEqual(api.calls, [
+      { op: "resolveIncident", companyId: 7, incidentId: 31, action: { requestId: "id-1", actor: XUID } },
+    ]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+    assert.equal(views.get(XUID)?.state.factories[0]?.level, 3);
+  });
+
+  it("un refus du service est rendu avec son code, l'état ne bouge pas", async () => {
+    const { actions, views } = setup({ resolveIncident: [refused("PAS_DE_RAISON")] });
+    const avant = views.get(XUID)?.state.version;
+    assert.deepEqual(await actions.resolveIncident(XUID, 31), { kind: "refused", reason: "PAS_DE_RAISON" });
+    assert.equal(views.get(XUID)?.state.version, avant);
+  });
+
+  it("CONFLIT_REESSAYER : recharge l'état et rejoue une fois avec le même requestId", async () => {
+    const { actions, api } = setup({
+      resolveIncident: [refused("CONFLIT_REESSAYER"), ok(updated(6, 3))],
+      getCompany: [ok(companyState({ version: 5 }))],
+    });
+    assert.deepEqual(await actions.resolveIncident(XUID, 31), { kind: "incidentResolved" });
+    assert.deepEqual(
+      api.calls.map((call) => call.op),
+      ["resolveIncident", "getCompany", "resolveIncident"],
+    );
+    const [first, replay] = api.calls.filter((call) => call.op === "resolveIncident");
+    assert.deepEqual(first, replay);
+  });
+
+  it("un échec du service ou du réseau est rendu tel quel", async () => {
+    const { actions } = setup({ resolveIncident: [unreachable()] });
+    assert.deepEqual(await actions.resolveIncident(XUID, 31), { kind: "failed", failure: "network", reason: "RESEAU" });
+  });
+
+  it("un joueur sans état n'envoie rien", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.resolveIncident("999", 31), {
+      kind: "failed",
+      failure: "unavailable",
+      reason: "PAS_DE_REPONSE_JOIN",
+    });
+    assert.equal(api.calls.length, 0);
   });
 });
 
@@ -677,6 +726,7 @@ describe("renvoyer un membre", () => {
       prestigePreview: () => Promise.reject(new Error("inutile")),
       getCandidates: () => Promise.resolve(ok([candidate()])),
       assignStaff: () => Promise.reject(new Error("inutile")),
+      resolveIncident: () => Promise.reject(new Error("inutile")),
       fireStaff: () => Promise.reject(new Error("inutile")),
       invite: () => Promise.reject(new Error("inutile")),
       setShares: () => Promise.reject(new Error("inutile")),

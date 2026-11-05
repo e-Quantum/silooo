@@ -46,6 +46,7 @@ import { createLinkState, createViewStore, observeApi, type LinkState, type View
 import { createFormPresenter } from "./ui/formulaires";
 import { createHud, startHud } from "./ui/hud";
 import { createInvitations, type Invitations } from "./ui/invitations";
+import { createIncidents } from "./ui/incidents";
 import { createMenu } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
 import { BOUSSOLE_TEXTES, CINEMATIQUE_TEXTES } from "./ui/textes";
@@ -281,12 +282,14 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    // Les écouteurs : l'annonce d'une mission terminée, l'invitation à une entreprise, l'annonce d'un changement de parts.
-    // Les autres événements du service arrivent plus tard.
+    // Les écouteurs : l'annonce d'une mission terminée, les incidents d'usine (ouverts, réparés), l'invitation à une entreprise
+    // et l'annonce d'un changement de parts. Les autres événements du service arrivent plus tard.
     const listeners = createEventListeners(log);
     listeners.on("ANNONCE", missions.onAnnonce);
     listeners.on("ANNONCE", invitations.onAnnonce);
     listeners.on("INVITATION", invitations.onInvitation);
+    const incidents = createIncidents({ api, views, say: tellPlayer, log });
+    listeners.on("INCIDENT", incidents.onIncident);
     startEventPolling(
       scheduler,
       createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),

@@ -6,7 +6,7 @@ import { RESTORE_STEP_MAX, type BuyAmount, type Factory, type Xuid } from "../pr
 import { COLOR, colored, ICON } from "./apparence";
 import type { ActionFormSpec } from "./formulaires";
 import { formatCount, formatRate } from "./nombres";
-import { renderBubble, USINES_TEXTES, type Bubble } from "./textes";
+import { incidentTexts, renderBubble, USINES_TEXTES, type Bubble } from "./textes";
 import type { FactoryStatus } from "./usines";
 
 // ---------------------------------------------------------------- vocabulaire des écrans
@@ -55,6 +55,11 @@ export type Target =
   | { readonly kind: "travel"; readonly factoryId: string }
   | { readonly kind: "buy"; readonly factoryId: string; readonly amount: BuyAmount }
   | { readonly kind: "restore"; readonly factoryId: string; readonly step: number }
+  /**
+   * Le bouton « Réparer » d'une usine en incident : joue le mini-jeu de la sorte (ui/reparation.ts), puis, s'il est réussi,
+   * demande au service de clore l'incident `incidentId`. `incidentKind` est celui de la fiche du service (nul s'il manque).
+   */
+  | { readonly kind: "repair"; readonly factoryId: string; readonly incidentId: number; readonly incidentKind: string | null }
   /** Embauche le candidat de la place `slot`, dans une usine ou, sans `factoryId`, sans usine. */
   | { readonly kind: "hire"; readonly slot: number; readonly factoryId?: string }
   /** Change l'usine d'un membre. */
@@ -156,7 +161,7 @@ export function tileDetail(factory: Factory, status: FactoryStatus): string {
     case "REMISE_EN_ETAT":
       return tuile.remise(factory.restoreStep ?? 0, RESTORE_STEP_MAX);
     case "INCIDENT":
-      return tuile.incident;
+      return incidentTexts(factory.incidentKind).nom;
     case "SANS_COURANT":
       return tuile.sansCourant;
   }

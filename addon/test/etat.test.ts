@@ -109,7 +109,7 @@ describe("LinkState", () => {
 });
 
 describe("observeApi", () => {
-  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les dix-huit routes", async () => {
+  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les dix-neuf routes", async () => {
     const answers: ApiResult<unknown>[] = [];
     const result = (): Promise<ApiResult<never>> => {
       const next = answers.shift();
@@ -125,6 +125,7 @@ describe("observeApi", () => {
       collect: result,
       buyLevels: result,
       restoreStep: result,
+      resolveIncident: result,
       getMissions: result,
       prestigePreview: result,
       prestige: result,
@@ -148,6 +149,7 @@ describe("observeApi", () => {
       () => seen.collect(7, action),
       () => seen.buyLevels(7, "carriere", action, "1"),
       () => seen.restoreStep(7, "carriere", action, 1),
+      () => seen.resolveIncident(7, 41, action),
       () => seen.getMissions(XUID),
       () => seen.prestigePreview(7),
       () => seen.prestige(7, action),
