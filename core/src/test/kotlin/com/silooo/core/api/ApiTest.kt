@@ -134,12 +134,13 @@ class ApiTest {
     fun notDoneRoutes() = withApp { app ->
         suspend fun check(response: HttpResponse) = assertError(response, HttpStatusCode.NotImplemented, ErrorCodes.NOT_DONE)
 
-        check(client.get("/v1/events?after=0") { header(SERVER_KEY_HEADER, key) })
+        // join, leave et pollEvents sont écrits (SessionRoutesTest, EventsRoutesTest) : le filet couvre le reste du contrat.
+        check(client.get("/v1/orders/today") { header(SERVER_KEY_HEADER, key) })
         check(
-            client.post("/v1/session/join") {
+            client.post("/v1/market/listings") {
                 header(SERVER_KEY_HEADER, key)
                 contentType(ContentType.Application.Json)
-                setBody("""{"xuid":"2535428000000001","gamertag":"Test"}""")
+                setBody("""{"requestId":"6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e90","actor":"2535428000000001"}""")
             },
         )
         check(client.get("/v1/companies/1") { header(SERVER_KEY_HEADER, key) })
