@@ -7,11 +7,12 @@ import {
   createSystemScheduler,
   describeError,
   guard,
+  pause,
   prefixLogger,
   secondsToTicks,
   systemClock,
 } from "../src/runtime";
-import { recordingLogger } from "./helpers";
+import { fakeScheduler, recordingLogger } from "./helpers";
 
 describe("secondsToTicks", () => {
   it("20 ticks par seconde, arrondi, au moins un tick", () => {
@@ -178,5 +179,21 @@ describe("systemClock", () => {
     const before = Date.now();
     const now = systemClock.now();
     assert.ok(now >= before && now <= Date.now());
+  });
+});
+
+describe("pause", () => {
+  it("se résout quand l'horloge du serveur écoule le délai demandé, pas avant", async () => {
+    const scheduler = fakeScheduler();
+    let reprise = false;
+    const attente = pause(scheduler, 0.5).then(() => {
+      reprise = true;
+    });
+    assert.deepEqual(scheduler.timeouts.map((t) => t.seconds), [0.5]);
+    await Promise.resolve();
+    assert.equal(reprise, false);
+    scheduler.runNextTimeout();
+    await attente;
+    assert.equal(reprise, true);
   });
 });

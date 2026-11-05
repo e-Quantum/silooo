@@ -40,6 +40,11 @@ export function createSystemScheduler(system: SystemLike): Scheduler {
   };
 }
 
+/** Une promesse qui se résout dans `seconds` secondes, à l'horloge du serveur : pour attendre dans une fonction async. */
+export function pause(scheduler: Pick<Scheduler, "after">, seconds: number): Promise<void> {
+  return new Promise((resolve) => scheduler.after(seconds, resolve));
+}
+
 /** Le texte d'une erreur attrapée, sans pile : une ligne de journal. */
 export function describeError(error: unknown): string {
   if (error instanceof Error) return error.message === "" ? error.name : `${error.name}: ${error.message}`;

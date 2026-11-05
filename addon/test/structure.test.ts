@@ -31,6 +31,15 @@ function importsDe(texte: string): string[] {
   return noms;
 }
 
+/** Les imports d'un fichier avec, pour chacun, s'il est « import type » (effacé à la compilation). */
+function importsTypes(texte: string): Array<{ nom: string; type: boolean }> {
+  const trouves: Array<{ nom: string; type: boolean }> = [];
+  for (const m of texte.matchAll(/(?:^|\n)\s*(?:import|export)(\s+type)?\s[^;]*?\sfrom\s*["']([^"']+)["']/g)) {
+    trouves.push({ nom: m[2] ?? "", type: m[1] !== undefined });
+  }
+  return trouves;
+}
+
 describe("imports de src/", () => {
   it("les trouve (le contrôle ne passe pas à vide)", () => {
     assert.ok(fichiers.length >= 10);
@@ -45,11 +54,54 @@ describe("imports de src/", () => {
     }
   });
 
-  it("seuls main.ts et beta.ts importent @minecraft/* ; les tests n'ont donc jamais à les charger", () => {
+  it("seuls main.ts, beta.ts et ui/formulaires.ts importent @minecraft/* ; les tests n'ont donc jamais à les charger", () => {
     for (const { nom, texte } of fichiers) {
       const minecraft = importsDe(texte).filter((i) => i.startsWith("@minecraft/"));
-      if (nom !== "main.ts" && nom !== "beta.ts") assert.deepEqual(minecraft, [], `${nom} importe @minecraft/*`);
+      if (nom !== "main.ts" && nom !== "beta.ts" && nom !== "ui/formulaires.ts") {
+        assert.deepEqual(minecraft, [], `${nom} importe @minecraft/*`);
+      }
     }
+  });
+
+  it("ui/formulaires.ts est la seule enveloppe de @minecraft/server-ui, et n'importe @minecraft/server que pour des types", () => {
+    for (const { nom, texte } of fichiers) {
+      const serverUi = importsDe(texte).filter((i) => i === "@minecraft/server-ui");
+      if (nom === "ui/formulaires.ts") assert.ok(serverUi.length > 0, "formulaires.ts n'importe plus server-ui");
+      else assert.deepEqual(serverUi, [], `${nom} importe @minecraft/server-ui`);
+    }
+    const formulaires = fichiers.find((f) => f.nom === "ui/formulaires.ts")?.texte ?? "";
+    const autres = importsDe(formulaires).filter((i) => i.startsWith("@minecraft/") && i !== "@minecraft/server-ui");
+    assert.deepEqual([...new Set(autres)], ["@minecraft/server"]);
+    for (const importe of importsTypes(formulaires).filter((i) => i.nom === "@minecraft/server")) {
+      assert.ok(importe.type, "ui/formulaires.ts importe @minecraft/server autrement qu'en « import type »");
+    }
+  });
+
+  it("hors main.ts, rien n'importe ui/formulaires.ts autrement qu'en « import type »", () => {
+    let vus = 0;
+    for (const { nom, texte } of fichiers) {
+      if (nom === "main.ts") continue;
+      for (const importe of importsTypes(texte).filter((i) => /(^|\/)formulaires$/.test(i.nom))) {
+        vus += 1;
+        assert.ok(importe.type, `${nom} charge formulaires.ts, donc @minecraft/server-ui`);
+      }
+    }
+    assert.ok(vus > 0, "le contrôle ne passe pas à vide : menu.ts importe les types de formulaires.ts");
+  });
+
+  it("seul ui/textes.ts contient des phrases : ailleurs dans ui/, aucune chaîne entre guillemets n'a d'espace", () => {
+    let lus = 0;
+    for (const { nom, texte } of fichiers.filter((f) => f.nom.startsWith("ui/") && f.nom !== "ui/textes.ts")) {
+      lus += 1;
+      const sansCommentaires = texte
+        .split("\n")
+        .filter((ligne) => !/^\s*(\/\/|\*|\/\*)/.test(ligne))
+        .join("\n");
+      for (const m of sansCommentaires.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)) {
+        assert.doesNotMatch(m[1] ?? "", /[a-zà-ÿ] +[a-zà-ÿ]/i, `${nom} contient du texte pour les joueurs hors de ui/textes.ts : « ${m[1] ?? ""} »`);
+      }
+    }
+    assert.ok(lus >= 5);
   });
 
   it("aucune API de Node dans le code de l'add-on", () => {
@@ -152,6 +204,19 @@ describe("config", () => {
       assert.ok(Number.isFinite(valeur) && valeur > 0);
     }
     assert.ok(config.readRetries >= 0);
+  });
+
+  it("les réglages des écrans sont posés et positifs, et le canal de titre est coupé tant que le pack ne le masque pas", () => {
+    const { ui } = config;
+    for (const valeur of [ui.menuItemDelaySeconds, ui.formBusyRetrySeconds, ui.hud.refreshSeconds, ui.hud.titleStaySeconds]) {
+      assert.ok(Number.isFinite(valeur) && valeur > 0);
+    }
+    assert.ok(Number.isInteger(ui.tilesPerScreen) && ui.tilesPerScreen >= 1 && ui.tilesPerScreen <= 8);
+    assert.ok(Number.isInteger(ui.formBusyRetries) && ui.formBusyRetries >= 0);
+    assert.match(ui.menuItem, /^minecraft:[a-z_]+$/);
+    // Le titre reste affiché plus longtemps que l'intervalle de rafraîchissement : il ne s'éteint jamais entre deux envois.
+    assert.ok(ui.hud.titleStaySeconds > ui.hud.refreshSeconds);
+    assert.equal(ui.hud.titleChannel, false);
   });
 
 });
