@@ -9,6 +9,7 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | --- | --- | --- |
 | Toute tâche | `CLAUDE.md`, puis [passation.md](passation.md) | |
 | Piloter les autres sessions | [direction.md](direction.md) | |
+| Piloter le chantier du site `silooo.com` | [site-direction.md](site-direction.md), puis [site-passation.md](site-passation.md) | |
 | Comprendre le jeu | [vision.md](vision.md), [game-design.md](game-design.md), [glossaire.md](glossaire.md) | |
 | Lire un mot du jeu inconnu | [glossaire.md](glossaire.md) | |
 | Savoir ce qu'on construit et dans quel ordre | [plan-construction.md](plan-construction.md) | |
@@ -20,6 +21,7 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | Toucher à `addon/` ou `resource-pack/` | [bedrock.md](bedrock.md), [architecture.md](architecture.md), [design.md](design.md) | `silooo-ecran` |
 | Dessiner un écran ou écrire pour les joueurs | [design.md](design.md), `design/README.md`, `design/composants/`, [anti-ia.md](anti-ia.md) | `silooo-ecran` |
 | Déployer (jamais sans Kr pour la base, le port, le DNS) | [deploiement.md](deploiement.md), [direction.md](direction.md) | |
+| Toucher au site (`site/`, `deploy/site/`) | [site.md](site.md), [adr/0006-site-silooo-com.md](adr/0006-site-silooo-com.md), [design.md](design.md), [anti-ia.md](anti-ia.md) | |
 | Changer une décision | [adr/README.md](adr/README.md), puis un nouvel ADR | |
 | Vérifier son travail avant de rendre la main | `tools/verifier.sh` | |
 
@@ -31,6 +33,9 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 | --- | --- |
 | [passation.md](passation.md) | L'état du chantier, la phase en cours et ses cases, « À faire par Kr », le journal des sessions |
 | [direction.md](direction.md) | Comment la session de direction pilote les autres sessions et quand elle s'arrête |
+| [site.md](site.md) | Le site `silooo.com` : ses pages, ses règles, la référence Rinaorc, comment il se construit |
+| [site-direction.md](site-direction.md) | Comment la session de direction du site pilote son chantier et quand elle s'arrête |
+| [site-passation.md](site-passation.md) | L'état du chantier du site, les étapes S0 à S5, « À faire par Kr », le journal |
 | [plan-construction.md](plan-construction.md) | Le plan en 8 phases, l'architecture, l'installation sur le VPS, la CI |
 | [game-design.md](game-design.md) | Le jeu, en entier : économie, progression, écrans, textes |
 | [vision.md](vision.md) | Le jeu en une page, pour qui, ce qu'on ne fait pas |
