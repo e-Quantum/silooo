@@ -19,9 +19,6 @@ import com.silooo.core.api.SiloooJson
 import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
-import com.silooo.core.discord.DiscordMessages
-import com.silooo.core.discord.DiscordPick
-import com.silooo.core.discord.DiscordTexts
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.findings.InMemoryFindingStore
 import com.silooo.core.mission.InMemoryMissionStore
@@ -795,7 +792,7 @@ class CompanyRoutesTest {
         assertEquals(0, app.companies.published.size)
     }
 
-    // --- restoreStep : le courant qui manque (événement sansCourant, repris par le suiveur Discord)
+    // --- restoreStep : le courant qui manque (événement sansCourant, lu par le bot Discord)
 
     private val electricity get() = TestDefinitions.loaded.incidents.electricity
 
@@ -1131,7 +1128,7 @@ class CompanyRoutesTest {
     }
 
     @Test
-    @DisplayName("prestige : publie PRESTIGE_ENTREPRISE pour tout le serveur (nom, Lingots du total, course finie) ; le message Discord en sort, sans base")
+    @DisplayName("prestige : publie PRESTIGE_ENTREPRISE pour tout le serveur (nom, Lingots du total, course finie), sans base")
     fun prestigePublishesTheServerWideEvent() = withApp { app ->
         val earned = app.engine.prestigeThreshold(2) * 3
         val company = app.prestigeCompany(course = 2, earned = earned)
@@ -1146,10 +1143,6 @@ class CompanyRoutesTest {
         assertEquals(app.fixture.store.loadCompany(app.fixture.connection, company.id).name, published.payload.getValue("companyName").jsonPrimitive.content)
         assertEquals(total.toString(), published.payload.getValue("lingots").jsonPrimitive.content)
         assertEquals("2", published.payload.getValue("prestigeCount").jsonPrimitive.content, "la course qui vient de finir")
-
-        val pick = DiscordMessages.pick(GameEvent(1, published.xuid?.text, published.kind.name, published.payload)) { false }
-        val name = published.payload.getValue("companyName").jsonPrimitive.content
-        assertEquals(DiscordPick.Say(DiscordTexts.prestige(name, total, 2)), pick)
     }
 
     @Test

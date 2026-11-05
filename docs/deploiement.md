@@ -82,8 +82,8 @@ chiffres du jeu : le jeu reste dans `definitions/`. Le modèle est `deploy/exemp
 | --- | --- | --- | --- |
 | `SILOOO_DB_URL`, `SILOOO_DB_USER`, `SILOOO_DB_PASSWORD` | `silooo-migrate`, `silooo-core` | aucun, obligatoires | [core/README.md](../core/README.md), base partagée ([ADR 0003](adr/0003-base-partagee.md)) |
 | `SILOOO_API_KEY` | `silooo-core` ; `silooo-bds` la range dans `secrets.json` | aucun, obligatoire | en-tête `X-Silooo-Key` du contrat |
-| `SILOOO_DISCORD_WEBHOOK` | `silooo-core` | vide : messages éteints | adresse du webhook du salon Discord des annonces du serveur. **Un secret** : jamais dans le dépôt, ni dans un journal, ni dans une session ; elle commence par `https://`. Facultatif ([core/README.md](../core/README.md), « Discord côté service ») |
-| `SILOOO_DISCORD_POLL_SECONDS` | `silooo-core` | `15` | intervalle du suivi des événements pour Discord, de 1 à 3600 secondes. Facultatif |
+| `SILOOO_VOTIFIER_TOKEN` | `silooo-core` (par `env_file`) | vide | le jeton de Votifier 2, avec lequel Hubyy signe les votes ; secret, à poser aussi sur Hubyy ; vide : `silooo-core` n'écoute pas (section « Les votes ») |
+| `SILOOO_VOTIFIER_PORT` | `silooo-core` (par `env_file`), Compose | `8192` | port TCP de la réception des votes, le même dans le conteneur et sur le VPS ; différent de 8080 et de `SILOOO_SITE_PORT` |
 | `BDS_PORT` | `silooo-bds` | `19142` | port TCP de signalisation NetherNet ([ADR 0004](adr/0004-port-bedrock.md)) |
 | `BDS_UDP_PORTS` | `silooo-bds` | `19143-19174` | plage UDP du jeu dans le conteneur (`server-udp-ports`) : 32 ports pour 20 joueurs, à confirmer libre par Kr |
 | `BDS_UDP_PORTS_PUBLIES` | `silooo-bds` | `19143-19174` | plage UDP publiée sur le VPS, de la même taille |
@@ -157,6 +157,29 @@ publie donc deux choses : `BDS_PORT` en TCP, et la plage `BDS_UDP_PORTS_PUBLIES:
 les deux dans le pare-feu du VPS. Derrière Docker, BDS doit connaître l'adresse publique du VPS : `BDS_PUBLIC_IP`
 est écrite dans `server-udp-ports` sous la forme `IP:public:local`. Chaque port de la plage est publié par
 un processus `docker-proxy` : leur coût en mémoire est à mesurer avec le reste.
+
+Un troisième port sort, en TCP : `SILOOO_VOTIFIER_PORT` (8192 par défaut), celui de `silooo-core` pour les votes de Hubyy
+(section « Les votes »). Kr l'ouvre aussi dans le pare-feu du VPS.
+
+### Les votes
+
+Hubyy envoie chaque vote pour le serveur à `silooo-core` par Votifier 2, en TCP. C'est le seul port de `silooo-core` que le compose
+publie : l'API (8080) et le site (8081) restent sur les réseaux Docker. Ce que fait un vote est dans
+[economie.md](economie.md), section « Les votes » ; le code, dans [core/README.md](../core/README.md), « Les votes côté service ».
+
+- Le service n'écoute que si `SILOOO_VOTIFIER_TOKEN` est posé dans le fichier d'environnement. Sans jeton, le port est publié par
+  Docker mais rien n'y répond, et le démarrage écrit « Votifier éteint » dans les journaux.
+- Le port est `SILOOO_VOTIFIER_PORT` (8192 par défaut), le même numéro dans le conteneur et sur le VPS. Il doit différer de 8080 et de
+  `SILOOO_SITE_PORT` ; le service refuse de démarrer sinon. Le défaut du compose et celui de `Config.kt` sont comparés par
+  `tools/tests/deploy-compose.mjs`.
+- Docker publie ce port avec ses propres règles `iptables`, que le pare-feu de l'hôte (ufw) ne filtre pas toujours : il est joignable dès que le
+  conteneur tourne. Kr vérifie l'état du pare-feu après le premier déploiement, comme pour la plage UDP.
+- Le jeton est un secret : une valeur aléatoire longue (par exemple la sortie de `openssl rand -hex 32`), posée dans le fichier
+  d'environnement et sur Hubyy, nulle part ailleurs. Aucune session ne l'écrit dans le dépôt, dans un journal ni dans un message ; le
+  service ne l'affiche jamais. Pour le changer, Kr le remplace aux deux endroits puis relance `silooo-core`.
+- Au démarrage avec un jeton, le journal de `silooo-core` dit « Votifier : à l'écoute sur le port N ». Chaque vote reçu y laisse une
+  ligne (le site et le pseudo), chaque refus une ligne d'avertissement avec sa cause et l'adresse de l'émetteur.
+- Un vote que la base n'a pas pu enregistrer reçoit la cause `Unavailable` : Hubyy peut le renvoyer. Rien n'est versé deux fois.
 
 ### Le monde et « Beta APIs »
 
@@ -293,11 +316,10 @@ branche `main`, branchement restic. La liste à jour est dans [passation.md](pas
 - l'ouverture du port TCP `BDS_PORT` et de la plage UDP `BDS_UDP_PORTS_PUBLIES` dans le pare-feu du VPS, après
   avoir vérifié que cette plage est libre ;
 - l'adresse IPv4 publique du VPS (`BDS_PUBLIC_IP`) et le DNS ;
-- le webhook Discord des annonces du serveur : créer le webhook dans les réglages du salon (Intégrations, Webhooks), poser son
-  adresse dans `SILOOO_DISCORD_WEBHOOK` du fichier d'environnement (un secret : seul Kr la voit), relancer `silooo-core`.
-  Sans elle, aucun message ne part et une ligne du journal au démarrage le dit. Les textes des messages sont à valider
-  (`core/README.md`, « Discord côté service ») ;
 - le zip de BDS : le télécharger dans un navigateur, le poser dans `SILOOO_BDS_DIR` (propriété de l'uid 10001), écrire
   sa somme SHA-256 dans `deploy/bds/bds.sha256` (section « Le zip de BDS », décision 26) ;
 - le monde de départ créé avec « Beta APIs » (section « Le monde et Beta APIs ») ;
-- la validation du nom du serveur (`BDS_SERVER_NAME`, « Silooo » par défaut) et du choix de la liste blanche.
+- la validation du nom du serveur (`BDS_SERVER_NAME`, « Silooo » par défaut) et du choix de la liste blanche ;
+- pour les votes (section « Les votes ») : le jeton `SILOOO_VOTIFIER_TOKEN` dans le fichier d'environnement, l'ouverture du port TCP
+  `SILOOO_VOTIFIER_PORT` (8192 par défaut) dans le pare-feu du VPS, et la déclaration de Silooo sur Hubyy avec l'adresse du VPS, ce
+  port et ce jeton (Votifier 2). Les champs du formulaire sont ceux de Hubyy : Kr les confirme.

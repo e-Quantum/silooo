@@ -194,7 +194,7 @@ paths:
         cette usine dépend de l'électricité et qu'elle s'arrête faute de Centrale (`definitions/incidents.json`,
         `electricite`) alors que l'entreprise n'avait encore aucune usine arrêtée de ce fait : une seule fois par
         passage à l'état sans courant. Il est adressé à celui qui agit (`xuid`) et porte `companyId`, `factoryId`,
-        `factoryName` et `playerName`. Le service Discord du serveur le reprend quand ce joueur est connecté.
+        `factoryName` et `playerName`. Le bot Discord (`docs/discord.md`) le lit.
       operationId: restoreStep
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -379,7 +379,7 @@ paths:
         Chaque membre reçoit un événement `ANNONCE` dont `payload.action` vaut `prestige` (sa part de Lingots, `lingots`,
         et le total, `lingotsTotal`). Tout le serveur reçoit en plus un événement `PRESTIGE_ENTREPRISE` (sans `xuid`) dont
         le `payload` porte `companyId`, `companyName`, `lingots` (le total gagné, avant partage) et `prestigeCount` (le
-        numéro de la course qui vient de se terminer). Le service Discord du serveur en tire un message.
+        numéro de la course qui vient de se terminer). Le bot Discord (`docs/discord.md`) le lit.
       operationId: prestige
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody: { $ref: '#/components/requestBodies/Action' }
@@ -886,6 +886,35 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/FindingBook' }
 
+  /v1/votes/today:
+    get:
+      summary: Les votes du jour pour le serveur et la Vote party
+      description: |
+        Les votes que le serveur a reçus aujourd'hui (date UTC), l'objectif de la Vote party et la part du joueur. Les
+        votes arrivent de Hubyy par Votifier (TCP, hors de ce contrat) : le service inscrit chaque vote, verse les Lingots
+        hors prestige de `definitions/vote.json` (`recompense.lingotsParVote`) et, au bout de `serie.jours` jours de
+        suite, `serie.lingotsEnPlus` de plus. Quand le nombre de votes du jour atteint `voteParty.votesParJour`, chaque
+        joueur présent reçoit `voteParty.lingotsParJoueur`, une seule fois dans la journée. Cette route ne fait que
+        lire. Avec `xuid`, `mine` donne les votes du jour de ce joueur et sa série (0 et 0 sans `xuid`, ou pour un
+        joueur qui n'a jamais voté). La série compte les jours UTC de suite, jusqu'à aujourd'hui, où il a voté ; elle
+        reste en vie tant qu'il a voté hier et pas encore aujourd'hui. Tous les chiffres viennent de
+        `definitions/vote.json`, à valider par Kr. Un vote d'un joueur connu publie un événement `ANNONCE` dont `payload.action`
+        vaut `vote` (`site`, `rewardLingots`, `streak`, `streakBonusLingots`) ; la Vote party en publie un pour tout le serveur
+        (`xuid` nul), `payload.action` valant `voteParty` (`day`, `votes`, `rewardLingots`, `players`). Un vote reçu pour un
+        pseudo que le service ne connaît pas attend ; `join` le verse quand le joueur arrive.
+      operationId: todayVotes
+      parameters: [ { $ref: '#/components/parameters/PlayerXuidQuery' } ]
+      responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '200':
+          description: votes du jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VotesToday' }
+
 components:
   securitySchemes:
     cleServeur:
@@ -1175,6 +1204,25 @@ components:
         order: { $ref: '#/components/schemas/WorldOrder' }
         state: { $ref: '#/components/schemas/CompanyState' }
         balances: { $ref: '#/components/schemas/Balances' }
+    VotesToday:
+      type: object
+      required: [day, votes, goal, partyReached, rewardLingots, partyRewardLingots, streakGoalDays, streakBonusLingots, mine]
+      properties:
+        day: { type: string, format: date, description: le jour de jeu (UTC) }
+        votes: { type: integer, minimum: 0, description: les votes que le serveur a reçus aujourd'hui }
+        goal: { type: integer, minimum: 1, description: 'les votes du jour qui déclenchent la Vote party (voteParty.votesParJour)' }
+        partyReached: { type: boolean, description: la Vote party a eu lieu aujourd'hui (votes >= goal) }
+        rewardLingots: { type: integer, format: int64, minimum: 0, description: 'Lingots hors prestige versés pour un vote (recompense.lingotsParVote)' }
+        partyRewardLingots: { type: integer, format: int64, minimum: 0, description: 'Lingots hors prestige versés à chaque joueur présent quand la Vote party a lieu (voteParty.lingotsParJoueur)' }
+        streakGoalDays: { type: integer, minimum: 2, description: 'jours de vote de suite qui donnent le bonus de série (serie.jours)' }
+        streakBonusLingots: { type: integer, format: int64, minimum: 0, description: 'Lingots de plus pour le vote qui boucle la série (serie.lingotsEnPlus)' }
+        mine: { $ref: '#/components/schemas/PlayerVotes' }
+    PlayerVotes:
+      type: object
+      required: [votes, streak]
+      properties:
+        votes: { type: integer, minimum: 0, description: les votes du joueur aujourd'hui (0 sans xuid) }
+        streak: { type: integer, minimum: 0, description: 'les jours UTC de suite où il a voté, jusqu''à aujourd''hui ou hier (0 sans xuid)' }
     Finding:
       type: object
       required: [id, foundAt]
@@ -1206,12 +1254,11 @@ components:
         `payload.reward` (le Donar versé, 0 quand l'incident était déjà clos) et `payload.resolvedBy` (le XUID de
         celui qui a réparé). Un incident ne s'ouvre jamais pendant que tous les membres sont hors ligne.
 
-        Les messages Discord du serveur (variable `SILOOO_DISCORD_WEBHOOK`, service `silooo-core`) se lisent dans ces
-        événements, et seulement ceux-là : `PRESTIGE_ENTREPRISE` (`companyName`, `lingots`, `prestigeCount`),
-        `BOOST_COLLECTIF` (`percent`, `minutes`, et `buyerName` quand un joueur l'a offert), `ANNONCE` dont `payload.action`
-        vaut `voteParty` (`votes`, et `lingots` : la récompense de chaque joueur présent, si elle existe) et `ANNONCE` dont
-        `payload.action` vaut `sansCourant` (`playerName`, `factoryName`), pour un joueur connecté. Un événement qui
-        manque d'un de ces champs est sauté et noté dans le journal du service.
+        Le service publie, pour le bot Discord (`docs/discord.md`) qui les lit avec son propre curseur : `PRESTIGE_ENTREPRISE`
+        (sans `xuid` ; `companyId`, `companyName`, `lingots`, `prestigeCount`) ; `BOOST_COLLECTIF` (`percent`, `minutes`, et
+        `buyerName` quand un joueur l'a offert ; aucune route ne le publie encore) ; `ANNONCE` dont `payload.action` vaut
+        `voteParty` (sans `xuid` ; `day`, `votes`, `rewardLingots`, `players`) ; `ANNONCE` dont `payload.action` vaut
+        `sansCourant` (adressée à celui qui remet l'usine en état ; `companyId`, `factoryId`, `factoryName`, `playerName`).
       type: object
       required: [id, kind, payload]
       properties:

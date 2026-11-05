@@ -553,3 +553,41 @@ export type VilleNiveau = {
   /** Le bonus total que donne le bâtiment à ce niveau, dans l'unité de son typeBonus. */
   readonly bonus?: number;
 };
+
+// ---- vote.json
+
+/** Identifiants de vote.json, tableau « sites ». */
+export type VoteSiteId =
+  | "hubyy";
+
+/** Forme de definitions/vote.json : la récompense d'un vote, le bonus de série, la Vote party et les sites de vote connus. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type VoteDefinitions = {
+  readonly version: number;
+  readonly commentaire: string;
+  /** Ce que donne un vote reçu, en Lingots hors prestige. */
+  readonly recompense: {
+    /** Les Lingots versés au joueur pour chaque vote reçu. Au moins un : un vote sans récompense n'a pas de sens. */
+    readonly lingotsParVote: number;
+  };
+  /** Le bonus de série : des jours de vote de suite. */
+  readonly serie: {
+    /** Le nombre de jours UTC de suite où le joueur a voté pour que le vote de ce jour-là donne le bonus. Au moins deux : un seul jour serait chaque vote. */
+    readonly jours: number;
+    /** Les Lingots de plus pour le vote qui boucle la série, en plus de recompense.lingotsParVote. */
+    readonly lingotsEnPlus: number;
+  };
+  /** La Vote party : un objectif de votes pour tout le serveur, dans un jour UTC. */
+  readonly voteParty: {
+    /** Le nombre de votes que le serveur doit recevoir dans un jour pour que la Vote party ait lieu. Elle n'a lieu qu'une fois par jour. */
+    readonly votesParJour: number;
+    /** Les Lingots que reçoit chaque joueur présent au moment où la Vote party a lieu. */
+    readonly lingotsParJoueur: number;
+  };
+  /** Les sites de vote connus. L'identifiant est ce que server_votes.site garde pour un vote venu de ce site ; un service inconnu est accepté tel qu'il s'annonce, car le jeton authentifie déjà l'émetteur. */
+  readonly sites: readonly {
+    /** L'identifiant du site, en minuscules et tirets (32 caractères au plus). */
+    readonly id: VoteSiteId;
+    /** Le nom du site tel que le service de vote l'annonce (serviceName). */
+    readonly nom: string;
+  }[];
+};

@@ -54,7 +54,11 @@ verifier(egal(noms(migrate.networks).sort(), ['silenemc', 'silooo']), 'silooo-mi
 
 // silooo-core
 verifier(String(core.image).startsWith('ghcr.io/e-quantum/silooo-core:${SILOOO_TAG:?'), 'silooo-core : image de silooo-core, tag obligatoire', core.image);
-verifier(core.ports === undefined, 'silooo-core : aucun port publié', core.ports);
+// Un seul port sort : le TCP de la réception des votes (Votifier 2). Ni l'API ni le site ne sont publiés.
+const portsCore = (core.ports ?? []).map(String);
+verifier(portsCore.length === 1 && portsCore[0] === '${SILOOO_VOTIFIER_PORT:-8192}:${SILOOO_VOTIFIER_PORT:-8192}/tcp',
+  'silooo-core : un seul port publié, le TCP de SILOOO_VOTIFIER_PORT (8192), au même numéro dans le conteneur et sur la machine', portsCore);
+verifier(!portsCore.some((p) => /(^|[^0-9])(8080|8081)([^0-9]|$)/.test(p)), 'silooo-core : ni le port 8080 de l API ni le port 8081 du site ne sont publiés', portsCore);
 verifier(core.mem_limit === '512m', 'silooo-core : 512 Mo', core.mem_limit);
 verifier(core.restart === 'unless-stopped', 'silooo-core : unless-stopped', core.restart);
 verifier(core.depends_on?.['silooo-migrate']?.condition === 'service_completed_successfully',
@@ -143,7 +147,14 @@ verifier(manquantes.length === 0, 'chaque variable du compose est dans exemple.e
 // La configuration de silooo-core : toute variable que Config.kt lit doit être dans l'exemple, sauf deux que l'image règle.
 const configKotlin = lire('core/src/main/kotlin/com/silooo/core/Config.kt');
 const variablesCore = [...new Set([...configKotlin.matchAll(/"(SILOOO_[A-Z0-9_]+)"/g)].map((m) => m[1]))];
-const reglees = new Set(['SILOOO_PORT', 'SILOOO_DEFINITIONS_DIR']); // port 8080 du contrat, et définitions embarquées dans l'image
+const reglees = new Set(['SILOOO_PORT', 'SILOOO_DEFINITIONS_DIR']);
+// Le port des votes : le défaut du compose est celui de Config.kt (sinon le port publié ne serait pas celui qui écoute).
+const defautVotifier = /const val DEFAULT_VOTIFIER_PORT = ([0-9]+)/.exec(configKotlin)?.[1];
+const defautsPortVotes = [...(variablesCompose.get('SILOOO_VOTIFIER_PORT')?.defauts ?? [])];
+verifier(defautVotifier !== undefined && defautsPortVotes.length === 1 && defautsPortVotes[0] === defautVotifier,
+  'le port des votes : le défaut du compose est DEFAULT_VOTIFIER_PORT de Config.kt', [defautVotifier, defautsPortVotes]);
+verifier(commentees.has('SILOOO_VOTIFIER_TOKEN') && commentees.get('SILOOO_VOTIFIER_TOKEN') === '', 'exemple.env.txt : SILOOO_VOTIFIER_TOKEN en commentaire et vide (jamais de jeton dans le dépôt)', commentees.get('SILOOO_VOTIFIER_TOKEN'));
+ // port 8080 du contrat, et définitions embarquées dans l'image
 // Le site public (docs/site-passation.md) : des variables facultatives, avec un défaut sûr (attente, 8081). deploy/ est à la
 // direction du jeu : elle les ajoute à exemple.env.txt (docs/site-passation.md, « Pour la direction du jeu »), puis retire
 // chaque nom de cette liste. Une variable du site qui n'est ni ici ni dans exemple.env.txt fait échouer le test.

@@ -57,4 +57,5 @@ sessions et tous les agents. Le détail est dans docs/ : commence par docs/READM
 - docs/plan-construction.md : le plan en 8 phases ; docs/game-design.md : le jeu.
 - docs/direction.md : comment la session de direction pilote les autres sessions.
 - docs/site-direction.md et docs/site-passation.md : la direction du site silooo.com, son état, ses étapes.
+- docs/discord.md et docs/discord-passation.md : le Discord de Silooo (bot Oooscar, serveur, visuels), son état, ses étapes.
 - design/README.md : le design system Silooo Atelier.

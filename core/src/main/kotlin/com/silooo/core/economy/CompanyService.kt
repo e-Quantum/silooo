@@ -200,8 +200,8 @@ class CompanyService(
      * Centrale ne s'éteint que de la même façon. Ici donc, avant et après cette étape, on compare : l'entreprise n'avait aucune
      * usine arrêtée faute de courant et [restored] l'est maintenant. Un seul événement par passage à cet état (une deuxième usine
      * moderne remise en état pendant que la première attend déjà la Centrale n'en publie pas un autre), adressé à celui qui agit :
-     * `ANNONCE`, `payload.action = "sansCourant"`, avec `factoryId`, `factoryName` et `playerName`. Le suiveur Discord le reprend si
-     * le joueur est connecté ; l'add-on ne le lit pas encore.
+     * `ANNONCE`, `payload.action = "sansCourant"`, avec `factoryId`, `factoryName` et `playerName`. Le bot Discord (`docs/discord.md`) le lit ;
+     * l'add-on ne le lit pas encore.
      */
     private fun announceNoPower(connection: Connection, company: CompanyRecord, before: List<FactoryRecord>, restored: FactoryRecord, actor: Xuid) {
         if (engine.stoppedNoPower(company.era, producingLevels(before)).isNotEmpty()) return
@@ -327,7 +327,7 @@ class CompanyService(
             )
         }
         // Une annonce pour tout le serveur (xuid nul), en plus des événements de chaque membre : le total avant partage et le numéro
-        // de la course qui se termine. Le suiveur Discord l'annonce ; elle n'a rien à faire des parts, qui restent dans l'`ANNONCE` du membre.
+        // de la course qui se termine. Le bot Discord la lit ; elle n'a rien à faire des parts, qui restent dans l'`ANNONCE` du membre.
         companies.publish(
             connection,
             GameEventKind.PRESTIGE_ENTREPRISE,

@@ -34,6 +34,7 @@ const NOMS_IDENTIFIANTS = {
   "missions.missions": "MissionId",
   "incidents.sortes": "IncidentKindId",
   "ville.batiments": "CityBuildingId",
+  "vote.sites": "VoteSiteId",
 };
 
 // ---------------------------------------------------------------- arguments

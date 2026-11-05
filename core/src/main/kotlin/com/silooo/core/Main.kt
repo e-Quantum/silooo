@@ -3,12 +3,6 @@ package com.silooo.core
 import com.silooo.core.db.HikariDatabase
 import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
-import com.silooo.core.discord.DiscordFollower
-import com.silooo.core.discord.DiscordOff
-import com.silooo.core.discord.DiscordWebhook
-import com.silooo.core.discord.HttpDiscordTransport
-import com.silooo.core.discord.JdbcDiscordCursorStore
-import com.silooo.core.events.JdbcEventStore
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
 import com.silooo.core.registration.HttpDiscordIdentity
@@ -16,8 +10,11 @@ import com.silooo.core.server.ServerPresence
 import com.silooo.core.shop.DeliveryRelief
 import com.silooo.core.shop.JdbcShopStore
 import com.silooo.core.site.siteModule
+import com.silooo.core.vote.JdbcVoteStore
+import com.silooo.core.vote.VoteService
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import java.time.Clock
 import kotlin.system.exitProcess
 import org.slf4j.LoggerFactory
 
@@ -73,12 +70,20 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     val database = HikariDatabase.connect(config.database)
     try {
         val shopStore = JdbcShopStore()
-        val serverPresence = ServerPresence()
-        // Sans SILOOO_DISCORD_WEBHOOK l'envoyeur est éteint : le suiveur ne lit rien et le module le dit en une ligne de journal.
-        val discordSender = config.discordWebhook?.let { DiscordWebhook(HttpDiscordTransport(it)) } ?: DiscordOff
+        // Les votes : un seul service pour le processus (son verrou range les réceptions en file), qui lit la présence des signaux de vie.
+        val presence = ServerPresence()
+        val voteStore = JdbcVoteStore()
+        val votes = VoteService(definitions, voteStore, Clock.systemUTC()) { presence.onlineXuids() }
+        if (config.votifier == null) {
+            log.info("Votifier éteint : {} n'est pas posée, les votes de Hubyy ne sont pas reçus.", Config.VOTIFIER_TOKEN)
+        }
         val dependencies = Dependencies(
+            serverPresence = presence,
+            voteStore = voteStore,
+            voteService = votes,
+            pendingVotes = votes,
+            votifier = config.votifier,
             database = database,
-            serverPresence = serverPresence,
             apiKey = config.apiKey,
             definitions = definitions,
             shopStore = shopStore,
@@ -93,8 +98,6 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteAdmission = config.siteAdmission,
             discordIdentity = config.discord?.let { HttpDiscordIdentity(it) },
             siteTrustedProxy = config.siteTrustedProxy,
-            discord = DiscordFollower(database, JdbcEventStore(), JdbcDiscordCursorStore(), discordSender) { serverPresence.onlineXuids() },
-            discordPoll = config.discordPoll,
             payNowWebhookSecret = config.payNowWebhookSecret,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)

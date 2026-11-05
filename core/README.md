@@ -33,7 +33,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
   (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
   (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
   journal de l'étape « Vérifier le dépôt » et cherche `SKIPPED` avant de conclure que tout est vert.
-- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 32 opérations. Quand une
+- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 33 opérations. Quand une
   session écrit une route, elle l'ajoute à `WRITTEN` et branche ses faux dans `contractDependencies()`.
 - Rapport complet : `core/build/reports/tests/test/index.html`.
 
@@ -49,8 +49,6 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json, missions.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
 | `SILOOO_DELIVERY_POLL_SECONDS` | Intervalle du relevé des commandes de Gemmes du site (`shop_deliveries`), de 1 à 3600 secondes | non, 30 par défaut |
-| `SILOOO_DISCORD_WEBHOOK` | L'adresse du webhook du salon Discord des annonces du serveur, qui commence par `https://`. Un secret : elle ne s'affiche nulle part ([Discord côté service](#discord-côté-service)) | non, sans elle les messages du serveur sont éteints |
-| `SILOOO_DISCORD_POLL_SECONDS` | Intervalle du suivi des événements pour Discord, de 1 à 3600 secondes | non, 15 par défaut |
 | `SILOOO_SITE_PORT` | Port du site public, différent de `SILOOO_PORT` | non, 8081 par défaut |
 | `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
 | `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
@@ -64,9 +62,11 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DISCORD_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
 | `SILOOO_SITE_TRUSTED_PROXY` | `true` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose) ; `false` ou absente : l'adresse vue par silooo-core | non, `false` par défaut |
 | `SILOOO_PAYNOW_WEBHOOK_SECRET` | La clé de la signature des webhooks de PayNow (`POST /paynow/webhook`) ; ne s'affiche jamais | non, sans elle le webhook répond 503 |
+| `SILOOO_VOTIFIER_TOKEN` | Le jeton de Votifier 2, avec lequel Hubyy signe ses votes ; ne s'affiche jamais | non, sans lui rien n'écoute et les votes de Hubyy ne sont pas reçus |
+| `SILOOO_VOTIFIER_PORT` | Le port TCP de la réception des votes, de 1 à 65535, différent de `SILOOO_PORT` et de `SILOOO_SITE_PORT` | non, 8192 par défaut ; lu seulement quand le jeton est posé |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
-le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
+le code 78, sans rien démarrer. Ni le mot de passe, ni la clé, ni le jeton Votifier ne s'écrivent dans les journaux.
 
 Les définitions se chargent au démarrage, avant la base, et le chargement est strict : une clé
 manquante, une clé inconnue, un mauvais type ou un fichier absent arrêtent le service avec le code 78
@@ -116,7 +116,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
-| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel) : classes typées et `DefinitionsLoader` |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel, votes) : classes typées et `DefinitionsLoader` |
 | `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne, découverte des usines ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`, `prestigePreview`, `prestige`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock (`ServerPresence`, la source de présence de `join`) |
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
@@ -124,6 +124,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `mission/` | `GET /v1/players/{xuid}/missions` : `MissionRoutes`, `MissionService` (la chaîne de missions, l'avancement, la fin), `MissionStore` et `JdbcMissionStore` (`player_missions`, versement des Lingots, événement) ; `CompanyService.collect` l'appelle |
 | `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries`, Gemmes), `ShopFigures` (les bonus de Donar du PDG que le moteur lit) et `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
+| `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -244,7 +245,7 @@ et départ de course sortent d'`EconomyEngine`, qui les lit dans `economie.json`
 - **Les événements** : `ANNONCE` adressé à chaque membre, `payload.action = "prestige"`, avec `companyId`, `course`,
   `era`, `stars`, `lingotsTotal` et la part du membre (`lingots`). Un `PRESTIGE_ENTREPRISE` s'y ajoute pour tout le serveur
   (`xuid` nul) : `companyId`, `companyName`, `lingots` (le total avant partage) et `prestigeCount` (la course qui vient de
-  finir). Il ne dit pas la part de chacun ; c'est le message Discord du serveur qui le lit ([Discord côté service](#discord-côté-service)).
+  finir). Il ne dit pas la part de chacun ; c'est le bot Discord qui le lit ([Discord côté service](#discord-côté-service)).
 - **Règles à valider par Kr** : la production en attente compte avant le test du seuil ; le reste du partage va au
   PDG ; les usines autres que la Carrière repartent en ruine ; un événement par membre
   ([economie.md](../docs/economie.md), section Le prestige et les Lingots).
@@ -488,60 +489,9 @@ niveau 1 au moins. La règle est dans `EconomyEngine.stoppedNoPower` ; `EngineFi
 
 ## Discord côté service
 
-Le service dit quelques faits au salon Discord du serveur, par un webhook. Le code est dans `com.silooo.core.discord` ; tous les
-textes sont dans un seul fichier, `DiscordTexts.kt`. Le service décide, Discord affiche : chaque chiffre d'un message sort de
-l'événement qui le déclenche, jamais du code.
-
-- **Éteint par défaut.** Sans `SILOOO_DISCORD_WEBHOOK`, rien ne tourne et le démarrage écrit une ligne de journal qui le dit.
-  L'adresse est un secret (qui la connaît écrit dans le salon) : elle ne figure ni dans les journaux, ni dans `Config.toString`, ni
-  dans un message d'erreur de configuration (une adresse qui ne commence pas par `https://` arrête le service avec le code 78, sans
-  citer sa valeur). Kr la pose dans le fichier d'environnement ([deploiement.md](../docs/deploiement.md)).
-- **Le suiveur** (`DiscordFollower`, lancé par `siloooModule` comme le relevé des livraisons) lit `game_events` après son curseur
-  toutes les `SILOOO_DISCORD_POLL_SECONDS` secondes (15 par défaut). Le curseur vit en base : table `discord_cursor`, une ligne,
-  migration V8 ([base-de-donnees.md](../docs/base-de-donnees.md)). Au tout premier passage il se pose sur le dernier événement
-  existant et n'envoie rien : on ne rejoue jamais l'ancien. Il est écrit après chaque message et à la fin de chaque lecture, donc un
-  redémarrage reprend sans doublon (un plantage entre l'envoi et l'écriture renvoie au pire un message).
-- **Les événements lus** sont ces quatre, et seulement eux ; un autre événement est lu et passé :
-
-  | Événement | Ce qu'il porte | Message (à valider par Kr) |
-  | --- | --- | --- |
-  | `PRESTIGE_ENTREPRISE` (tout le serveur) | `companyName`, `lingots` (le total avant partage), `prestigeCount` | « Les Forges a fait son 1er prestige et gagne 340 Lingots. » ; « 2e », « 1 Lingot » ; sans Lingot : « Les Forges a fait son 3e prestige. » |
-  | `BOOST_COLLECTIF` | `percent`, `minutes`, `buyerName` (facultatif : absent pour un boost gagné) | « Zoé offre un boost collectif : production +25 % pour tout le monde pendant une heure. » ; sans acheteur : « Boost collectif : production +25 % pour tout le monde pendant une heure. » |
-  | `ANNONCE`, `payload.action = "voteParty"` | `votes`, `lingots` (facultatif : la récompense de chaque joueur présent) | « Vote party : le serveur a atteint 500 votes, chaque joueur présent reçoit 5 Lingots. » ; sans `lingots` : « Vote party : le serveur a atteint 500 votes. » |
-  | `ANNONCE`, `payload.action = "sansCourant"`, adressée à un joueur | `playerName`, `factoryName` | « L'usine Verrerie de Zoé est à l'arrêt faute de courant. » (seulement si le joueur est connecté quand le suiveur lit l'événement) |
-
-  Un champ absent ou faux (un nombre en texte, un pourcentage nul, un nom vide) rend l'événement « cassé » : il est noté dans le
-  journal (« n'a pas de message ») et sauté, jamais envoyé avec un chiffre inventé. Les noms de joueur et d'entreprise passent par
-  `DiscordTexts.name` (une seule ligne, 48 caractères au plus), et l'envoi coupe toutes les mentions (`allowed_mentions.parse` vide) :
-  un `@everyone` dans un nom s'affiche, il ne prévient personne. `PRESTIGE_ENTREPRISE` est publié par `CompanyService.prestige`. **Rien ne
-  publie encore `BOOST_COLLECTIF` ni la Vote party** : la boutique en jeu et la session des votes devront écrire ces événements avec les
-  champs du tableau, dans la transaction de leur action (contrat décrit dans `GameEvent` de l'OpenAPI).
-- **L'envoi** (`DiscordWebhook`) : un `POST` JSON `{"content": "…", "allowed_mentions": {"parse": []}}` sur le webhook, avec le
-  `HttpClient` du JDK (aucune dépendance de plus), 5 secondes pour se connecter et 10 pour la requête. Un texte de plus de 2000
-  caractères part en plusieurs messages, coupé à un saut de ligne, sinon à une espace. Un échec qui peut passer (réseau, délai, 429,
-  5xx) est retenté une fois, après 2 secondes ou l'attente que Discord demande (`Retry-After`, entre 0,2 et 10 secondes) ; un refus
-  qui ne passera pas (400, 401, 404 : webhook supprimé) ne l'est pas. Un message qui ne part pas est noté (le code HTTP ou le nom de
-  l'exception, ni l'adresse ni le texte), perdu, et le curseur avance : un webhook cassé ne bloque pas le suivi et ne fait pas revenir
-  un flot de messages périmés. Au plus 20 messages par passage ; le reste attend le passage suivant.
-- **Le courant qui manque** (`docs/game-design.md`, « L'électricité, ressource obligatoire »). Le service n'a aucun état « sans
-  courant » : il se déduit des usines (`EconomyEngine.stoppedNoPower`). La seule action qui fait passer une usine moderne à l'arrêt
-  est la fin de sa remise en état (l'époque ne change qu'au prestige, qui ruine toutes les usines, et la Centrale ne s'éteint que de
-  la même façon). Le service compare donc, dans `restoreStep`, l'état d'avant et d'après la quatrième étape : si l'entreprise
-  n'avait aucune usine arrêtée faute de courant et que celle-ci l'est maintenant, il publie un `ANNONCE` `sansCourant` à celui qui
-  agit, une fois par passage à cet état (une deuxième usine électrique remise en état pendant l'attente de la Centrale n'en publie
-  pas une autre). **Écart connu** : un webhook de salon ne peut pas écrire en message privé. L'alerte part donc dans le salon, avec le
-  nom du joueur et de l'usine, et seulement si le joueur est connecté à ce moment-là ; un joueur absent ne la reçoit pas, elle n'est
-  pas gardée pour son retour. L'add-on ne lit pas encore cet événement : une alerte en jeu reste à faire, elle ne demande aucun
-  changement du service.
-- **Textes à valider par Kr** : les quatre messages du tableau et leurs variantes (1er puis 2e, 1 Lingot puis 2 Lingots, les milliers
-  séparés par une espace insécable, la durée du boost en toutes lettres : « 15 minutes », « une heure », « 1 h 30 », la virgule du
-  français dans le pourcentage). Ils sont tous dans `DiscordTexts.kt`, que `tools/anti_ia.py` contrôle comme les autres textes de
-  joueurs. Ils peuvent être commités ; rien ne les présente comme définitifs.
-- **Les tests** : `discord/DiscordWebhookTest` (corps JSON, coupure à 2000, nouvelle tentative, aucune adresse dans les journaux, le
-  transport JDK contre un faux serveur de la boucle locale), `DiscordTextsTest`, `DiscordMessagesTest` (quels événements, quels
-  champs), `DiscordFollowerTest` (faux magasin d'événements et faux curseur : filtre des sortes, curseur, éteint sans adresse, premier
-  passage sans rejeu, pannes, plafond, tâche de fond), `ConfigDiscordTest`, les cas `PRESTIGE_ENTREPRISE` et `sansCourant` de
-  `CompanyRoutesTest`, et `DiscordCursorSqlTest` (MariaDB, CI) ; la migration V8 est jouée par `MigrationTest` avec les autres.
+Le bot Discord est à la direction du Discord ([docs/discord.md](../docs/discord.md)) : il lit `game_events` avec son propre curseur.
+Le service publie pour lui `PRESTIGE_ENTREPRISE` (tout le serveur), `BOOST_COLLECTIF`, l'`ANNONCE` `voteParty` et l'`ANNONCE` `sansCourant`,
+dont les champs sont décrits dans l'OpenAPI (schéma `GameEvent`, opérations `prestige` et `restoreStep`).
 
 ## L'entreprise partagée
 
@@ -692,6 +642,51 @@ chiffres eux-mêmes dans `definitions/boutique.json`, que cette tranche n'a pas 
   `REQUETE_INVALIDE`) ; aucun événement d'achat n'existe, donc l'add-on ne peut apprendre un grade ou un Pilier acheté ailleurs qu'en
   relisant le catalogue ou en rejoignant ; `Balances` est la seule réponse de `buyItem`, sans le grade ni la fin du Pilier. Le
   contrat n'a pas encore de section d'écarts à part : ces points sont notés ici, comme pour la ville.
+
+## Les votes côté service
+
+Une route, `todayVotes` (`GET /v1/votes/today?xuid=`), ajoutée au contrat (qui passe à 33 opérations), et une entrée qui n'est pas HTTP :
+la réception des votes de Hubyy par Votifier 2, en TCP. Le service décide de tout (ce qui est versé, la série, la Vote party) ; l'add-on
+n'a qu'à afficher ce que `todayVotes` rend. Les règles et le tableau des chiffres sont dans `docs/economie.md`, section « Les votes » ; les
+chiffres eux-mêmes dans `definitions/vote.json`, **tous à valider par Kr**. Le déploiement (port, jeton, déclaration sur Hubyy) est dans
+`docs/deploiement.md`.
+
+- **Le code** est dans `vote/` : `VotifierProtocol` (le protocole, en fonctions pures : le défi, le décodage d'un message, la signature
+  HMAC-SHA256 comparée à temps constant avant que le `payload` soit lu, les refus nommés), `VotifierServer` (le serveur TCP et
+  `launchVotifier`, que `Main` lance seulement si le jeton est posé), `VoteRules` (la série et le rang du jour, purs), `VoteService`
+  (`todayVotes`, `receive`, `relieve`), `VoteStore` et `JdbcVoteStore` (le SQL sur `server_votes`, le crédit en Lingots, l'événement),
+  `VoteRoutes` (la forme de la requête). `session/PendingVotes` est la seule chose que `join` sache des votes. Sans cette source, rien ne
+  change.
+- **Votifier** : sans `SILOOO_VOTIFIER_TOKEN`, aucun port ne s'ouvre et le démarrage écrit une ligne d'information. Avec le jeton, le
+  service écoute sur `SILOOO_VOTIFIER_PORT` (8192 par défaut). Il refuse un message trop long (4096 octets), sans la magie `0x733A`, mal
+  signé, avec un autre défi que celui de la connexion ou tronqué, avec une cause nommée dans la réponse `error`. Il tient au plus 16
+  connexions et coupe une lecture qui dépasse 5 secondes. Un échec de la base répond `Unavailable` : le site peut renvoyer le vote. Le
+  jeton ne s'écrit nulle part : `VotifierSettings` le masque, et aucun message d'erreur de configuration ne le cite.
+- **Sans migration** : `server_votes` existe depuis `V1__init.sql` et suffit (une ligne par vote, `rewarded_at` pour la marque de
+  versement). Aucune dépendance de plus : `javax.crypto` et la bibliothèque standard font la signature.
+- **Un vote** : la ligne, le crédit de Lingots (`creditBalance`, motif `vote`, référence : l'id de la ligne), la marque `rewarded_at` et
+  l'événement `ANNONCE` tiennent en une seule transaction. La Vote party (motif `vote-party`, référence : le jour) est écrite dans la même
+  transaction que le vote de rang exact. Les réceptions passent une par une (`Mutex`) et, sur un conflit transitoire de MariaDB, la
+  transaction est rejouée trois fois au plus.
+- **`join`** verse les votes en attente du pseudo, du plus ancien au plus récent, cent au plus, après les livraisons de Gemmes et dans la
+  même transaction : le solde de la réponse les montre. Un vote rattrapé compte dans la série de son propre jour et ne lance jamais la
+  Vote party.
+- **`todayVotes`** : lecture seule, rien d'écrit. Sans `xuid`, la part du joueur est à zéro ; un `xuid` mal formé donne 400.
+
+Les tests (aucun ne demande de base, sauf `VoteSqlTest`, ignoré sans Docker comme les autres `*SqlTest`) : `VotifierProtocolTest` (le
+protocole et son refus de tout ce qui est mal formé), `VotifierServerTest` (le serveur sur un vrai port local, avec un faux
+gestionnaire), `VoteRulesTest`, `VoteServiceTest` (la série, la Vote party, le rattrapage, l'échec d'une écriture), `VoteRoutesTest`,
+`VoteJoinTest` (le rattrapage par HTTP), `VoteSqlTest` (le SQL réel : un seul versement même avec deux `join` en même temps, l'annulation après une panne, le rang du jour et la fête une seule fois),
+et `ConfigTest` pour les deux variables. Un faux dépôt (`InMemoryVoteStore`) remplace la base ailleurs. Les chiffres attendus viennent de
+`definitions/vote.json`, jamais d'un littéral.
+
+Ce que le contrat et les docs ne disent pas encore :
+
+- `docs/README.md` et `docs/game-design.md` comptent encore 32 opérations ; la direction les met à jour à la fusion.
+- Votifier est du TCP : il n'a pas sa place dans `silooo-core.openapi.yaml`. Il est décrit ici et dans `docs/economie.md`.
+- Le contrat laisse `payload` libre dans `ANNONCE` : l'add-on reconnaît un vote à `payload.action` = `vote` et la fête à `voteParty`.
+- `todayVotes` rend `streakGoalDays` et `mine.streak` mais pas le nombre de jours avant le bonus : l'add-on le calcule (objectif moins
+  série, modulo l'objectif).
 
 ## Le site
 

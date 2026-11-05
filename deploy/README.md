@@ -51,6 +51,9 @@ SILOOO_TAG=<tag> docker compose -p silooo --project-directory /var/www/silooo -f
 - `docker login ghcr.io` sur le VPS, avec une clé qui lit les paquets du dépôt : les images y sont privées.
 - Le port TCP `BDS_PORT` (19142 par défaut) et la plage UDP `BDS_UDP_PORTS_PUBLIES` (19143-19174 par défaut)
   ouverts dans le pare-feu, après vérification que cette plage est libre.
+- Pour les votes : le jeton `SILOOO_VOTIFIER_TOKEN` (secret, à poser aussi sur Hubyy) et, dans le pare-feu, le port TCP
+  `SILOOO_VOTIFIER_PORT` (8192 par défaut), le seul port de `silooo-core` que le compose publie
+  ([docs/deploiement.md](../docs/deploiement.md), « Les votes »).
 - L'adresse IPv4 publique du VPS (`BDS_PUBLIC_IP`) et le DNS.
 - Le zip de BDS (décision 26, [docs/deploiement.md](../docs/deploiement.md), « Le zip de BDS »). Le serveur n'est pas dans
   l'image et minecraft.net refuse les téléchargements par script. Kr : (1) télécharger `bedrock-server-1.26.62.1.zip`

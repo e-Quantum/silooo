@@ -37,6 +37,7 @@ class DefinitionsLoaderTest {
     private val personnelText = TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE)
     private val incidentsText = TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE)
     private val cityText = TestDefinitions.text(DefinitionsLoader.CITY_FILE)
+    private val voteText = TestDefinitions.text(DefinitionsLoader.VOTE_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
@@ -49,10 +50,11 @@ class DefinitionsLoaderTest {
         personnel: String = personnelText,
         incidents: String = incidentsText,
         city: String = cityText,
-    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents, city)
+        vote: String = voteText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents, city, vote)
 
     @Test
-    @DisplayName("Les huit fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les neuf fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
@@ -64,6 +66,7 @@ class DefinitionsLoaderTest {
         assertEquals(fromText.personnel, fromDirectory.personnel)
         assertEquals(fromText.incidents, fromDirectory.incidents)
         assertEquals(fromText.city, fromDirectory.city)
+        assertEquals(fromText.vote, fromDirectory.vote)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -532,6 +535,10 @@ class DefinitionsLoaderTest {
         assertTrue(noCity.message!!.contains(DefinitionsLoader.CITY_FILE), noCity.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.CITY_FILE), cityText)
+        val noVote = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noVote.message!!.contains(DefinitionsLoader.VOTE_FILE), noVote.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.VOTE_FILE), voteText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
     }
 
@@ -546,6 +553,57 @@ class DefinitionsLoaderTest {
             val error = assertThrows<DefinitionsException>("ville.json sans ${path.joinToString(".")}") { load(city = damaged) }
             assertTrue(error.message!!.contains("ville.json"), error.message)
         }
+    }
+
+    @Test
+    @DisplayName("Retirer n'importe quelle clé de vote.json fait échouer le chargement")
+    fun everyVoteKeyIsRequired() {
+        val root = parseJson(voteText)
+        val paths = root.keyPaths()
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("vote.json sans ${path.joinToString(".")}") { load(vote = damaged) }
+            assertTrue(error.message!!.contains("vote.json"), error.message)
+        }
+    }
+
+    /** vote.json avec la valeur au chemin [path] remplacée par [value]. */
+    private fun voteWith(path: List<String>, value: JsonElement): String {
+        fun replace(node: JsonObject, rest: List<String>): JsonObject =
+            JsonObject(node + (rest.first() to if (rest.size == 1) value else replace(node.getValue(rest.first()).jsonObject, rest.drop(1))))
+        return replace(parseJson(voteText), path).toString()
+    }
+
+    @Test
+    @DisplayName("Des votes qui n'ont pas de sens sont refusés : récompense, série, Vote party, sites")
+    fun voteMustMakeSense() {
+        fun refused(text: String, expected: String) {
+            val message = assertThrows<DefinitionsException>(expected) { load(vote = text) }.message!!
+            assertTrue(message.contains("vote.json") && message.contains(expected), message)
+        }
+        refused(voteWith(listOf("recompense", "lingotsParVote"), JsonPrimitive(0)), "recompense.lingotsParVote doit être au moins 1")
+        refused(voteWith(listOf("serie", "jours"), JsonPrimitive(1)), "serie.jours doit être au moins 2")
+        refused(voteWith(listOf("serie", "lingotsEnPlus"), JsonPrimitive(0)), "serie.lingotsEnPlus doit être au moins 1")
+        refused(voteWith(listOf("voteParty", "votesParJour"), JsonPrimitive(0)), "voteParty.votesParJour doit être au moins 1")
+        refused(voteWith(listOf("voteParty", "lingotsParJoueur"), JsonPrimitive(0)), "voteParty.lingotsParJoueur doit être au moins 1")
+
+        val site = { id: String, name: String -> JsonObject(mapOf("id" to JsonPrimitive(id), "nom" to JsonPrimitive(name))) }
+        refused(voteWith(listOf("sites"), JsonArray(emptyList())), "sites ne doit pas être vide")
+        refused(voteWith(listOf("sites"), JsonArray(listOf(site("hubyy", "Hubyy"), site("hubyy", "Autre")))), "deux sites ont le même id")
+        refused(voteWith(listOf("sites"), JsonArray(listOf(site("Hubyy", "Hubyy")))), "doit être en kebab-case")
+        refused(voteWith(listOf("sites"), JsonArray(listOf(site("hubyy", " ")))), "nom doit avoir de 1 à")
+    }
+
+    @Test
+    @DisplayName("Le site d'un vote est l'identifiant du site connu (id ou nom, casse ignorée), sinon le nom tel qu'annoncé")
+    fun voteSiteIsTheKnownId() {
+        val vote = load().vote
+        val known = vote.sites.first()
+        assertEquals(known.id, vote.siteFor(known.name))
+        assertEquals(known.id, vote.siteFor(known.id.uppercase()))
+        assertEquals(known.id, vote.siteFor("  ${known.name.lowercase()} "))
+        assertEquals("autre-site", vote.siteFor("autre-site"))
     }
 
     /** ville.json avec la valeur au chemin [path] (des clés, et des positions pour les listes) remplacée par [value]. */

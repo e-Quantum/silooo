@@ -162,8 +162,8 @@ par Kr** (`prestigePreview` montre le résultat sans rien écrire, `prestige` l'
   reste va au PDG, pour que la somme versée soit exactement le total.
 - Chaque Lingot versé passe par `currency_ledger` (motif `prestige`, référence « entreprise-*n*-course-*k* »), et chaque
   membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part. Un `PRESTIGE_ENTREPRISE` s'y
-  ajoute pour tout le serveur, sans part individuelle (`companyName`, `lingots`, `prestigeCount`) : le suiveur Discord
-  en fait un message (core/README.md, « Discord côté service »). Il est publié dans la même transaction que le reste.
+  ajoute pour tout le serveur, sans part individuelle (`companyName`, `lingots`, `prestigeCount`) : le bot Discord
+  le lit (core/README.md, « Discord côté service »). Il est publié dans la même transaction que le reste.
 
 ## Les missions
 
@@ -443,6 +443,7 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `lingotsHorsPrestige.commandeDuJour`, `lingotsHorsPrestige.trouvaille`, `commandeDuJour` (`objectifUnites`, `minutesDeProductionParUnite`) | absentes | `1`, `1`, `100` et `1` | La commande mondiale du jour et le Carnet de trouvailles ont besoin de quatre chiffres que le game design ne donne pas. Une prime d'un Lingot reste dans l'ordre de `moyenneParHeureDeJeu` (1 par heure) ; 100 unités à une minute de revenu chacune font 100 minutes de revenu pour toute la commande. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent ni la production ni le prestige. |
 | 5 nov. 2026 | `incidents.json` : `frequence` (`creneauMinutes`, `chancePourcent`), `sortes[]` (`id`, `ralentissement`, `poids`), `recompense.minutesDeRevenu`, `electricite` (`aPartirDeEpoque`, `usineCentrale`) | fichier absent | créneau de `30` minutes, `20` % de chances, incendie x`0,5` (poids `1`), panne x`0,6` (poids `2`), courroie x`0,7` (poids `2`), `10` minutes de revenu, électricité dès l'époque `3`, Centrale `centrale` | Le contrat décrit l'incident (ralentit, réparation par mini-jeu, récompense en Donar) et l'électricité (époque 3 et plus, Centrale) sans chiffres : le service en a besoin pour tirer, ralentir et payer. Valeurs de départ au plus simple (voir la section Les incidents d'usine). **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le simulateur ne joue pas les incidents). |
 | 5 nov. 2026 | `ville.json` : `ile`, `zones` (`colonnes`, `tailleChunks`, `premiere`, `ordre[]`), `mairie.emplacementDepart`, `logement.reductionSalairePourcent`, `plafonds`, `batiments[]` | fichier absent (`ville.zonesPrixLingots` seule, pour les prix des zones) | île de 4 x 4 zones de 8 chunks, parcelle d'un chunk ; première zone dès `2` usines actives ; mairie posée en (192, 192) ; salaire d'un logé `-20` % ; plafonds `60` places, `10` % de production, `40` % de vitesse ; mairie de `16` niveaux, route, maison, immeuble, commerce et garage (prix, mairie requise et bonus par niveau dans la section La ville côté service) | Le contrat décrit `buyZone`, `placeBuilding` et `upgradeBuilding` et le game design promet des bonus « visibles, petits, plafonnés », sans chiffre. Le service en a besoin pour décider. Valeurs de départ au plus simple, aucune ne donne de Lingots. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'achète aucune zone ni aucun bâtiment, donc aucun bonus). |
+| 5 nov. 2026 | `vote.json` : `recompense.lingotsParVote`, `serie` (`jours`, `lingotsEnPlus`), `voteParty` (`votesParJour`, `lingotsParJoueur`), `sites[]` (`id`, `nom`) | fichier absent | `1`, `7` et `2`, `10` et `1`, un site `hubyy` (Hubyy) | Le game design promet une récompense par vote et une Vote party sans règle ni chiffre ; le service en a besoin pour décider (section Les votes). Valeurs de départ au plus simple, versées en Lingots hors prestige. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type ne vote pas). |
 
 ## Les commandes du jour et le Carnet
 
@@ -759,3 +760,83 @@ Tous ces choix sont les plus simples que les définitions et le contrat permetta
 - Un achat n'écrit aucun événement ; seule une livraison écrit `GEMMES_RECUES`.
 - Une livraison sans joueur connu attend sans limite de temps.
 - L'intervalle du relevé (30 secondes) est un réglage technique, pas un chiffre du jeu.
+
+## Les votes
+
+Le game design promet une récompense à chaque vote pour le serveur et une Vote party quand le serveur atteint un objectif commun,
+sans règle ni chiffre. Le service prend la règle la plus simple pour chacun, et elle est **à valider par Kr**. Les chiffres sont dans
+`definitions/vote.json` (schéma : `definitions/schemas/vote.schema.json`) et nulle part ailleurs. Tous les Lingots versés sont hors prestige.
+
+| Clé | Valeur de départ | Ce qu'elle règle |
+| --- | --- | --- |
+| `recompense.lingotsParVote` | `1` | Les Lingots versés au joueur pour chaque vote |
+| `serie.jours` | `7` | Les jours UTC de vote de suite qui donnent le bonus, puis chaque multiple (7, 14, 21 jours) |
+| `serie.lingotsEnPlus` | `2` | Les Lingots de plus pour le vote qui boucle la série |
+| `voteParty.votesParJour` | `10` | Les votes du serveur, dans un jour UTC, qui lancent la Vote party |
+| `voteParty.lingotsParJoueur` | `1` | Les Lingots que reçoit chaque joueur présent quand elle a lieu |
+| `sites[]` | `hubyy` (Hubyy) | Les sites de vote connus : l'`id` gardé en base, le `nom` tel que le site l'annonce |
+
+### Comment un vote arrive
+
+- Hubyy envoie le vote par Votifier 2 (TCP) sur le port `SILOOO_VOTIFIER_PORT` (8192 par défaut), signé avec le jeton
+  `SILOOO_VOTIFIER_TOKEN`, que Kr déclare aussi sur Hubyy. Sans jeton, le service n'écoute pas et le dit dans son journal au
+  démarrage. Le jeton n'est écrit ni dans le dépôt, ni dans un journal.
+- Une connexion, un vote : le service envoie `VOTIFIER 2 <défi>`, le site répond la magie `0x733A`, la longueur sur deux octets, puis
+  `{"payload":"...","signature":"..."}` où la signature est le HMAC-SHA256 du `payload` avec le jeton, en base64. Le service vérifie la
+  signature avant de lire le `payload`, puis le défi (celui qu'il vient d'envoyer). Il répond `{"status":"ok"}` ou
+  `{"status":"error","cause":"...","error":"..."}`, puis ferme.
+- `username` (le pseudo saisi) et `serviceName` (le site) font de 1 à 32 caractères, sans caractère de contrôle. L'adresse du votant
+  et l'heure annoncée ne sont pas gardées : le vote est daté de l'horloge du service, en UTC.
+- Un vote que la base n'a pas pu enregistrer reçoit la cause `Unavailable` : le site peut le renvoyer, rien n'a été écrit.
+
+### Ce que fait un vote
+
+- **Une ligne de `server_votes` par vote reçu** : `gamertag` = le pseudo saisi, `site` = l'`id` du site connu ou le nom annoncé,
+  `xuid` = le joueur de ce pseudo dans `players` (casse ignorée, le vu en dernier s'ils sont plusieurs), nul s'il n'y en a pas.
+- **Joueur connu** : dans une seule transaction, la ligne est marquée versée (`rewarded_at`), les Lingots sont crédités (motif `vote`,
+  référence : l'id de la ligne) et un événement `ANNONCE` est écrit pour lui (`payload.action` = `vote`, avec `site`, `rewardLingots`,
+  `streak` et `streakBonusLingots`). Si une des trois écritures échoue, aucune ne reste.
+- **Joueur inconnu** : la ligne attend. Au `join` de ce joueur, `PendingVotes` verse ses votes en attente (100 au plus par `join`, du
+  plus ancien au plus récent) dans la transaction du `join` : le solde de la réponse les montre. Un pseudo que porte un joueur vu
+  plus récemment n'est pas rattaché au premier, ses votes attendent celui-là.
+- **Versé une seule fois** : la ligne est marquée par `UPDATE ... WHERE rewarded_at IS NULL`, qui doit toucher une ligne. Deux `join`,
+  ou un `join` et une réception, ne versent pas deux fois.
+
+### La série
+
+- La série d'un jour est le nombre de jours UTC de suite, jusqu'à ce jour, où le joueur a voté. Un jour sans vote la remet à zéro.
+- À `serie.jours` jours de suite, puis à chaque multiple, le premier vote du jour de ce joueur donne `serie.lingotsEnPlus` Lingots de
+  plus. Les autres votes du même jour ne les donnent pas.
+- Un vote rattrapé au `join` compte dans la série du jour où il a été reçu.
+- `todayVotes` montre la série en vie : un joueur qui a voté hier et pas encore aujourd'hui garde la série d'hier jusqu'à minuit UTC.
+
+### La Vote party
+
+- Le jour est le jour UTC. Tous les votes reçus ce jour-là comptent, pseudo connu ou non, sur tous les sites.
+- Le vote dont le rang dans la journée est exactement `voteParty.votesParJour` lance la fête. Chaque joueur présent que `players`
+  connaît reçoit `voteParty.lingotsParJoueur` Lingots (motif `vote-party`, référence : le jour, par exemple `2026-11-05`) et un événement
+  `ANNONCE` pour tout le serveur est écrit (`xuid` nul, `payload.action` = `voteParty`, avec `day`, `votes`, `rewardLingots` et `players`).
+  Les joueurs présents sont ceux des signaux de vie (`heartbeat`) au moment du vote.
+- Un seul vote a ce rang : la fête a lieu une fois par jour. Les votes suivants comptent mais ne la redonnent pas. Le lendemain, le
+  décompte repart de zéro.
+- Les réceptions passent une par une (un verrou dans le processus) : deux votes en même temps ne lisent pas le même rang.
+- Un vote rattrapé au `join` ne lance jamais la fête, elle a lieu à la réception. Sans joueur présent, elle a lieu quand même : l'annonce
+  est écrite, personne n'est crédité.
+- **Pas de hasard, pas de pari, aucune monnaie échangée entre joueurs** : un vote rapporte des Lingots du jeu, la même somme à chacun.
+
+### `todayVotes`
+
+`GET /v1/votes/today?xuid=` est en lecture seule. Il rend le jour UTC, les votes du serveur aujourd'hui, l'objectif de la Vote party, si
+elle est atteinte, les chiffres de `vote.json` que l'add-on affiche (Lingots par vote, par fête et par bonus de série, jours de la série)
+et, pour le joueur donné, ses votes du jour et sa série. Sans `xuid`, la part du joueur est à zéro ; un `xuid` mal formé donne 400.
+
+### Ce qui reste à valider par Kr
+
+- Les chiffres de `vote.json`, tous des valeurs de départ.
+- Des Lingots hors prestige. Le game design parle aussi de Clés de coffre gagnées par les votes ; leur usage dépend de la décision de
+  Kr sur les lootbox, donc le service ne verse que des Lingots.
+- Le bonus de série à chaque multiple de `serie.jours`, et sur le premier vote du jour seulement.
+- La fête au vote de rang exact, aux joueurs présents au moment du vote ; un joueur qui arrive après ne la reçoit pas.
+- Le service ne limite pas les votes d'un joueur par jour ni par site : il verse tout vote que le site lui envoie.
+- Un site que `vote.json` ne connaît pas est accepté tel qu'il s'annonce.
+- Un vote reçu pendant le `join` du même joueur peut attendre le `join` suivant (course connue, sans perte).

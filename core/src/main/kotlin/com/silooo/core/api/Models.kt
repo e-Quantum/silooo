@@ -220,6 +220,27 @@ data class WorldOrder(
     val mine: Double,
 )
 
+/**
+ * Schéma `VotesToday` : les votes du jour (UTC) pour le serveur et la Vote party. Les chiffres (objectif, Lingots, jours de série)
+ * viennent de `definitions/vote.json` : l'add-on les affiche sans en connaître aucun. [mine] est la part du joueur demandé (zéro sans joueur).
+ */
+@Serializable
+data class VotesToday(
+    val day: String,
+    val votes: Int,
+    val goal: Int,
+    val partyReached: Boolean,
+    val rewardLingots: Long,
+    val partyRewardLingots: Long,
+    val streakGoalDays: Int,
+    val streakBonusLingots: Long,
+    val mine: PlayerVotes,
+)
+
+/** Schéma `PlayerVotes` : les votes du joueur aujourd'hui, et sa série de jours de vote de suite. */
+@Serializable
+data class PlayerVotes(val votes: Int, val streak: Int)
+
 /** Réponse 200 de `deliverOrder` : la commande à jour, puis l'état de l'entreprise et les soldes de celui qui livre. */
 @Serializable
 data class OrderDelivered(val order: WorldOrder, val state: CompanyState, val balances: Balances)

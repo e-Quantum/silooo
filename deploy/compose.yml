@@ -34,13 +34,20 @@ services:
     restart: "no"
     logging: *journaux
 
-  # Le service. AUCUN port publié : il ne répond que sur le réseau Docker « silooo » (ADR 0002 et 0004).
+  # Le service. L'API (8080) et le site (8081) ne sont PAS publiés : ils ne répondent que sur les réseaux Docker (ADR 0002 et 0004).
+  # Un seul port sort : le TCP de la réception des votes (Votifier 2). Hubyy est sur Internet et doit joindre le service.
+  # Sans SILOOO_VOTIFIER_TOKEN dans le fichier d'environnement, le service n'écoute pas sur ce port : rien ne répond.
   silooo-core:
     image: "ghcr.io/e-quantum/silooo-core:${SILOOO_TAG:?SILOOO_TAG manque, lance deploy/scripts/deploy.sh avec un tag}"
     env_file: .env
     depends_on:
       silooo-migrate:
         condition: service_completed_successfully
+    ports:
+      # SILOOO_VOTIFIER_PORT (8192 par défaut, comme dans Config.kt) est le port dans le conteneur ET celui du VPS : le fichier
+      # d'environnement le donne au service (env_file) et à ce fichier. Publié sur toutes les adresses du VPS ; Kr l'ouvre dans le
+      # pare-feu quand le jeton est posé (docs/deploiement.md, « Les votes »).
+      - "${SILOOO_VOTIFIER_PORT:-8192}:${SILOOO_VOTIFIER_PORT:-8192}/tcp"
     networks: [silooo, silenemc]
     # Plan de construction : 512 Mo pour silooo-core (la JVM suit la limite, -XX:MaxRAMPercentage=75).
     mem_limit: 512m
