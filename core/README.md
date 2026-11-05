@@ -935,7 +935,11 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   compte rendu dans `#journal-du-bot`, puis on passe à `oui`. `SILOOO_DISCORD_TOKEN` et `SILOOO_DISCORD_SERVEUR` (l'identifiant
   numérique du serveur) sont des variables du compte Windows de Kr, jamais affichées. Tant que le QG n'est pas ouvert,
   `SILOOO_DISCORD_PHASE=attente` et `SILOOO_DISCORD_PUBLIC=non` : les messages privés ne partent qu'au staff et les mentions de
-  rôle ne visent que ses rôles. Avec les variables de la base et de la clé, puis `./gradlew run`. Le serveur doit être en mode
+  rôle ne visent que ses rôles. Sur le PC, [`tools/bot-pc.ps1`](../tools/bot-pc.ps1) (PowerShell, depuis la racine du dépôt)
+  fait tout : la base MariaDB dans Docker Desktop (conteneur `silooo-mariadb`, port 3306 sur 127.0.0.1 seulement, mot de
+  passe local gardé hors du dépôt dans `%LOCALAPPDATA%\Silooo`), les migrations, une clé d'API locale, puis `gradlew run`
+  avec `-Mode a-blanc` (le défaut) ou `-Mode oui`. La marche à suivre pour Kr est dans
+  [discord-passation.md](../docs/discord-passation.md), « Lancer le bot depuis le PC ». Le serveur doit être en mode
   Communauté pour les forums et le salon d'annonces ; sinon le bot le dit dans son compte rendu et crée le reste. Le bot a
   besoin des droits « Gérer les rôles » et « Gérer les salons », et de deux intentions privilégiées, « membres du serveur » et
   « contenu des messages », cochées dans le portail des développeurs.

@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 20 h 33, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 20 h 58, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -97,27 +97,40 @@ est recopiée sous l'étape qu'elle touche.
 
 ## Lancer le bot depuis le PC
 
-Constaté par la session le 5 novembre 2026. Depuis la décision de Kr (« Décisions de Kr »), le bot se lance depuis le PC,
-sur le serveur Silooo. Il manque quatre choses.
+Décidé par Kr le 5 novembre 2026 (« Décisions de Kr », point 2) : le bot se lance depuis le terminal de Kr, sur le serveur
+Silooo, avec la base dans Docker Desktop. La session a écrit [`tools/bot-pc.ps1`](../tools/bot-pc.ps1) pour que tout tienne
+dans une commande.
 
-1. **Les variables du compte.** `SILOOO_DISCORD_TOKEN` et `SILOOO_DISCORD_SERVEUR` ne sont pas visibles du terminal de la
-   session : une variable du compte Windows n'est lue qu'au démarrage d'un processus. L'application Claude doit donc être
-   relancée après leur pose, ou Kr lance le bot depuis un terminal à lui. La session ne peut pas vérifier elle-même
-   qu'elles sont posées : elle ne les affiche jamais.
-2. **Une base MariaDB.** Aucune n'est installée sur le PC et Docker Desktop est éteint. Deux voies : Kr démarre Docker
-   Desktop et la session lance un conteneur `mariadb` avec une base `silooo` (un utilisateur local, un mot de passe local
-   qui ne sort pas du PC), puis `./gradlew run --args=migrate` ; ou Kr installe MariaDB. Cette base locale ne sert qu'aux
-   essais : à la passation au VPS, c'est la base `silooo` de SileneMC qui compte, et ce que le bot a écrit sur Discord
-   pendant les essais reste (d'où « Essais à nettoyer avant l'ouverture »).
-3. **`SILOOO_API_KEY`.** Une valeur locale quelconque, posée par la session au lancement.
-4. **Le lancement.** Depuis `core/` :
+**Ce que fait Kr.**
 
-   ```
-   SILOOO_DISCORD_ACTIF=a-blanc SILOOO_DISCORD_PHASE=attente SILOOO_DISCORD_PUBLIC=non ./gradlew run
-   ```
+1. Démarrer Docker Desktop et attendre que son icône soit verte.
+2. Ouvrir un nouveau terminal PowerShell, après la pose des variables du compte (`SILOOO_DISCORD_TOKEN` et
+   `SILOOO_DISCORD_SERVEUR`), se placer à la racine du dépôt et lancer `.\tools\bot-pc.ps1`. C'est le passage à blanc : le
+   bot lit le serveur et écrit l'écart avec le plan, sans rien changer. Ctrl+C l'arrête.
+3. Lire le compte rendu dans `#📒・journal-du-bot` s'il existe, sinon dans la sortie du service, puis seulement lancer
+   `.\tools\bot-pc.ps1 -Mode oui`, qui applique le plan.
 
-   Le compte rendu va dans `#📒・journal-du-bot` s'il existe, sinon dans les journaux du service ; Kr le lit avant tout
-   passage à `oui`.
+**Ce que fait le script.** Il vérifie que Docker Desktop répond et que les deux variables du compte sont posées dans le
+terminal, sans jamais les afficher. Il crée ou redémarre le conteneur `silooo-mariadb` (image `mariadb:11`, base et
+utilisateur `silooo`, port 3306 sur 127.0.0.1 seulement), attend que la base réponde, applique les migrations
+(`gradlew run --args=migrate`), puis lance `silooo-core` avec le bot (`gradlew run`) en posant `SILOOO_DISCORD_ACTIF`
+(`-Mode a-blanc` par défaut, ou `oui`), `SILOOO_DISCORD_PHASE` (`-Phase`, `attente` par défaut) et `SILOOO_DISCORD_PUBLIC`
+(`-Public`, `non` par défaut). Le mot de passe de la base locale est tiré au premier lancement et gardé hors du dépôt, dans
+`%LOCALAPPDATA%\Silooo\mariadb-pc.txt` ; la clé d'API (`SILOOO_API_KEY`) est tirée à chaque lancement. `-Base` s'arrête
+après les migrations, pour les essais de la session. Cette base locale ne sert qu'aux essais : à la passation au VPS, c'est
+la base `silooo` de SileneMC qui compte, et ce que le bot a écrit sur Discord pendant les essais reste (d'où « Essais à
+nettoyer avant l'ouverture »).
+
+**Ce qui n'est pas vérifié.** Le script n'a tourné que sans Docker, où son premier garde-fou l'arrête : le conteneur, les
+migrations et le lancement n'ont jamais été joués par lui, et le bot n'a jamais parlé au vrai Discord. La session n'a pas pu
+démarrer Docker Desktop elle-même (refus du classificateur de permissions) : le premier lancement complet est à faire par
+Kr.
+
+**Les variables du compte.** La session ne peut pas les lire (une variable du compte Windows n'est lue qu'au démarrage d'un
+processus) et ne les affiche jamais ; seul le script, dans le terminal de Kr, vérifie qu'elles sont posées.
+
+**Côté Discord**, les conditions (intentions privilégiées, droits du bot, mode Communauté) sont celles de « À faire par
+Kr » : elles se règlent avant le premier lancement.
 
 ## Les étapes
 
@@ -416,6 +429,8 @@ AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
      le QG n'est pas ouvert, messages privés et mentions de rôle vers le staff seulement (décision 59) ; un seul bot à la
      fois, celui du PC pendant le chantier et celui du VPS après ; la liste des essais à nettoyer avant l'ouverture est
      tenue ici (« Essais à nettoyer avant l'ouverture »).
+2. **Le bot se lance depuis le terminal de Kr, la base dans Docker Desktop** (5 novembre 2026, vers 20 h 40). La session
+   prépare le script (`tools/bot-pc.ps1`) et la base, Kr lance ; la base locale ne sert qu'aux essais.
 
 ## Décisions prises sans Kr
 
@@ -606,6 +621,15 @@ AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
     les mentions de rôle d'un message sont réduites aux rôles Staff et Modération. Les mentions de membres ne changent pas.
     Sur le VPS, `SILOOO_DISCORD_ACTIF=non` reste jusqu'à la passation du bot du PC au VPS ; à l'ouverture du QG,
     `SILOOO_DISCORD_PUBLIC` passe à `oui`.
+60. **Le lancement depuis le PC passe par `tools/bot-pc.ps1`.** Pour appliquer la décision de Kr du 5 novembre à 20 h 40
+    (« Décisions de Kr », point 2), un seul script PowerShell, [tools/bot-pc.ps1](../tools/bot-pc.ps1), fait la base, les
+    migrations et le lancement. Le conteneur `silooo-mariadb` (image `mariadb:11`) n'écoute que sur 127.0.0.1. Le mot de
+    passe de la base locale (gardé dans `%LOCALAPPDATA%\Silooo\mariadb-pc.txt`) et la clé d'API (tirée à chaque lancement)
+    sont tirés au hasard et restent hors du dépôt : aucun secret dans le dépôt (`CLAUDE.md`). Le script refuse de partir
+    sans Docker Desktop et, hors `-Base`, sans les variables du compte (`SILOOO_DISCORD_TOKEN`, `SILOOO_DISCORD_SERVEUR`),
+    qu'il teste sans les afficher. Il ne connaît pas le VPS : « un seul bot à la fois » reste tenu par
+    `SILOOO_DISCORD_ACTIF=non` dans le fichier d'environnement du VPS que lit [deploy/compose.yml](../deploy/compose.yml)
+    (modèle : [deploy/exemple.env.txt](../deploy/exemple.env.txt)), `non` étant aussi le défaut du code.
 
 ## À valider par Kr
 
@@ -923,3 +947,13 @@ AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
   MariaDB (aucune installée, Docker Desktop éteint) et une `SILOOO_API_KEY` locale. Rien n'a encore tourné contre un vrai
   Discord. Suite : le premier passage à blanc dès que les variables du compte sont visibles et qu'une base est là ; puis
   le rapport du lundi.
+- 5 novembre 2026, 20 h 40 à 20 h 58 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Kr décide vers 20 h 40 de lancer le bot depuis son propre terminal, avec la base dans Docker Desktop (« Décisions de Kr »,
+  point 2). La session écrit `tools/bot-pc.ps1` : il vérifie Docker Desktop et les variables du compte, crée ou redémarre le
+  conteneur `silooo-mariadb`, applique les migrations, puis lance le bot en `-Mode a-blanc` (le défaut) ou `oui`, avec un mot
+  de passe de base local gardé hors du dépôt et une clé d'API tirée à chaque lancement (décision 60). Le classificateur de
+  permissions a refusé que la session démarre Docker Desktop elle-même : c'est Kr qui le démarre. Le script n'a tourné que
+  sans Docker (son premier garde-fou). Docs mises à jour par un agent Sonnet : ce fichier (« Lancer le bot depuis le PC »,
+  « Décisions de Kr » point 2, décision 60) et `core/README.md`. Rien n'a encore tourné contre un vrai Discord. Suite : Kr
+  démarre Docker Desktop et lance `.\tools\bot-pc.ps1` à blanc ; la session lit le compte rendu, note les essais dans
+  « Essais à nettoyer avant l'ouverture », puis le rapport du lundi.
