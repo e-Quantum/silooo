@@ -1,0 +1,1 @@
+$.entreprise.membresMax: doit être au moins 1, reçu 0

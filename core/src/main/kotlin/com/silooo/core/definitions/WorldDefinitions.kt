@@ -8,6 +8,16 @@ import kotlinx.serialization.Serializable
 data class WorldDefinitions(
     val version: Int,
     @SerialName("archipel") val archipelago: ArchipelagoDefinition,
+    @SerialName("entreprise") val company: CompanyDefinition,
+)
+
+/** L'entreprise partagée (bloc `entreprise` de monde.json) : la taille d'une entreprise et la durée d'une invitation. */
+@Serializable
+data class CompanyDefinition(
+    /** Nombre de membres au plus d'une entreprise, PDG compris. */
+    @SerialName("membresMax") val maxMembers: Int,
+    /** Durée de validité d'une invitation, en heures. */
+    @SerialName("invitationHeures") val invitationHours: Int,
 )
 
 /**

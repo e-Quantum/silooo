@@ -334,6 +334,13 @@ export type MondeDefinitions = {
       readonly z: number;
     };
   };
+  /** L'entreprise partagée : combien de joueurs elle réunit au plus, et combien de temps une invitation reste valable. */
+  readonly entreprise: {
+    /** Nombre de membres au plus d'une entreprise, PDG compris (au-delà : ENTREPRISE_PLEINE). */
+    readonly membresMax: number;
+    /** Durée de validité d'une invitation, en heures, depuis le moment où le PDG l'envoie. */
+    readonly invitationHeures: number;
+  };
 };
 
 // ---- personnel.json

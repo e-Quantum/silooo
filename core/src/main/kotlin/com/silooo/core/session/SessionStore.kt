@@ -71,6 +71,9 @@ data class StaffRecord(
     val rarity: StaffRarity,
 )
 
+/** Un membre de l'entreprise (`company_members` et le gamertag de `players`), tel que `CompanyState.members` le montre. */
+data class MemberRecord(val xuid: Xuid, val name: String, val role: Role, val sharePercent: Int)
+
 /** Grade à vie et abonnement Pilier du joueur, pour `JoinResponse.rank` et `pilierUntil`. */
 data class PlayerProfile(val rank: String?, val pilierUntil: Instant?)
 
@@ -112,6 +115,12 @@ interface SessionStore {
 
     /** Les XUID des membres de l'entreprise (PDG et associés), pour savoir si l'un d'eux est connecté. */
     fun loadMemberXuids(connection: Connection, companyId: Long): List<Xuid>
+
+    /**
+     * Les membres de l'entreprise, avec leur gamertag et leur part de Lingots : le PDG d'abord, puis les associés dans l'ordre
+     * d'arrivée (`joined_at`, puis XUID).
+     */
+    fun loadMembers(connection: Connection, companyId: Long): List<MemberRecord>
 
     /** Fige `players.last_seen_at` à maintenant. Rend faux si le joueur est inconnu. */
     fun markLeft(connection: Connection, xuid: Xuid): Boolean

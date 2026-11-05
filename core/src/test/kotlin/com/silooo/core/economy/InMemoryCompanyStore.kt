@@ -30,8 +30,8 @@ class InMemoryCompanyStore(private val sessions: InMemorySessionStore) : Company
     /** Les remises à zéro des usines demandées, avec les usines de départ passées (entreprise, usines de départ). */
     val restarts = mutableListOf<Pair<Long, Map<String, Int>>>()
 
-    /** Les parts de Lingots posées par un test (`share_percent`). Sans part posée : 100 pour le PDG, 0 pour un associé. */
-    val sharePercents = LinkedHashMap<Xuid, Int>()
+    /** Les parts de Lingots posées par un test (`share_percent`) : celles du faux [InMemorySessionStore], qui les montre aussi dans `CompanyState.members`. */
+    val sharePercents: MutableMap<Xuid, Int> get() = sessions.sharePercents
 
     override fun companyExists(connection: Connection, companyId: Long): Boolean = companyId in sessions.companies
 

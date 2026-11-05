@@ -35,6 +35,9 @@ import com.silooo.core.incident.JdbcIncidentStore
 import com.silooo.core.incident.incidentRoutes
 import com.silooo.core.incident.incidentService
 import com.silooo.core.incident.launchIncidentTicker
+import com.silooo.core.members.JdbcMemberStore
+import com.silooo.core.members.MemberStore
+import com.silooo.core.members.memberRoutes
 import com.silooo.core.mission.JdbcMissionStore
 import com.silooo.core.mission.MissionStore
 import com.silooo.core.mission.missionRoutes
@@ -105,6 +108,8 @@ class Dependencies(
     val findingStore: FindingStore = JdbcFindingStore(),
     /** Les accès SQL du personnel et de l'agence d'emploi (`staff`, `agency_candidates`). */
     val staffStore: StaffStore = JdbcStaffStore(),
+    /** Les accès SQL de l'entreprise partagée (`company_members`, `company_invites`). */
+    val memberStore: MemberStore = JdbcMemberStore(),
     /** Les accès SQL des incidents d'usine (`factory_incidents`). */
     val incidentStore: IncidentStore = JdbcIncidentStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
@@ -157,6 +162,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             findingRoutes(dependencies)
             staffRoutes(dependencies)
             cityRoutes(dependencies)
+            memberRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }

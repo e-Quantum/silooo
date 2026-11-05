@@ -33,7 +33,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
   (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
   (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
   journal de l'étape « Vérifier le dépôt » et cherche `SKIPPED` avant de conclure que tout est vert.
-- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 31 opérations. Quand une
+- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 32 opérations. Quand une
   session écrit une route, elle l'ajoute à `WRITTEN` et branche ses faux dans `contractDependencies()`.
 - Rapport complet : `core/build/reports/tests/test/index.html`.
 
@@ -465,3 +465,53 @@ niveau 1 au moins. La règle est dans `EconomyEngine.stoppedNoPower` ; `EngineFi
   ne s'arrête pas (elle ne compte déjà pas). Une Centrale en ruine, en remise en état ou au niveau 0 ne compte pas.
 - **Les tests** : `economy/EngineIncidentTest` (qui s'arrête), `economy/EngineFiguresIncidentTest` (revenu nul, salaire
   absent, deux régimes) et `incident/IncidentServiceTest` (le tirage laisse les usines arrêtées tranquilles).
+
+## L'entreprise partagée
+
+Le PDG invite des associés, l'invité accepte, le PDG fixe les parts de chacun. Trois routes : `POST /v1/companies/{companyId}/members`
+(`invite`), `POST /v1/companies/{companyId}/members/accept` (`acceptInvite`, ajoutée au contrat : 32 opérations) et
+`PUT /v1/companies/{companyId}/members` (`setShares`). Le code est dans `members/` : `MemberService` (les règles),
+`MemberRoutes`, `MemberStore` et `JdbcMemberStore` (le SQL sur `company_members` et `company_invites`). Aucune migration : les
+deux tables de V1 suffisent. Le prestige et le partage des Lingots (`PrestigeShares`) ne changent pas : ils lisaient déjà
+`share_percent`.
+
+- **Les limites** viennent de `monde.json`, bloc `entreprise` : `membresMax` (4, PDG compris) et `invitationHeures` (48). Un
+  autre monde les change sans toucher au code. Le service ne fait aucun calcul de solde ni de prix ici.
+- **`invite`** : seul le PDG (403 `PAS_LE_PDG` pour un associé). Elle garde une ligne de `company_invites` valable
+  `invitationHeures` et publie un événement `INVITATION` pour l'invité (`payload` : `companyId`, `companyName`, `invitedBy`,
+  `invitedByName`, `expiresAt`). Réinviter le même joueur renouvelle la ligne. Elle n'écrit pas l'entreprise : ni version de plus,
+  ni membre. L'état rendu est celui de l'entreprise, inchangé. Refus 409 : `DEJA_POSSEDE` (déjà membre), `ENTREPRISE_PLEINE`,
+  `ENTREPRISE_EN_COURS` (voir plus bas). Un acteur qui n'est pas de l'entreprise, un joueur que le service ne connaît pas ou le PDG
+  qui s'invite : 400 `REQUETE_INVALIDE`.
+- **`acceptInvite`** : l'acteur est l'invité. Il entre comme `ASSOCIE` avec une part de 0 % : les parts de l'entreprise font
+  toujours 100, et le PDG n'en perd aucune sans l'avoir décidé par `setShares`. Les autres invitations du joueur tombent.
+  Un événement `ANNONCE` part (`payload.action = "acceptInvite"`, avec `companyId` et `fromCompanyId`). La réponse est
+  `CompanyUpdated` pour l'entreprise rejointe. Pas d'invitation, invitation périmée, acteur sans entreprise : 400. Refus 409 :
+  `DEJA_POSSEDE` (l'invitation de sa propre entreprise), `ENTREPRISE_PLEINE`, `ENTREPRISE_EN_COURS`.
+- **Un joueur n'a qu'une entreprise, et tout joueur en a une depuis son premier `join`.** Le contrat ne dit rien de celle de
+  l'invité. Règle choisie, la plus simple et la moins destructrice (**à valider par Kr**) : l'entreprise de l'invité doit être
+  « à son départ », c'est-à-dire lui seul comme membre, ni prestige ni course ni époque, ni mairie ni silo améliorés, ni
+  personnel ni zone de ville, et exactement les usines de départ de `prestige.departDeCourse` au niveau de départ. Sinon
+  `ENTREPRISE_EN_COURS`, à l'invitation comme à l'acceptation. Quand l'invité entre, son entreprise de départ **n'est jamais
+  supprimée** : elle reste, sans membre, avec ses usines, son île et sa case de l'archipel. Le contrat n'a aucune route pour la
+  quitter, la reprendre ou la libérer ; c'est un manque à traiter avec Kr.
+- **La production de l'entreprise rejointe est versée avant l'arrivée**, au régime d'avant : en ligne si un de ses membres est
+  connecté (signal de vie), sinon hors ligne (plafond et efficacité), comme `join`. L'invité qui arrive ne compte pas : sinon
+  son arrivée transformerait en revenu plein des heures où personne ne jouait. Cette écriture passe la version de l'entreprise,
+  qui protège aussi le plafond de membres de deux arrivées simultanées.
+- **`setShares`** : seul le PDG (403 `PAS_LE_PDG`). `shares` nomme chaque membre une fois, d'un pourcentage entier de 0 à 100,
+  pour 100 en tout, PDG compris (il peut se donner 0). Une liste qui oublie un membre, en nomme un qui n'en est pas, deux fois le
+  même, hors de 0 à 100 ou qui ne fait pas 100 : 400, car c'est une requête fausse, pas un refus du jeu. La version de
+  l'entreprise monte d'un, et un événement `ANNONCE` part (`payload.action = "setShares"`, `companyId`, et `shares`, la liste
+  des `xuid` et `percent`). Un prestige qui avait lu les anciennes parts échoue en `CONFLIT_REESSAYER`.
+- **`CompanyState.members`** (ajouté au contrat, facultatif) donne le PDG d'abord, puis les associés dans l'ordre d'arrivée :
+  `xuid`, `name` (le gamertag), `role` et `sharePercent`. L'add-on ne le lit pas encore.
+- **Idempotence et conflits** : les trois routes passent par `call.idempotent` (points d'entrée `invite`, `acceptInvite`,
+  `setShares`) : un `requestId` rejoué rend la réponse gardée. Une version dépassée donne 409 `CONFLIT_REESSAYER`. Tout est écrit
+  dans une seule transaction, événement compris : si la publication échoue, l'arrivée et l'invitation sont annulées.
+- **Les tests** : `members/MemberServiceTest` (la règle « entreprise déjà lancée » cas par cas, les limites de `definitions/`),
+  `members/MemberRoutesTest` (sans base : les trois routes, refus, 400, rejeu, conflit, régime à l'arrivée),
+  `ContractTest` (`invite`, `acceptInvite` et `setShares` sont dans `WRITTEN`), `DefinitionsLoaderTest` pour les clés, et
+  `members/MemberSqlTest` (MariaDB, CI) : lignes, événements et version écrits et annulés ensemble, le plafond de membres et
+  un invité pris par deux entreprises sous concurrence.
+

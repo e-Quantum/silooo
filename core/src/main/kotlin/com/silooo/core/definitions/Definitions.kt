@@ -175,6 +175,8 @@ internal object DefinitionsChecks {
         val grid = world.archipelago
         check(grid.slotSpacing >= 1) { "monde.json : archipel.ecartEntreCases doit être au moins 1" }
         check(grid.slotsPerRow >= 1) { "monde.json : archipel.casesParRangee doit être au moins 1" }
+        check(world.company.maxMembers >= 1) { "monde.json : entreprise.membresMax doit être au moins 1" }
+        check(world.company.invitationHours >= 1) { "monde.json : entreprise.invitationHeures doit être au moins 1" }
 
         check(missions.missions.isNotEmpty()) { "missions.json : missions ne doit pas être vide" }
         val missionIds = missions.missions.map { it.id }

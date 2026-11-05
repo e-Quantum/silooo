@@ -2,6 +2,7 @@ package com.silooo.core.economy
 
 import com.silooo.core.api.CityState
 import com.silooo.core.api.FactoryState
+import com.silooo.core.api.Member
 import com.silooo.core.api.Staff
 import com.silooo.core.db.CompanyColumn
 import com.silooo.core.db.updateCompany
@@ -83,6 +84,7 @@ class EngineFigures(
             },
             staff = staff.map { member -> staffView(member, running, multiplier, slowdowns, member.id in housed) },
             city = cityState,
+            members = store.loadMembers(connection, company.id).map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
         )
     }
 

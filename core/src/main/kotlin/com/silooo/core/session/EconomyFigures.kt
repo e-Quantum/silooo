@@ -1,6 +1,7 @@
 package com.silooo.core.session
 
 import com.silooo.core.api.CityState
+import com.silooo.core.api.Member
 import com.silooo.core.api.Staff
 import java.sql.Connection
 import java.time.Instant
@@ -21,7 +22,7 @@ data class FactoryFigures(
 /**
  * Les chiffres d'une entreprise (schéma `CompanyState`), avec ceux de chacune de ses usines et de son personnel.
  * [ratePerHour] est net des salaires et bonus de production compris ; [staff] est le personnel embauché, avec ses
- * chiffres (salaire, bonus) déjà calculés par le moteur.
+ * chiffres (salaire, bonus) déjà calculés par le moteur ; [members] sont ses membres, avec leur part de Lingots.
  */
 class CompanyFigures(
     val ratePerHour: Double,
@@ -31,6 +32,7 @@ class CompanyFigures(
     val staff: List<Staff> = emptyList(),
     /** La ville, quand le moteur en a une source (voir `EngineFigures`) ; `null` sinon, et le champ n'est pas écrit. */
     val city: CityState? = null,
+    val members: List<Member> = emptyList(),
 ) {
     /** Les chiffres de l'usine [factoryId]. Une usine que le moteur ne connaît pas n'a pas de chiffres : zéro. */
     fun forFactory(factoryId: String): FactoryFigures = factories[factoryId] ?: FactoryFigures(0.0, 0.0, 0)
