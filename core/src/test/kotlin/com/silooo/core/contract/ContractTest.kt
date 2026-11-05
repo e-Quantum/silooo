@@ -492,6 +492,6 @@ class ContractTest {
          * arrivée simultanés peuvent se heurter, et le service rend alors 409 CONFLIT_REESSAYER après ses essais. Le
          * contrat de `leave` ne déclare que 204 : à signaler à la direction, jamais une tolérance durable.
          */
-        val KNOWN_409_GAPS = setOf("leave")
+        val KNOWN_409_GAPS = emptySet<String>()
     }
 }

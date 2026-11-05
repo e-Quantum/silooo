@@ -113,6 +113,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '409': { $ref: '#/components/responses/Refused' }
         '204': { description: noté }
 
   /v1/companies/{companyId}:
@@ -152,7 +153,7 @@ paths:
                 required: [collected, offlineHours, state]
                 properties:
                   collected: { $ref: '#/components/schemas/Donar' }
-                  offlineHours: { type: number, description: 'heures comptées, plafond appliqué' }
+                  offlineHours: { type: number, description: 'heures comptées : pleines en régime en ligne, plafonnées par l''entreprise en régime hors ligne' }
                   state: { $ref: '#/components/schemas/CompanyState' }
 
   /v1/companies/{companyId}/factories/{factoryId}/levels:

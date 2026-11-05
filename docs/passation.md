@@ -80,11 +80,11 @@ Condition de sortie (plan) : la première heure du storyboard se joue de bout en
 demande un BDS déployé (phase 2, « À faire par Kr ») ; tout le reste avance sans Kr. Ouverte le 5 novembre 2026
 pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (décision 24).
 
-- [ ] silooo-core : `getCompany` (l'état `CompanyState` d'après le moteur : revenu, multiplicateur, seuil, usines avec prix du niveau suivant et prochain palier)
-- [ ] silooo-core : `collect` (production depuis `last_collect_at`, plafond hors ligne, Donar crédité à l'entreprise, événement publié)
-- [ ] silooo-core : `buyLevels` (`1`, `10`, `palier`, `max` par `BuyAmount`, prix du moteur, refus quand le Donar manque, paliers ×2, événement publié)
-- [ ] silooo-core : `restoreStep` (les quatre étapes de remise en état d'une usine `EN_RUINE` puis `REMISE_EN_ETAT` jusqu'à `ACTIVE`, événement publié)
-- [ ] silooo-core : tests SQL sur MariaDB pour ces quatre routes, `WRITTEN` du test de contrat étendu, idempotence et verrou optimiste sur chacune
+- [x] silooo-core : `getCompany` (l'état `CompanyState` d'après le moteur : revenu, multiplicateur, seuil, usines avec prix du niveau suivant et prochain palier)
+- [x] silooo-core : `collect` (production depuis `last_collect_at` en deux régimes, décision 27 ; Donar crédité à l'entreprise, événement publié)
+- [x] silooo-core : `buyLevels` (`1`, `10`, `palier`, `max` par `BuyAmount`, prix du moteur, refus `PAS_ASSEZ_DE_DONAR` avec la somme manquante, paliers ×2, événement publié)
+- [x] silooo-core : `restoreStep` (les quatre étapes de remise en état d'une usine `EN_RUINE` puis `REMISE_EN_ETAT` jusqu'à `ACTIVE`, gratuites tant que `definitions/` ne les chiffre pas, événement publié)
+- [x] silooo-core : tests SQL sur MariaDB pour ces quatre routes (`CompanySqlTest`, 13 tests passés dans la CI), `WRITTEN` du test de contrat étendu aux huit opérations écrites, idempotence et verrou optimiste sur chacune
 - [ ] add-on : les usines de l'époque 1 posées sur l'île du joueur, compteur de Donar qui défile entre deux réponses du service (affichage seul, le service reste la vérité à chaque `collect`)
 - [ ] add-on : HUD en trois étages (`docs/design.md`), menu à tuiles et fiches d'usine (`server-ui`), achat de niveaux et paliers ×2 affichés
 - [ ] add-on : le Silo (collecte et plafond hors ligne) et la remise en état d'une usine en quatre étapes
@@ -99,6 +99,8 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
+- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine
+- [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`)
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI, et une clé de lecture du registre `ghcr.io` pour le VPS
@@ -205,6 +207,14 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
     tant qu'elle n'est pas épinglée, le MD5 publié par Mojang, et journalise la somme à épingler), puis décompresse
     une fois dans le volume. La version reste épinglée et contrôlée, comme le plan le veut ; seul le lieu du
     téléchargement change. À relire par Kr.
+27. **La production se verse en deux régimes.** Tant qu'un membre de l'entreprise est connecté, la production depuis
+    `last_collect_at` se paie au revenu plein, sans plafond ni efficacité : c'est ce que le compteur du HUD montre
+    (`docs/socle.md`, règle 2) et ce que « première vente en 2 minutes » demande. Entre le départ du dernier membre
+    et l'arrivée du suivant, c'est la formule hors ligne (plafond de l'entreprise, `horsLigne.efficacite`). `leave`
+    verse et remet `last_collect_at` ; `join` verse (régime en ligne si un autre membre est connecté d'après le
+    dernier `heartbeat`, hors ligne sinon) et remet la date même à gain nul. Le sous-agent avait d'abord payé le
+    joueur connecté à l'efficacité hors ligne : corrigé avant fusion. `leave` déclare désormais le 409 dans le
+    contrat. Règles détaillées dans `docs/economie.md`, à valider par Kr.
 
 ## À valider par Kr
 
@@ -215,6 +225,9 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - Le nom du pack « Silooo » et sa description « Pack de comportement du jeu Silooo. » (`addon/manifest.json`),
   visibles dans la liste des packs du monde. Aucun autre texte de joueur n'a été écrit.
 - L'identité provisoire des joueurs par empreinte du gamertag (décision 25).
+- Les règles des routes d'économie (`docs/economie.md`) : production en deux régimes (décision 27) ; `max` achète
+  tout ce que le solde paie et ne refuse que si pas même un niveau ; remise en état gratuite en quatre étapes, niveau
+  final `max(niveau, departDeCourse.niveau)` ; `heartbeat` de moins de 30 s = joueur connecté.
 - Les valeurs de `definitions/monde.json` (`ecartEntreCases` 600, `casesParRangee` 64, `origine` (0, 0)) et
   `prestige.facteurSeuilSuivant` = 1000 dans `definitions/economie.json` (`docs/economie.md`, historique du 5 nov.).
 - Trois règles du hors ligne prises par le branchement (`docs/economie.md`) : l'absence se compte depuis
@@ -295,3 +308,8 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
   - Décisions prises seul depuis 5 h 40 : 21 à 26. Textes nouveaux à valider : nom du pack, description du pack,
     nom du serveur « Silooo » (`BDS_SERVER_NAME`), et ceux que la tranche d'écrans apportera.
   - Vérifier : `git log --oneline -8 origin/main`, `gh run list --branch main --limit 3`.
+- **5 novembre 2026, 8 h 30 : direction, routes d'économie fusionnées.** `claude/phase3-economie-routes` en avance
+  rapide (`bbf0c88`, trois commits dont une fusion de `main` : `CompanyRoutes`, `CompanyService`, `JdbcCompanyStore`,
+  `CompanyStates`, deux régimes de production, 58 tests dont 14 SQL passés dans la CI). Contrat : `leave` déclare le
+  409, `offlineHours` décrit les deux régimes, `KNOWN_409_GAPS` vide. Cinq cases de la phase 3 cochées côté service.
+  Décision 27, trous de contrat et de définitions notés pour Kr. Vérifier : `git log --oneline -5 origin/main`.
