@@ -125,6 +125,23 @@ function controler(plan, fichier, couleurs, erreurs) {
     });
   });
 
+  const questions = plan.accueil?.questions ?? [];
+  unique(erreurs, fichier, "accueil.questions", "la question", questions.map((q) => q.id));
+  questions.forEach((question, qi) => {
+    const ici = `accueil.questions[${qi}]`;
+    if (typeof question.titre === "string" && EMOJI.test(question.titre)) erreurs.push(`${fichier}: ${ici}.titre: contient un emoji`);
+    const reponses = question.options ?? [];
+    unique(erreurs, fichier, `${ici}.options`, "le rôle", reponses.map((r) => r.role));
+    reponses.forEach((reponse, ri) => {
+      const la = `${ici}.options[${ri}]`;
+      if (!idsRoles.has(reponse.role)) erreurs.push(`${fichier}: ${la}.role: le rôle « ${reponse.role} » n'existe pas`);
+      if (typeof reponse.emoji === "string" && !unSeulEmoji(reponse.emoji)) {
+        erreurs.push(`${fichier}: ${la}.emoji: un seul emoji, et rien d'autre (« ${reponse.emoji} »)`);
+      }
+      if (typeof reponse.titre === "string" && EMOJI.test(reponse.titre)) erreurs.push(`${fichier}: ${la}.titre: contient un emoji ; il va dans la clé emoji`);
+    });
+  });
+
   const journal = salons.find((s) => s.id === JOURNAL);
   if (!journal) erreurs.push(`${fichier}: categories: aucun salon « ${JOURNAL} », où le bot écrit ses comptes rendus`);
   else if (journal.type !== "texte") erreurs.push(`${fichier}: categories: le salon « ${JOURNAL} » doit être un salon texte`);

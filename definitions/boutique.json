@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "commentaire": "Calque sur SileneMC (bw.core.shop.Shop.kt, releve le 4 nov. 2026) ; Gemmes au meme taux que les cristaux. Cosmetiques, boost collectif et noms des abonnements : tranche 5 du 5 nov. 2026, prix et noms a valider par Kr.",
+  "commentaire": "Calque sur SileneMC (bw.core.shop.Shop.kt, releve le 4 nov. 2026) ; Gemmes au meme taux que les cristaux. Cosmetiques, boost collectif et noms des abonnements : tranche 5 du 5 nov. 2026, prix et noms a valider par Kr. Les cinq cosmetiques s1-* ne sont pas vendus (achetable a faux, prix 0) : le pass de saison les donne (pass.json, piste premium), et leurs noms sont a valider par Kr.",
   "packsGemmes": [
     {
       "gemmes": 50,
@@ -196,6 +196,41 @@
       "categorie": "titre",
       "prixGemmes": 120,
       "achetable": true
+    },
+    {
+      "id": "s1-fanion",
+      "nom": "Fanion de la saison 1",
+      "categorie": "decor",
+      "prixGemmes": 0,
+      "achetable": false
+    },
+    {
+      "id": "s1-lanterne",
+      "nom": "Lanterne de la saison 1",
+      "categorie": "decor",
+      "prixGemmes": 0,
+      "achetable": false
+    },
+    {
+      "id": "s1-chat-livreur",
+      "nom": "Chat livreur",
+      "categorie": "pet",
+      "prixGemmes": 0,
+      "achetable": false
+    },
+    {
+      "id": "s1-sillage-dore",
+      "nom": "Sillage doré",
+      "categorie": "effetPrestige",
+      "prixGemmes": 0,
+      "achetable": false
+    },
+    {
+      "id": "s1-titre-fondateur",
+      "nom": "Fondateur",
+      "categorie": "titre",
+      "prixGemmes": 0,
+      "achetable": false
     }
   ],
   "boostCollectif": {

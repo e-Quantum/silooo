@@ -16,6 +16,7 @@ import com.silooo.core.definitions.MissionEvent
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.findings.FindingService
 import com.silooo.core.mission.MissionService
+import com.silooo.core.pass.PassService
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryRecord
@@ -71,6 +72,8 @@ class CompanyService(
     private val figures: EconomyFigures,
     private val missions: MissionService,
     private val findings: FindingService,
+    /** Le pass de saison : un prestige rapporte des points à chaque associé. `null` : pas de pass (les tests qui n'en ont pas besoin). */
+    private val pass: PassService? = null,
 ) {
     private val knownFactories: Set<String> = engine.factoryIds().toSet()
 
@@ -297,6 +300,8 @@ class CompanyService(
         val refId = "entreprise-$companyId-course-$course"
         for (share in shares) {
             if (share.lingots > 0) companies.creditLingots(connection, share.xuid, share.lingots, REASON_PRESTIGE, refId)
+            // Les points du pass viennent après les Lingots du même membre : les verrous se prennent dans le même ordre que partout.
+            pass?.onPrestige(connection, share.xuid)
         }
         companies.recordPrestige(
             connection,

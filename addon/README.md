@@ -547,6 +547,10 @@ dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phr
 | Refus `DEJA_POSSEDE`, bulle fière | rien | Tu l'as déjà. |
 | Refus `GRADE_PRECEDENT_REQUIS` | rien | Il faut d'abord le grade précédent. |
 | Refus `CONFLIT_REESSAYER`, si le second essai échoue aussi | rien | Ça a bougé. Réessaie. |
+| Refus `PALIER_NON_ATTEINT` du pass (à valider par Kr ; avec la somme, puis sans) | rien | Il te manque `<somme>` points. Pour un seul point : Il te manque 1 point. Sans somme : Il te manque des points. |
+| Refus `DEJA_RECLAME` du pass (à valider par Kr) | rien | Tu as déjà réclamé ce palier. |
+| Refus `PREMIUM_REQUIS` du pass (à valider par Kr) | rien | Cette piste demande le pass premium. |
+| Refus `SAISON_INACTIVE` du pass (à valider par Kr) | rien | La saison n'est pas en cours. |
 | Bulle joie, fin de la mission `bienvenue-mairie` (dite dans le tchat, avant la ligne Récompense) | rien | Premier encaissement, bien joué ! |
 | Bulle joie, fin d'une mission dont l'add-on n'a pas les textes | rien | Bien joué, patron ! |
 

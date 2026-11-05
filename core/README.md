@@ -120,7 +120,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
-| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel, votes) : classes typées et `DefinitionsLoader` |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel, votes, pass) : classes typées et `DefinitionsLoader` |
 | `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne, découverte des usines ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`, `prestigePreview`, `prestige`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock (`ServerPresence`, la source de présence de `join`) |
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
@@ -129,7 +129,8 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, cosmétiques, boost, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `player_cosmetics`, `server_boosts`, `shop_purchases`, `shop_deliveries`, `site_registrations` en lecture, Gemmes), `ShopFigures` (les bonus de Donar du PDG et le boost collectif que le moteur lit), `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) et `PioneerTitle` (le titre Pionnier, donné au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -717,6 +718,57 @@ Ce que le contrat et les docs ne disent pas encore :
 - `todayVotes` rend `streakGoalDays` et `mine.streak` mais pas le nombre de jours avant le bonus : l'add-on le calcule (objectif moins
   série, modulo l'objectif).
 
+## Le pass côté service
+
+Deux routes que le contrat déclarait déjà sans les décrire, `getPass` (`GET /v1/pass?actor=`) et `claimPass` (`POST /v1/pass/claims`) : le
+contrat reste à 33 opérations, avec les schémas `PassState` et `PassClaimed` et quatre codes de refus de plus. Un article de plus dans la
+boutique, `pass-premium`. Le service décide de tout (les points, ce qui est
+versé, le prix) ; l'add-on n'a qu'à afficher `PassState`. Les règles et le tableau des chiffres sont dans `docs/economie.md`, section
+« Le pass de saison » ; les chiffres eux-mêmes dans `definitions/pass.json`, **tous à valider par Kr**.
+
+- **Le code** est dans `pass/` : `PassRoutes` (la forme de la requête), `PassService` (`state`, `claim`, les trois points d'entrée des
+  points, les deux gestes que demande la boutique), `PassRules` (les règles pures : saison, refus, forme de `PassState`), `PassStore` et
+  `JdbcPassStore` (le SQL sur `season_pass` et `season_claims`, le crédit en Lingots, `player_cosmetics`). `Dependencies.pass` peut être
+  nul : sans lui, les deux routes ne sont pas posées (le filet 501 répond) et la boutique ne vend pas `pass-premium`, ce qui laisse les
+  tests qui n'en ont pas besoin tels quels.
+- **Sans migration** : `season_pass` et `season_claims` existent depuis `V1__init.sql` et suffisent. Aucune dépendance de plus.
+- **Les points** ne passent par aucune route. `CompanyService.prestige` appelle `onPrestige` pour chaque associé, `OrderService` appelle
+  `onOrderCompleted` pour chaque contributeur quand la commande se termine, `MissionService` appelle `onMissionCompleted`. Chaque appel est
+  fait dans la transaction de l'action, après le crédit de Lingots de la même action, et n'écrit rien hors saison.
+- **`claimPass`** : les cas de 400 (palier ou piste sans récompense, acteur inconnu) tombent avant toute écriture, puis les verrous
+  (la ligne de soldes du joueur, puis celle du pass), puis les refus du jeu (`DEJA_RECLAME`, `PREMIUM_REQUIS`, `PALIER_NON_ATTEINT` avec
+  `missing`), puis le palier est noté (clé primaire de `season_claims`) et la récompense donnée : des Lingots (`creditBalance`, motif
+  `pass`, référence `saison:palier:piste`) ou un cosmétique (`player_cosmetics`, source `pass`, un cosmétique déjà possédé n'empêche rien).
+  Un `requestId` rejoué rend la même réponse, par `call.idempotent`.
+- **L'ordre des verrous** est toujours : la ligne de soldes du joueur, puis la ligne de son pass. C'est celui des actions qui versent des
+  Lingots avant de compter des points. Un achat offert (`forXuid`) prend les verrous du destinataire après ceux de l'acheteur : une
+  impasse très rare avec un prestige du destinataire reste possible, MariaDB la détecte, une des deux transactions est annulée et le
+  client reçoit `CONFLIT_REESSAYER`.
+- **`buyItem` `pass-premium`** : le prix vient de `pass.json`, jamais du code de la boutique ; refusé hors saison (`SAISON_INACTIVE`) et
+  si le destinataire l'a déjà (`DEJA_POSSEDE`) ; l'achat et l'ouverture de la piste tiennent dans la même transaction. `catalog` le
+  montre en dernier, avec `owned` et `available`.
+- **Les quatre codes de refus** que le pass ajoute à `Refused.reason` : `PALIER_NON_ATTEINT`, `DEJA_RECLAME`, `PREMIUM_REQUIS`,
+  `SAISON_INACTIVE` (déclarés dans `api/silooo-core.openapi.yaml`, repris par `RefusalCodes.ALL`, que `ContractTest` compare à l'enum).
+
+Les tests : `PassRulesTest` (les règles, sans base), `PassRoutesTest` (HTTP avec un faux dépôt : état, réclamation, rejeu, refus, 400,
+achat, cadeau, catalogue), `PassPointsTest` (les trois sources de points, hors saison, rejeu), `PassSqlTest` (le SQL réel, la
+concurrence, le parcours HTTP ; ignoré sans Docker comme les autres `*SqlTest`), `DefinitionsLoaderTest` (le fichier et ses refus) et
+`ContractTest` (conformité des deux routes et des refus au contrat). Un faux dépôt (`InMemoryPassStore`) remplace la base ailleurs. Les
+chiffres attendus viennent de `definitions/pass.json`, jamais d'un littéral.
+
+Ce que le contrat et les docs ne disent pas encore :
+
+- Le contrat dit `tier` entier, mais comme partout dans le service, un nombre écrit entre guillemets (`"1"`) est lu comme un nombre : la
+  négociation de contenu est celle de toutes les routes.
+- Les cinq cosmétiques de `pass.json` (`s1-fanion`, `s1-lanterne`, `s1-chat-livreur`, `s1-sillage-dore`, `s1-titre-fondateur`) sont
+  déclarés dans `boutique.json` (`cosmetiques`, `achetable` à faux, prix 0), avec des noms **à valider par Kr**. Le chargeur
+  (`DefinitionsChecks`) et `tools/verifier_definitions.mjs` refusent un cosmétique du pass que `boutique.json` ne déclare pas ou
+  qu'elle vend (deux cas dans `tools/tests/definitions-invalides/pass-cosmetique-*`). La règle « pas vendu » n'est pas propre au titre
+  Pionnier : `ShopRules.cosmetics` ne garde que les cosmétiques `achetable`, donc `buyItem` refuse (400) tout autre, pour soi et en
+  cadeau, et le catalogue ne le liste jamais, possédé ou non ; `claimPass` écrit `player_cosmetics` (source `pass`) sans passer par
+  cette règle, et `join` les montre dans `cosmetics`.
+- `PassState` ne dit pas combien de paliers manquent ni les points du palier suivant : l'add-on les lit dans `tiers`.
+
 ## Le site
 
 Le site public `silooo.com` est un module de silooo-core (ADR 0006), pas un service à part. Le paquet est
@@ -802,25 +854,38 @@ ne le publie jamais.
   - **Les tests** : `site/SiteStatsTest` (accueil, semaine, classements, fiches, caches, aucun XUID), `site/PayNowWebhookTest`,
     `ConfigPayNowTest`, et sur MariaDB (ignorés sans Docker) `sitedata/SiteStatsSqlTest` et `sitedata/ShopDeliverySqlTest`.
   - **Mettre en ligne** : la marche à suivre est dans `docs/site.md`, section « Mettre en ligne ».
-- **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
-  copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
+- **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Les logos, les
+  jetons, les textures, les icônes et Oooscar ne sont pas dans `core/` : Gradle les copie de `design/` dans les ressources à la
+  construction (`processResources` de `build.gradle.kts` ; l'image Docker reçoit `design/` à côté de `core/`), et `SiteAtelierTest`
+  compare chaque copie à sa source octet pour octet. `robots.txt` et `sitemap.xml` (les pages du mode, une fois chacune) ont une
+  heure de cache.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
   « Lancer »), puis `http://localhost:8081/`. Sans la variable, le site est en `attente`.
 - **Les tests** (sans base) : `site/SiteModuleTest` (les deux modes, `lang`, un seul `h1`, `title`, `description`, `alt`, les
-  en-têtes, le 404, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, et `ConfigTest` pour les variables.
+  en-têtes, le 404, `robots.txt` et `sitemap.xml`, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, `site/SiteAtelierTest`,
+  `site/EmpreinteTest`, et `ConfigTest` pour les variables.
 - **Les textes** vus par les visiteurs passent `tools/anti_ia.py` (contenus Markdown en entier, littéraux du paquet `site`), et chaque
   texte neuf reste à valider par Kr.
-- **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`) : `public/site.css` est l'unique feuille liée, elle importe
-  `atelier/tokens.css` puis `atelier.css` (composants `sa-*` et mise en page). Les jetons, les textures (`atelier/textures/`), les
-  icônes, Oooscar (`atelier/oooscar/`) et les logos (`logo/`) sont des copies de `design/` ; `SiteAtelierTest` les compare à la
-  source octet pour octet et refuse un `url(...)` sans fichier, un arrondi, un dégradé, un flou ou une largeur fixe au-dessus de
-  360 px. Les polices (`polices/`, `woff2` latin tirés de `@fontsource/*`, licence OFL) sont servies par le site.
-- **Ajouter un composant** : le dessiner d'abord dans `design/` (texture dans `design/textures/`, règle dans `design/composants/`),
-  recopier la texture dans `public/atelier/textures/`, écrire la règle dans `atelier.css` avec le même nom `sa-*` et la même bordure
-  de `border-image` que `bundle.css`, puis ajouter la texture à la liste du test de copie si besoin.
-- **Voir les pages dans un navigateur** sans base : `SILOOO_SITE_RENDER_DIR=/tmp/site ./gradlew test --tests '*SiteRenderToDisk'`
-  écrit les pages rendues et `public/` dans ce dossier ; on le sert avec n'importe quel serveur de fichiers (ce test est ignoré
-  quand la variable n'est pas posée).
+- **Le style** (Silooo Atelier pour le web, détail dans `docs/site.md`, « Style ») : `public/site.css` est l'unique feuille liée, elle
+  importe `atelier/tokens.css` (copie de `design/tokens.css`), `atelier/composants.css` (`design/composants/bundle.css` où Gradle
+  remplace chaque adresse `/_blob/<id>` par la texture de `atelier/textures/`, table `atelierBlobs` de `build.gradle.kts`) puis
+  `atelier.css` (polices, base, les réglages que le web demande aux composants, la mise en page). `SiteAtelierTest` vérifie que
+  `composants.css` et `bundle.css` ne diffèrent que par ces adresses, et refuse un `url(...)` sans fichier, un arrondi, un dégradé,
+  un flou, une largeur fixe au-dessus de 360 px, et un `border-image` dans `atelier.css` (un composant se dessine dans `design/`).
+  Les polices (`polices/`, `woff2` latin tirés de `@fontsource/*`, licence OFL) sont servies par le site.
+- **Ajouter un composant** : le dessiner dans `design/` (texture dans `design/textures/`, règle dans `design/composants/bundle.css`
+  avec une adresse `/_blob/<id>`), ajouter l'adresse à `atelierBlobs` dans `build.gradle.kts` et à la table de `docs/site.md`. Rien
+  à recopier. Un réglage propre au web (marge, soulignement, interligne) va dans `atelier.css`, jamais un `border-image`.
+- **Voir les pages dans un navigateur** sans base : `./gradlew test` écrit les pages rendues et `public/` dans
+  `core/build/site-rendu/` (`SiteRenderToDisk`, Gradle pose `SILOOO_SITE_RENDER_DIR`) ; `node tools/verifier_site.mjs` les ouvre
+  dans Chromium à 360 et 1 280 px (débordement, erreurs de console, requêtes en échec, images sans `alt`) et `--captures <dossier>`
+  en écrit les captures. `tools/verifier.sh` enchaîne les deux.
+- **L'empreinte d'un gamertag** (`site/Empreinte.kt`) : le `provisionalXuid` de l'add-on (`addon/src/identity.ts`), FNV-1a 64 bits
+  sur les unités UTF-16 du gamertag en minuscules et sans espaces autour, en décimal ; `EmpreinteTest` tient les vecteurs calculés
+  avec l'add-on. Elle retrouve un joueur de `players` depuis la boutique, la liaison Discord ou la connexion Xbox (décision 25).
+- **L'image de partage** (`public/partage.png`, 1200 sur 630 : le logo, le nom sur une plaque, Oooscar et sa bulle) est l'`og:image`
+  de chaque page. Elle se refait avec `node tools/partage/capturer.mjs` (Chromium rend `tools/partage/partage.html` avec le
+  `public/` de `core/build/site-rendu/`).
 
 ## Le Discord
 
@@ -851,9 +916,19 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   Discord) ou du texte, avec boutons, menu, image ; les formulaires et les commandes ont leurs modèles. `discord/jda/JdaMessages`
   et `JdaEvents` traduisent dans les deux sens. Les chiffres du Discord sont dans `definitions/discord.json`
   (`DiscordDefinitions`, chargé à part du jeu, vérifié contre le plan : rôles et salons cités, niveaux qui montent) ; ses tables
-  sont celles de la migration V8, toutes préfixées `discord_`.
+  sont celles de la migration V10, toutes préfixées `discord_`.
+- **L'accueil guidé.** La clé `accueil` du plan : des questions dont chaque réponse donne un rôle du plan (la plateforme, une
+  seule réponse, obligatoire ; les notifications, plusieurs). `OnboardingPlanner` en fait l'état que Discord attend, avec pour
+  salons par défaut tous les salons publics de la phase, et compte avant d'envoyer la règle de Discord (7 salons par défaut, dont
+  5 où tout le monde écrit) ; `OnboardingSync` compare à ce que le serveur a, identifiants mis à part, et garde ceux que Discord
+  connaît ; `OnboardingApplier` ne renvoie rien si tout est en place, dit ce qu'il poserait à blanc, et met un refus dans les
+  échecs du compte rendu. JDA ne couvre pas l'accueil guidé : `discord/rest/DiscordRest` l'envoie en REST (`GET` et `PUT
+  /guilds/{id}/onboarding`) avec le client Ktor du service, le jeton dans le seul en-tête `Authorization`, un refus rendu avec son
+  code HTTP et le message de Discord. Le Guide du serveur, lui, n'a pas d'API : `docs/discord-guide.md` dit ce que Kr pose.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
-  sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/DiscordBotTest`
+  sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
+  (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
+  `discord/rest/DiscordRestTest` (la requête telle que Discord l'attend sur un `MockEngine`, les refus sans le jeton), `discord/DiscordBotTest`
   (rien ne lève, le jeton ne s'affiche pas, les événements servis jusqu'à `close`), `discord/BotRuntimeTest` (l'ordre, l'isolement,
   la file pleine, les minuteries), `discord/DiscordDefinitionsTest` (le fichier du dépôt colle au plan, la formule des niveaux),
   `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans `build/mesure-memoire-discord.txt`) et

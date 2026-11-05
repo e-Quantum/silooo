@@ -2,6 +2,7 @@ package com.silooo.core.site
 
 import com.silooo.core.TestDefinitions
 import java.net.URI
+import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertArrayEquals
@@ -12,40 +13,58 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /**
- * Silooo Atelier sur le web : ce qui est copié de `design/` l'est à l'octet près, le CSS n'emploie rien de ce que la
- * charte bannit, et chaque fichier qu'il cite existe dans les ressources du site. Le dossier `design/` reste la source.
+ * Silooo Atelier sur le web : ce que Gradle copie de `design/` l'est à l'octet près, `composants.css` est `bundle.css` aux
+ * adresses des textures près, le CSS n'emploie rien de ce que la charte bannit, et chaque fichier qu'il cite existe dans les
+ * ressources du site. Le dossier `design/` reste la source ; les copies ne sont pas dans le dépôt, `core/build.gradle.kts` les pose.
  */
 class SiteAtelierTest {
     private val design: Path = TestDefinitions.directory.resolveSibling("design")
 
-    /** Le dossier `site/public/` des ressources, tel que Gradle l'a posé pour les tests. */
+    /** Le dossier `site/public/` des ressources, tel que Gradle l'a composé pour les tests. */
     private val publicDir: Path = Path.of(checkNotNull(SiteAtelierTest::class.java.classLoader.getResource("site/public")).toURI())
 
     private fun filesIn(directory: Path): List<Path> = Files.list(directory).use { files -> files.filter { Files.isRegularFile(it) }.sorted().toList() }
 
-    private fun stylesheets(): List<Path> = listOf(publicDir.resolve("site.css"), publicDir.resolve("atelier.css"), publicDir.resolve("atelier/tokens.css"))
+    private fun stylesheets(): List<Path> =
+        listOf(publicDir.resolve("site.css"), publicDir.resolve("atelier.css"), publicDir.resolve("atelier/composants.css"), publicDir.resolve("atelier/tokens.css"))
 
     private fun assertCopy(source: Path, copy: Path) {
-        assertTrue(Files.exists(copy), "${publicDir.relativize(copy)} manque")
+        assertTrue(Files.exists(copy), "${publicDir.relativize(copy)} manque : Gradle le copie de design/ (processResources)")
         assertArrayEquals(
             Files.readAllBytes(source),
             Files.readAllBytes(copy),
-            "${publicDir.relativize(copy)} n'est pas la copie de design/${design.relativize(source)} : recopie la source, ne retouche pas la copie",
+            "${publicDir.relativize(copy)} n'est pas la copie de design/${design.relativize(source)} : la copie vient de Gradle, relance ./gradlew processResources",
         )
     }
 
     @Test
-    @DisplayName("Les jetons, textures, icônes, Oooscar et logos du site sont les copies exactes de design/")
+    @DisplayName("Les jetons, textures, icônes, Oooscar et logos du site sont les copies exactes de design/, en entier")
     fun copiesAreExact() {
         assertCopy(design.resolve("tokens.css"), publicDir.resolve("atelier/tokens.css"))
         val folders = mapOf("atelier/textures" to "textures", "atelier/icones" to "icones", "atelier/oooscar" to "mascotte", "logo" to "logo")
         for ((served, source) in folders) {
             val copies = filesIn(publicDir.resolve(served))
-            assertTrue(copies.isNotEmpty(), "$served est vide")
+            // Tout le dossier source est là : les 14 icônes, les cinq visages d'Oooscar (PNG et SVG), chaque texture, chaque logo.
+            assertEquals(filesIn(design.resolve(source)).map { it.fileName }, copies.map { it.fileName }, "$served n'a pas les fichiers de design/$source")
             for (copy in copies) assertCopy(design.resolve(source).resolve(copy.fileName.toString()), copy)
         }
-        // Les 14 icônes de la charte sont toutes là, pour les pages à venir.
-        assertEquals(filesIn(design.resolve("icones")).map { it.fileName }, filesIn(publicDir.resolve("atelier/icones")).map { it.fileName })
+    }
+
+    @Test
+    @DisplayName("composants.css est bundle.css où chaque adresse /_blob/ est devenue une texture de atelier/textures/, et rien d'autre")
+    fun componentsAreDerivedFromTheBundle() {
+        val bundle = Files.readString(design.resolve("composants/bundle.css"))
+        val components = Files.readString(publicDir.resolve("atelier/composants.css"))
+        assertFalse(components.contains("/_blob/"), "composants.css garde une adresse /_blob/ : la table atelierBlobs de core/build.gradle.kts est incomplète")
+        // composants.css vit dans atelier/ : ses textures s'écrivent « textures/<fichier> », relatives à lui.
+        val blobs = Regex("""/_blob/[0-9a-f]+""").findAll(bundle).map { it.value }.toSet()
+        val textures = Regex("""textures/[a-z0-9-]+\.png""").findAll(components).map { it.value }.toSet()
+        assertEquals(blobs.size, textures.size, "autant de textures distinctes que d'adresses /_blob/ distinctes")
+        assertEquals(
+            bundle.replace(Regex("""/_blob/[0-9a-f]+"""), "§"),
+            components.replace(Regex("""textures/[a-z0-9-]+\.png"""), "§"),
+            "composants.css et bundle.css ne diffèrent que par les adresses des textures",
+        )
     }
 
     private fun urlsOf(css: String): List<String> =
@@ -82,13 +101,21 @@ class SiteAtelierTest {
     }
 
     @Test
-    @DisplayName("site.css est le point d'entrée : il importe les jetons, puis atelier.css")
+    @DisplayName("site.css est le point d'entrée : il importe les jetons, puis les composants, puis atelier.css")
     fun entryPoint() {
         assertEquals(
-            listOf("atelier/tokens.css", "atelier.css"),
+            listOf("atelier/tokens.css", "atelier/composants.css", "atelier.css"),
             urlsOf(Files.readString(publicDir.resolve("site.css"))),
-            "site.css importe d'abord les jetons, puis atelier.css",
+            "site.css importe d'abord les jetons, puis composants.css, puis atelier.css",
         )
+    }
+
+    @Test
+    @DisplayName("atelier.css ne réécrit aucun composant de la charte : il ne garde que ses réglages et la mise en page")
+    fun atelierDoesNotRewriteComponents() {
+        // Une règle qui pose un border-image entier (texture, découpe, largeur) est un composant : elle vit dans bundle.css.
+        val atelier = Files.readString(publicDir.resolve("atelier.css"))
+        assertFalse(Regex("""(?<!-)border-image\s*:""").containsMatchIn(atelier), "atelier.css redéfinit un composant (border-image) : la charte vit dans design/composants/bundle.css")
     }
 
     @Test
@@ -118,5 +145,17 @@ class SiteAtelierTest {
         assertFalse(code.contains("*/"), "un commentaire se ferme avant la fin")
         assertEquals(4, Regex("@font-face").findAll(code).count())
         assertEquals(4, Regex("font-display:\\s*swap").findAll(code).count())
+    }
+
+    @Test
+    @DisplayName("L'image de partage (logo et Oooscar) est un PNG de 1200 sur 630, assez léger pour les aperçus")
+    fun shareImage() {
+        val image = publicDir.resolve("partage.png")
+        assertTrue(Files.isRegularFile(image), "partage.png manque : node tools/verifier_site.mjs --partage la régénère")
+        val bytes = Files.readAllBytes(image)
+        assertEquals("\u0089PNG", String(bytes, 0, 4, Charsets.ISO_8859_1), "partage.png n'est pas un PNG")
+        val header = ByteBuffer.wrap(bytes, 16, 8)
+        assertEquals(1200 to 630, header.int to header.int, "partage.png fait 1200 sur 630 (la taille des aperçus Open Graph)")
+        assertTrue(bytes.size < 300_000, "partage.png pèse ${bytes.size} octets : trop lourd pour un aperçu")
     }
 }

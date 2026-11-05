@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 16 h 30, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 17 h 33, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -31,6 +31,10 @@ est recopiée sous l'étape qu'elle touche.
   derniers membres et des membres en vocal). Le bot ne boucle que si des fonctions lui sont données et hors `a-blanc`.
   Aucune fonction du QG n'existe encore : elles viennent case par case, avec `definitions/discord.json` pour leurs
   chiffres et la migration V10 pour leurs tables.
+- L'accueil guidé est écrit : la clé `accueil` du plan (deux questions, neuf réponses, chacune vers un rôle), posée en
+  REST par `OnboardingApplier` et `discord/rest/DiscordRest` une fois les salons créés, avec pour salons par défaut les
+  salons publics de la phase. Le Guide du serveur n'a pas d'API : `docs/discord-guide.md` dit ce que Kr pose (mode
+  Communauté, mot d'accueil, tâches, trois rubriques) et le brief des trois plaques pour D1.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
@@ -89,6 +93,9 @@ manière de Silooo Atelier, les images en pixel 2D tirées de `design/` sans lis
 - [ ] L'icône du serveur (512 × 512 PNG, et le GIF où le toit glisse et revient en 3 s) : même boucle
 - [ ] Les stickers (cinq humeurs, 320 × 320, 512 Ko au plus, fond transparent)
 - [ ] Les treize emojis du serveur (128 × 128, 256 Ko au plus) : les icônes de `design/` et les cinq têtes d'Oooscar
+- [ ] Les trois plaques du Guide du serveur (960 × 320, plaque émaillée de `design/composants/Plaque.md` avec l'icône
+  `carte`, `cadenas` ou `engrenage`) et leurs trois icônes (128 × 128, fond transparent), brief dans
+  `docs/discord-guide.md`, exports dans `design/discord/guide/`
 - [ ] Les bannières de jour et de nuit (960 × 540 ; 1920 × 1080 pour l'arrière-plan d'invitation) : relecture à froid,
   envoi à Kr ; la version animée plus tard
 - [ ] Les exports validés dans `design/discord/`, chacun marqué « à valider par Kr » tant qu'il ne l'est pas
@@ -108,8 +115,12 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   `DiscordDefinitions` à part du jeu et vérifiés contre le plan ; la migration **V10** (`V10__discord.sql`, V8 au départ) : membres,
   messages vivants du bot, XP, spoils, réactions, meilleurs moments, aide du mois, petits jeux et records, giveaways
   et lots, tickets, admissions, compteurs du rapport. SQL non joué sur le PC (Docker éteint) : la CI le joue
-- [ ] Les salons et les rôles de la phase `attente` dans le plan, l'accueil guidé (deux questions, rôles de plateforme
-  et de mention), le Guide du serveur et ses trois cartes (plaque émaillée et icône, en pixel)
+- [x] Les salons et les rôles de la phase `attente` dans le plan (`#💡・suggestions` dès l'attente, les trois vocaux
+  d'info en écriture bot seul), l'accueil guidé (la clé `accueil` : « Tu joues sur quoi ? », une réponse obligatoire
+  vers Console, Téléphone ou PC ; « Tu veux être prévenu de quoi ? », six réponses vers les rôles de notification ;
+  `OnboardingPlanner`, `OnboardingSync`, `OnboardingApplier`, `discord/rest/DiscordRest` en `GET` et `PUT
+  /guilds/{id}/onboarding`, dix tests, `ktor-client-mock` en test), le Guide du serveur écrit pour Kr dans
+  `docs/discord-guide.md` ; ses trois cartes (plaque émaillée et icône, en pixel) passent à D1
 - [ ] Le bonjour d'Oooscar dans `#💬・discussion` (5 à 10 s après l'accueil guidé, selon la plateforme), les arrivées
   groupées (30 s, 10 mentions au plus, puis une ligne), le tuto en message privé avec le bouton « Mon tuto » en
   secours, les rôles de notification, le statut alterné, les trois vocaux d'info renommés deux fois par dix minutes
@@ -239,7 +250,12 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   session lancera sans l'ouvrir (dire son chemin). Les variables attendues : `SILOOO_DISCORD_ACTIF=a-blanc`,
   `SILOOO_DISCORD_TOKEN`, `SILOOO_DISCORD_SERVEUR` (l'identifiant numérique), avec celles de la base et de la clé
   (`core/README.md`, « Le Discord »)
-- [ ] Passer les deux serveurs (test, puis Silooo) en serveur Communauté : accueil guidé, forums, annonces
+- [ ] Passer les deux serveurs (test, puis Silooo) en serveur Communauté : accueil guidé, forums, annonces. Discord
+  demande un salon des règles (`#👋・bienvenue`) et un salon des mises à jour (`#📒・journal-du-bot`), que le bot a créés
+  au premier passage (`docs/discord-guide.md`, 1)
+- [ ] Poser le Guide du serveur à la main (l'API ne le permet pas) : le mot d'accueil, les trois tâches des nouveaux,
+  les trois rubriques avec leurs textes, puis leurs images quand D1 les aura rendues (`docs/discord-guide.md`, 3) ; lire
+  dans `#📒・journal-du-bot` que l'accueil guidé est posé, et dire si Discord a refusé
 - [ ] Pour le vrai serveur, à la mise en ligne du QG : l'application et son jeton dans le fichier d'environnement du
   VPS, l'invitation avec les mêmes droits, l'identifiant du serveur, les rôles Staff et Modération donnés à la main
 - [ ] S'il veut que la session règle le serveur par le contrôle à distance (badge, captures, ce que l'API ne permet
@@ -280,6 +296,15 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 8. **Les couleurs des rôles** prises dans `design/tokens.json` : Staff et Modération en `email-rouge-clair`, Aide en
    `email-vert-clair`, Créateur en `email-bleu-clair`, Pionnier en `email-creme`, Entrepreneur en `ciel` ; les grades, les
    plateformes et les rôles de notification sans couleur. Le schéma n'accepte que ces six couleurs et `laiton`.
+9. **Les salons par défaut de l'accueil guidé** sont tous les salons publics de la phase, sans clé dans le plan : moins
+   à tenir à jour, et un nouveau membre voit le QG entier. Discord exige 7 salons par défaut dont 5 où tout le monde
+   écrit : pour y arriver dès l'attente, `#💡・suggestions` quitte la phase `beta`, et les trois vocaux d'info passent
+   en écriture bot seul (`ecriture: []`), puisque personne n'y écrit. Le compte se fait avant l'envoi
+   (`OnboardingPlanner`) et s'écrit dans le journal. Le cinquième salon ouvert est le vocal « Crée ton vocal » : si
+   Discord ne compte pas les vocaux, il faudra ouvrir l'écriture d'un salon de plus, à trancher par Kr.
+10. **Le Guide du serveur à la main de Kr.** Discord n'a pas d'API pour les rubriques, les tâches et le mot d'accueil ;
+    le bot pourrait activer le mode Communauté lui-même, mais ce réglage engage les conditions de Discord : il reste à
+    Kr, avec le guide (`docs/discord-guide.md`).
 
 ## À valider par Kr
 
@@ -291,7 +316,14 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   (n - 1) / 2 points, rôles aux niveaux 5, 10, 20, 30, dix au classement), le top réactions à dix, les meilleurs
   moments à 5 `:prestige:`, le monte-charge toutes les 5 minutes, le rapport du lundi à 9 h, trois rappels par jour.
 - Les lignes du compte rendu d'Oooscar dans `#📒・journal-du-bot` (`PlanReport.text`, D0) : « Plan du serveur, phase
-  attente. », « J'ai créé N rôles, N catégories et N salons. », « Je ne supprime jamais rien. », « Il manque… » à blanc.
+  attente. », « J'ai créé N rôles, N catégories et N salons. », « Je ne supprime jamais rien. », « Il manque… » à blanc ;
+  et pour l'accueil guidé (D2) : « J'ai posé l'accueil guidé : 2 question(s), 9 réponse(s), N salon(s) par défaut dont
+  N où tout le monde écrit. », « L'accueil guidé est en place… », « À blanc, je poserais… », « L'accueil guidé attend… ».
+- L'accueil guidé (`plan-serveur.json`, clé `accueil`, D2) : « Tu joues sur quoi ? » avec Console (Xbox, PlayStation ou
+  Switch), Téléphone (Android, iPhone ou tablette), PC (Windows 10 ou 11) ; « Tu veux être prévenu de quoi ? » avec
+  Actus, Coulisses, Concours, Giveaways, Vote party, Concours de villes et leurs descriptions ; les emoji des réponses.
+- Le Guide du serveur (`docs/discord-guide.md`, D2) : le mot d'accueil, les trois tâches des nouveaux, les titres et
+  les textes des trois rubriques, les icônes choisies (`carte`, `cadenas`, `engrenage`).
 - Le bonjour d'Oooscar et le tuto en privé, le format « Gamertag · P3 », les lignes d'Oooscar et les textes des
   rappels : écrits à D2 et D3, listés ici au fur et à mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
@@ -332,3 +364,15 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   l'add-on régénérés (`tools/generer_types.mjs` prend tout `definitions/`), la migration `V8__discord.sql` avec les
   seize tables du QG (pas jouée sur le PC : Docker éteint, la CI la joue), `docs/README.md` et `core/README.md`.
   `tools/verifier.sh` vert. Suite : l'accueil guidé, les salons et les rôles de la phase `attente`.
+- 5 novembre 2026, 16 h 50 à 17 h 33 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Les chiffres et la migration fusionnés sur `main` après une fusion d'`origin/main` (les cosmétiques et V9 y étaient
+  arrivés : la migration du Discord renumérotée V10, Flyway sans `outOfOrder` aurait refusé V8 après V9). Puis
+  l'accueil guidé : la clé `accueil` du plan et son schéma, le vérificateur et quatre cas refusés de plus,
+  `PlannedOnboarding` dans `ServerPlan`, `Onboarding.kt` (`OnboardingState`, `OnboardingPlanner`, `OnboardingSync`,
+  `OnboardingApplier`), `discord/rest/DiscordRest` (Ktor, `MockEngine` en test), `DiscordServer.onboarding` et
+  `setOnboarding` (JDA, faux), `PlanReport.onboarding` et sa ligne dans le journal, `DiscordRefusal` remonté dans
+  `discord/`, `#💡・suggestions` dès l'attente, les vocaux d'info en écriture bot seul (décision 9). Le Guide du serveur,
+  sans API, écrit pour Kr dans `docs/discord-guide.md` avec le brief des trois plaques (décision 10, cases D1 et Kr).
+  Gradle vert (40 tests Discord, dont 10 nouveaux), outillage vert (165). Suite : `tools/verifier.sh`, fusion sur
+  `main`, puis le bonjour d'Oooscar, les arrivées groupées, le tuto en privé, les rôles de notification, le statut, les
+  vocaux d'info.

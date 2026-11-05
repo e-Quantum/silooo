@@ -1,5 +1,7 @@
 package com.silooo.core.definitions
 
+import java.time.DateTimeException
+import java.time.LocalDate
 import kotlin.math.floor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -12,7 +14,7 @@ import kotlinx.serialization.json.longOrNull
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents, la ville, les votes. Chargé une fois au
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents, la ville, les votes, le pass. Chargé une fois au
  * démarrage ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
@@ -29,6 +31,7 @@ class Definitions(
     val incidents: IncidentsDefinitions,
     val city: CityDefinitions,
     val vote: VoteDefinitions,
+    val pass: PassDefinitions,
 ) {
     /**
      * Les Lingots de chaque mission, par identifiant : le nombre que son `recompense` désigne dans economie.json. Le
@@ -42,7 +45,7 @@ class Definitions(
     val resources: List<String> = factories.factories.flatMap { it.products }.distinct()
 
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, shop, world, missions, personnel, incidents, city, vote)
+        val problems = DefinitionsChecks.problems(economy, factories, shop, world, missions, personnel, incidents, city, vote, pass)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -105,6 +108,7 @@ internal object DefinitionsChecks {
         incidents: IncidentsDefinitions,
         city: CityDefinitions,
         vote: VoteDefinitions,
+        pass: PassDefinitions,
     ): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
@@ -199,6 +203,7 @@ internal object DefinitionsChecks {
         incidentsProblems(incidents, factories, ::check)
         cityProblems(city, economy, ::check)
         voteProblems(vote, ::check)
+        passProblems(pass, shop, ::check)
         return problems
     }
 
@@ -361,6 +366,79 @@ internal object DefinitionsChecks {
             }
         }
     }
+
+    /** La longueur de `season_pass.season_id`. */
+    const val PASS_SEASON_ID_MAX_LENGTH = 16
+
+    /** La longueur du nom d'une saison ; rien en base, c'est la place que l'écran lui laisse. */
+    const val PASS_SEASON_NAME_MAX_LENGTH = 48
+
+    private fun passProblems(pass: PassDefinitions, shop: ShopDefinitions, check: (Boolean, () -> String) -> Unit) {
+        val season = pass.season
+        check(MISSION_ID.matches(season.id) && season.id.length <= PASS_SEASON_ID_MAX_LENGTH) {
+            "pass.json : saison.id « ${season.id} » doit être en kebab-case, $PASS_SEASON_ID_MAX_LENGTH caractères au plus"
+        }
+        check(season.name.isNotBlank() && season.name.length <= PASS_SEASON_NAME_MAX_LENGTH) {
+            "pass.json : saison.nom doit avoir de 1 à $PASS_SEASON_NAME_MAX_LENGTH caractères"
+        }
+        val start = day(season.start)
+        val end = day(season.end)
+        check(start != null) { "pass.json : saison.debut « ${season.start} » n'est pas un jour du calendrier (AAAA-MM-JJ)" }
+        check(end != null) { "pass.json : saison.fin « ${season.end} » n'est pas un jour du calendrier (AAAA-MM-JJ)" }
+        if (start != null && end != null) {
+            check(!end.isBefore(start)) { "pass.json : saison.fin (${season.end}) est avant saison.debut (${season.start})" }
+        }
+
+        check(pass.premium.gems >= 1) { "pass.json : premium.gemmes doit être au moins 1" }
+
+        val points = pass.points
+        check(points.perPrestige >= 0 && points.perOrder >= 0 && points.perMission >= 0) {
+            "pass.json : points.parPrestige, points.parCommande et points.parMission ne peuvent pas être négatifs"
+        }
+        check(points.perPrestige + points.perOrder + points.perMission > 0) {
+            "pass.json : points : au moins une action doit rapporter des points"
+        }
+
+        check(pass.tiers.isNotEmpty()) { "pass.json : paliers ne doit pas être vide" }
+        pass.tiers.forEachIndexed { index, tier ->
+            check(tier.tier == index + 1) {
+                "pass.json : paliers[$index].palier doit valoir ${index + 1} (les numéros se suivent de 1 à ${pass.tiers.size}), pas ${tier.tier}"
+            }
+            check(tier.points >= 1) { "pass.json : paliers[$index].points doit être au moins 1" }
+            if (index > 0) {
+                check(tier.points > pass.tiers[index - 1].points) {
+                    "pass.json : paliers[$index].points (${tier.points}) doit dépasser celui du palier précédent (${pass.tiers[index - 1].points})"
+                }
+            }
+            check(tier.free != null || tier.premium != null) { "pass.json : paliers[$index] n'a aucune récompense" }
+            tier.free?.let { free ->
+                check(free.lingots >= 1) { "pass.json : paliers[$index].gratuit.lingots doit être au moins 1" }
+            }
+            tier.premium?.let { premium ->
+                check(MISSION_ID.matches(premium.cosmeticId) && premium.cosmeticId.length <= COSMETIC_ID_MAX_LENGTH) {
+                    "pass.json : paliers[$index].premium.cosmetique « ${premium.cosmeticId} » doit être en kebab-case, $COSMETIC_ID_MAX_LENGTH caractères au plus"
+                }
+                // Le pass donne le cosmétique, la boutique ne le vend pas : il est déclaré dans boutique.json, achetable à faux.
+                val declared = shop.cosmetics.firstOrNull { it.id == premium.cosmeticId }
+                check(declared != null) {
+                    "pass.json : paliers[$index].premium.cosmetique « ${premium.cosmeticId} » n'est pas déclaré dans boutique.json (cosmetiques)"
+                }
+                check(declared == null || !declared.purchasable) {
+                    "pass.json : paliers[$index].premium.cosmetique « ${premium.cosmeticId} » est vendu par boutique.json (achetable) : un cosmétique du pass ne s'achète pas"
+                }
+            }
+        }
+        val cosmetics = pass.tiers.mapNotNull { it.premium?.cosmeticId }
+        check(cosmetics.isNotEmpty()) { "pass.json : la piste premium ne donne aucun cosmétique" }
+        check(cosmetics.size == cosmetics.toSet().size) { "pass.json : un cosmétique est donné à deux paliers" }
+    }
+
+    private fun day(text: String): LocalDate? =
+        try {
+            LocalDate.parse(text)
+        } catch (e: DateTimeException) {
+            null
+        }
 
     private fun incidentsProblems(incidents: IncidentsDefinitions, factories: FactoriesDefinitions, check: (Boolean, () -> String) -> Unit) {
         val frequency = incidents.frequency

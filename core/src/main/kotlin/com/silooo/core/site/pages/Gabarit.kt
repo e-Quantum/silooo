@@ -43,6 +43,10 @@ internal const val LOGO_128 = "/public/logo/silooo-logo-128.png"
 internal const val LOGO_LARGE = "/public/logo/silooo-logo.png"
 internal const val LOGO_ALT = "Logo de Silooo : un silo à toit rouge sur un bloc d'herbe"
 
+/** L'image de partage (1200 sur 630), que Discord, Messenger ou X montrent sous un lien : le logo et Oooscar sur le ciel. */
+internal const val SHARE_IMAGE = "/public/partage.png"
+internal const val SHARE_IMAGE_ALT = "Le logo de Silooo et Oooscar, sa mascotte, sur le ciel"
+
 /** La couleur du ciel de `design/tokens.css`, pour la barre du navigateur sur téléphone. */
 private const val THEME_COLOR = "#8fb8d6"
 
@@ -57,7 +61,8 @@ internal class PageFrame(
 
 /**
  * La page entière : tout le HTML passe par le DSL de kotlinx.html, qui échappe chaque valeur. Aucune page ne
- * charge de script ni de ressource d'un autre hôte (la politique de sécurité du module l'interdirait).
+ * charge de ressource d'un autre hôte (la politique de sécurité du module l'interdit) ; les scripts, quand les
+ * animations du kit arriveront, sont des fichiers de `/public/`, jamais du code écrit dans la page.
  * Le `h1` est posé par la page, dans [content] : il n'y en a qu'un par page. `<main>` est le panneau de fonte
  * de Silooo Atelier ; une page de lecture y pose un bloc de papier (voir [lecture]).
  */
@@ -74,8 +79,11 @@ internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -
         property("og:locale", "fr_FR")
         property("og:title", frame.title)
         property("og:description", frame.description)
-        property("og:image", shell.siteUrl + LOGO_LARGE)
-        property("og:image:alt", LOGO_ALT)
+        property("og:image", shell.siteUrl + SHARE_IMAGE)
+        property("og:image:width", "1200")
+        property("og:image:height", "630")
+        property("og:image:alt", SHARE_IMAGE_ALT)
+        meta(name = "twitter:card", content = "summary_large_image")
         link(rel = "stylesheet", href = STYLESHEET)
         link(rel = "icon", href = LOGO_64, type = "image/png")
     }

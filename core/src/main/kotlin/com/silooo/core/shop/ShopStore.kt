@@ -22,7 +22,11 @@ data class PendingDelivery(val orderId: String, val gamertag: String, val xuid: 
 interface ShopStore {
     // ---------------------------------------------------------------- joueurs, possessions
 
-    /** Vrai si [xuid] a une ligne `players` : un joueur que le service connaît (il est déjà passé par `join`). */
+    /**
+     * Vrai si [xuid] a une ligne `players` : un joueur que le service connaît (il est déjà passé par `join`). Lecture verrouillée en
+     * partage : appelée en premier dans une transaction, elle n'ouvre pas la vue cohérente, pour que le verrou des soldes qui suit
+     * serialise deux appels du même joueur au lieu de rendre un conflit à rejouer (`ER_CHECKREAD`).
+     */
     fun isKnownPlayer(connection: Connection, xuid: Xuid): Boolean
 
     /** Les grades, les abonnements (échus compris) et les cosmétiques de [xuid] (voir [Holdings]). */

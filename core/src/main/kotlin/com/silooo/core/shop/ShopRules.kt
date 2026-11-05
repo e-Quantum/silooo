@@ -6,10 +6,11 @@ import com.silooo.core.definitions.CosmeticCategory
 import com.silooo.core.definitions.Definitions
 import com.silooo.core.definitions.ShopDefinitions
 import com.silooo.core.economy.ShopBonuses
+import com.silooo.core.pass.PassRules
 import java.time.Duration
 import java.time.Instant
 
-/** Un article que le service vend, tiré de `boutique.json`. Le pass de saison s'ajoutera ici quand le jeu le vendra. */
+/** Un article que le service vend, tiré de `boutique.json` (et de `pass.json` pour la piste premium). */
 sealed interface ShopItem {
     val id: String
 
@@ -37,6 +38,12 @@ sealed interface ShopItem {
 
     /** Le boost collectif : la production de tout le serveur monte de [bonusPercent] pendant [minutes] minutes. Il ne s'offre pas. */
     data class CollectiveBoost(override val id: String, override val gems: Long, val bonusPercent: Int, val minutes: Long) : ShopItem
+
+    /**
+     * La piste premium du pass de la saison en cours, au prix de `pass.json`. Ce que le destinataire possède et si la saison court ne sont
+     * pas dans [Holdings] : c'est [com.silooo.core.pass.PassService] qui refuse l'achat et qui ouvre la piste.
+     */
+    data class PassPremium(override val id: String, override val gems: Long) : ShopItem
 }
 
 /**
@@ -89,6 +96,9 @@ class ShopRules(definitions: Definitions) {
         ShopItem.Subscription(it.id, it.gems, it.days, it.gemsReturned ?: 0L, it.reservedForGradeId, it.donarBonusPercent ?: 0)
     }
 
+    /** La piste premium du pass, au prix de `pass.json`. */
+    val passPremium = ShopItem.PassPremium(PassRules.PREMIUM_ITEM_ID, definitions.pass.premium.gems)
+
     /** Les cosmétiques que la boutique vend (`achetable`), dans l'ordre de `boutique.json`. Les autres ne sont pas des articles. */
     val cosmetics: List<ShopItem.Cosmetic> = shop.cosmetics.filter { it.purchasable }.map { ShopItem.Cosmetic(it.id, it.gems, it.category) }
 
@@ -97,7 +107,7 @@ class ShopRules(definitions: Definitions) {
         ShopItem.CollectiveBoost(BOOST_ID, it.gems, it.bonusPercent, it.durationMinutes)
     }
 
-    private val byId: Map<String, ShopItem> = (grades + subscriptions + cosmetics + boost).associateBy { it.id }
+    private val byId: Map<String, ShopItem> = (grades + subscriptions + cosmetics + boost + passPremium).associateBy { it.id }
 
     /** L'article [itemId] que le service vend, ou `null` s'il n'existe pas ou si le jeu ne le vend pas encore. */
     fun item(itemId: String): ShopItem? = byId[itemId]
@@ -123,7 +133,8 @@ class ShopRules(definitions: Definitions) {
      * Le code de refus d'un achat de [item] par un destinataire qui possède [holdings], ou `null` si rien ne s'y oppose. Les Gemmes ne
      * sont pas ici : elles se vérifient après. Un grade déjà possédé : `DEJA_POSSEDE` ; un grade qui n'est pas le premier non
      * possédé : `GRADE_PRECEDENT_REQUIS` ; un abonnement dont le grade manque : `GRADE_PRECEDENT_REQUIS` ; un cosmétique déjà possédé :
-     * `DEJA_POSSEDE`. Le boost collectif ne se refuse jamais.
+     * `DEJA_POSSEDE`. Le boost collectif ne se refuse jamais. La piste premium du pass n'a pas de refus ici : la saison et la possession se
+     * lisent dans `season_pass`, c'est [com.silooo.core.pass.PassService.premiumRefusal].
      */
     fun refusalFor(item: ShopItem, holdings: Holdings): String? = when (item) {
         is ShopItem.Grade -> when {
@@ -132,6 +143,7 @@ class ShopRules(definitions: Definitions) {
             else -> null
         }
         is ShopItem.Subscription -> if (meetsRequirement(item, holdings)) null else RefusalCodes.PREVIOUS_RANK_REQUIRED
+        is ShopItem.PassPremium -> null
         is ShopItem.Cosmetic -> if (item.id in holdings.cosmetics) RefusalCodes.ALREADY_OWNED else null
         is ShopItem.CollectiveBoost -> null
     }

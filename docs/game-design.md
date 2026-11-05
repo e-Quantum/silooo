@@ -71,7 +71,7 @@ Réponses du 4 nov. 2026 ; le reste du document les applique.
 | Appareils | Fluide partout, Switch et vieux mobiles compris : animations et entités limitées |
 | Capacité | Plus de 200 joueurs simultanés visés : plusieurs instances derrière un proxy Bedrock |
 | Données | Base de données dédiée à Silooo ; sauvegarde de la base toutes les heures, du monde chaque nuit, copie hors du serveur |
-| Agence d'emploi | 5 candidats par jour, nouvelle liste en Donar ; 75 % communs, 20 % rares, 5 % légendaires ; aucun départ sauf renvoi ; directeur = chef promu après une mission |
+| Agence d'emploi | 5 candidats par jour, liste tirée de l'entreprise et du jour, rien à acheter pour la changer (décision 33) ; 75 % communs, 20 % rares, 5 % légendaires ; aucun départ sauf renvoi ; directeur = chef promu après une mission |
 | Commandes mondiales | Une par jour, récompensée en jetons |
 | Réputation | Livraisons à temps + votes des joueurs sur la ville ; améliore contrats et candidats |
 | Jetons de prestige | Remplacés par les Lingots, qui se dépensent dans la boutique de prestige (skins, bâtiments rares, salarié légendaire garanti) |
@@ -134,7 +134,7 @@ Le **niveau d'entreprise** est la somme des niveaux de toutes les usines du joue
 
 **Côté visuel** : quelques salariés animés par usine (vos modèles Blockbench), visibles seulement quand quelqu'un est sur l'île ; le reste existe en chiffres. Le directeur est un PNJ fixe dans son bureau, habillable avec des skins cosmétiques.
 
-**Recrutement** : une agence d'emploi propose chaque jour 5 candidats (une nouvelle liste s'achète en Donar), avec 75 % de communs, 20 % de rares et 5 % de légendaires ; une bonne réputation d'entreprise améliore ces chances. Le joueur choisit qui embaucher. Un salarié ne part jamais de lui-même : seulement s'il est renvoyé. Un salarié gagne de l'expérience en travaillant et peut être promu chef d'équipe.
+**Recrutement** : une agence d'emploi propose chaque jour 5 candidats (la liste est tirée de l'entreprise et du jour ; rien ne s'achète pour la changer, décision 33), avec 75 % de communs, 20 % de rares et 5 % de légendaires ; une bonne réputation d'entreprise améliore ces chances. Le joueur choisit qui embaucher. Un salarié ne part jamais de lui-même : seulement s'il est renvoyé. Un salarié gagne de l'expérience en travaillant et peut être promu chef d'équipe.
 
 **Chaînes de production** : les usines s'alimentent entre elles (par exemple minerai, puis barres de fer à la Fonderie, puis produits finis). Les marchandises voyagent de façon visible : camions sur les ponts, bateaux et avions cargo entre les îles, à acheter et à améliorer. Les matières passent d'usine en usine le long du réseau ; seul le produit fini va au Silo (décidé le 5 nov. 2026). Le stock reste virtuel : le service compte la production, les véhicules la montrent, près du joueur seulement. Une chaîne mal alimentée ralentit, ce qui donne au joueur de vraies décisions de logistique.
 

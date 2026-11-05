@@ -262,3 +262,47 @@ data class FindingBook(val found: List<Finding>, val total: Int, val rewardLingo
  */
 @Serializable
 data class CatalogItem(val itemId: String, val gemmes: Long, val owned: Boolean, val available: Boolean)
+
+/**
+ * Schéma `PassState` : le pass de saison d'un joueur. Les chiffres (dates, paliers, récompenses) viennent de `definitions/pass.json` :
+ * l'add-on les affiche sans en connaître aucun. [claimed] liste les paliers réclamés au format « palier-PISTE » (`3-GRATUIT`).
+ * [active] : la saison court aujourd'hui (les points montent, la piste premium s'achète).
+ */
+@Serializable
+data class PassState(
+    val seasonId: String,
+    val name: String,
+    val startsOn: String,
+    val endsOn: String,
+    val active: Boolean,
+    val points: Int,
+    val premium: Boolean,
+    val claimed: List<String>,
+    val tiers: List<PassTier>,
+)
+
+/** Schéma `PassTier` : un palier, les points à atteindre en tout, et sa récompense sur chaque piste (`null` : aucune). */
+@Serializable
+data class PassTier(val tier: Int, val points: Int, val free: PassFreeReward?, val premium: PassPremiumReward?)
+
+/** Schéma `PassFreeReward` : la récompense de la piste gratuite, en Lingots hors prestige. */
+@Serializable
+data class PassFreeReward(val lingots: Long)
+
+/** Schéma `PassPremiumReward` : la récompense de la piste premium, un cosmétique (jamais de monnaie). */
+@Serializable
+data class PassPremiumReward(val cosmeticId: String)
+
+/**
+ * Réponse 200 de `claimPass` : le palier réclamé, les Lingots versés (0 sur la piste premium), le cosmétique donné (`null` sur la piste
+ * gratuite) et les soldes de l'acteur.
+ */
+@Serializable
+data class PassClaimed(
+    val seasonId: String,
+    val tier: Int,
+    val track: String,
+    val rewardLingots: Long,
+    val cosmeticId: String?,
+    val balances: Balances,
+)

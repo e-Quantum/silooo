@@ -27,3 +27,6 @@ des exemples ; les prix des packs et les chiffres de la Scierie viennent de `def
 viennent du design system, les classes `w-*` sont celles du site : `site.css` les reprend. Les sources vivantes :
 maquettes https://claude.ai/artifact/7uBWLYneMcH3uwBMWNwXbz (page « Site silooo.com »), prototype
 https://claude.ai/artifact/QP9SVPhG4ui1zX2wyjMj5H.
+
+Le dossier `captures-revision/` tient les seize captures (JPEG, 360 et 1 280 px) qui servent de preuve dans
+[../../site-revision.md](../../site-revision.md) : le site de `main` rendu en local le 5 novembre 2026, dans les deux modes.

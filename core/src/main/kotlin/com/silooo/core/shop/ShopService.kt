@@ -8,6 +8,7 @@ import com.silooo.core.db.InsufficientBalance
 import com.silooo.core.db.Xuid
 import com.silooo.core.economy.RequestRejected
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.pass.PassService
 import com.silooo.core.session.SessionStore
 import java.sql.Connection
 import java.time.Clock
@@ -41,11 +42,16 @@ class ShopService(
     private val store: ShopStore,
     private val sessions: SessionStore,
     private val clock: Clock = Clock.systemUTC(),
+    /** Le pass de saison, qui vend sa piste premium (article `pass-premium`). `null` : le jeu ne la vend pas (les tests qui n'en ont pas besoin). */
+    private val pass: PassService? = null,
 ) {
-    /** Le catalogue vu par [actor]. Un joueur que le service ne connaît pas : [RequestRejected]. */
+    /**
+     * Le catalogue vu par [actor], la piste premium du pass en dernier quand le pass est branché. Un joueur que le service ne connaît pas :
+     * [RequestRejected].
+     */
     fun catalog(connection: Connection, actor: Xuid): List<CatalogItem> {
         if (!store.isKnownPlayer(connection, actor)) throw RequestRejected("Joueur inconnu : $actor")
-        return rules.catalog(store.loadHoldings(connection, actor), now())
+        return rules.catalog(store.loadHoldings(connection, actor), now()) + listOfNotNull(pass?.catalogItem(connection, actor))
     }
 
     /**
@@ -53,7 +59,8 @@ class ShopService(
      * destinataire reçoit). [requestId] est celui de la requête, gardé dans `shop_purchases`. Rend les soldes de l'acheteur.
      */
     fun buy(connection: Connection, actor: Xuid, requestId: String, itemId: String, forXuid: Xuid?): Balances {
-        val item = rules.item(itemId) ?: throw RequestRejected("Article inconnu, ou que le jeu ne vend pas encore : $itemId")
+        val item = rules.item(itemId)?.takeUnless { it is ShopItem.PassPremium && pass == null }
+            ?: throw RequestRejected("Article inconnu, ou que le jeu ne vend pas encore : $itemId")
         // Un cadeau à soi-même est un achat pour soi.
         val recipient = forXuid ?: actor
         val gift = recipient != actor
@@ -65,6 +72,7 @@ class ShopService(
         val held = store.lockGemmes(connection, actor)
         val now = now()
         rules.refusalFor(item, store.loadHoldings(connection, recipient))?.let { refuse(it) }
+        if (item is ShopItem.PassPremium) checkNotNull(pass).premiumRefusal(connection, recipient)?.let { refuse(it) }
         if (held < item.gems) refuse(RefusalCodes.NOT_ENOUGH_GEMS, missing = (item.gems - held).toDouble())
 
         store.recordPurchase(connection, actor, item.id, item.gems, recipient.takeIf { gift }, requestId, now)
@@ -82,6 +90,10 @@ class ShopService(
                 val term = rules.extend(store.loadSubscription(connection, recipient, item.id), item, now)
                 store.saveSubscription(connection, recipient, item.id, term)
                 if (item.gemsReturned > 0L) store.creditGemmes(connection, recipient, item.gemsReturned, REASON_PILIER, item.id)
+            }
+            is ShopItem.PassPremium -> {
+                // Faux : un autre achat de la piste premium pour ce joueur a passé entre-temps. L'achat est annulé, rien n'est payé.
+                if (!checkNotNull(pass).grantPremium(connection, recipient)) refuse(RefusalCodes.ALREADY_OWNED)
             }
             is ShopItem.Cosmetic -> {
                 // Faux : un autre achat du même cosmétique pour ce joueur a passé entre-temps. L'achat est annulé, rien n'est payé.

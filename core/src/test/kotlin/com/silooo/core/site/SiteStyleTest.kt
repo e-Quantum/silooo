@@ -46,7 +46,9 @@ class SiteStyleTest {
             val html = client.get(path).bodyAsText()
             assertTrue(Regex("""<meta property="og:title" content="[^"]+"""").containsMatchIn(html), "$path : og:title")
             assertTrue(Regex("""<meta property="og:description" content="[^"]+"""").containsMatchIn(html), "$path : og:description")
-            assertTrue(html.contains("""<meta property="og:image" content="https://silooo.com/public/logo/silooo-logo.png">"""), "$path : og:image absolu")
+            assertTrue(html.contains("""<meta property="og:image" content="https://silooo.com/public/partage.png">"""), "$path : og:image absolu, l'image de partage")
+            assertTrue(html.contains("""<meta property="og:image:width" content="1200">""") && html.contains("""<meta property="og:image:height" content="630">"""), "$path : la taille de l'image de partage")
+            assertTrue(html.contains("""<meta name="twitter:card" content="summary_large_image">"""), "$path : l'aperçu en grande image")
             assertTrue(html.contains("""<meta name="theme-color" content="#8fb8d6">"""), "$path : theme-color")
             assertTrue(html.contains("""href="/public/logo/silooo-logo-64.png""""), "$path : icône du site")
             assertTrue(html.contains("""href="/public/site.css""""), "$path : feuille de style")
@@ -57,7 +59,7 @@ class SiteStyleTest {
     @DisplayName("L'og:image suit SILOOO_SITE_URL, sans barre en double")
     fun ogImageFollowsSiteUrl() = withSite(SiteMode.ATTENTE, siteUrl = "https://exemple.test/") { client ->
         val html = client.get("/").bodyAsText()
-        assertTrue(html.contains("""content="https://exemple.test/public/logo/silooo-logo.png""""), html.substringBefore("</head>"))
+        assertTrue(html.contains("""content="https://exemple.test/public/partage.png""""), html.substringBefore("</head>"))
     }
 
     @Test
