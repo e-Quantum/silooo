@@ -6,6 +6,7 @@ import com.silooo.core.discord.ButtonStyle
 import com.silooo.core.discord.CommandSpec
 import com.silooo.core.discord.FormSpec
 import com.silooo.core.discord.MenuSpec
+import com.silooo.core.discord.OptionKind
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.components.actionrow.ActionRow
 import net.dv8tion.jda.api.components.buttons.Button
@@ -101,7 +102,8 @@ internal object JdaMessages {
     fun command(spec: CommandSpec): SlashCommandData {
         val data = Commands.slash(spec.name, spec.description)
         for (option in spec.options) {
-            val optionData = OptionData(OptionType.STRING, option.name, option.description, option.required)
+            val type = if (option.kind == OptionKind.FICHIER) OptionType.ATTACHMENT else OptionType.STRING
+            val optionData = OptionData(type, option.name, option.description, option.required)
             option.choices.forEach { optionData.addChoice(it, it) }
             data.addOptions(optionData)
         }

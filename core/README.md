@@ -130,7 +130,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `WelcomeFeature`, `StatusFeature` et `InfoVoiceFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `SpoilStore` et `JdbcSpoilStore` (`discord_spoils`), `WelcomeFeature`, `StatusFeature`, `InfoVoiceFeature` et `SpoilFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -912,7 +912,8 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
 - **La boucle.** Hors `a-blanc`, le bot sert ce qui arrive de Discord (arrivées, accueil terminé, départs, messages, réactions,
   vocaux, commandes, boutons, menus, formulaires : `DiscordEvent`) sur un seul fil, `BotRuntime` : une file bornée (les plus vieux
   tombent, comptés), des minuteries (`Timer`) sur ce même fil, et des fonctions (`Feature`) isolées les unes des autres : une qui
-  lève n'arrête ni la boucle ni les autres. Un message du bot (`BotMessage`) est une carte à barre ciel (composants récents de
+  lève n'arrête ni la boucle ni les autres. Chaque fonction déclare ses commandes (`Feature.commands`) : `BotRuntime` pose l'union de
+  toutes, une seule fois, avant de démarrer les fonctions, et ne pose rien si aucune n'en déclare. Un message du bot (`BotMessage`) est une carte à barre ciel (composants récents de
   Discord) ou du texte, avec boutons, menu, image ; les formulaires et les commandes ont leurs modèles. `discord/jda/JdaMessages`
   et `JdaEvents` traduisent dans les deux sens. Les chiffres du Discord sont dans `definitions/discord.json`
   (`DiscordDefinitions`, chargé à part du jeu, vérifié contre le plan : rôles et salons cités, niveaux qui montent) ; ses tables
@@ -935,17 +936,34 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   « Regarde N entrepreneurs » (les membres du serveur). `InfoVoiceFeature` remplace le nombre du vocal « N en ligne » par les joueurs en
   jeu (`ServerPresence`), le relit toutes les `fenetreMinutes / renommagesMax` minutes et ne le renomme que si le nombre a changé et que
   `RenameBudget` le permet (deux renommages par dix minutes, la limite de Discord) ; les deux autres vocaux d'info gardent le nom du
-  plan. `BotFeatures` assemble les trois fonctions sur le fil du bot une fois le plan appliqué : un `discord.json` abîmé arrête le bot,
+  plan. `BotFeatures` assemble les fonctions sur le fil du bot une fois le plan appliqué : un `discord.json` abîmé arrête le bot,
   pas le jeu.
+- **Les coulisses.** Le staff dépose les spoils à l'avance avec `/spoil` (le texte, une image png ou gif de 16 Mo au plus, le seuil en
+  option). `SpoilStore` (`JdbcSpoilStore` sur `discord_spoils`, V10, SQL en minuscules) les garde dans l'ordre, image comprise. Le
+  premier part tout de suite dans `#coulisses`, publié par le bot avec le rôle Coulisses mentionné dans l'en-tête ; le suivant part
+  quand le spoil courant atteint son seuil, par défaut `spoils.partDesMembres` des membres du serveur (un au moins). Toutes les
+  `spoils.miseAJourSecondes` secondes, `SpoilFeature` relit Discord (`DiscordServer.reactors` : les membres qui ont réagi avec l'emoji
+  du serveur `spoils.emoji`, chacun une fois, les bots exclus), garde le compte en base et ne modifie la ligne d'état sous le spoil
+  que si elle change. Un seuil atteint entre `spoils.nuitDebutHeure` h et `spoils.nuitFinHeure` h, dans le fuseau de `discord.json`,
+  attend le matin : une seule publication est programmée. Le registre est en base et Discord est relu à chaque tic, donc un
+  redémarrage ne perd ni les spoils ni le compte. Une option de commande est du texte ou un fichier (`OptionKind`) : `JdaEvents`
+  reçoit la pièce jointe hors du fil de JDA et répond en différé ; un fichier trop gros ou ni png ni gif est refusé sans rien
+  déposer. Si Discord refuse la publication, le spoil reste déposé et le tic suivant la retente.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
   sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
   (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
   `discord/rest/DiscordRestTest` (la requête telle que Discord l'attend sur un `MockEngine`, les refus sans le jeton), `discord/DiscordBotTest`
   (rien ne lève, le jeton ne s'affiche pas, les événements servis jusqu'à `close`), `discord/BotRuntimeTest` (l'ordre, l'isolement,
-  la file pleine, les minuteries), `discord/DiscordDefinitionsTest` (le fichier du dépôt colle au plan, la formule des niveaux),
+  la file pleine, les minuteries, l'union des commandes posée une fois avant le démarrage des fonctions, rien posé sans commande),
+  `discord/DiscordDefinitionsTest` (le fichier du dépôt colle au plan, la formule des niveaux),
   `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans `build/mesure-memoire-discord.txt`),
   `discord/WelcomeTest` (le bonjour après son délai selon la plateforme, le bouton « Mon tuto », les arrivées groupées puis résumées, le
   membre parti, les bots écartés, le salon absent), `discord/StatusAndInfoVoiceTest` (le statut qui alterne, le vocal renommé dans son
   quota), `discord/MemberSqlTest` (MariaDB, CI, ignoré sans Docker : l'arrivée, puis le membre créé à l'accueil quand son arrivée a été
-  manquée ; les deux autres tests passent par le faux `InMemoryMemberStore`) et `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
+  manquée ; les deux autres tests passent par le faux `InMemoryMemberStore`), `discord/SpoilTest` (seize cas sur le faux Discord et le
+  faux `InMemorySpoilStore` : le premier dépôt publié tout de suite, de nuit aussi, les suivants en attente, les trois derniers dans la
+  réponse, la ligne d'état modifiée seulement quand le compte change, le seuil de jour puis de nuit, l'attente du matin, le seuil par
+  défaut, les refus, le dernier compte gardé quand Discord refuse, le redémarrage, le salon absent, la commande déclarée),
+  `discord/SpoilSqlTest` (MariaDB, CI, ignoré sans Docker : les numéros, l'ordre de publication, le compte, l'image) et `ConfigDiscordTest`
+  pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).

@@ -35,6 +35,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel
 import net.dv8tion.jda.api.exceptions.ErrorResponseException
+import net.dv8tion.jda.api.exceptions.InsufficientPermissionException
 import net.dv8tion.jda.api.requests.ErrorResponse
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.requests.restaction.ChannelAction
@@ -45,7 +46,8 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag
 /**
  * La connexion JDA (ADR 0007) : avec [JdaServer], [JdaEvents] et [JdaMessages], le seul endroit qui importe JDA.
  * Les intentions : membres, messages et leur contenu, réactions, vocaux ; les membres et le contenu sont
- * privilégiés, Kr les accorde dans le portail des développeurs. Le cache des membres se limite aux derniers vus
+ * privilégiés, Kr les accorde dans le portail des développeurs. Le cache des emojis du serveur sert aux coulisses
+ * (l'emoji qui compte). Le cache des membres se limite aux derniers vus
  * ([MEMBER_CACHE]) et à ceux en vocal : l'accueil guidé et les vocaux en ont besoin, rien d'autre. Ce que JDA ne
  * couvre pas (l'accueil guidé) passe par [DiscordRest], ouvert et fermé avec la connexion.
  */
@@ -82,7 +84,7 @@ class JdaConnection private constructor(
         /** Se connecte et trouve le serveur de [config] ; lève si le jeton est refusé ou si le bot n'y est pas. */
         fun open(config: BotConfig): JdaConnection {
             val jda = JDABuilder.createLight(config.token.reveal(), INTENTS)
-                .enableCache(CacheFlag.VOICE_STATE)
+                .enableCache(CacheFlag.VOICE_STATE, CacheFlag.EMOJI)
                 .setMemberCachePolicy(MemberCachePolicy.lru(MEMBER_CACHE).or(MemberCachePolicy.VOICE))
                 .setChunkingFilter(ChunkingFilter.NONE)
                 .setLargeThreshold(50)
@@ -195,6 +197,19 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
 
     override suspend fun memberCount(): Int = guild.memberCount
 
+    override suspend fun reactors(channelId: String, messageId: String, emojiName: String): Set<String> {
+        val emoji = guild.getEmojisByName(emojiName, true).firstOrNull() ?: return emptySet()
+        try {
+            val message = messageChannel(channelId).retrieveMessageById(messageId).submit().await()
+            val users = message.retrieveReactionUsers(emoji).takeAsync(MAX_REACTORS).await()
+            return users.filter { !it.isBot }.map { it.id }.toSet()
+        } catch (e: ErrorResponseException) {
+            throw DiscordRefusal("Discord refuse de lire les réactions du message " + messageId + " : " + e.meaning)
+        } catch (e: InsufficientPermissionException) {
+            throw DiscordRefusal("le bot n'a pas le droit de lire les réactions du salon " + channelId)
+        }
+    }
+
     override suspend fun installCommands(commands: List<CommandSpec>) {
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
     }
@@ -241,6 +256,8 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
     private fun rgb(color: String?): Int? = color?.removePrefix("#")?.toInt(16)
 
     private companion object {
+        /** Combien de membres au plus un message compte : bien au-delà de ce que le serveur aura jamais. */
+        const val MAX_REACTORS = 50_000
         val VIEW: EnumSet<Permission> = EnumSet.of(Permission.VIEW_CHANNEL)
         val WRITE: EnumSet<Permission> = EnumSet.of(Permission.MESSAGE_SEND, Permission.MESSAGE_SEND_IN_THREADS, Permission.CREATE_PUBLIC_THREADS)
     }

@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 18 h 02, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 18 h 27, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -39,6 +39,9 @@ est recopiée sous l'étape qu'elle touche.
   écrits (`Welcome.kt`, `Status.kt`, `InfoVoice.kt`, `MemberStore.kt`) et branchés en production par `BotFeatures` dans
   `Main.kt`, avec les joueurs en ligne de `ServerPresence`. Ils n'ont jamais été vus tourner sur un vrai serveur : aucun
   bot de test n'a été lancé dans cette session, seuls les faux Discord des tests les ont joués.
+- Les coulisses sont écrites et branchées (`SpoilStore`, `JdbcSpoilStore`, `SpoilFeature`, `/spoil`, `Feature.commands` pour
+  poser les commandes) : jamais vues sur un vrai serveur. Le code JDA des pièces jointes (`JdaEvents`) et des réactions
+  (`JdaServer.reactors`) compile mais ne se teste que sur le serveur de test.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
@@ -130,8 +133,8 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   secours, les rôles de notification (donnés par l'accueil guidé lui-même, déjà en place), le statut alterné, le vocal
   d'info « N en ligne » renommé deux fois par dix minutes au plus (les deux autres vocaux d'info gardent le nom du
   plan) ; écrit avec ses tests sur le faux Discord, pas encore vu sur un vrai serveur
-- [ ] Les coulisses : `/spoil`, l'aperçu des réactions, les seuils, la publication par le seul bot, l'attente jusqu'à
-  7 h, le registre en base
+- [x] Les coulisses : `/spoil`, l'aperçu des réactions, les seuils, la publication par le seul bot, l'attente jusqu'à
+  7 h, le registre en base ; écrit avec ses tests sur le faux Discord, pas encore vu sur un vrai serveur
 - [ ] Les admissions : les cartes lues dans `site_registrations` (S4 du site), Admettre, Refuser, Plus tard ; `/annonce`
   avec le contrôle anti-IA avant l'aperçu
 - [ ] Les tickets par menu, « Crée ton vocal », l'XP de tchat (un message par minute, rôles aux niveaux 5, 10, 20, 30,
@@ -271,6 +274,10 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 - [ ] D1 : dire quand la session peut lancer le rendu de contrôle SileneMC (la marque `silooo` est dans
   `Documents\minecraft\contenu-reseaux\_outils`), et si Pillow lit les polices woff2 du dépôt ; sinon, des TTF dans
   `_outils\assets\fonts\`
+- [ ] Les coulisses : l'emoji de serveur `:silo:` doit exister (D1) ; tant qu'il manque, le compte des réactions reste à
+  zéro et le spoil suivant ne part pas. Puis rejouer `/spoil` sur le serveur de test avec une image : le premier spoil
+  part tout de suite avec le rôle Coulisses, le second attend, les réactions `:silo:` font monter la ligne d'état jusqu'au
+  seuil ; dire si Discord a refusé la pièce jointe, la réponse différée ou la modification du message
 - [ ] Choisir les paliers de prestige qui donnent un rôle, et trancher les rôles liés de Discord (option, ou rien)
 - [ ] Retirer les récompenses par invitation de SileneMC (`#🎁・inviter`), interdites par Discord (critique, point 14)
 - [ ] Plus tard, aux boosts : le badge SILO à 3 boosts, la bannière en arrière-plan d'invitation à 2, en haut des
@@ -324,6 +331,22 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     régleras ici, avec la commande rappels. » jusqu'à ce que les rappels privés existent (D3).
 15. **Le SQL de `JdbcMemberStore` en minuscules.** Le garde anti-IA (`tools/anti_ia.py`) lit les chaînes du paquet
     `discord/` : le SQL y est écrit en minuscules.
+16. **Les commandes posées par `BotRuntime`.** Chaque fonction déclare les siennes (`Feature.commands`) ; `BotRuntime` pose
+    l'union de toutes, une fois, avant le démarrage des fonctions. Rien n'est posé si aucune fonction n'en déclare, pour
+    ne pas effacer des commandes déjà là.
+17. **Le rôle Coulisses est mentionné dans l'en-tête du message** (`<@&rôle> Spoil n°3`) : Discord n'envoie la notification
+    qu'à une mention écrite dans le message.
+18. **Le premier spoil part tout de suite, nuit ou pas.** Kr le dépose quand il veut qu'il parte ; l'attente de 7 h ne
+    vaut que pour les suivants, quand le seuil est atteint entre `nuitDebutHeure` et `nuitFinHeure`.
+19. **Le spoil précédent perd sa ligne d'état** quand le suivant est publié : seule la ligne du spoil courant vit.
+20. **Une publication refusée se retente.** Si Discord refuse la publication, le dépôt reste en base et le tic suivant la
+    retente ; un verrou interdit de publier deux fois le même spoil quand le tic et un dépôt se croisent.
+21. **Un spoil tient sur une ligne.** Une option de commande tient sur une ligne : un spoil n'a pas de retour à la ligne
+    pour l'instant. Un formulaire viendra si Kr en veut.
+22. **Les fichiers d'un spoil.** Un png ou un gif, 16 Mo au plus (la taille de la colonne `image`), reçus hors du fil de
+    JDA avec une réponse différée, pour que le téléchargement ne bloque rien.
+23. **Le compte des réactions relit Discord à chaque tic** (`reactors`), au lieu de compter les événements : les bots sont
+    exclus, chaque membre compte une fois, et le compte survit à un redémarrage.
 
 ## À valider par Kr
 
@@ -366,6 +389,25 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     tuto).
 - Le statut d'Oooscar (`Status.kt`, D2), en alternance : « Joue à play.silooo.com » et « Regarde N entrepreneurs »
   (« Regarde 1 entrepreneur » au singulier).
+- Les coulisses (`Spoils.kt`, `SpoilTexts`, D2). Dans les textes, N est un nombre et `#coulisses` la mention du salon ;
+  « réaction » prend le singulier pour 1.
+  - La commande `/spoil` : « Dépose un spoil des coulisses ». Ses trois options : `texte`, « Le texte du spoil » ;
+    `image`, « Une image png ou gif, 16 Mo au plus » ; `seuil`, « Les réactions qui publient le suivant (un entier
+    positif) ».
+  - Les refus, vus du staff seul : « Cette commande est pour le staff. », « Le salon des coulisses n'existe pas sur le
+    serveur : rien n'est déposé. », « Le texte du spoil est vide : rien n'est déposé. », « Le texte fait 1 900
+    caractères : 1 800 au plus. Rien n'est déposé. », « Le fichier « nom » est refusé : png ou gif, 16 Mo au plus. Rien
+    n'est déposé. », « Le seuil doit être un entier positif : le nombre de réactions qui publie le suivant. Rien n'est
+    déposé. », et, si Discord refuse la publication, « Le spoil est déposé, mais Discord a refusé la publication. Elle
+    sera retentée dans la minute. »
+  - Les réponses au dépôt, vues du staff seul : pour le premier spoil, « Spoil n°1 publié dans #coulisses. Seuil du n°2 :
+    40 réactions. » ; pour le suivant d'un spoil publié, « Spoil n°2 déposé : il partira quand le n°1 aura 40 réactions
+    (12 pour l'instant). » ; pour un spoil plus loin dans la file, « Spoil n°4 déposé : il partira après le n°3. » Ces
+    deux dernières finissent par « Les derniers : n°3 87 réactions, n°2 95, n°1 120. » : les trois derniers spoils
+    publiés, du plus récent au plus ancien.
+  - Le message du spoil, lu des membres : l'en-tête « <@&rôle> Spoil n°3 » (la mention du rôle Coulisses), le texte, puis
+    la ligne d'état. Les trois lignes d'état : « Spoil n°4 à 40 réactions : 12. » ; la même suivie de « Il part à
+    7 h. » quand le seuil est atteint la nuit ; « Spoil n°4 : pas encore déposé. » quand rien n'attend.
 - Le format « Gamertag · P3 », les lignes d'Oooscar et les textes des rappels : écrits à D3, listés ici au fur et à
   mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
@@ -430,3 +472,14 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   ignoré sans Docker) après une attente de test corrigée (le second bonjour respecte la fenêtre de 30 s) et un quota
   resserré (`RenameBudget` compte encore le renommage vieux d'une fenêtre pile) ; `tools/verifier.sh` vert à 18 h 02.
   Rien n'a tourné sur un vrai serveur. Suite : fusion sur `main`, puis les coulisses et `/spoil`.
+- 5 novembre 2026, 18 h 05 à 18 h 27 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Les coulisses : `SpoilStore` (`Spoil`, `JdbcSpoilStore` sur `discord_spoils`, V10), `Spoils.kt` (`SpoilTexts`,
+  `SpoilFeature`), `Feature.commands` dans `BotRuntime` (l'union des commandes posée une fois avant le démarrage),
+  `OptionKind` sur `CommandOption`, `CommandUsed.files` et la clé `fichier-refuse`, `DiscordServer.reactors`, le
+  téléchargement des pièces jointes et la réponse différée dans `jda/JdaEvents`, le cache des emojis dans `jda/JdaServer`,
+  `BotFeatures`, `InMemorySpoilStore`, `SpoilTest`, `SpoilSqlTest` (MariaDB, ignoré sans Docker), deux cas de plus dans
+  `BotRuntimeTest`. Écrit par un agent Sonnet sur un brief de la session (Kr veut une session qui cadre et délègue),
+  relu par la session ; les écarts sont consignés dans les décisions 16 à 23. Tests Discord verts (`SpoilTest` 16,
+  `BotRuntimeTest` 6) ; vérificateur en cours à l'heure de l'écriture. Rien n'a tourné sur un vrai serveur : le code JDA
+  des pièces jointes et des réactions compile mais ne se teste que sur le serveur de test. Suite : vérificateur, fusion
+  sur `main`, puis les admissions et `/annonce`.

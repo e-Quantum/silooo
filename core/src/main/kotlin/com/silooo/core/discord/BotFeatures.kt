@@ -16,6 +16,7 @@ object BotFeatures {
             WelcomeFeature(context, definitions.welcome, members),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),
+            SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),
         )
     }
 }

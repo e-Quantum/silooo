@@ -5,10 +5,13 @@ import com.silooo.core.discord.DiscordEvent
 import com.silooo.core.discord.DiscordRefusal
 import com.silooo.core.discord.DiscordUser
 import com.silooo.core.discord.FormSpec
+import com.silooo.core.discord.ImageFile
 import com.silooo.core.discord.Reply
 import java.time.Clock
+import java.util.concurrent.CompletableFuture
 import kotlinx.coroutines.future.await
 import net.dv8tion.jda.api.entities.Member
+import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateFlagsEvent
@@ -26,6 +29,8 @@ import net.dv8tion.jda.api.interactions.Interaction
 import net.dv8tion.jda.api.interactions.callbacks.IMessageEditCallback
 import net.dv8tion.jda.api.interactions.callbacks.IModalCallback
 import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback
+import net.dv8tion.jda.api.interactions.commands.OptionMapping
+import net.dv8tion.jda.api.interactions.commands.OptionType
 
 /**
  * Traduit les événements JDA du serveur [guildId] en [DiscordEvent] et les donne à [offer], depuis les fils de
@@ -83,8 +88,47 @@ internal class JdaEvents(
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
         if (event.guild?.idLong != guildId) return
-        val options = event.options.associate { it.name to it.asString }
-        offer(DiscordEvent.CommandUsed(event.name, options, actor(event), event.channel.id, JdaReply(event, event, null)))
+        val options = event.options.filter { it.type != OptionType.ATTACHMENT }.associate { it.name to it.asString }
+        val attachments = event.options.filter { it.type == OptionType.ATTACHMENT }
+        val user = actor(event)
+        val channelId = event.channel.id
+        if (attachments.isEmpty()) {
+            offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null)))
+            return
+        }
+        // Recevoir un fichier peut prendre plus de trois secondes : on accuse réception d'abord (visible du membre
+        // seul), la réponse partira par le message différé, et le fil de JDA n'attend jamais le téléchargement.
+        event.deferReply(true).queue()
+        val fetches = attachments.map(::fetch)
+        CompletableFuture.allOf(*fetches.toTypedArray()).whenComplete { _, _ ->
+            val received = fetches.map { it.join() }
+            val files = received.mapNotNull { fetched -> fetched.file?.let { fetched.optionName to it } }.toMap()
+            val refused = received.firstNotNullOfOrNull { it.refusedName }
+            val allOptions = if (refused == null) options else options + (DiscordEvent.CommandUsed.REFUSED_FILE to refused)
+            offer(DiscordEvent.CommandUsed(event.name, allOptions, user, channelId, JdaReply(event, event, null, deferred = true), files))
+        }
+    }
+
+    /** Un fichier reçu, ou refusé (trop gros, ni png ni gif, introuvable) : jamais d'exception, le fichier refusé a son nom. */
+    private class Fetched(val optionName: String, val file: ImageFile?, val refusedName: String?)
+
+    private fun fetch(option: OptionMapping): CompletableFuture<Fetched> {
+        val attachment = option.asAttachment
+        val refused = Fetched(option.name, null, attachment.fileName)
+        val extension = attachment.fileExtension?.lowercase()
+        if (extension == null || extension !in EXTENSIONS || attachment.size > MAX_FILE_BYTES) return CompletableFuture.completedFuture(refused)
+        return attachment.proxy.download()
+            .thenApply { stream -> stream.use { it.readNBytes(MAX_FILE_BYTES + 1) } }
+            .thenApply { bytes ->
+                if (bytes.isEmpty() || bytes.size > MAX_FILE_BYTES) refused else Fetched(option.name, ImageFile(imageName(attachment, extension), bytes), null)
+            }
+            .exceptionally { refused }
+    }
+
+    /** `nom.png` ou `nom.gif` : le nom du fichier en minuscules, les signes autres que lettres, chiffres et tirets en tirets. */
+    private fun imageName(attachment: Message.Attachment, extension: String): String {
+        val base = attachment.fileName.substringBeforeLast('.').lowercase().replace(NOT_IN_NAME, "-").trim('-').take(MAX_NAME).trim('-')
+        return base.ifEmpty { "fichier" } + "." + extension
     }
 
     override fun onButtonInteraction(event: ButtonInteractionEvent) {
@@ -108,20 +152,37 @@ internal class JdaEvents(
 
     private fun user(member: Member): DiscordUser =
         DiscordUser(member.id, member.effectiveName, member.user.isBot, member.roles.map { it.id }.toSet())
+
+    private companion object {
+        /** 16 Mo : la taille de la colonne `image` de `discord_spoils`. */
+        const val MAX_FILE_BYTES = 16 * 1024 * 1024
+        const val MAX_NAME = 40
+        val EXTENSIONS = setOf("png", "gif")
+        val NOT_IN_NAME = Regex("[^a-z0-9-]+")
+    }
 }
 
-/** La [Reply] d'un geste JDA ; ce que le geste ne permet pas (un formulaire depuis un formulaire) est refusé. */
+/**
+ * La [Reply] d'un geste JDA ; ce que le geste ne permet pas (un formulaire depuis un formulaire) est refusé.
+ * [deferred] : le geste a déjà reçu son accusé de réception (visible du membre seul) ; la réponse passe alors par
+ * le message différé, toujours visible du membre seul, et ni formulaire ni modification n'est possible.
+ */
 internal class JdaReply(
     private val replies: IReplyCallback,
     private val modals: IModalCallback?,
     private val edits: IMessageEditCallback?,
+    private val deferred: Boolean = false,
 ) : Reply {
     override suspend fun send(message: BotMessage, onlyToUser: Boolean) {
-        replies.reply(JdaMessages.create(message)).setEphemeral(onlyToUser).submit().await()
+        if (deferred) {
+            replies.hook.sendMessage(JdaMessages.create(message)).submit().await()
+        } else {
+            replies.reply(JdaMessages.create(message)).setEphemeral(onlyToUser).submit().await()
+        }
     }
 
     override suspend fun form(form: FormSpec) {
-        val target = modals ?: throw DiscordRefusal("ce geste ne peut pas ouvrir de formulaire")
+        val target = modals?.takeUnless { deferred } ?: throw DiscordRefusal("ce geste ne peut pas ouvrir de formulaire")
         target.replyModal(JdaMessages.modal(form)).submit().await()
     }
 
@@ -131,6 +192,7 @@ internal class JdaReply(
     }
 
     override suspend fun acknowledge() {
+        if (deferred) return
         val target = edits
         if (target != null) target.deferEdit().submit().await() else replies.deferReply(true).submit().await()
     }

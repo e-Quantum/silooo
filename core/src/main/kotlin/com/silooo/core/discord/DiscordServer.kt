@@ -48,6 +48,13 @@ interface DiscordServer {
 
     suspend fun memberCount(): Int
 
+    /**
+     * Les identifiants des membres qui ont réagi au message [messageId] de [channelId] avec l'emoji du serveur nommé
+     * [emojiName], les bots exclus. Un emoji que le serveur n'a pas : un ensemble vide. Discord refuse (message ou
+     * salon disparu, droit manquant) : [DiscordRefusal].
+     */
+    suspend fun reactors(channelId: String, messageId: String, emojiName: String): Set<String>
+
     /** Pose les commandes du bot sur le serveur, à la place des précédentes. */
     suspend fun installCommands(commands: List<CommandSpec>)
 

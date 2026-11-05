@@ -40,14 +40,24 @@ sealed interface DiscordEvent {
     /** Un membre entre dans un vocal, en sort ou en change ; `null` : aucun vocal. */
     data class VoiceMoved(val userId: String, val fromChannelId: String?, val toChannelId: String?) : DiscordEvent
 
-    /** Une commande du bot ; [options] : ses options par nom, en texte. */
+    /**
+     * Une commande du bot ; [options] : ses options de texte par nom. [files] : ses fichiers joints par nom d'option,
+     * déjà reçus ; un fichier refusé (trop gros, ni png ni gif) n'y est pas, et [options] porte alors la clé
+     * `fichier-refuse` avec son nom.
+     */
     data class CommandUsed(
         val name: String,
         val options: Map<String, String>,
         val user: DiscordUser,
         val channelId: String?,
         val reply: Reply,
-    ) : DiscordEvent
+        val files: Map<String, ImageFile> = emptyMap(),
+    ) : DiscordEvent {
+        companion object {
+            /** La clé de [options] qui porte le nom d'un fichier refusé. */
+            const val REFUSED_FILE = "fichier-refuse"
+        }
+    }
 
     data class ButtonPressed(
         val id: String,
