@@ -1,6 +1,6 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 14 h 10, S1 fusionnée (direction du site, cloud).
+Dernière mise à jour : 5 novembre 2026, 14 h 25, S2 fusionnée, bilan de deux heures (direction du site, cloud).
 
 Ce fichier est tenu par la session de direction du site ([site-direction.md](site-direction.md)). Il ne remplace pas
 [passation.md](passation.md), qui reste à la direction du jeu : ici, seulement le site `silooo.com`, décrit dans
@@ -8,6 +8,13 @@ Ce fichier est tenu par la session de direction du site ([site-direction.md](sit
 
 ## État
 
+- **S2 est sur `main`** : en mode `ouvert`, l'accueil (adresse et port sur des tickets, emplacement des joueurs en
+  ligne pour S5, Discord), Rejoindre (PC, téléphone, tablette ; la console attend Kr), Ce qui se vend (packs, grades,
+  abonnements rendus depuis `definitions/boutique.json`, la liste de ce qui ne se vend jamais), Boutique, Vote (sites
+  de vote et adresse de la boutique lus dans l'environnement, vides tant que Kr ne les donne pas), Mises à jour (une
+  entrée par fichier daté, aucune pour l'instant) ; quatre variables de plus (`SILOOO_SITE_ADRESSE_JEU`,
+  `SILOOO_SITE_PORT_JEU` comparé au compose par un test, `SILOOO_SITE_URL_BOUTIQUE`, `SILOOO_SITE_SITES_DE_VOTE`) ;
+  1182 tests Gradle dont 169 ignorés. Captures relues par la direction.
 - **S1 est sur `main`** : Silooo Atelier pour le web (`site.css` importe `atelier/tokens.css` puis `atelier.css` ;
   textures, icônes, Oooscar et logos copiés de `design/` et comparés octet pour octet ; polices Jersey 10, Pixelify
   Sans et Silkscreen servies par le site, paquets Fontsource 5.3.0, licence OFL ; gabarit commun avec navigation par
@@ -113,24 +120,24 @@ Critère de fin : la page d'attente et les mentions ont le gabarit commun et le 
 Critère de fin : Accueil, Rejoindre, Ce qui se vend, Boutique, Vote et Mises à jour rendues en mode `ouvert`,
 absentes en `attente` (404) ; aucun chiffre tapé ; textes marqués à valider ; `tools/verifier.sh` vert.
 
-- [ ] Accueil : le jeu en une phrase, l'adresse et le port, l'emplacement des joueurs en ligne (rempli en S5, caché
+- [x] Accueil : le jeu en une phrase, l'adresse et le port, l'emplacement des joueurs en ligne (rempli en S5, caché
   tant que la donnée manque), une vidéo et une capture à poser par Kr (emplacements marqués), le lien Discord ;
   quatre paragraphes au plus
-- [ ] Rejoindre : l'adresse (`SILOOO_SITE_ADRESSE_JEU`, `play.silooo.com` par défaut) et le port (`SILOOO_SITE_PORT_JEU`,
+- [x] Rejoindre : l'adresse (`SILOOO_SITE_ADRESSE_JEU`, `play.silooo.com` par défaut) et le port (`SILOOO_SITE_PORT_JEU`,
   même défaut que `BDS_PORT` du compose, un test compare la constante à `deploy/compose.yml`), la marche à suivre par
   plate-forme (PC, téléphone et tablette, console : l'ajout d'un serveur n'est pas offert par toutes les consoles,
   la méthode est **à valider par Kr**)
-- [ ] Ce qui se vend : la promesse « Tout ce qui s'achète se gagne aussi en jouant », les packs de Gemmes, les grades
+- [x] Ce qui se vend : la promesse « Tout ce qui s'achète se gagne aussi en jouant », les packs de Gemmes, les grades
   et leur bonus, le Pilier, lus dans `ShopDefinitions` ; la liste de ce qui n'est jamais en vente ([vision.md](vision.md)) ;
   un test compare la page aux définitions
-- [ ] Boutique : les grades et le Pilier (mêmes définitions), où s'achètent les Gemmes (`SILOOO_SITE_URL_BOUTIQUE`, vide
+- [x] Boutique : les grades et le Pilier (mêmes définitions), où s'achètent les Gemmes (`SILOOO_SITE_URL_BOUTIQUE`, vide
   tant que Kr ne l'a pas donnée : le lien ne s'affiche pas), les interdits, la note sur l'historique d'achats (en jeu)
-- [ ] Vote : les sites de vote (`SILOOO_SITE_SITES_DE_VOTE`, liste vide tant que Kr ne les a pas donnés), la récompense
+- [x] Vote : les sites de vote (`SILOOO_SITE_SITES_DE_VOTE`, liste vide tant que Kr ne les a pas donnés), la récompense
   par vote seulement quand `definitions/` la chiffre (sinon la page dit qu'elle arrive), la jauge de la Vote party
   plus tard
-- [ ] Mises à jour : `contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md`, une entrée par tag déployé, la plus récente en tête ;
+- [x] Mises à jour : `contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md`, une entrée par tag déployé, la plus récente en tête ;
   sans entrée, la page dit que le serveur n'a pas encore ouvert ; un test refuse un nom de fichier mal formé
-- [ ] `docs/site.md` : le tableau des pages pointe vers les fichiers de `contenu/`
+- [x] `docs/site.md` : le tableau des pages pointe vers les fichiers de `contenu/`
 
 ### S3 : le wiki
 
@@ -203,8 +210,10 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    (`Dependencies`), `libs.versions.toml` et `core/README.md`, et crée le paquet `site/`. Dites à vos tranches de ne
    pas réécrire ces fichiers d'un bloc, et prévenez ici si l'une d'elles y travaille.
 3. **Variables d'environnement du site**, lues par silooo-core par `env_file` (rien à changer dans le compose) :
-   `SILOOO_SITE_PORT` (8081), `SILOOO_SITE_MODE` (`attente`), plus tard `SILOOO_SITE_URL`, `SILOOO_DISCORD_CLIENT_ID`,
-   `SILOOO_DISCORD_CLIENT_SECRET`, `SILOOO_PAYNOW_WEBHOOK_SECRET`. `deploy/exemple.env.txt` et le tableau des variables
+   `SILOOO_SITE_PORT` (8081), `SILOOO_SITE_MODE` (`attente`), `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`,
+   `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU` (le défaut de `BDS_PORT`, un test les compare), `SILOOO_SITE_URL_BOUTIQUE`,
+   `SILOOO_SITE_SITES_DE_VOTE` (`nom|url;nom|url`), plus tard `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`,
+   `SILOOO_PAYNOW_WEBHOOK_SECRET`. Toutes sont décrites dans le tableau des variables de `core/README.md`. `deploy/exemple.env.txt` et le tableau des variables
    de `docs/deploiement.md` sont à vous : merci d'y ajouter ces lignes (S0 est sur `main` : les quatre premières
    sont lues par `Config.kt`), avec l'avertissement « jamais `ouvert` par une session », puis de retirer leurs noms
    de la liste `reglees` de `tools/tests/deploy-compose.mjs`, où S0 les a exemptés faute de pouvoir toucher `deploy/`.
@@ -213,6 +222,10 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    `join` reçoit le gamertag : pas besoin de l'empreinte. Le numéro de migration se prend à la fusion de S4 (V7 si
    personne ne l'a pris : la ville a pris V6). Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
 5. **Rien à vous demander pour S0 à S3** : contenus, style et wiki ne touchent ni `api/`, ni `addon/`, ni `deploy/`.
+6. **Un nom lisible pour les abonnements dans `definitions/boutique.json`.** Les grades ont un `nom`, les
+   abonnements (`pilier`, `perso`) n'ont qu'un `id` : le site écrit « Pilier » et « Préfixe perso » dans son code
+   (`site/pages/Offres.kt`), ce qui contredit « une seule source par donnée ». Si la tranche de la boutique ajoute
+   un `nom` à chaque abonnement (schéma compris), le site le lira à la place, et l'add-on aussi.
 
 ## À faire par Kr
 
@@ -265,6 +278,11 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    `sa-bouton--nav` en corps de 20 px pour que huit liens tiennent sur un téléphone ; `SiteShell` porte l'adresse du
    site, le Discord et la navigation. À la fusion, la direction a retiré du contenu d'attente le paragraphe « Le
    serveur ouvre bientôt. », que la bulle d'Oooscar disait déjà juste dessous, et a resserré le test.
+8. **S2, tranché par la session et gardé à la fusion** : un contenu Markdown place un bloc rendu par le code par un
+   paragraphe `{{nom}}` (un nom inconnu ou un bloc jamais appelé fait échouer le rendu) ; les offres sont des listes,
+   pas des tableaux (lisibles à 360 px) ; les packs ne sont que sur « Ce qui se vend », la Boutique montre les grades et
+   les abonnements ; la date d'une mise à jour doit être celle de son nom de fichier ; le texte des consoles n'est pas
+   inventé : la page dit qu'il arrive ; les liens internes du Markdown perdent le `rel="nofollow"` que commonmark pose.
 
 ## À valider par Kr
 
@@ -293,6 +311,30 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   navigation pour les lecteurs d'écran).
 - S1, `pages/Navigation.kt` : les mots de la navigation « Accueil », « Rejoindre », « Wiki », « Classements »,
   « Boutique », « Vote », « Mises à jour », « Mentions ».
+- S2, `contenu/accueil.md` : « Tu hérites d'une carrière abandonnée sur une île. Tu rachètes des usines, tu embauches des
+  salariés, puis tu fais un prestige : ta course repart de zéro et te rapporte des Lingots. » ; « Tout ce qui s'achète
+  se gagne aussi en jouant. Voir ce qui se vend. » ; la description.
+- S2, `contenu/rejoindre.md` : « Pour jouer, ajoute Silooo à ta liste de serveurs dans Minecraft Bedrock. », les six
+  étapes (« Ouvre Minecraft Bedrock. », « Choisis Jouer, puis Serveurs. », « Choisis Ajouter un serveur. », « Écris
+  Silooo comme nom. », « Recopie l'adresse et le port de cette page. », « Enregistre, puis choisis Silooo dans la
+  liste. »), « Tout passe par des menus en jeu. Aucune commande à taper. », « Le chemin est le même que sur PC et
+  téléphone. », et pour les consoles « Sur Xbox, PlayStation et Switch, le menu de certaines consoles n'offre pas
+  d'ajouter un serveur. La marche à suivre pour les consoles arrive. » (**à écrire par Kr**).
+- S2, `contenu/ce-qui-se-vend.md` : « Tout ce qui s'achète se gagne aussi en jouant. », « Les Gemmes sont la seule
+  monnaie en vente. Elles se dépensent dans la boutique en jeu. Les prix sont ici, avant ta première connexion. »,
+  « Les grades se prennent dans l'ordre. », « Ni contre des Gemmes, ni contre des euros : » et la liste de
+  `vision.md`.
+- S2, `contenu/boutique.md` : « Des choses ne s'achètent jamais. Voir la liste. », « Ton historique d'achats se lit en
+  jeu, dans la boutique. » ; `pages/Boutique.kt` : « Acheter des Gemmes », « La boutique ouvre avec le serveur. »
+- S2, `contenu/vote.md` : « Vote pour Silooo sur les sites ci-dessous. », « La récompense par vote arrive. », « Quand le
+  serveur atteint l'objectif de votes, tout le monde reçoit la même récompense. » ; `pages/Vote.kt` : « Les sites de
+  vote arrivent avec le serveur. »
+- S2, `contenu/mises-a-jour.md` : « Ici, les changements du serveur, la plus récente en haut. » ; `pages/MisesAJour.kt` :
+  « Le serveur n'a pas encore ouvert. Les mises à jour s'écriront ici. »
+- S2, `pages/Offres.kt` : « Sans bonus », « Bonus N % », « Bonus de Donar N % », « N Gemmes rendues », « Réservé au
+  grade X », « N jours », et les noms « Pilier » et « Préfixe perso » écrits dans le code (voir « Pour la direction du
+  jeu », point 6) ; `pages/Joueurs.kt` : « Adresse », « Port », « N joueurs en ligne » ; `pages/Accueil.kt` :
+  « Rejoindre ».
 
 ## Journal
 
@@ -319,3 +361,24 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   trois tests nouveaux et le rendu sur disque, les captures (rien ne déborde à 360 px, les polices se chargent, la
   plaque, le panneau riveté et Oooscar sont ceux de la charte). Fusionnée en avance rapide (`7996856`), puis le
   paragraphe en double de la page d'attente retiré. Suite : S2.
+- 5 novembre 2026, 14 h 10 à 14 h 25 (direction du site, cloud). `main` poussé avec S1 (`6301067`). Session S2
+  (Sonnet, worktree, partie de `main`) lancée à 13 h 50, revenue à 14 h 05 avec trois commits et vingt captures.
+  Relu : les quatre variables et `SiteSettings`, le mécanisme `{{nom}}`, `Offres.kt` (rien que les définitions),
+  `Updates.kt`, les six contenus, les deux fichiers de tests nouveaux, le `rel="nofollow"` retiré des liens
+  internes, les captures de l'accueil complet, de « Ce qui se vend » et de « Rejoindre ». Fusionnée en avance
+  rapide (`0834dce`).
+- **5 novembre 2026, 14 h 25 : bilan de deux heures (direction du site).**
+  - Fait depuis 12 h 45 : la mise en place (direction, passation, `site.md` sur `main`, ADR 0006 réécrit sur la
+    décision 37), S0 (le site dans silooo-core, second serveur, deux modes, attente et mentions, anti-IA), S1
+    (Silooo Atelier pour le web, polices servies par le site, gabarit et navigation), S2 (les six pages publiques
+    du mode ouvert) ; tout sur `main`, chaque fusion vérifiée par `tools/verifier.sh` dans la session (Gradle
+    compris, tests SQL ignorés sans Docker) et par la CI.
+  - Reste : S3 (le wiki), S4 (pionniers, Relier Discord, admission, migration V7), S5 (joueurs en ligne, classements,
+    fiches, webhook PayNow, marche à suivre de la mise en ligne). Lancement de S3 à ce bilan.
+  - Décisions prises seule : 1 à 8 ci-dessus ; la 3 (réalignement) est la seule qui change le cadre, et elle suit
+    la décision 37 de Kr.
+  - Pour Kr : la liste « À faire par Kr » (ses fichiers de cadrage à pousser, l'ADR 0006, le dessin de S4, le DNS, le
+    bloc Caddy, les mentions, la boutique, les sites de vote, Discord, PayNow, le texte des consoles) ; les textes
+    « À valider par Kr » de S0, S1 et S2.
+  - Pour la direction du jeu : les six points de la section, dont les variables du site à poser dans
+    `deploy/exemple.env.txt` et le nom des abonnements dans `boutique.json`.
