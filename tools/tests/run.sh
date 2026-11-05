@@ -173,6 +173,64 @@ for dossier in tools/tests/definitions-invalides/*/; do
   fi
 done
 
+# ------------------------------------------------------------------ verifier_pack.mjs et generer_oooscar.mjs
+echo "verifier_pack.mjs : le vrai pack passe, chaque copie abîmée est refusée ; generer_oooscar.mjs se vérifie"
+sortie="$(node tools/verifier_pack.mjs 2>&1)"
+if [ $? -eq 0 ]; then ok "resource-pack/ est valide"; else ko "resource-pack/ devrait être valide" "$sortie"; fi
+
+# essai_pack <cas> <texte attendu> <commande qui abîme la copie, lancée dans la copie>
+essai_pack() {
+  local cas="$1" attendu="$2"
+  shift 2
+  rm -rf "$TMP/pack"
+  cp -r resource-pack "$TMP/pack"
+  (cd "$TMP/pack" && "$@") >/dev/null 2>&1
+  sortie="$(node tools/verifier_pack.mjs "$TMP_NATIF/pack" 2>&1)"
+  code=$?
+  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu"; then
+    ok "$cas est refusé"
+  else
+    ko "$cas devrait être refusé avec « $attendu » (code $code)" "$sortie"
+  fi
+}
+uuid_addon="$(node -p "require('./addon/manifest.json').header.uuid")"
+essai_pack "une texture retouchée" "textures/ui/silooo/panneau-fonte.png: diffère" bash -c "printf x >> textures/ui/silooo/panneau-fonte.png"
+essai_pack "une icône qui manque" "textures/ui/silooo/icones/lingot.png: absent" rm textures/ui/silooo/icones/lingot.png
+essai_pack "un PNG sans source dans design/" "n'a pas de source" cp pack_icon.png textures/ui/silooo/orphelin.png
+essai_pack "une texture citée par le HUD qui n'existe plus" "qui n'existe pas dans le pack" rm textures/ui/silooo/puce-fonte.png
+essai_pack "des uuid déjà pris par l'add-on" "déjà pris dans addon/manifest.json" sed -i "s/\"uuid\": \"[^\"]*\"/\"uuid\": \"$uuid_addon\"/" manifest.json
+essai_pack "une clé de texte absente de fr_FR.lang" "absent de texts/fr_FR.lang" sed -i 's/^pack.name=.*$//' texts/fr_FR.lang
+essai_pack "une animation inconnue" "n'est définie dans aucun fichier d'animations" sed -i 's/animation.silooo_oooscar.accueil/animation.silooo_oooscar.inconnue/' entity/oooscar.entity.json
+essai_pack "un modèle qui ne va plus avec sa texture" "le modèle models/entity/oooscar.geo.json annonce 64x" sed -i 's/"texture_width": 128/"texture_width": 64/' models/entity/oooscar.geo.json
+essai_pack "un préfixe de HUD qui n'est plus celui de l'add-on" "ne cite pas le préfixe « silooo:consigne| »" sed -i 's/silooo:consigne|/silooo:autre|/g' ui/hud_screen.json
+essai_pack "un JSON cassé" "ui/hud_screen.json: JSON invalide" bash -c "echo '{' > ui/hud_screen.json"
+
+# Le générateur d'Oooscar dans un faux dépôt : il écrit ce qu'il vérifie, et --verifier voit l'écart (modèle, texture).
+mkdir -p "$TMP/gen/tools" "$TMP/gen/design" "$TMP/gen/resource-pack"
+cp tools/generer_oooscar.mjs "$TMP/gen/tools/"
+cp design/tokens.json "$TMP/gen/design/"
+generateur() { node "$TMP_NATIF/gen/tools/generer_oooscar.mjs" "$@" 2>&1; }
+sortie="$(generateur --verifier)"
+if [ $? -eq 1 ]; then ok "generer_oooscar.mjs --verifier refuse des fichiers absents"; else ko "--verifier devrait refuser des fichiers absents" "$sortie"; fi
+generateur >/dev/null
+sortie="$(generateur --verifier)"
+if [ $? -eq 0 ]; then ok "generer_oooscar.mjs --verifier accepte ce que le script vient d'écrire"; else ko "--verifier devrait accepter ce que le script vient d'écrire" "$sortie"; fi
+cmp -s "$TMP/gen/resource-pack/models/entity/oooscar.geo.json" resource-pack/models/entity/oooscar.geo.json \
+  && ok "le modèle du dépôt est celui que le script écrit" || ko "resource-pack/models/entity/oooscar.geo.json diffère de la sortie du script"
+sed -i 's/"visible_bounds_width": 3/"visible_bounds_width": 4/' "$TMP/gen/resource-pack/models/entity/oooscar.geo.json"
+sortie="$(generateur --verifier)"
+if [ $? -eq 1 ] && printf '%s\n' "$sortie" | grep -q "oooscar.geo.json n'est pas celui"; then ok "--verifier voit un modèle retouché"; else ko "--verifier devrait voir un modèle retouché" "$sortie"; fi
+generateur >/dev/null
+node -e '
+  const fs = require("node:fs");
+  const f = process.argv[1];
+  const t = JSON.parse(fs.readFileSync(f, "utf8"));
+  t.color.tokens.find((j) => j.name === "email-rouge").value = "#000000";
+  fs.writeFileSync(f, JSON.stringify(t));
+' "$TMP_NATIF/gen/design/tokens.json"
+sortie="$(generateur --verifier)"
+if [ $? -eq 1 ] && printf '%s\n' "$sortie" | grep -q "oooscar.png n'a pas les pixels"; then ok "--verifier voit une texture qui ne suit plus les jetons de couleur"; else ko "--verifier devrait voir une texture périmée" "$sortie"; fi
+
 # ------------------------------------------------------------------ deploy/
 # Trois essais, chacun dans son fichier : start.sh (sans Docker), deploy.sh et sauvegarde.sh (avec un faux docker),
 # puis le compose, le Dockerfile, start.sh et l'exemple d'environnement lus les uns contre les autres.
