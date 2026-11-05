@@ -39,6 +39,10 @@ data class Factory(
     val stoppedNoPower: Boolean = false,
 )
 
+/** Schéma `CompanyState.island` : l'origine de l'archipel de l'entreprise, en blocs (`archipelago_slots`). */
+@Serializable
+data class Island(val x: Int, val z: Int)
+
 /** Schéma `CompanyState`. */
 @Serializable
 data class CompanyState(
@@ -54,7 +58,25 @@ data class CompanyState(
     val threshold: Double,
     val factories: List<Factory>,
     val zonesOwned: List<Int>,
+    val island: Island,
     val version: Int,
+)
+
+/** Schéma `PrestigePreview.shares[]` : les Lingots qu'un membre recevrait. */
+@Serializable
+data class PrestigeShare(val xuid: String, val lingots: Long)
+
+/**
+ * Schéma `PrestigePreview` : ce que rapporterait un prestige maintenant. `next` vaut `EPOQUE_2`, `EPOQUE_3`,
+ * `EPOQUE_4` ou `ETOILE` ; il reste une chaîne, l'énumération de l'OpenAPI suivant les époques d'`usines.json`.
+ */
+@Serializable
+data class PrestigePreview(
+    val allowed: Boolean,
+    val lingotsTotal: Long,
+    val lingotsIfDoubled: Long,
+    val shares: List<PrestigeShare>,
+    val next: String,
 )
 
 /** Schéma `JoinResponse`. */
@@ -83,3 +105,11 @@ data class GameEvent(val id: Long, val xuid: String?, val kind: String, val payl
 /** La réponse 200 de `pollEvents`. */
 @Serializable
 data class EventsPage(val cursor: Long, val events: List<GameEvent>)
+
+/** Schéma `Mission` : la mission en cours du joueur. Les textes sont ceux de l'add-on, retrouvés par [id]. */
+@Serializable
+data class Mission(val id: String, val progress: Int, val target: Int, val rewardLingots: Long)
+
+/** Schéma `MissionState` : [current] est la première mission pas terminée (`null` quand toutes le sont), [completed] les terminées. */
+@Serializable
+data class MissionState(val current: Mission?, val completed: List<String>)

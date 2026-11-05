@@ -7,6 +7,9 @@ import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Idempotency
+import com.silooo.core.api.Island
+import com.silooo.core.api.PrestigePreview
+import com.silooo.core.api.PrestigeShare
 import com.silooo.core.api.RefusalCodes
 import com.silooo.core.api.RefusedBody
 import com.silooo.core.api.SERVER_KEY_HEADER
@@ -15,6 +18,8 @@ import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.InMemoryMissionStore
+import com.silooo.core.mission.MissionRow
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.FactoryRecord
@@ -30,6 +35,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -37,6 +43,7 @@ import kotlin.math.abs
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -57,6 +64,8 @@ class CompanyRoutesTest {
         val fixture: EngineFixture,
         val database: RecordingDatabase,
         val companies: InMemoryCompanyStore,
+        /** Les missions des joueurs, en mémoire : un encaissement qui rapporte avance la mission en cours. */
+        val missions: InMemoryMissionStore,
         /** La présence que `join` interroge, sur l'horloge du test : un signal de vie se périme quand le test avance le temps. */
         val presence: ServerPresence,
     ) {
@@ -89,12 +98,31 @@ class CompanyRoutesTest {
 
         fun factory(companyId: Long, factoryId: String): FactoryRecord =
             fixture.store.loadFactories(fixture.connection, companyId).single { it.factoryId == factoryId }
+
+        /**
+         * Une entreprise du PDG [KR] à la course [course], avec [earned] Donar gagnés dans la course (le seuil par
+         * défaut), [awayHours] heures de production en attente et [ownerLingots] Lingots au PDG.
+         */
+        fun prestigeCompany(
+            course: Int = 1,
+            earned: Double = engine.prestigeThreshold(course),
+            awayHours: Double = 0.0,
+            ownerLingots: Long = 0L,
+        ): CompanyRecord {
+            val base = fixture.newCompany(EngineFixture.KR, ownerLingots)
+            val company = fixture.update(
+                base.copy(courseNumber = course, era = engine.eraAt(course), stars = engine.starsAt(course), donar = earned, donarEarned = earned),
+            )
+            fixture.clock.advance(EngineFixture.hours(awayHours))
+            return company
+        }
     }
 
     private fun withApp(block: suspend ApplicationTestBuilder.(Harness) -> Unit) = testApplication {
         val fixture = EngineFixture()
         val database = RecordingDatabase(fixture.recording)
         val companies = InMemoryCompanyStore(fixture.store)
+        val missions = InMemoryMissionStore(fixture.store)
         val presence = ServerPresence(clock = fixture.clock)
         application {
             siloooModule(
@@ -108,11 +136,12 @@ class CompanyRoutesTest {
                     economyFigures = fixture.figures,
                     companyBootstrap = fixture.bootstrap,
                     companyStore = companies,
+                    missionStore = missions,
                     serverPresence = presence,
                 ),
             )
         }
-        block(Harness(fixture, database, companies, presence))
+        block(Harness(fixture, database, companies, missions, presence))
     }
 
     // --- outils
@@ -139,6 +168,16 @@ class CompanyRoutesTest {
 
     private suspend fun ApplicationTestBuilder.restore(companyId: Long, factoryId: String, step: Int, n: Int = 1, actor: String = kr.text) =
         post("/v1/companies/$companyId/factories/$factoryId/restore", action(n, actor, ""","step":$step"""))
+
+    private suspend fun ApplicationTestBuilder.prestige(companyId: Long, n: Int = 1, actor: String = kr.text) =
+        post("/v1/companies/$companyId/prestige", action(n, actor))
+
+    private suspend fun ApplicationTestBuilder.preview(companyId: Long) = get("/v1/companies/$companyId/prestige/preview")
+
+    private suspend fun previewOf(response: HttpResponse): PrestigePreview {
+        assertEquals(HttpStatusCode.OK, response.status)
+        return SiloooJson.decodeFromString(PrestigePreview.serializer(), response.bodyAsText())
+    }
 
     private suspend fun updated(response: HttpResponse): CompanyUpdated {
         assertEquals(HttpStatusCode.OK, response.status)
@@ -178,6 +217,7 @@ class CompanyRoutesTest {
         assertEquals(company.id, state.companyId)
         assertEquals(company.name, state.name)
         assertEquals(12.5, state.donar)
+        assertEquals(Island(company.island.x, company.island.z), state.island, "l'île vient de la case d'archipel de l'entreprise")
         assertEquals(company.version, state.version)
         assertEquals(figures.ratePerHour, state.ratePerHour)
         assertEquals(figures.multiplier, state.multiplier)
@@ -337,6 +377,96 @@ class CompanyRoutesTest {
         app.recording.rowsTouched = 1
         assertEquals(HttpStatusCode.OK, collect(company.id, n = 9).status, "le conflit n'est pas gardé : le nouvel essai passe")
         assertEquals(1, app.companies.published.size)
+    }
+
+    // --- collect et la mission de bienvenue
+
+    @Test
+    @DisplayName("collect : un encaissement qui rapporte termine la mission de bienvenue : Lingots du catalogue versés, événement publié, une seule fois")
+    fun collectFinishesTheWelcomeMission() = withApp { app ->
+        val first = app.fixture.definitions.missions.missions.first()
+        val reward = app.fixture.definitions.missionRewards.getValue(first.id)
+        val company = app.company(awayHours = 2.0)
+        assertTrue(app.production(company.id, 2.0) > 0.0, "le test n'a de sens que si l'entreprise produit")
+
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 1).status)
+
+        assertEquals(MissionRow(first.target, completed = true), app.missions.rows.getValue(kr to first.id))
+        assertEquals(listOf(InMemoryMissionStore.Credit(kr, reward, "mission", first.id)), app.missions.credits)
+        assertEquals(reward, app.fixture.store.balances.getValue(kr).lingots)
+        val event = app.missions.published.single()
+        assertEquals(GameEventKind.ANNONCE, event.kind)
+        assertEquals(kr, event.xuid)
+        assertEquals("mission", event.payload.getValue("action").jsonPrimitive.content)
+        assertEquals(first.id, event.payload.getValue("missionId").jsonPrimitive.content)
+        assertEquals(reward.toString(), event.payload.getValue("rewardLingots").jsonPrimitive.content)
+        assertEquals(1, app.companies.published.size, "l'événement du collect lui-même reste seul de son espèce")
+
+        // Un second encaissement qui rapporte : la mission est faite, elle ne se rejoue pas.
+        app.fixture.clock.advance(EngineFixture.hours(2.0))
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 2).status)
+        assertEquals(1, app.missions.credits.size)
+        assertEquals(1, app.missions.published.size)
+        assertEquals(reward, app.fixture.store.balances.getValue(kr).lingots)
+    }
+
+    @Test
+    @DisplayName("collect rejoué avec le même requestId : la mission n'est comptée ni versée deux fois")
+    fun collectReplayDoesNotCountTwice() = withApp { app ->
+        val company = app.company(awayHours = 2.0)
+
+        collect(company.id, n = 5)
+        app.fixture.clock.advance(EngineFixture.hours(5.0))
+        collect(company.id, n = 5)
+
+        assertEquals(1, app.missions.credits.size)
+        assertEquals(1, app.missions.published.size)
+    }
+
+    @Test
+    @DisplayName("collect : rien n'est dû, ou rien n'est gagné (aucune usine ne produit) : la mission n'avance pas")
+    fun collectWithoutGainDoesNotAdvanceTheMission() = withApp { app ->
+        val nothingDue = app.company()
+        assertEquals(HttpStatusCode.OK, collect(nothingDue.id).status)
+        assertTrue(app.missions.rows.isEmpty(), "l'horloge n'a pas avancé : aucune ligne de mission")
+
+        val idle = app.company(awayHours = 3.0)
+        app.fixture.putFactory(idle.id, FactoryRecord(app.starterId, FactoryState.EN_RUINE, 0, 0, null))
+        assertEquals(HttpStatusCode.OK, collect(idle.id, n = 2).status)
+        assertEquals(1, app.companies.published.size, "l'encaissement à zéro est écrit et annoncé comme avant")
+        assertTrue(app.missions.rows.isEmpty(), "rien n'a été gagné : la mission n'avance pas")
+        assertTrue(app.missions.credits.isEmpty())
+        assertTrue(app.missions.published.isEmpty())
+    }
+
+    @Test
+    @DisplayName("collect : version dépassée : 409 CONFLIT_REESSAYER, la mission ne bouge pas, et le nouvel essai la termine")
+    fun collectConflictLeavesTheMissionAlone() = withApp { app ->
+        val company = app.company(awayHours = 2.0)
+
+        app.recording.rowsTouched = 0
+        assertRefused(collect(company.id, n = 9), RefusalCodes.CONFLICT_RETRY)
+        assertTrue(app.missions.rows.isEmpty())
+        assertTrue(app.missions.credits.isEmpty())
+        assertTrue(app.missions.published.isEmpty())
+
+        app.recording.rowsTouched = 1
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 9).status)
+        assertEquals(1, app.missions.credits.size)
+    }
+
+    @Test
+    @DisplayName("collect : un associé qui encaisse avance SA mission, pas celle du PDG")
+    fun missionsAreKeptPerPlayer() = withApp { app ->
+        val company = app.company(awayHours = 2.0)
+        app.fixture.addMember(company.id, other, lingots = 0)
+
+        assertEquals(HttpStatusCode.OK, collect(company.id, n = 1, actor = other.text).status)
+
+        val first = app.fixture.definitions.missions.missions.first().id
+        assertEquals(setOf(other to first), app.missions.rows.keys)
+        assertEquals(other, app.missions.credits.single().xuid)
+        assertEquals(0L, app.fixture.store.balances.getValue(kr).lingots, "le PDG n'a rien reçu")
     }
 
     // --- buyLevels
@@ -649,6 +779,320 @@ class CompanyRoutesTest {
 
         assertEquals(FactoryState.EN_RUINE, app.factory(company.id, factoryId).state)
         assertEquals(0, app.companies.saved.size)
+        assertEquals(0, app.companies.published.size)
+    }
+
+    // --- prestigePreview
+
+    @Test
+    @DisplayName("prestigePreview : seuil non atteint : allowed faux, Lingots et parts à zéro, l'époque suivante dite, rien d'écrit")
+    fun previewBelowTheThreshold() = withApp { app ->
+        val company = app.prestigeCompany(earned = app.engine.prestigeThreshold(1) / 2)
+
+        val preview = previewOf(preview(company.id))
+
+        assertFalse(preview.allowed)
+        assertEquals(0L, preview.lingotsTotal)
+        assertEquals(0L, preview.lingotsIfDoubled)
+        assertEquals(listOf(PrestigeShare(kr.text, 0L)), preview.shares)
+        assertEquals("EPOQUE_${app.engine.eraAt(2)}", preview.next)
+        assertEquals(0, app.recording.statements.size, "prestigePreview ne lit que : aucune écriture")
+        assertEquals(0, app.companies.published.size)
+    }
+
+    @Test
+    @DisplayName("prestigePreview : au-dessus du seuil : les Lingots du moteur, le rendement décroissant, la part de chacun")
+    fun previewAboveTheThreshold() = withApp { app ->
+        val earned = app.engine.prestigeThreshold(1) * 8
+        val company = app.prestigeCompany(earned = earned)
+        app.fixture.addMember(company.id, other, lingots = 0)
+        app.companies.sharePercents[kr] = 70
+        app.companies.sharePercents[other] = 30
+        val total = app.engine.prestigeLingots(1, earned)
+        assertTrue(total > 0, "le test n'a de sens que si le prestige rapporte")
+
+        val preview = previewOf(preview(company.id))
+
+        assertTrue(preview.allowed)
+        assertEquals(total, preview.lingotsTotal)
+        assertEquals(app.engine.prestigeLingots(1, earned * 2), preview.lingotsIfDoubled)
+        assertTrue(preview.lingotsIfDoubled > preview.lingotsTotal, "attendre plus rapporte plus")
+        assertTrue(preview.lingotsIfDoubled < 2 * preview.lingotsTotal, "mais moins que le double")
+        assertEquals(listOf(kr.text, other.text), preview.shares.map { it.xuid })
+        assertEquals(total, preview.shares.sumOf { it.lingots })
+        assertEquals(total * 30 / 100, preview.shares.last().lingots)
+        assertEquals(0, app.recording.statements.size)
+    }
+
+    @Test
+    @DisplayName("prestigePreview : la production en attente compte dans les Donar gagnés, comme au prestige")
+    fun previewCountsThePendingProduction() = withApp { app ->
+        val company = app.prestigeCompany(earned = Math.nextDown(app.engine.prestigeThreshold(1)))
+        assertFalse(previewOf(preview(company.id)).allowed, "juste sous le seuil")
+
+        app.fixture.clock.advance(EngineFixture.hours(1.0))
+
+        assertTrue(previewOf(preview(company.id)).allowed, "une heure de production passe le seuil")
+        assertEquals(0, app.recording.statements.size, "l'aperçu ne verse rien")
+    }
+
+    @Test
+    @DisplayName("prestigePreview : next est l'époque suivante, puis ETOILE dès la dernière époque")
+    fun previewNextFollowsTheEras() = withApp { app ->
+        val lastEra = app.fixture.definitions.factories.factories.maxOf { it.era }
+        for (course in 1..(lastEra + 2)) {
+            val company = app.prestigeCompany(course = course)
+            val expected = if (course >= lastEra) "ETOILE" else "EPOQUE_${course + 1}"
+            assertEquals(expected, previewOf(preview(company.id)).next, "prestige de la course $course")
+        }
+    }
+
+    @Test
+    @DisplayName("prestigePreview : une entreprise inconnue, ou un identifiant qui n'en est pas un, donne 400 REQUETE_INVALIDE")
+    fun previewRefusesWhatIsNotACompany() = withApp { app ->
+        val company = app.prestigeCompany()
+        assertError(preview(company.id + 1))
+        assertError(get("/v1/companies/0/prestige/preview"))
+        assertError(get("/v1/companies/abc/prestige/preview"))
+    }
+
+    // --- prestige
+
+    @Test
+    @DisplayName("prestige : le PDG au seuil lance la course suivante : Donar à zéro, usines au départ, Lingots crédités, historique et événement écrits")
+    fun prestigeStartsTheNextCourse() = withApp { app ->
+        val threshold = app.engine.prestigeThreshold(1)
+        val earned = threshold * 8
+        val company = app.prestigeCompany(earned = earned, ownerLingots = 4)
+        val second = app.secondId
+        app.fixture.putFactory(company.id, FactoryRecord(app.starterId, FactoryState.ACTIVE, 0, app.starterLevel + 40, openIncidentId = null))
+        app.fixture.putFactory(company.id, FactoryRecord(second, FactoryState.ACTIVE, 0, 12, openIncidentId = 5L))
+        val total = app.engine.prestigeLingots(1, earned)
+        assertTrue(total > 0, "le test n'a de sens que si le prestige rapporte")
+
+        val result = updated(prestige(company.id))
+
+        val state = result.state
+        assertEquals(2, state.courseNumber)
+        assertEquals(app.engine.eraAt(2), state.era)
+        assertEquals(app.engine.starsAt(2), state.stars)
+        assertEquals(0.0, state.donar)
+        assertEquals(0.0, state.donarEarned)
+        assertEquals(company.version + 1, state.version)
+        assertEquals(app.engine.prestigeThreshold(2), state.threshold, "le seuil est celui de la course suivante")
+        val starter = state.factories.single { it.factoryId == app.starterId }
+        assertEquals(FactoryState.ACTIVE, starter.state)
+        assertEquals(app.starterLevel, starter.level, "l'usine de départ repart au niveau de départ")
+        val sold = state.factories.single { it.factoryId == second }
+        assertEquals(FactoryState.EN_RUINE, sold.state)
+        assertEquals(0, sold.level)
+        assertEquals(0, sold.restoreStep)
+        assertEquals(null, sold.incidentId, "l'incident ouvert est clos")
+        assertEquals(4 + total, result.balances.lingots, "les Lingots s'ajoutent à ceux que le PDG détenait")
+        assertEquals(
+            app.engine.globalMultiplier((4 + total).toDouble(), state.stars),
+            state.multiplier,
+            "le multiplicateur rendu compte les Lingots que le prestige vient de verser",
+        )
+
+        val write = app.companyUpdates().single()
+        assertEquals(
+            "UPDATE companies SET donar = ?, donar_earned = ?, course_number = ?, era = ?, stars = ?, course_started_at = ?, " +
+                "last_collect_at = ?, version = version + 1 WHERE id = ? AND version = ?",
+            write.sql,
+        )
+        assertEquals(listOf<Any?>(0.0, 0.0, 2, app.engine.eraAt(2), app.engine.starsAt(2)), (1..5).map { write.parameters.getValue(it) })
+        assertEquals(utc(app.fixture.clock.now), write.parameters.getValue(6), "course_started_at passe à maintenant")
+        assertEquals(utc(app.fixture.clock.now), write.parameters.getValue(7), "last_collect_at passe à maintenant")
+        assertEquals(company.id, write.parameters.getValue(8))
+        assertEquals(company.version, write.parameters.getValue(9), "le verrou optimiste porte la version lue")
+
+        assertEquals(listOf(company.id to app.engine.startingLevels()), app.companies.restarts)
+        assertEquals(listOf(InMemoryCompanyStore.Credit(kr, total, "prestige", "entreprise-${company.id}-course-1")), app.companies.credits)
+        assertEquals(
+            listOf(PrestigeRecord(company.id, 1, company.era, state.stars, threshold, earned, total, BigDecimal("0.00"), kr)),
+            app.companies.prestiges,
+        )
+        val event = app.companies.published.single()
+        assertEquals(GameEventKind.ANNONCE, event.kind)
+        assertEquals(kr, event.xuid)
+        assertEquals("prestige", event.payload.getValue("action").jsonPrimitive.content)
+        assertEquals(company.id.toString(), event.payload.getValue("companyId").jsonPrimitive.content)
+        assertEquals("1", event.payload.getValue("course").jsonPrimitive.content)
+        assertEquals(state.era.toString(), event.payload.getValue("era").jsonPrimitive.content)
+        assertEquals(total.toString(), event.payload.getValue("lingotsTotal").jsonPrimitive.content)
+        assertEquals(total.toString(), event.payload.getValue("lingots").jsonPrimitive.content)
+    }
+
+    @Test
+    @DisplayName("prestige : le seuil lui-même suffit ; un Donar de moins et le prestige est refusé")
+    fun prestigeAtTheThresholdExactly() = withApp { app ->
+        val threshold = app.engine.prestigeThreshold(1)
+        val short = app.prestigeCompany(earned = Math.nextDown(threshold))
+        assertRefused(prestige(short.id, n = 1), RefusalCodes.THRESHOLD_NOT_REACHED)
+
+        val exact = app.prestigeCompany(earned = threshold)
+        val result = updated(prestige(exact.id, n = 2))
+
+        assertEquals(2, result.state.courseNumber)
+        assertEquals(app.engine.prestigeLingots(1, threshold), result.balances.lingots)
+    }
+
+    @Test
+    @DisplayName("prestige : seuil non atteint : 409 SEUIL_NON_ATTEINT avec les Donar qui manquent, et rien n'est écrit")
+    fun prestigeBelowTheThreshold() = withApp { app ->
+        val threshold = app.engine.prestigeThreshold(1)
+        val company = app.prestigeCompany(earned = threshold / 4)
+
+        val body = assertRefused(prestige(company.id), RefusalCodes.THRESHOLD_NOT_REACHED)
+
+        assertClose(threshold - threshold / 4, checkNotNull(body.missing), "Donar qui manquent")
+        assertNothingWritten(app)
+    }
+
+    @Test
+    @DisplayName("prestige : la production en attente compte pour le seuil et pour les Lingots, et la durée de la course en est tirée")
+    fun prestigeSettlesThePendingProduction() = withApp { app ->
+        val start = Math.nextDown(app.engine.prestigeThreshold(1))
+        val company = app.prestigeCompany(earned = start, awayHours = 12.5)
+        val production = app.production(company.id, 12.5)
+        assertTrue(production > 0.0)
+
+        val result = updated(prestige(company.id))
+
+        assertEquals(2, result.state.courseNumber)
+        val record = app.companies.prestiges.single()
+        assertClose(start + production, record.donarEarned, "Donar gagnés de la course, production comprise")
+        assertEquals(app.engine.prestigeLingots(1, record.donarEarned), record.lingotsTotal)
+        assertEquals(BigDecimal("12.50"), record.durationHours)
+        assertEquals(utc(app.fixture.clock.now), app.companyUpdates().single().parameters.getValue(7))
+    }
+
+    @Test
+    @DisplayName("prestige : les Lingots se partagent selon les parts, le reste va au PDG, chaque membre est crédité et prévenu")
+    fun prestigeSharesTheLingots() = withApp { app ->
+        val earned = app.engine.prestigeThreshold(1) * 3
+        val company = app.prestigeCompany(earned = earned, ownerLingots = 2)
+        app.fixture.addMember(company.id, other, lingots = 6)
+        app.companies.sharePercents[kr] = 70
+        app.companies.sharePercents[other] = 30
+        val total = app.engine.prestigeLingots(1, earned)
+        val partnerShare = total * 30 / 100
+
+        val result = updated(prestige(company.id))
+
+        val refId = "entreprise-${company.id}-course-1"
+        assertEquals(
+            listOf(
+                InMemoryCompanyStore.Credit(kr, total - partnerShare, "prestige", refId),
+                InMemoryCompanyStore.Credit(other, partnerShare, "prestige", refId),
+            ),
+            app.companies.credits,
+        )
+        assertEquals(total, app.companies.credits.sumOf { it.amount }, "rien de créé, rien de perdu")
+        assertEquals(2 + total - partnerShare, result.balances.lingots, "les soldes rendus sont ceux de l'acteur")
+        assertEquals(6 + partnerShare, app.fixture.store.balances.getValue(other).lingots)
+        assertEquals(total, app.companies.prestiges.single().lingotsTotal, "l'historique garde le total avant partage")
+        assertEquals(
+            app.engine.globalMultiplier(app.engine.averageHeldLingots(listOf(2 + total - partnerShare, 6 + partnerShare)), result.state.stars),
+            result.state.multiplier,
+        )
+        assertEquals(listOf(kr, other), app.companies.published.map { it.xuid })
+        assertEquals(
+            listOf(total - partnerShare, partnerShare),
+            app.companies.published.map { it.payload.getValue("lingots").jsonPrimitive.content.toLong() },
+        )
+        assertTrue(app.companies.published.all { it.payload.getValue("lingotsTotal").jsonPrimitive.content.toLong() == total })
+    }
+
+    @Test
+    @DisplayName("prestige : après la dernière époque, le prestige donne une étoile et l'époque ne bouge plus")
+    fun prestigeGivesAStar() = withApp { app ->
+        val lastEra = app.fixture.definitions.factories.factories.maxOf { it.era }
+        val company = app.prestigeCompany(course = lastEra)
+
+        val state = updated(prestige(company.id)).state
+
+        assertEquals(lastEra + 1, state.courseNumber)
+        assertEquals(lastEra, state.era)
+        assertEquals(1, state.stars)
+        assertEquals(1, app.companies.prestiges.single().starsAfter)
+    }
+
+    @Test
+    @DisplayName("prestige : un associé reçoit 403 PAS_LE_PDG, avant même le seuil ; un étranger, 400 ; rien n'est écrit")
+    fun prestigeIsForTheCeoOnly() = withApp { app ->
+        val company = app.prestigeCompany(earned = 0.0)
+        app.fixture.addMember(company.id, other, lingots = 0)
+
+        val response = prestige(company.id, n = 1, actor = other.text)
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals(RefusalCodes.NOT_THE_CEO, SiloooJson.decodeFromString(RefusedBody.serializer(), response.bodyAsText()).reason)
+        assertError(prestige(company.id, n = 2, actor = stranger.text))
+        assertError(prestige(company.id + 50, n = 3))
+        assertNothingWritten(app)
+    }
+
+    @Test
+    @DisplayName("prestige : un corps hors contrat donne 400 (requestId pas un UUID, acteur pas un XUID, corps vide, identifiant d'entreprise)")
+    fun prestigeRefusesBadBodies() = withApp { app ->
+        val company = app.prestigeCompany()
+        val path = "/v1/companies/${company.id}/prestige"
+
+        assertError(post(path, """{"requestId":"abc","actor":"${kr.text}"}"""))
+        assertError(post(path, """{"requestId":"${requestId(1)}","actor":"pas-un-xuid"}"""))
+        assertError(post(path, "{}"))
+        assertError(post(path, "pas du json"))
+        assertError(post("/v1/companies/abc/prestige", action()))
+        assertNothingWritten(app)
+    }
+
+    @Test
+    @DisplayName("prestige rejoué avec le même requestId : la même réponse, un seul versement de Lingots ; un refus se rejoue aussi")
+    fun prestigeIsIdempotent() = withApp { app ->
+        val company = app.prestigeCompany(earned = app.engine.prestigeThreshold(1) * 2)
+        app.fixture.addMember(company.id, other, lingots = 0)
+
+        val first = prestige(company.id, n = 7)
+        val firstBody = first.bodyAsText()
+        val second = prestige(company.id, n = 7)
+
+        assertEquals(HttpStatusCode.OK, first.status)
+        assertEquals(HttpStatusCode.OK, second.status)
+        assertEquals(firstBody, second.bodyAsText())
+        assertEquals(1, app.companyUpdates().size)
+        assertEquals(1, app.companies.credits.size)
+        assertEquals(1, app.companies.prestiges.size)
+        assertEquals(2, app.companies.published.size, "un événement par membre, une seule fois")
+
+        assertEquals(HttpStatusCode.Forbidden, prestige(company.id, n = 8, actor = other.text).status)
+        assertEquals(HttpStatusCode.Forbidden, prestige(company.id, n = 8, actor = other.text).status)
+        assertEquals(1, app.companyUpdates().size)
+    }
+
+    @Test
+    @DisplayName("prestige : version dépassée : 409 CONFLIT_REESSAYER, aucun Lingot versé, le même requestId peut être rejoué ensuite")
+    fun prestigeOnVersionConflict() = withApp { app ->
+        val company = app.prestigeCompany(earned = app.engine.prestigeThreshold(1) * 2)
+
+        app.recording.rowsTouched = 0
+        assertRefused(prestige(company.id, n = 9), RefusalCodes.CONFLICT_RETRY)
+        assertEquals(0, app.companies.credits.size)
+        assertEquals(0, app.companies.prestiges.size)
+        assertEquals(0, app.companies.restarts.size)
+        assertEquals(0, app.companies.published.size)
+
+        app.recording.rowsTouched = 1
+        assertEquals(HttpStatusCode.OK, prestige(company.id, n = 9).status, "le conflit n'est pas gardé : le nouvel essai passe")
+        assertEquals(1, app.companies.prestiges.size)
+    }
+
+    private fun assertNothingWritten(app: Harness) {
+        assertEquals(0, app.companyUpdates().size)
+        assertEquals(0, app.companies.credits.size)
+        assertEquals(0, app.companies.prestiges.size)
+        assertEquals(0, app.companies.restarts.size)
         assertEquals(0, app.companies.published.size)
     }
 

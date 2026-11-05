@@ -10,6 +10,7 @@ import com.silooo.core.api.SiloooJson
 import com.silooo.core.api.idempotent
 import com.silooo.core.api.respondError
 import com.silooo.core.api.respondJson
+import com.silooo.core.mission.MissionService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -21,6 +22,10 @@ import kotlinx.serialization.Serializable
 /** Corps de `collect` : `ActionBase` seul. */
 @Serializable
 data class CollectRequest(val requestId: String, val actor: String)
+
+/** Corps de `prestige` : `ActionBase` seul. */
+@Serializable
+data class PrestigeRequest(val requestId: String, val actor: String)
 
 /** Corps de `buyLevels` : `ActionBase` et `amount` (`1`, `10`, `palier` ou `max`). */
 @Serializable
@@ -42,14 +47,16 @@ data class CollectResponse(val collected: Double, val offlineHours: Double, val 
 internal const val FACTORY_ID_MAX_LENGTH = 32
 
 /**
- * Les quatre routes `companies/{companyId}` de la phase 3.
+ * Les routes `companies/{companyId}` de la phase 3 et le prestige.
  *
  *  - `GET /v1/companies/{companyId}` (`getCompany`) : l'état de l'entreprise, calculé comme celui de `join`.
  *  - `POST .../collect` (`collect`) : encaisse la production depuis `last_collect_at`, au revenu plein.
  *  - `POST .../factories/{factoryId}/levels` (`buyLevels`) : monte une usine de 1, 10, d'un palier ou du maximum payable.
  *  - `POST .../factories/{factoryId}/restore` (`restoreStep`) : avance la remise en état d'une usine.
+ *  - `GET .../prestige/preview` (`prestigePreview`) : ce que rapporterait un prestige maintenant, sans rien écrire.
+ *  - `POST .../prestige` (`prestige`) : le prestige du PDG ; 403 `PAS_LE_PDG`, 409 `SEUIL_NON_ATTEINT`.
  *
- * Les trois POST passent par `call.idempotent` : un `requestId` rejoué rend la même réponse sans refaire l'action.
+ * Les quatre POST passent par `call.idempotent` : un `requestId` rejoué rend la même réponse sans refaire l'action.
  * Un refus du jeu est un 409 `Refused` ; une version dépassée, un 409 `CONFLIT_REESSAYER`. Une entreprise ou une
  * usine inconnue, un acteur qui n'est pas de l'entreprise, un `amount` ou un `step` hors contrat : 400
  * `REQUETE_INVALIDE` (le contrat ne déclare ni 403 ni 404 ici). Le travail est dans [CompanyService].
@@ -60,6 +67,7 @@ fun Route.companyRoutes(dependencies: Dependencies) {
         companies = dependencies.companyStore,
         engine = dependencies.economy,
         figures = dependencies.economyFigures,
+        missions = MissionService(dependencies.definitions, dependencies.missionStore),
     )
 
     get("/companies/{companyId}") {
@@ -84,6 +92,28 @@ fun Route.companyRoutes(dependencies: Dependencies) {
                 val collected = service.collect(connection, companyId, actor)
                 ActionResult.ok(SiloooJson.encodeToJsonElement(CollectResponse.serializer(), CollectResponse(collected.collected, collected.offlineHours, collected.state)))
             }
+        }
+    }
+
+    get("/companies/{companyId}/prestige/preview") {
+        val companyId = call.companyId()
+        if (companyId == null) {
+            call.respondError(HttpStatusCode.BadRequest, ErrorCodes.BAD_REQUEST)
+            return@get
+        }
+        val preview = dependencies.database.transaction { service.prestigePreview(it, companyId) }
+        if (preview == null) call.respondError(HttpStatusCode.BadRequest, ErrorCodes.BAD_REQUEST) else call.respondJson(preview)
+    }
+
+    post("/companies/{companyId}/prestige") {
+        val request = call.receive<PrestigeRequest>()
+        val companyId = call.companyId()
+        if (companyId == null) {
+            call.respondError(HttpStatusCode.BadRequest, ErrorCodes.BAD_REQUEST)
+            return@post
+        }
+        call.idempotent(dependencies, request.requestId, request.actor, "prestige") { connection, actor ->
+            rejectable { companyUpdated(service.prestige(connection, companyId, actor)) }
         }
     }
 

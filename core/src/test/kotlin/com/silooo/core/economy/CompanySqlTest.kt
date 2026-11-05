@@ -9,6 +9,7 @@ import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.Idempotency
 import com.silooo.core.api.JoinResponse
+import com.silooo.core.api.PrestigePreview
 import com.silooo.core.api.RefusalCodes
 import com.silooo.core.api.RefusedBody
 import com.silooo.core.api.SERVER_KEY_HEADER
@@ -20,6 +21,7 @@ import com.silooo.core.economy.EngineFixture.Companion.OTHER
 import com.silooo.core.economy.EngineFixture.Companion.START
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.MissionService
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionService
@@ -193,9 +195,21 @@ class CompanySqlTest {
 
     private fun eventCount() = MariaDbSupport.count("game_events")
 
-    /** Le champ [name] du `payload` de chaque événement, dans l'ordre où ils ont été publiés. */
-    private fun eventValues(name: String): List<String?> =
-        MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.$name') FROM game_events ORDER BY id")
+    /** Le nombre d'événements dont `payload.action` vaut [action]. */
+    private fun eventCount(action: String) =
+        MariaDbSupport.long("SELECT COUNT(*) FROM game_events WHERE JSON_VALUE(payload, '\$.action') = ?", action)
+
+    /**
+     * Le champ [name] du `payload` de chaque événement, dans l'ordre où ils ont été publiés. Avec [action], seuls les
+     * événements de cette action : le premier encaissement qui rapporte termine aussi la mission de bienvenue, dont
+     * l'événement s'ajoute à celui du collect.
+     */
+    private fun eventValues(name: String, action: String? = null): List<String?> =
+        if (action == null) {
+            MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.$name') FROM game_events ORDER BY id")
+        } else {
+            MariaDbSupport.strings("SELECT JSON_VALUE(payload, '\$.$name') FROM game_events WHERE JSON_VALUE(payload, '\$.action') = ? ORDER BY id", action)
+        }
 
     private fun startingRate() = engine.ratePerHour(engine.startingLevels(), engine.globalMultiplier(0.0, 0))
 
@@ -256,18 +270,20 @@ class CompanySqlTest {
         assertEquals(clock.instant(), lastCollectAt(id))
         assertEquals(1L, version(id))
 
-        assertEquals(1L, eventCount())
-        assertEquals(CompanyService.EVENT_KIND.name, MariaDbSupport.string("SELECT kind FROM game_events"))
-        assertEquals(KR.text, MariaDbSupport.string("SELECT CAST(xuid AS CHAR) FROM game_events"))
-        assertEquals(listOf(CompanyService.ACTION_COLLECT), eventValues("action"))
-        assertEquals(listOf(id.toString()), eventValues("companyId"))
-        assertGolden(earned, eventValues("collected").single()!!.toDouble(), "Donar encaissé dans l'événement")
+        // Un événement pour le collect, et celui de la mission de bienvenue que ce premier encaissement termine.
+        assertEquals(1L, eventCount(CompanyService.ACTION_COLLECT))
+        assertEquals(2L, eventCount())
+        assertEquals(listOf(CompanyService.ACTION_COLLECT, MissionService.ACTION), eventValues("action"))
+        assertEquals(List(2) { CompanyService.EVENT_KIND.name }, MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"))
+        assertEquals(List(2) { KR.text }, MariaDbSupport.strings("SELECT CAST(xuid AS CHAR) FROM game_events ORDER BY id"))
+        assertEquals(listOf(id.toString()), eventValues("companyId", CompanyService.ACTION_COLLECT))
+        assertGolden(earned, eventValues("collected", CompanyService.ACTION_COLLECT).single()!!.toDouble(), "Donar encaissé dans l'événement")
 
         // Rejoué avec le même requestId : la même réponse, aucune écriture de plus.
         val replay = collect(id)
         assertEquals(firstBody, replay.bodyAsText())
         assertEquals(1L, version(id))
-        assertEquals(1L, eventCount())
+        assertEquals(2L, eventCount())
 
         // Un autre appel, sans temps écoulé : rien à encaisser, ni écriture ni événement.
         val nothing = SiloooJson.decodeFromString(CollectResponse.serializer(), collect(id, n = 2).bodyAsText())
@@ -275,7 +291,7 @@ class CompanySqlTest {
         assertEquals(0.0, nothing.offlineHours)
         assertGolden(earned, donar(id), "donar après l'appel à vide")
         assertEquals(1L, version(id))
-        assertEquals(1L, eventCount())
+        assertEquals(2L, eventCount())
         assertEquals(clock.instant(), lastCollectAt(id))
     }
 
@@ -492,7 +508,8 @@ class CompanySqlTest {
      */
     private suspend fun ApplicationTestBuilder.addPartner(companyId: Long, partner: Xuid) {
         join(partner, "Associe")
-        MariaDbSupport.update("UPDATE company_members SET company_id = ?, role = 'ASSOCIE' WHERE xuid = ?", companyId, partner.text)
+        // Sans part (0) : les parts d'une entreprise ne dépassent pas 100, et le PDG a 100 tant qu'un test n'en pose pas d'autres.
+        MariaDbSupport.update("UPDATE company_members SET company_id = ?, role = 'ASSOCIE', share_percent = 0 WHERE xuid = ?", companyId, partner.text)
     }
 
     @Test
@@ -594,5 +611,237 @@ class CompanySqlTest {
         assertGolden(played + absent, donar(id), "donar en base après le retour")
         assertEquals(clock.instant(), lastCollectAt(id))
         assertEquals(2L, version(id))
+    }
+
+    // --- prestigePreview et prestige
+
+    private suspend fun ApplicationTestBuilder.prestige(companyId: Long, n: Int = 1, actor: Xuid = KR) =
+        post("/v1/companies/$companyId/prestige", """{"requestId":"${requestId(n)}","actor":"${actor.text}"}""")
+
+    private suspend fun ApplicationTestBuilder.previewOf(companyId: Long): PrestigePreview {
+        val response = get("/v1/companies/$companyId/prestige/preview")
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        return SiloooJson.decodeFromString(PrestigePreview.serializer(), response.bodyAsText())
+    }
+
+    private fun setDonarEarned(companyId: Long, earned: Double) {
+        MariaDbSupport.update("UPDATE companies SET donar_earned = ? WHERE id = ?", earned, companyId)
+    }
+
+    private fun courseNumber(companyId: Long) = MariaDbSupport.long("SELECT course_number FROM companies WHERE id = ?", companyId).toInt()
+
+    private fun lingotsOf(xuid: Xuid) = MariaDbSupport.long("SELECT lingots FROM player_balances WHERE xuid = ?", xuid.text)
+
+    private fun prestigeLedger(): List<String?> = MariaDbSupport.strings(
+        "SELECT CONCAT(CAST(xuid AS CHAR), '|', delta, '|', balance, '|', ref_id) FROM currency_ledger WHERE reason = 'prestige' ORDER BY id",
+    )
+
+    /** Une usine active à [level] avec un incident ouvert : ce que le prestige doit remettre à zéro. */
+    private fun putBrokenFactory(companyId: Long, factoryId: String, level: Int) {
+        MariaDbSupport.update(
+            "INSERT INTO company_factories (company_id, factory_id, state, restore_step, level) VALUES (?, ?, 'ACTIVE', 4, ?)",
+            companyId,
+            factoryId,
+            level,
+        )
+        MariaDbSupport.update(
+            "INSERT INTO factory_incidents (company_id, factory_id, kind, slowdown) VALUES (?, ?, 'panne', 0.50)",
+            companyId,
+            factoryId,
+        )
+    }
+
+    private fun openIncidents(companyId: Long) =
+        MariaDbSupport.long("SELECT COUNT(*) FROM factory_incidents WHERE company_id = ? AND resolved_at IS NULL", companyId)
+
+    /** Aucune écriture du prestige : ni course, ni Donar, ni usine, ni Lingots, ni historique, ni événement. */
+    private fun assertNoPrestigeWritten(companyId: Long, earned: Double, brokenId: String) {
+        assertEquals(1, courseNumber(companyId))
+        assertEquals(0L, version(companyId))
+        assertGolden(earned, donarEarned(companyId), "donar gagnés intacts")
+        assertEquals("ACTIVE|0|${start.level}", factoryRow(companyId, start.factoryId))
+        assertEquals("ACTIVE|4|12", factoryRow(companyId, brokenId))
+        assertEquals(1L, openIncidents(companyId))
+        assertEquals(0L, MariaDbSupport.count("prestige_history"))
+        assertEquals(emptyList<String?>(), prestigeLedger())
+        assertEquals(0L, eventCount())
+    }
+
+    @Test
+    @DisplayName("prestige : la course suivante est écrite en base : entreprise, usines, incidents, Lingots et journal des deux associés, historique, événements ; rejoué, rien de plus")
+    fun prestigeWritesTheNextCourse() = withCompany { joined ->
+        val id = joined.companyId
+        addPartner(id, OTHER)
+        MariaDbSupport.update("UPDATE company_members SET share_percent = 70 WHERE xuid = ?", KR.text)
+        MariaDbSupport.update("UPDATE company_members SET share_percent = 30 WHERE xuid = ?", OTHER.text)
+        val broken = ruinedFactory()
+        putBrokenFactory(id, broken, level = 12)
+        MariaDbSupport.update("UPDATE company_factories SET level = ? WHERE company_id = ? AND factory_id = ?", start.level + 40, id, start.factoryId)
+        val earned = engine.prestigeThreshold(1) * 8
+        setDonarEarned(id, earned)
+        setDonar(id, 1234.0)
+        collectedNow(id)
+        val total = engine.prestigeLingots(1, earned)
+        assertTrue(total > 0, "le test n'a de sens que si le prestige rapporte")
+        val partnerShare = total * 30 / 100
+
+        // L'aperçu lit seulement : mêmes chiffres que le prestige qui suit, rien d'écrit.
+        val preview = previewOf(id)
+        assertTrue(preview.allowed)
+        assertEquals(total, preview.lingotsTotal)
+        assertEquals(listOf(KR.text, OTHER.text).sorted(), preview.shares.map { it.xuid }.sorted())
+        assertEquals(total, preview.shares.sumOf { it.lingots })
+        assertEquals(0L, version(id))
+        assertEquals(emptyList<String?>(), prestigeLedger())
+        assertEquals(0L, eventCount())
+
+        val response = prestige(id)
+        val body = response.bodyAsText()
+        val result = SiloooJson.decodeFromString(CompanyUpdated.serializer(), body)
+        assertEquals(HttpStatusCode.OK, response.status, body)
+
+        // companies : la course 2, Donar et Donar gagnés à zéro, les dates à maintenant, une version de plus.
+        assertEquals(2, courseNumber(id))
+        assertEquals(engine.eraAt(2), MariaDbSupport.long("SELECT era FROM companies WHERE id = ?", id).toInt())
+        assertEquals(engine.starsAt(2), MariaDbSupport.long("SELECT stars FROM companies WHERE id = ?", id).toInt())
+        assertEquals(0.0, donar(id))
+        assertEquals(0.0, donarEarned(id))
+        assertEquals(1L, version(id))
+        assertEquals(clock.instant(), lastCollectAt(id))
+        assertEquals(
+            1L,
+            MariaDbSupport.long("SELECT COUNT(*) FROM companies WHERE id = ? AND course_started_at = ?", id, LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)),
+            "course_started_at passe à maintenant",
+        )
+        assertEquals(2, result.state.courseNumber)
+        assertEquals(1, result.state.version)
+
+        // company_factories : l'usine de départ au niveau de départ, l'autre en ruine au niveau zéro, aucun incident ouvert.
+        assertEquals("ACTIVE|0|${start.level}", factoryRow(id, start.factoryId))
+        assertEquals("EN_RUINE|0|0", factoryRow(id, broken))
+        assertEquals(0L, openIncidents(id))
+        assertEquals(1L, MariaDbSupport.count("factory_incidents"), "la ligne de l'incident reste : elle est close, pas effacée")
+
+        // player_balances et currency_ledger : une ligne par associé, le reste de la division va au PDG.
+        assertEquals(total - partnerShare, lingotsOf(KR))
+        assertEquals(partnerShare, lingotsOf(OTHER))
+        val refId = "entreprise-$id-course-1"
+        assertEquals(
+            listOf("${KR.text}|${total - partnerShare}|${total - partnerShare}|$refId", "${OTHER.text}|$partnerShare|$partnerShare|$refId"),
+            prestigeLedger(),
+        )
+
+        // prestige_history : la course 1 qui vient de finir, avec le total avant partage.
+        assertEquals(1L, MariaDbSupport.count("prestige_history"))
+        assertEquals(1, MariaDbSupport.long("SELECT course_number FROM prestige_history WHERE company_id = ?", id).toInt())
+        assertEquals(total, MariaDbSupport.long("SELECT lingots_total FROM prestige_history WHERE company_id = ?", id))
+        assertEquals(engine.starsAt(2), MariaDbSupport.long("SELECT stars_after FROM prestige_history WHERE company_id = ?", id).toInt())
+        assertGolden(engine.prestigeThreshold(1), double("SELECT threshold FROM prestige_history WHERE company_id = ?", id), "seuil de la course")
+        assertGolden(earned, double("SELECT donar_earned FROM prestige_history WHERE company_id = ?", id), "Donar gagnés de la course")
+        assertEquals(KR.text, MariaDbSupport.string("SELECT CAST(decided_by AS CHAR) FROM prestige_history WHERE company_id = ?", id))
+
+        // game_events : un ANNONCE par associé, avec la part de chacun.
+        assertEquals(2L, eventCount())
+        assertEquals(List(2) { GameEventKind.ANNONCE.name }, MariaDbSupport.strings("SELECT kind FROM game_events ORDER BY id"))
+        assertEquals(List(2) { "prestige" }, eventValues("action"))
+        assertEquals(listOf(total - partnerShare, partnerShare).map { it.toString() }, eventValues("lingots"))
+        assertEquals(List(2) { total.toString() }, eventValues("lingotsTotal"))
+        assertEquals(List(2) { id.toString() }, eventValues("companyId"))
+
+        // Rejoué avec le même requestId : la même réponse, aucun Lingot de plus.
+        val replay = prestige(id)
+        assertEquals(body, replay.bodyAsText())
+        assertEquals(1L, version(id))
+        assertEquals(2, prestigeLedger().size)
+        assertEquals(total - partnerShare, lingotsOf(KR))
+        assertEquals(1L, MariaDbSupport.count("prestige_history"))
+        assertEquals(2L, eventCount())
+
+        // Un autre requestId tout de suite : la course 2 vient de commencer, le seuil n'est plus atteint.
+        assertRefused(prestige(id, n = 2), RefusalCodes.THRESHOLD_NOT_REACHED)
+        assertEquals(1L, version(id))
+        assertEquals(1L, MariaDbSupport.count("prestige_history"))
+    }
+
+    @Test
+    @DisplayName("prestige : seuil non atteint, 409 SEUIL_NON_ATTEINT ; associé, 403 PAS_LE_PDG ; rien n'est écrit, et l'aperçu dit allowed faux")
+    fun prestigeRefusalsWriteNothing() = withCompany { joined ->
+        val id = joined.companyId
+        addPartner(id, OTHER)
+        val broken = ruinedFactory()
+        putBrokenFactory(id, broken, level = 12)
+        val earned = Math.nextDown(engine.prestigeThreshold(1))
+        setDonarEarned(id, earned)
+        collectedNow(id)
+
+        val short = assertRefused(prestige(id), RefusalCodes.THRESHOLD_NOT_REACHED)
+        assertTrue(checkNotNull(short.missing) > 0.0, "le manque est dit")
+        assertNoPrestigeWritten(id, earned, broken)
+
+        val partner = prestige(id, n = 2, actor = OTHER)
+        assertEquals(HttpStatusCode.Forbidden, partner.status)
+        assertEquals(RefusalCodes.NOT_THE_CEO, SiloooJson.decodeFromString(RefusedBody.serializer(), partner.bodyAsText()).reason)
+        assertNoPrestigeWritten(id, earned, broken)
+
+        val preview = previewOf(id)
+        assertEquals(false, preview.allowed)
+        assertEquals(0L, preview.lingotsTotal)
+        assertNoPrestigeWritten(id, earned, broken)
+    }
+
+    @Test
+    @DisplayName("prestige : si la dernière écriture échoue, tout est annulé (course, Donar, usines, incidents, Lingots, journal, historique, événements)")
+    fun prestigeRollsBackAsOneTransaction() = withCompany(FailingPublish()) { joined ->
+        val id = joined.companyId
+        val broken = ruinedFactory()
+        putBrokenFactory(id, broken, level = 12)
+        val earned = engine.prestigeThreshold(1) * 8
+        setDonarEarned(id, earned)
+        setDonar(id, 99.0)
+        collectedNow(id)
+        val before = lastCollectAt(id)
+        val lingotsBefore = lingotsOf(KR)
+
+        val response = prestige(id)
+
+        assertEquals(HttpStatusCode.InternalServerError, response.status)
+        assertNoPrestigeWritten(id, earned, broken)
+        assertEquals(99.0, donar(id))
+        assertEquals(before, lastCollectAt(id))
+        assertEquals(lingotsBefore, lingotsOf(KR), "aucun Lingot n'est resté versé")
+    }
+
+    @Test
+    @DisplayName("des prestiges simultanés ne versent les Lingots qu'une fois : un seul passe, les autres reçoivent CONFLIT_REESSAYER ou SEUIL_NON_ATTEINT")
+    fun parallelPrestigesPayOnce() = withCompany { joined ->
+        val id = joined.companyId
+        val earned = engine.prestigeThreshold(1) * 8
+        setDonarEarned(id, earned)
+        collectedNow(id)
+        val total = engine.prestigeLingots(1, earned)
+        val parallel = 4
+
+        val responses = coroutineScope {
+            val go = CompletableDeferred<Unit>()
+            val jobs = (1..parallel).map { n -> async(Dispatchers.IO) { go.await(); prestige(id, n = n) } }
+            go.complete(Unit)
+            jobs.awaitAll()
+        }
+
+        assertEquals(1, responses.count { it.status == HttpStatusCode.OK }, "un seul prestige passe")
+        val refusals = responses.filter { it.status != HttpStatusCode.OK }.map { response ->
+            assertEquals(HttpStatusCode.Conflict, response.status)
+            SiloooJson.decodeFromString(RefusedBody.serializer(), response.bodyAsText()).reason
+        }
+        assertTrue(
+            refusals.all { it == RefusalCodes.CONFLICT_RETRY || it == RefusalCodes.THRESHOLD_NOT_REACHED },
+            "les perdants reçoivent CONFLIT_REESSAYER ou SEUIL_NON_ATTEINT : $refusals",
+        )
+        assertEquals(2, courseNumber(id))
+        assertEquals(1L, version(id))
+        assertEquals(total, lingotsOf(KR), "les Lingots ne sont versés qu'une fois")
+        assertEquals(1, prestigeLedger().size)
+        assertEquals(1L, MariaDbSupport.count("prestige_history"))
+        assertEquals(1L, eventCount())
     }
 }

@@ -165,8 +165,10 @@ class JdbcSessionStore : SessionStore {
 
     override fun loadCompany(connection: Connection, companyId: Long): CompanyRecord =
         connection.prepareStatement(
-            "SELECT id, name, era, stars, course_number, donar, donar_earned, course_started_at, last_collect_at, " +
-                "mairie_level, silo_level, offline_cap_hours, reputation, version FROM companies WHERE id = ?",
+            "SELECT c.id, c.name, c.era, c.stars, c.course_number, c.donar, c.donar_earned, c.course_started_at, " +
+                "c.last_collect_at, c.mairie_level, c.silo_level, c.offline_cap_hours, c.reputation, c.version, " +
+                "s.origin_x, s.origin_z " +
+                "FROM companies c JOIN archipelago_slots s ON s.slot_index = c.slot_index WHERE c.id = ?",
         ).use {
             it.setLong(1, companyId)
             it.executeQuery().use { rows ->
@@ -185,6 +187,7 @@ class JdbcSessionStore : SessionStore {
                     siloLevel = rows.getInt("silo_level"),
                     offlineCapHours = rows.getDouble("offline_cap_hours"),
                     reputation = rows.getInt("reputation"),
+                    island = SlotOrigin(rows.getInt("origin_x"), rows.getInt("origin_z")),
                     version = rows.getInt("version"),
                 )
             }

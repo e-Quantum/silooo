@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/missions.schema.json",
+  "title": "Missions de Silooo",
+  "description": "Forme de definitions/missions.json : le catalogue des missions d'un joueur. Les chiffres vivent dans le fichier de données et dans economie.json, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "missions"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "missions": {
+      "description": "Les missions dans l'ordre où un joueur les fait : la mission en cours est la première qu'il n'a pas terminée.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/mission" }
+    }
+  },
+  "$defs": {
+    "mission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "evenement", "cible", "recompense"],
+      "properties": {
+        "id": {
+          "description": "Identifiant en kebab-case, 48 caractères au plus (colonne player_missions.mission_id). Il ne change plus une fois la mission jouée : c'est la clé du suivi des joueurs.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "maxLength": 48
+        },
+        "evenement": {
+          "description": "L'action du joueur que le service compte. collect : un encaissement qui rapporte du Donar.",
+          "enum": ["collect"]
+        },
+        "cible": {
+          "description": "Nombre d'actions à faire pour terminer la mission.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "recompense": {
+          "description": "Chemin, dans economie.json, du nombre de Lingots versés à la fin de la mission : une référence, jamais une copie du chiffre.",
+          "type": "string",
+          "pattern": "^[A-Za-z]+(\\.[A-Za-z]+)*$"
+        }
+      }
+    }
+  }
+}

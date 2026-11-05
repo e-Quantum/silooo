@@ -484,6 +484,17 @@ class EconomyEngineTest {
         assertThrows<IllegalArgumentException> { engine.starsAt(0) }
     }
 
+    @Test
+    @DisplayName("Le prestige donne une époque jusqu'à la dernière d'usines.json, puis une étoile ; cela colle à eraAt et starsAt")
+    fun prestigeGivesAStarOnlyAfterTheLastEra() {
+        val lastEra = factories.maxOf { it.era }
+        for (course in 1..(lastEra + 3)) {
+            assertEquals(course >= lastEra, engine.prestigeGivesStar(course), "prestige de la course $course")
+            assertEquals(engine.prestigeGivesStar(course), engine.starsAt(course + 1) > engine.starsAt(course))
+            assertEquals(!engine.prestigeGivesStar(course), engine.eraAt(course + 1) > engine.eraAt(course))
+        }
+    }
+
     // ---------------------------------------------------------------- déterminisme
 
     @Test

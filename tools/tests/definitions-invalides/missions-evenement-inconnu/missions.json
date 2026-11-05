@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "missions": [
+    { "id": "bienvenue-mairie", "evenement": "ouvrir-la-porte", "cible": 1, "recompense": "lingotsHorsPrestige.missionBienvenue" }
+  ]
+}

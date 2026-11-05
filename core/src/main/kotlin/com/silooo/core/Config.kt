@@ -16,7 +16,7 @@ data class DatabaseConfig(val url: String, val user: String, val password: Strin
 
 /**
  * Tout ce qu'il faut pour démarrer le service. La clé ne s'affiche jamais.
- * [definitionsDir] est le dossier qui contient economie.json, usines.json, boutique.json et monde.json.
+ * [definitionsDir] est le dossier qui contient economie.json, usines.json, boutique.json, monde.json et missions.json.
  *
  * [apiRequestRetention] : combien de temps `api_requests` garde une réponse pour la rejouer ; au-delà,
  * la ligne est purgée (voir [Config.API_REQUESTS_RETENTION_HOURS]).

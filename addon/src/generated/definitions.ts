@@ -244,6 +244,30 @@ export type IlesPoint = {
   readonly z: number;
 };
 
+// ---- missions.json
+
+/** Identifiants de missions.json, tableau « missions ». */
+export type MissionId =
+  | "bienvenue-mairie";
+
+/** Forme de definitions/missions.json : le catalogue des missions d'un joueur. Les chiffres vivent dans le fichier de données et dans economie.json, pas ici : le schéma ne fixe que les types et les bornes. */
+export type MissionsDefinitions = {
+  readonly version: number;
+  /** Les missions dans l'ordre où un joueur les fait : la mission en cours est la première qu'il n'a pas terminée. */
+  readonly missions: readonly MissionsMission[];
+};
+
+export type MissionsMission = {
+  /** Identifiant en kebab-case, 48 caractères au plus (colonne player_missions.mission_id). Il ne change plus une fois la mission jouée : c'est la clé du suivi des joueurs. */
+  readonly id: MissionId;
+  /** L'action du joueur que le service compte. collect : un encaissement qui rapporte du Donar. */
+  readonly evenement: "collect";
+  /** Nombre d'actions à faire pour terminer la mission. */
+  readonly cible: number;
+  /** Chemin, dans economie.json, du nombre de Lingots versés à la fin de la mission : une référence, jamais une copie du chiffre. */
+  readonly recompense: string;
+};
+
 // ---- monde.json
 
 /** Forme de definitions/monde.json. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */

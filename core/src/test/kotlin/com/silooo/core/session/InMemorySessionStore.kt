@@ -56,7 +56,7 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
         companies[id] = CompanyRecord(
             id = id, name = name, era = 1, stars = 0, courseNumber = 1, donar = 0.0, donarEarned = 0.0,
             courseStartedAt = now, lastCollectAt = now, mairieLevel = 1, siloLevel = 1, offlineCapHours = bootstrap.startingOfflineCapHours(),
-            reputation = 0, version = 0,
+            reputation = 0, island = bootstrap.slotOrigin((id - 1).toInt()), version = 0,
         )
         factories[id] = bootstrap.startingFactories()
             .map { FactoryRecord(it.factoryId, it.state, it.restoreStep, it.level, openIncidentId = null) }

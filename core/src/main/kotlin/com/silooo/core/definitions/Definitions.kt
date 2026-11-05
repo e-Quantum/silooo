@@ -1,24 +1,41 @@
 package com.silooo.core.definitions
 
+import kotlin.math.floor
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
+
 /** Un fichier de definitions/ manque, est abîmé, ou dit quelque chose d'impossible. Le message dit lequel et où. */
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde. Chargé une fois au démarrage
- * ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions. Chargé une fois au
+ * démarrage ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
- * prix sous 1, usine de départ inconnue, seuils qui ne se suivent pas…). Le moteur peut donc s'appuyer
- * sur ces garanties sans les revérifier.
+ * prix sous 1, usine de départ inconnue, seuils qui ne se suivent pas, récompense de mission introuvable…). Le
+ * moteur peut donc s'appuyer sur ces garanties sans les revérifier.
  */
 class Definitions(
     val economy: EconomyDefinitions,
     val factories: FactoriesDefinitions,
     val shop: ShopDefinitions,
     val world: WorldDefinitions,
+    val missions: MissionsDefinitions,
 ) {
+    /**
+     * Les Lingots de chaque mission, par identifiant : le nombre que son `recompense` désigne dans economie.json. Le
+     * chiffre reste dans economie.json ; la mission n'en garde que le chemin.
+     */
+    val missionRewards: Map<String, Long> = missions.missions.mapNotNull { mission ->
+        DefinitionsChecks.economyInteger(economy, mission.reward)?.let { mission.id to it }
+    }.toMap()
+
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, world)
+        val problems = DefinitionsChecks.problems(economy, factories, world, missions)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -27,7 +44,27 @@ class Definitions(
 
 /** Les contrôles de sens que la forme du JSON ne garantit pas. Les messages citent la clé du fichier. */
 internal object DefinitionsChecks {
-    fun problems(economy: EconomyDefinitions, factories: FactoriesDefinitions, world: WorldDefinitions): List<String> {
+    /** La longueur de `player_missions.mission_id`. */
+    const val MISSION_ID_MAX_LENGTH = 48
+
+    private val MISSION_ID = Regex("^[a-z0-9]+(-[a-z0-9]+)*$")
+    private val economyTree = Json { encodeDefaults = true }
+
+    /**
+     * Le nombre entier positif ou nul que [path] (« lingotsHorsPrestige.missionBienvenue ») désigne dans economie.json,
+     * ou `null` s'il n'y a rien à ce chemin, ou autre chose qu'un nombre entier. Un nombre à virgule qui tombe juste
+     * (`1.0`) compte, comme pour le vérificateur de `tools/`.
+     */
+    fun economyInteger(economy: EconomyDefinitions, path: String): Long? {
+        var node: JsonElement = economyTree.encodeToJsonElement(EconomyDefinitions.serializer(), economy)
+        for (key in path.split('.')) node = (node as? JsonObject)?.get(key) ?: return null
+        val number = (node as? JsonPrimitive)?.takeIf { !it.isString } ?: return null
+        number.longOrNull?.let { return it.takeIf { value -> value >= 0 } }
+        val whole = number.doubleOrNull?.takeIf { it.isFinite() && it >= 0.0 && it == floor(it) && it < Long.MAX_VALUE.toDouble() }
+        return whole?.toLong()
+    }
+
+    fun problems(economy: EconomyDefinitions, factories: FactoriesDefinitions, world: WorldDefinitions, missions: MissionsDefinitions): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
             if (!ok) problems += message()
@@ -86,6 +123,19 @@ internal object DefinitionsChecks {
         val grid = world.archipelago
         check(grid.slotSpacing >= 1) { "monde.json : archipel.ecartEntreCases doit être au moins 1" }
         check(grid.slotsPerRow >= 1) { "monde.json : archipel.casesParRangee doit être au moins 1" }
+
+        check(missions.missions.isNotEmpty()) { "missions.json : missions ne doit pas être vide" }
+        val missionIds = missions.missions.map { it.id }
+        check(missionIds.size == missionIds.toSet().size) { "missions.json : deux missions ont le même id" }
+        missions.missions.forEachIndexed { index, mission ->
+            check(MISSION_ID.matches(mission.id) && mission.id.length <= MISSION_ID_MAX_LENGTH) {
+                "missions.json : missions[$index].id « ${mission.id} » doit être en kebab-case, $MISSION_ID_MAX_LENGTH caractères au plus"
+            }
+            check(mission.target >= 1) { "missions.json : ${mission.id}.cible doit être au moins 1" }
+            check(economyInteger(economy, mission.reward) != null) {
+                "missions.json : ${mission.id}.recompense « ${mission.reward} » ne mène pas à un nombre entier de Lingots dans economie.json"
+            }
+        }
         return problems
     }
 }
