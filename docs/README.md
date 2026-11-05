@@ -10,6 +10,7 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | Toute tâche | `CLAUDE.md`, puis [passation.md](passation.md) | |
 | Piloter les autres sessions | [direction.md](direction.md) | |
 | Piloter le chantier du site `silooo.com` | [site-direction.md](site-direction.md), puis [site-passation.md](site-passation.md) | |
+| Construire le Discord (bot Oooscar, serveur, visuels) | [discord.md](discord.md), puis [discord-passation.md](discord-passation.md) | `silenemc-contenu` pour les rendus |
 | Comprendre le jeu | [vision.md](vision.md), [game-design.md](game-design.md), [glossaire.md](glossaire.md) | |
 | Lire un mot du jeu inconnu | [glossaire.md](glossaire.md) | |
 | Savoir ce qu'on construit et dans quel ordre | [plan-construction.md](plan-construction.md) | |
@@ -36,6 +37,8 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 | [site.md](site.md) | Le site `silooo.com` : ses pages, ses règles, la référence Rinaorc, comment il se construit |
 | [site-direction.md](site-direction.md) | Comment la session de direction du site pilote son chantier et quand elle s'arrête |
 | [site-passation.md](site-passation.md) | L'état du chantier du site, les étapes S0 à S5, « À faire par Kr », le journal |
+| [discord.md](discord.md) | Le Discord de Silooo : le cadrage condensé, le plan du serveur, Oooscar, ce que la critique corrige |
+| [discord-passation.md](discord-passation.md) | L'état du chantier du Discord, les étapes D0 à D6, « À faire par Kr », le journal |
 | [plan-construction.md](plan-construction.md) | Le plan en 8 phases, l'architecture, l'installation sur le VPS, la CI |
 | [game-design.md](game-design.md) | Le jeu, en entier : économie, progression, écrans, textes |
 | [vision.md](vision.md) | Le jeu en une page, pour qui, ce qu'on ne fait pas |
