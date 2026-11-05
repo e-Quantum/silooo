@@ -6,7 +6,7 @@ import { describeError } from "./runtime";
 
 // ---------------------------------------------------------------- le Transport
 
-export type HttpMethod = "GET" | "POST";
+export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
 declare const secretBrand: unique symbol;
 
@@ -120,6 +120,10 @@ export interface CoreClient {
   /** `path` commence par /v1/ et porte sa requête : /v1/events?after=0&limit=100. */
   get(path: string): Promise<ApiResult<unknown>>;
   post(path: string, body: unknown): Promise<ApiResult<unknown>>;
+  /** Une écriture, comme `post` : jamais rejouée par le client. */
+  patch(path: string, body: unknown): Promise<ApiResult<unknown>>;
+  /** Une écriture sans corps : ce qu'il faut dire au service est dans la requête du chemin. Jamais rejouée par le client. */
+  delete(path: string): Promise<ApiResult<unknown>>;
 }
 
 /** Un échec qui vaut un nouvel essai : réseau coupé ou panne du service, pas une requête refusée. */
@@ -154,6 +158,12 @@ export function createCoreClient(options: CoreClientOptions): CoreClient {
     },
     post(path, body) {
       return once("POST", path, JSON.stringify(body));
+    },
+    patch(path, body) {
+      return once("PATCH", path, JSON.stringify(body));
+    },
+    delete(path) {
+      return once("DELETE", path, undefined);
     },
   };
 }

@@ -5,6 +5,8 @@
 // pour Oooscar, un repère entre crochets tient la place de l'icône. Le jour où le pack les apporte (glyphes dans
 // la plage privée d'Unicode), c'est ce fichier, et lui seul, qui change. À valider par Kr.
 
+import type { StaffRarity } from "../protocol";
+
 /** Le signe qui ouvre un code de couleur dans un texte Bedrock. */
 const SECTION = "§";
 
@@ -41,7 +43,7 @@ export function colored(color: string, text: string): string {
 }
 
 /**
- * Un repère par icône de design/icones/ utilisée. Objectifs, Amis et Silo n'ont pas d'icône dans design/ : leur
+ * Un repère par icône de design/icones/ utilisée. Objectifs, Amis, Silo, Personnel et Agence n'ont pas d'icône dans design/ : leur
  * repère est un manque du design system, à dessiner (voir addon/README.md).
  */
 export const ICON = {
@@ -58,7 +60,20 @@ export const ICON = {
   prestige: "[P]",
   objectifs: "[O]",
   amis: "[A]",
+  personnel: "[M]",
+  agence: "[R]",
 } as const;
+
+/**
+ * La couleur du nom d'un membre du personnel selon sa rareté : gris, bleu, jaune (docs/game-design.md : gris, bleu,
+ * or). Aucune monnaie ne prend ces couleurs, et le nom de la rareté est toujours écrit à côté : la couleur ne porte
+ * jamais l'information seule. À valider par Kr.
+ */
+export const RARITY_COLOR: Readonly<Record<StaffRarity, string>> = {
+  COMMUN: `${SECTION}7`,
+  RARE: `${SECTION}9`,
+  EPIQUE: `${SECTION}e`,
+};
 
 /** Les cinq expressions d'Oooscar, une par situation (design/README.md, Oooscar et le logo). On n'en invente pas d'autre. */
 export const EXPRESSIONS = ["joie", "fier", "oups", "panique", "dodo"] as const;

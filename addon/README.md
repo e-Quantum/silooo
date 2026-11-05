@@ -11,12 +11,12 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `manifest.json` | Pack "Silooo", module script `scripts/main.js`, dépendances. Les deux uuid ne changent jamais. |
 | `src/main.ts` | Point d'entrée. Rien ne le fait tomber : toute exception est attrapée et journalisée. |
 | `src/beta.ts` | Le seul fichier qui touche aux modules bêta (réseau, secret, variables). |
-| `src/http.ts` | Client de silooo-core : résultats typés ok, refusé, erreur, réseau ; un seul nouvel essai, pour les GET. |
+| `src/http.ts` | Client de silooo-core : résultats typés ok, refusé, erreur, réseau ; un seul nouvel essai, pour les GET (POST, PATCH et DELETE sont des écritures, jamais rejouées). |
 | `src/protocol.ts`, `src/api.ts` | Chemins, corps et lecture des réponses, conformes à `api/silooo-core.openapi.yaml`. |
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
 | `src/monde/` | Le monde : îles des usines, arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
@@ -65,7 +65,7 @@ version de Bedrock, on relit les appels listés ci-dessous.
 Appels bêta, tous dans `src/beta.ts` :
 
 - `@minecraft/server-net` : `http.request`, `HttpRequest` (uri, method, timeout, headers, body), `HttpHeader`,
-  `HttpRequestMethod`, `HttpResponse` (status, body) ;
+  `HttpRequestMethod` (`Get`, `Post`, `Patch`, `Delete`), `HttpResponse` (status, body) ;
 - `@minecraft/server-admin` : `secrets.get`, `variables.get`, et le type `SecretString`.
 
 ## Les écrans
@@ -73,7 +73,7 @@ Appels bêta, tous dans `src/beta.ts` :
 Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
 la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
 de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service). La phase 4
-y ajoute le prestige et la carte des îles : voir « La carte et le prestige » plus bas.
+y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »).
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
@@ -83,6 +83,10 @@ boussole ── MENU ─┬─ Silo ───── Encaisser ............ colle
                   ├─ Carte ──── une ligne par usine ─── île choisie ... téléportation (monde/voyage.ts)
                   ├─ Prestige ─ l'aperçu du service ─── Prestige ! ... prestige ── écran d'après
                   │                                     (lecture de l'aperçu .......... prestigePreview)
+                  ├─ Personnel ─ une équipe par usine ─ un membre ─┬─ Affecter à une usine ... assignStaff
+                  │         │                                      └─ Renvoyer, confirmé ..... fireStaff
+                  │         └─ Agence ─ un candidat ─ Embaucher ─ son usine, ou aucune ... hire
+                  │                    (lecture des candidats du jour ........ getCandidates)
                   └─ Amis : tuile verrouillée, avec le mot « Bientôt »
 ```
 
@@ -97,11 +101,13 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
 | `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne est ignorée) et l'état de la liaison avec le service. |
-| `actions.ts` | Les quatre actions (encaisser, acheter des niveaux, remettre en état, prestige) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige est une lecture : ni verrou ni identifiant. |
+| `actions.ts` | Les sept actions (encaisser, acheter des niveaux, remettre en état, prestige, embaucher, affecter, renvoyer) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
 | `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
-| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre eux. |
+| `ecran.ts` | Le vocabulaire commun des écrans : routes, cibles des boutons, `Screen`, bulle et pages. Aucun écran, aucun import de Bedrock. |
+| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel compris. |
+| `personnel.ts` | Les écrans du personnel et de l'agence, et la ligne d'équipe de la fiche d'usine : des fonctions pures, comme celles de `menu.ts`. |
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
 
@@ -198,6 +204,46 @@ d'arrivée, face au bâtiment. Arrivé, le menu se ferme. Si l'on ne sait pas o�
 délai, le joueur reste où il est et Oooscar le dit. Sans `travel` (le menu seul, sans monde), la réponse est
 « Pas encore disponible. ».
 
+### Le personnel
+
+Quatrième tranche des écrans (phase 4). Toujours aucun calcul : le bonus, le salaire par heure, le prix d'embauche, la
+rareté et le nom d'un membre ou d'un candidat sont des champs du service, mis en forme par `ui/nombres.ts`. Les écrans
+sont dans `ui/personnel.ts` ; les phrases dans `PERSONNEL_TEXTES` et `AGENCE_TEXTES` (`ui/textes.ts`), tous à valider par
+Kr. Le personnel de l'entreprise est `CompanyState.staff` (le contrat ne le marque pas obligatoire : absent, il est vide).
+
+**Personnel.** La tuile du menu, après Prestige (ligne d'info « Aucun membre », « 1 membre », « `<n>` membres »), ouvre
+l'écran PERSONNEL. En tête, la porte de l'agence (sur chaque page), puis une tuile par équipe : une par usine qui a du
+monde, dans l'ordre des usines du service, puis « Sans usine » pour les membres qui n'en ont pas. Chaque tuile dit combien
+de membres y travaillent. Une tuile ouvre l'équipe : un membre par tuile, son nom de la couleur de sa rareté, puis la
+ligne « `<rareté>` · `<rôle>` · +`<bonus>` % ». La couleur ne porte jamais seule : la rareté est écrite à côté.
+
+**Un membre.** La fiche donne la rareté et le rôle, le nom, le bonus de production, le salaire par heure
+(`salaryPerHour`, en Donar), l'usine, et l'apparence telle que le service la donne (`skinId`, brut, faute de nom
+d'apparence). Trois boutons : « Affecter à une usine », « Renvoyer », « Retour ».
+
+**Affecter.** Le choix liste toutes les usines de l'entreprise sauf celle du membre, avec le nombre de membres qui y
+travaillent. L'add-on ne connaît pas les postes d'une usine : il demande, et si le service refuse (`EMPLACEMENT_OCCUPE`),
+Oooscar dit « Plus de poste libre ici. » et l'écran reste. Réussi, on revient à la fiche du membre.
+
+**Renvoyer.** Le bouton « Renvoyer » n'existe que sur l'écran de confirmation, avec « Garder » pour renoncer. L'add-on ne
+lit pas le rôle du joueur : il envoie, et le refus `PAS_LE_PDG` (403) devient la bulle « Seul le PDG peut le faire. ».
+Renvoyé, on revient à l'écran PERSONNEL.
+
+**Agence.** À chaque ouverture, l'écran relit les candidats du jour (`getCandidates`, une lecture : ni verrou ni
+identifiant) et les montre tels que le service les donne, un par tuile : nom, rareté, rôle, bonus, ou la marque
+« Déjà embauché » quand le service a rendu un `staffId`. Sans lecture (échec), Oooscar le dit et il ne reste que « Retour ».
+**Il n'y a aucun bouton de nouvelle liste contre du Donar** : `docs/game-design.md` en parle, mais un tirage payant est du
+hasard payant, interdit (`CLAUDE.md`) ; le contrat n'a d'ailleurs pas la route.
+
+**Un candidat.** La fiche donne la rareté et le rôle, le nom, le bonus, le salaire en pourcent du revenu de l'usine, le
+prix d'embauche (`hireCost`, tel que le service le donne) et l'apparence. « Embaucher » mène au choix de l'usine, où
+« Sans usine » vient d'abord (sur chaque page), puis les usines de l'entreprise. `hire` part avec l'usine choisie, ou sans.
+Embauché, on revient à l'agence, relue : le candidat porte la marque « Déjà embauché ». Refusé (`PAS_ASSEZ_DE_DONAR` avec la
+somme qui manque, `USINE_VERROUILLEE`, `EMPLACEMENT_OCCUPE`, `DEJA_POSSEDE`), l'écran reste et Oooscar le dit.
+
+**La fiche d'usine.** Quand au moins un membre y travaille, elle ajoute une ligne « Équipe : `<n>` membres, avec chef » (ou
+« sans chef »), lue dans la liste du personnel : « chef » veut dire un membre qui n'est pas un simple salarié.
+
 ### Les formulaires
 
 Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert (le tchat, un autre menu). Le menu
@@ -254,7 +300,7 @@ définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun 
 
 Les noms des usines ne sont pas dans ce tableau : ils viennent de `definitions/usines.json` (clé « nom »), recopiés
 dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoires (`[D] [L] [G] [U] [T] [!] [E] [X]
-[S] [C] [O] [A] [P]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
+[S] [C] [O] [A] [P] [M] [R]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
 `ui/apparence.ts` : ce sont des places gardées pour des images, pas des textes.
 
 | Où | Avant | Après |
@@ -269,6 +315,7 @@ dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoir
 | Menu, tuile | rien | Objectifs |
 | Menu, tuile | rien | Prestige |
 | Menu, tuile | rien | Amis |
+| Menu, tuile | rien | Personnel |
 | Menu, tuile verrouillée | rien | Bientôt |
 | Menu, bouton | rien | Retour |
 | Menu, ligne d'une tuile | rien | Revenu `<revenu>` |
@@ -407,6 +454,58 @@ viennent du service, mis en forme par `ui/nombres.ts`. Les noms d'époque sont c
 | Bulle oups, île introuvable (pas d'origine d'archipel, ou île absente de `iles.json`) | rien | Je ne trouve pas cette île. |
 | Bulle oups, île pas prête dans le délai | rien | L'île n'est pas encore prête. |
 
+Le personnel et l'agence (`PERSONNEL_TEXTES`, `AGENCE_TEXTES` et les bulles qui s'y ajoutent). Les nombres, les noms et les
+apparences viennent du service. Le nom de la troisième rareté est à confirmer : le mot du game design est banni par la
+charte (`design/README.md`), « Exceptionnel » tient la place. La couleur du nom suit la rareté (gris, bleu, jaune,
+`ui/apparence.ts`), à valider aussi.
+
+| Où | Avant | Après |
+|---|---|---|
+| Menu, tuile Personnel, ligne d'info (aussi sur les tuiles d'usine des écrans d'affectation et d'embauche) | rien | Aucun membre, 1 membre, puis `<n>` membres |
+| Fiche d'usine, ligne d'équipe (quand au moins un membre y travaille) | rien | Équipe : `<n>` membres, avec chef (ou sans chef) |
+| Personnel, titre | rien | PERSONNEL |
+| Personnel, phrase | rien | Ton équipe, usine par usine. |
+| Personnel, quand personne n'est embauché | rien | Personne dans ton équipe pour l'instant. |
+| Personnel, tuile de l'agence | rien | Agence, avec la ligne Les candidats du jour |
+| Personnel, équipe des membres sans usine | rien | Sans usine |
+| Personnel, rôles du contrat | rien | Salarié, Chef, Directeur |
+| Personnel, raretés du contrat (le nom de la troisième est à confirmer) | rien | Commun, Rare, Exceptionnel |
+| Personnel, ligne d'un membre ou d'un candidat dans une liste | rien | `<rareté>` · `<rôle>` · +`<bonus>` % |
+| Personnel, en tête d'une fiche | rien | `<rareté>` · `<rôle>` |
+| Équipe, titre | rien | ÉQUIPE |
+| Membre, titre | rien | MEMBRE |
+| Membre et candidat, bonus | rien | Bonus +`<bonus>` % de production |
+| Membre, salaire par heure | rien | Salaire `<montant>` Donar/h |
+| Membre et candidat, apparence | rien | Apparence `<apparence du service>` |
+| Membre, usine | rien | Usine `<nom>` |
+| Membre, sans usine | rien | Pas d'usine pour l'instant |
+| Membre, boutons | rien | Affecter à une usine, Renvoyer, Retour |
+| Affectation, titre | rien | AFFECTATION |
+| Affectation, phrase | rien | Choisis son usine. |
+| Affectation, quand il n'y a pas d'autre usine | rien | Aucune autre usine. |
+| Affectation, bouton | rien | Retour |
+| Renvoi, titre | rien | RENVOI |
+| Renvoi, phrase | rien | Cette personne quitte ton entreprise. |
+| Renvoi, boutons | rien | Renvoyer, Garder |
+| Agence, titre | rien | AGENCE |
+| Agence, phrase | rien | Choisis qui rejoint ton équipe. |
+| Agence, sans candidat | rien | Aucun candidat aujourd'hui. |
+| Agence, candidat déjà embauché | rien | Déjà embauché |
+| Agence, bouton | rien | Retour |
+| Candidat, titre | rien | CANDIDAT |
+| Candidat, prix d'embauche | rien | Embauche `<montant>` Donar |
+| Candidat, salaire | rien | Salaire `<pourcent>` % du revenu de l'usine |
+| Candidat, boutons | rien | Embaucher, Retour |
+| Embauche, titre | rien | EMBAUCHE |
+| Embauche, phrase | rien | Choisis son usine, ou aucune. |
+| Embauche, tuile sans usine | rien | Sans usine, avec la ligne Rejoint l'équipe sans poste |
+| Embauche, bouton | rien | Retour |
+| Bulle joie, après une embauche | rien | Nouvelle recrue embauchée ! |
+| Bulle joie, après une affectation | rien | Affectation faite. |
+| Bulle oups, après un renvoi | rien | Membre renvoyé. |
+| Refus `EMPLACEMENT_OCCUPE` d'une embauche ou d'une affectation (remplace Cet emplacement est occupé.) | Cet emplacement est occupé. | Plus de poste libre ici. |
+| Refus `DEJA_POSSEDE` d'une embauche, bulle fière (remplace Tu l'as déjà.) | Tu l'as déjà. | Déjà embauché. |
+
 La cinématique d'arrivée (`design/composants/Cinematique.md`) : quatre plans, une phrase d'Oooscar par plan, plus la
 consigne pour passer. Le nom de qui parle (« Oooscar ») est le titre du sous-titre, la phrase en est le texte. Chaque
 phrase tient en huit mots au plus et reste à l'écran trois secondes au moins.
@@ -464,9 +563,21 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Oooscar ne suit pas le joueur sur l'île choisie : il reste là où l'arrivée l'a posé.
 - Pas de texte pour les époques au-delà de la quatrième : un numéro inconnu se montre sans nom.
 
+À la tranche du personnel :
+
+- Le contrat ne donne pas le nombre de postes d'une usine ni par rôle : l'écran ne peut pas dire qu'une usine est pleine
+  avant d'essayer. Le service refuse avec `EMPLACEMENT_OCCUPE`, l'écran le dit en bulle.
+- `assignStaff` exige une usine : un membre déjà affecté ne peut pas redevenir « sans usine ».
+- Pas de route pour promouvoir un chef en directeur, ni pour mettre une nouvelle liste de candidats : aucun bouton non
+  plus. Le service ne rend pas encore le rôle `DIRECTEUR`, l'add-on le lit quand même.
+- Pas de nom d'apparence : l'écran montre l'identifiant du service (`ouvrier-casque`), qui n'est pas un texte écrit.
+- Le contrat ne donne pas le rôle du joueur : « Renvoyer » est proposé à tout membre, et `PAS_LE_PDG` revient en bulle.
+- Rien ne donne le nom d'un membre qui n'est plus dans la liste (renvoyé par un autre associé) : l'écran qui le
+  montrait revient simplement à son parent.
+
 Au design system :
 
-- Pas d'icône pour Objectifs, Amis et Silo (Objectifs est actif mais garde son repère `[O]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
+- Pas d'icône pour Objectifs, Amis, Silo, Personnel et Agence (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
 - Pas d'image d'Oooscar utilisable en jeu : les bulles portent un repère entre crochets.
 - Pas de glyphes dans le pack de ressources pour les icônes qui existent dans `design/icones/`.
 
@@ -485,6 +596,15 @@ Au design system :
   confirmation, seulement le seuil ; l'attente d'une île avant de téléporter dure `config.world.travelWaitSeconds`
   (10 s) ; le bouton de confirmation s'écrit « Prestige ! », seul point d'exclamation d'un bouton, parce que
   `design/README.md` le prescrit ; « ????? » est le seul point d'interrogation, c'est le nom caché d'une usine.
+
+- Personnel, choix faits sans Kr, à relire : le personnel est la septième tuile du menu, avant Amis ; l'agence est une
+  tuile de l'écran PERSONNEL, pas du menu ; l'écran PERSONNEL liste les équipes qui ont du monde, pas toutes les usines ;
+  la couleur d'un nom suit la rareté (gris, bleu, jaune) ; la troisième rareté s'écrit « Exceptionnel » ; le salaire
+  s'écrit par heure comme le service le donne, alors que le revenu du HUD est par seconde (« Donar/h » contre « /s ») ;
+  la ligne d'équipe de la fiche d'usine s'ajoute aux trois infos de `design/composants/Fiche.md` (« trois infos au
+  plus ») ; l'apparence s'affiche en toutes lettres, brute ; embauché, on revient à l'agence ; renvoyé, à PERSONNEL.
+- Pas de nouvelle liste de candidats contre du Donar : le game design la prévoit, mais c'est du hasard payant. Si Kr la
+  veut sans tirage payant (une attente, ou un prix fixe sans hasard), le contrat n'a pas encore la route.
 
 ## Ce qui ne se vérifie que sur un vrai BDS
 
@@ -509,6 +629,10 @@ Au design system :
   mais pas vu).
 - Les formulaires de la carte (seize lignes, deux pages) et du prestige (longueur du corps, retours à la ligne), et les
   repères provisoires `[P]`, `[C]` et `[X]`.
+- Le personnel : `http.request` avec les méthodes PATCH et DELETE (`HttpRequestMethod.Patch`, `HttpRequestMethod.Delete`) :
+  le DELETE n'a pas de corps, `requestId` et `actor` sont dans l'URL ; la longueur des formulaires de membre et de
+  candidat (sept à neuf lignes, retours à la ligne), les tuiles de membre à deux lignes, les repères `[M]` et `[R]`, les
+  codes de couleur `§7`, `§9` et `§e` du nom selon la rareté, et la relecture de l'agence à chaque ouverture.
 - Les missions : `player.sendMessage` avec les codes `§` pour la bulle de fin, la tuile Objectifs à deux lignes, la
   lecture des missions à l'arrivée pendant la cinématique, et une `ANNONCE` reçue pour un joueur qui vient de se
   connecter (le curseur des événements repart de 0 au redémarrage de BDS).

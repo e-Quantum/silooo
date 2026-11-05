@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
-import { REFUSAL_REASONS } from "../src/protocol";
-import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, colored } from "../src/ui/apparence";
+import { REFUSAL_REASONS, STAFF_RARITIES, STAFF_ROLES } from "../src/protocol";
+import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, RARITY_COLOR, colored } from "../src/ui/apparence";
 import { formatAmount } from "../src/ui/nombres";
 import {
+  AGENCE_TEXTES,
   BOUSSOLE_TEXTES,
   BULLES,
   CARTE_TEXTES,
@@ -18,6 +19,7 @@ import {
   MISSION_TEXTES,
   MISSION_TEXTES_IDS,
   OBJECTIFS_TEXTES,
+  PERSONNEL_TEXTES,
   PRESTIGE_TEXTES,
   REFUSAL_BUBBLE_REASONS,
   SILO_TEXTES,
@@ -30,6 +32,7 @@ import {
   missionTitle,
   refusalBubble,
   renderBubble,
+  staffRefusalBubble,
   type Bubble,
 } from "../src/ui/textes";
 
@@ -41,6 +44,12 @@ function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
   for (const code of REFUSAL_BUBBLE_REASONS) {
     for (const somme of [undefined, 0, 1, 120, 1_500, 123_456_789_012, 3e29, 5e120]) {
       liste.push({ nom: `${code} ${somme ?? "sans somme"}`, bulle: refusalBubble(code, somme) });
+    }
+  }
+  // Dans le contexte du personnel, deux refus ont d'autres mots : chaque code passe aussi par staffRefusalBubble.
+  for (const code of REFUSAL_BUBBLE_REASONS) {
+    for (const somme of [undefined, 0, 120, 123_456_789_012]) {
+      liste.push({ nom: `personnel ${code} ${somme ?? "sans somme"}`, bulle: staffRefusalBubble(code, somme) });
     }
   }
   for (const failure of ["network", "error", "unavailable"] as const) {
@@ -165,6 +174,8 @@ const TOUS = [
   ...feuilles(OBJECTIFS_TEXTES, "OBJECTIFS_TEXTES"),
   ...feuilles(PRESTIGE_TEXTES, "PRESTIGE_TEXTES"),
   ...feuilles(CARTE_TEXTES, "CARTE_TEXTES"),
+  ...feuilles(PERSONNEL_TEXTES, "PERSONNEL_TEXTES"),
+  ...feuilles(AGENCE_TEXTES, "AGENCE_TEXTES"),
   ...Object.entries(MISSION_TEXTES).flatMap(([id, t]) => [
     { chemin: `MISSION_TEXTES.${id}.titre`, texte: t.titre },
     { chemin: `MISSION_TEXTES.${id}.consigne`, texte: t.consigne },
@@ -474,5 +485,123 @@ describe("textes du prestige et de la carte", () => {
   it("le repère du prestige est dans l'habillage provisoire, pas dans les textes", () => {
     assert.equal(ICON.prestige, "[P]");
     assert.equal(ICON.carte, "[C]");
+  });
+});
+
+// ---------------------------------------------------------------- le personnel
+
+describe("textes du personnel", () => {
+  const yaml = readFileSync(resolve("..", "api", "silooo-core.openapi.yaml"), "utf8");
+
+  function enumDuContrat(champ: string): string[] {
+    const debut = yaml.indexOf("    Staff:\n");
+    assert.notEqual(debut, -1);
+    const ligne = yaml.slice(yaml.indexOf(`${champ}:`, debut), yaml.indexOf("\n", yaml.indexOf(`${champ}:`, debut)));
+    return ligne
+      .slice(ligne.indexOf("enum: [") + "enum: [".length, ligne.indexOf("]"))
+      .split(",")
+      .map((mot) => mot.trim());
+  }
+
+  it("chaque rôle et chaque rareté du contrat a son nom, et rien d'autre", () => {
+    assert.deepEqual(Object.keys(PERSONNEL_TEXTES.roles).sort(), [...enumDuContrat("role")].sort());
+    assert.deepEqual(Object.keys(PERSONNEL_TEXTES.raretes).sort(), [...enumDuContrat("rarity")].sort());
+    assert.deepEqual(Object.keys(PERSONNEL_TEXTES.roles).sort(), [...STAFF_ROLES].sort());
+    assert.deepEqual(Object.keys(PERSONNEL_TEXTES.raretes).sort(), [...STAFF_RARITIES].sort());
+  });
+
+  it("les noms de rôle et de rareté sont un seul mot, distincts, avec une majuscule", () => {
+    for (const noms of [Object.values(PERSONNEL_TEXTES.roles), Object.values(PERSONNEL_TEXTES.raretes)]) {
+      assert.equal(new Set(noms).size, noms.length);
+      for (const nom of noms) {
+        assert.equal(mots(nom).length, 1, nom);
+        assert.match(nom, /^\p{Lu}\p{Ll}+$/u, nom);
+      }
+    }
+  });
+
+  it("les titres de fenêtre sont en capitales, d'un ou deux mots", () => {
+    for (const titre of [
+      MENU_TEXTES.titre,
+      PERSONNEL_TEXTES.titre,
+      PERSONNEL_TEXTES.equipe.titre,
+      PERSONNEL_TEXTES.membre.titre,
+      PERSONNEL_TEXTES.affecter.titre,
+      PERSONNEL_TEXTES.renvoi.titre,
+      AGENCE_TEXTES.titre,
+      AGENCE_TEXTES.candidat.titre,
+      AGENCE_TEXTES.embauche.titre,
+    ]) {
+      assert.match(titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
+    }
+  });
+
+  it("les boutons sont courts et sans ponctuation finale", () => {
+    const boutons = [
+      MENU_TEXTES.personnel,
+      PERSONNEL_TEXTES.agence,
+      PERSONNEL_TEXTES.sansUsine,
+      PERSONNEL_TEXTES.retour,
+      PERSONNEL_TEXTES.membre.affecter,
+      PERSONNEL_TEXTES.membre.renvoyer,
+      PERSONNEL_TEXTES.membre.retour,
+      PERSONNEL_TEXTES.affecter.retour,
+      PERSONNEL_TEXTES.renvoi.renvoyer,
+      PERSONNEL_TEXTES.renvoi.garder,
+      AGENCE_TEXTES.retour,
+      AGENCE_TEXTES.candidat.embaucher,
+      AGENCE_TEXTES.candidat.retour,
+      AGENCE_TEXTES.embauche.sansUsine,
+      AGENCE_TEXTES.embauche.retour,
+    ];
+    for (const bouton of boutons) {
+      assert.ok(mots(bouton).length >= 1 && mots(bouton).length <= 4, bouton);
+      assert.doesNotMatch(bouton, /[.!?]$/, bouton);
+    }
+  });
+
+  it("l'agence ne parle jamais d'une nouvelle liste, d'un tirage ni d'un renouvellement payant", () => {
+    for (const { chemin, texte } of feuilles(AGENCE_TEXTES, "AGENCE_TEXTES")) {
+      assert.doesNotMatch(texte, /nouvelle liste|tirage|tirer|renouvel|relanc|rafra/i, chemin);
+    }
+  });
+
+  it("les chiffres arrivent mis en forme : les textes les posent tels quels, sans rien calculer", () => {
+    assert.equal(PERSONNEL_TEXTES.ligne("Rare", "Chef", "25"), "Rare · Chef · +25 %");
+    assert.equal(PERSONNEL_TEXTES.sorte("Rare", "Chef"), "Rare · Chef");
+    assert.equal(PERSONNEL_TEXTES.membre.bonus("25"), "Bonus +25 % de production");
+    assert.equal(PERSONNEL_TEXTES.membre.salaire("360"), "Salaire 360 Donar/h");
+    assert.equal(AGENCE_TEXTES.candidat.cout("4,8 k"), "Embauche 4,8 k Donar");
+    assert.equal(AGENCE_TEXTES.candidat.salaire("2,5"), "Salaire 2,5 % du revenu de l'usine");
+  });
+
+  it("le nombre de membres : aucun, un, plusieurs", () => {
+    assert.equal(MENU_TEXTES.nombreMembres(0), "Aucun membre");
+    assert.equal(MENU_TEXTES.nombreMembres(1), "1 membre");
+    assert.equal(MENU_TEXTES.nombreMembres(4), "4 membres");
+  });
+
+  it("la ligne d'équipe de la fiche d'usine : avec ou sans chef", () => {
+    assert.equal(FICHE_TEXTES.equipe("2 membres", true), "Équipe : 2 membres, avec chef");
+    assert.equal(FICHE_TEXTES.equipe("1 membre", false), "Équipe : 1 membre, sans chef");
+  });
+
+  it("deux refus ont les mots du personnel, les autres gardent ceux de refusalBubble", () => {
+    assert.equal(staffRefusalBubble("EMPLACEMENT_OCCUPE"), BULLES.postesPleins);
+    assert.equal(staffRefusalBubble("DEJA_POSSEDE"), BULLES.dejaEmbauche);
+    for (const code of REFUSAL_BUBBLE_REASONS.filter((c) => c !== "EMPLACEMENT_OCCUPE" && c !== "DEJA_POSSEDE")) {
+      assert.deepEqual(staffRefusalBubble(code, 120), refusalBubble(code, 120), code);
+    }
+    assert.deepEqual(staffRefusalBubble("CODE_DU_FUTUR"), BULLES.refusInconnu);
+  });
+
+  it("la couleur d'une rareté ne se confond avec aucune monnaie, et une rareté a toujours son nom écrit", () => {
+    const monnaies: string[] = [COLOR.donar, COLOR.lingots, COLOR.gemmes];
+    for (const rarete of STAFF_RARITIES) {
+      assert.ok(!monnaies.includes(RARITY_COLOR[rarete]), rarete);
+      assert.match(RARITY_COLOR[rarete], /^§[0-9a-v]$/);
+      assert.ok(PERSONNEL_TEXTES.raretes[rarete] !== "", rarete);
+    }
+    assert.equal(new Set(STAFF_RARITIES.map((rarete) => RARITY_COLOR[rarete])).size, STAFF_RARITIES.length);
   });
 });

@@ -145,5 +145,9 @@ export function observeApi(api: CoreApi, link: LinkState): CoreApi {
     getMissions: (xuid) => watch(api.getMissions(xuid)),
     prestigePreview: (companyId) => watch(api.prestigePreview(companyId)),
     prestige: (companyId, action) => watch(api.prestige(companyId, action)),
+    getCandidates: (companyId) => watch(api.getCandidates(companyId)),
+    hire: (companyId, slot, action, factoryId) => watch(api.hire(companyId, slot, action, factoryId)),
+    assignStaff: (companyId, staffId, action, factoryId) => watch(api.assignStaff(companyId, staffId, action, factoryId)),
+    fireStaff: (companyId, staffId, action) => watch(api.fireStaff(companyId, staffId, action)),
   };
 }

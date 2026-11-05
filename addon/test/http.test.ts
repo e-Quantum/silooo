@@ -178,3 +178,42 @@ describe("describeFailure", () => {
     assert.equal(describeFailure({ kind: "network", message: "coupé" }), "réseau : coupé");
   });
 });
+
+describe("createCoreClient : PATCH et DELETE", () => {
+  it("PATCH : envoie le corps en JSON avec les mêmes en-têtes", async () => {
+    const { core, transport } = client([json(200, {})]);
+    await core.patch("/v1/companies/7/staff/11", { factoryId: "scierie" });
+    const [request] = transport.requests;
+    assert.equal(request?.method, "PATCH");
+    assert.equal(request?.url, "http://silooo-core:8080/v1/companies/7/staff/11");
+    assert.equal(request?.body, '{"factoryId":"scierie"}');
+    assert.deepEqual(
+      request?.headers.map((h) => h.name),
+      ["Content-Type", "X-Silooo-Key"],
+    );
+  });
+
+  it("DELETE : pas de corps, la requête reste dans le chemin", async () => {
+    const { core, transport } = client([json(200, {})]);
+    await core.delete("/v1/companies/7/staff/11?requestId=r&actor=42");
+    const [request] = transport.requests;
+    assert.equal(request?.method, "DELETE");
+    assert.equal(request?.url, "http://silooo-core:8080/v1/companies/7/staff/11?requestId=r&actor=42");
+    assert.equal(request?.body, undefined);
+    assert.equal(request?.headers[1]?.name, "X-Silooo-Key");
+  });
+
+  it("un PATCH ou un DELETE n'est jamais rejoué tout seul, ni après une panne réseau ni après un 500", async () => {
+    const patch = client([new Error("coupé"), json(200, {})]);
+    assert.equal((await patch.core.patch("/v1/x", {})).kind, "network");
+    assert.equal(patch.transport.requests.length, 1);
+    const suppression = client([json(500, { reason: "ERREUR_INTERNE" }), json(200, {})]);
+    assert.equal((await suppression.core.delete("/v1/x")).kind, "error");
+    assert.equal(suppression.transport.requests.length, 1);
+  });
+
+  it("un refus 403 d'un DELETE est un refus du jeu", async () => {
+    const { core } = client([json(403, { reason: "PAS_LE_PDG" })]);
+    assert.deepEqual(await core.delete("/v1/x"), { kind: "refused", status: 403, reason: "PAS_LE_PDG" });
+  });
+});

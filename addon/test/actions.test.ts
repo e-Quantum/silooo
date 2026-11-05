@@ -4,7 +4,7 @@ import type { ApiResult } from "../src/http";
 import type { CollectResponse, CompanyUpdated } from "../src/protocol";
 import { createActions } from "../src/ui/actions";
 import { createViewStore } from "../src/ui/etat";
-import { balances, companyState, factory, joinResponse, ok, prestigePreview, recordingLogger } from "./helpers";
+import { balances, candidate, companyState, factory, joinResponse, ok, prestigePreview, recordingLogger } from "./helpers";
 import {
   GAMERTAG,
   XUID,
@@ -19,6 +19,14 @@ import {
 } from "./ui-helpers";
 
 const BASE = { version: 1, donar: 100, ratePerHour: 3_600, factories: [factory({ level: 3 })] } as const;
+
+/** Les routes du personnel, que les faux de ces tests n'attendent pas. */
+const INUTILES = {
+  getCandidates: () => Promise.reject(new Error("inutile")),
+  hire: () => Promise.reject(new Error("inutile")),
+  assignStaff: () => Promise.reject(new Error("inutile")),
+  fireStaff: () => Promise.reject(new Error("inutile")),
+};
 
 function setup(script: Script, state = BASE) {
   const clock = fakeClock(0);
@@ -213,6 +221,7 @@ describe("garde-fous", () => {
       restoreStep: () => Promise.reject(new Error("inutile")),
       prestige: () => Promise.reject(new Error("inutile")),
       prestigePreview: () => Promise.reject(new Error("inutile")),
+      ...INUTILES,
       collect: (companyId: number) =>
         new Promise<ApiResult<CollectResponse>>((resolve) => {
           calls.push(`collect ${companyId}`);
@@ -247,6 +256,7 @@ describe("garde-fous", () => {
       restoreStep: () => Promise.reject(new Error("inutile")),
       prestige: () => Promise.reject(new Error("inutile")),
       prestigePreview: () => Promise.reject(new Error("inutile")),
+      ...INUTILES,
       collect: () => {
         appels += 1;
         return appels === 1 ? Promise.reject(new Error("coupure")) : Promise.resolve(unreachable<never>());
@@ -460,6 +470,7 @@ describe("le prestige", () => {
       buyLevels: () => Promise.reject(new Error("inutile")),
       restoreStep: () => Promise.reject(new Error("inutile")),
       prestigePreview: () => Promise.resolve(ok(prestigePreview())),
+      ...INUTILES,
       prestige: () =>
         new Promise<ApiResult<CompanyUpdated>>((resolve) => {
           envois += 1;
@@ -515,6 +526,216 @@ describe("l'aperçu du prestige", () => {
   it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
     const { actions, api } = setup({});
     assert.deepEqual(await actions.preview("999"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+});
+
+describe("embaucher", () => {
+  it("envoie la place et l'usine avec un requestId neuf, range l'état et les soldes rendus", async () => {
+    const { actions, api, views } = setup({ hire: [ok(updated(2, 3, 7))] });
+    assert.deepEqual(await actions.hire(XUID, 3, "carriere"), { kind: "hired" });
+    assert.deepEqual(api.calls, [
+      { op: "hire", companyId: 7, slot: 3, action: { requestId: "id-1", actor: XUID }, factoryId: "carriere" },
+    ]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+    assert.equal(views.get(XUID)?.state.donar, 40);
+    assert.equal(views.get(XUID)?.balances.lingots, 7);
+  });
+
+  it("sans usine, l'usine est absente de l'appel", async () => {
+    const { actions, api } = setup({ hire: [ok(updated(2, 3))] });
+    await actions.hire(XUID, 1);
+    assert.deepEqual(api.calls, [
+      { op: "hire", companyId: 7, slot: 1, action: { requestId: "id-1", actor: XUID }, factoryId: undefined },
+    ]);
+  });
+
+  it("PAS_ASSEZ_DE_DONAR : les Donar qui manquent sont rendus, l'état ne bouge pas, rien n'est rejoué", async () => {
+    const { actions, api, views } = setup({ hire: [refused("PAS_ASSEZ_DE_DONAR", 1_200)] });
+    assert.deepEqual(await actions.hire(XUID, 1), { kind: "refused", reason: "PAS_ASSEZ_DE_DONAR", missing: 1_200 });
+    assert.equal(api.calls.length, 1);
+    assert.equal(views.get(XUID)?.state.version, 1);
+    assert.equal(views.get(XUID)?.state.donar, 100);
+  });
+
+  it("DEJA_POSSEDE et EMPLACEMENT_OCCUPE sont rendus tels quels", async () => {
+    const { actions } = setup({ hire: [refused("DEJA_POSSEDE"), refused("EMPLACEMENT_OCCUPE")] });
+    assert.deepEqual(await actions.hire(XUID, 1), { kind: "refused", reason: "DEJA_POSSEDE" });
+    assert.deepEqual(await actions.hire(XUID, 1, "carriere"), { kind: "refused", reason: "EMPLACEMENT_OCCUPE" });
+  });
+
+  it("CONFLIT_REESSAYER : recharge l'état, rejoue une fois avec le même requestId", async () => {
+    const { actions, api, views } = setup({
+      hire: [refused("CONFLIT_REESSAYER"), ok(updated(6, 3))],
+      getCompany: [ok(companyState({ version: 5, donar: 900, factories: [factory({ level: 4 })] }))],
+    });
+    assert.deepEqual(await actions.hire(XUID, 2, "carriere"), { kind: "hired" });
+    assert.deepEqual(api.calls.map((call) => call.op), ["hire", "getCompany", "hire"]);
+    const envois = api.calls.flatMap((call) => (call.op === "hire" ? [call] : []));
+    assert.deepEqual(envois[0]?.action, envois[1]?.action);
+    assert.equal(envois[1]?.slot, 2);
+    assert.equal(envois[1]?.factoryId, "carriere");
+    assert.equal(views.get(XUID)?.state.version, 6);
+  });
+
+  it("un second conflit est rendu tel quel : un seul rejeu", async () => {
+    const { actions, api } = setup({
+      hire: [refused("CONFLIT_REESSAYER"), refused("CONFLIT_REESSAYER")],
+      getCompany: [ok(companyState({ version: 2 }))],
+    });
+    assert.deepEqual(await actions.hire(XUID, 1), { kind: "refused", reason: "CONFLIT_REESSAYER" });
+    assert.deepEqual(api.calls.map((call) => call.op), ["hire", "getCompany", "hire"]);
+  });
+
+  it("réseau coupé : échec « network », journalisé, l'état ne bouge pas", async () => {
+    const { actions, log, views } = setup({ hire: [unreachable()] });
+    assert.deepEqual(await actions.hire(XUID, 1), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.match(log.warns.join("\n"), /hire : réseau/);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.hire("999", 1), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+});
+
+describe("affecter un membre", () => {
+  it("envoie le membre et l'usine, range l'état rendu", async () => {
+    const { actions, api, views } = setup({ assignStaff: [ok(updated(2, 3))] });
+    assert.deepEqual(await actions.assignStaff(XUID, 11, "scierie"), { kind: "assigned" });
+    assert.deepEqual(api.calls, [
+      { op: "assignStaff", companyId: 7, staffId: 11, action: { requestId: "id-1", actor: XUID }, factoryId: "scierie" },
+    ]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+  });
+
+  it("EMPLACEMENT_OCCUPE : rendu tel quel, l'état ne bouge pas", async () => {
+    const { actions, views } = setup({ assignStaff: [refused("EMPLACEMENT_OCCUPE")] });
+    assert.deepEqual(await actions.assignStaff(XUID, 11, "scierie"), { kind: "refused", reason: "EMPLACEMENT_OCCUPE" });
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("CONFLIT_REESSAYER : un seul rejeu, avec le même requestId", async () => {
+    const { actions, api } = setup({
+      assignStaff: [refused("CONFLIT_REESSAYER"), ok(updated(6, 3))],
+      getCompany: [ok(companyState({ version: 5 }))],
+    });
+    assert.deepEqual(await actions.assignStaff(XUID, 11, "scierie"), { kind: "assigned" });
+    const envois = api.calls.flatMap((call) => (call.op === "assignStaff" ? [call.action] : []));
+    assert.equal(envois.length, 2);
+    assert.deepEqual(envois[0], envois[1]);
+  });
+
+  it("erreur du service : échec « error » avec le code du service", async () => {
+    const { actions } = setup({ assignStaff: [failure(400, "STAFF_INCONNU")] });
+    assert.deepEqual(await actions.assignStaff(XUID, 11, "scierie"), { kind: "failed", failure: "error", reason: "STAFF_INCONNU" });
+  });
+});
+
+describe("renvoyer un membre", () => {
+  it("envoie le membre avec un requestId neuf, range l'état rendu", async () => {
+    const { actions, api, views } = setup({ fireStaff: [ok(updated(2, 3))] });
+    assert.deepEqual(await actions.fireStaff(XUID, 11), { kind: "fired" });
+    assert.deepEqual(api.calls, [{ op: "fireStaff", companyId: 7, staffId: 11, action: { requestId: "id-1", actor: XUID } }]);
+    assert.equal(views.get(XUID)?.state.version, 2);
+  });
+
+  it("PAS_LE_PDG : rendu tel quel, l'état ne bouge pas, rien n'est rejoué", async () => {
+    const { actions, api, views } = setup({
+      fireStaff: [{ kind: "refused", status: 403, reason: "PAS_LE_PDG" }],
+    });
+    assert.deepEqual(await actions.fireStaff(XUID, 11), { kind: "refused", reason: "PAS_LE_PDG" });
+    assert.equal(api.calls.length, 1);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("CONFLIT_REESSAYER : un seul rejeu", async () => {
+    const { actions, api } = setup({
+      fireStaff: [refused("CONFLIT_REESSAYER"), ok(updated(6, 3))],
+      getCompany: [ok(companyState({ version: 5 }))],
+    });
+    assert.deepEqual(await actions.fireStaff(XUID, 11), { kind: "fired" });
+    assert.deepEqual(api.calls.map((call) => call.op), ["fireStaff", "getCompany", "fireStaff"]);
+  });
+
+  it("une seule action à la fois : un renvoi pendant une embauche rend « occupé » sans appel", async () => {
+    const store = storeWith({ version: 1 });
+    const views = createViewStore({ players: store, clock: fakeClock() });
+    let envois = 0;
+    let finir: (() => void) | undefined;
+    const api = {
+      getCompany: () => Promise.reject(new Error("inutile")),
+      collect: () => Promise.reject(new Error("inutile")),
+      buyLevels: () => Promise.reject(new Error("inutile")),
+      restoreStep: () => Promise.reject(new Error("inutile")),
+      prestige: () => Promise.reject(new Error("inutile")),
+      prestigePreview: () => Promise.reject(new Error("inutile")),
+      getCandidates: () => Promise.resolve(ok([candidate()])),
+      assignStaff: () => Promise.reject(new Error("inutile")),
+      fireStaff: () => Promise.reject(new Error("inutile")),
+      hire: () =>
+        new Promise<ApiResult<CompanyUpdated>>((resolve) => {
+          envois += 1;
+          finir = () => resolve(ok(updated(2, 3)));
+        }),
+    };
+    const actions = createActions({ api, views, newRequestId: sequentialIds(), log: recordingLogger() });
+    const premier = actions.hire(XUID, 1);
+    assert.deepEqual(await actions.fireStaff(XUID, 11), { kind: "busy" });
+    assert.deepEqual(await actions.hire(XUID, 2), { kind: "busy" });
+    assert.equal(envois, 1);
+    // Les candidats sont une lecture : elle n'attend pas l'embauche et ne prend pas le verrou.
+    assert.equal((await actions.candidates(XUID)).kind, "candidates");
+    finir?.();
+    assert.deepEqual(await premier, { kind: "hired" });
+    assert.equal(views.get(XUID)?.state.version, 2);
+  });
+});
+
+describe("les candidats du jour", () => {
+  it("lit la liste du service pour l'entreprise du joueur, sans requestId ni acteur", async () => {
+    const liste = [candidate(), candidate({ slot: 2, name: "Camille", rarity: "RARE", role: "CHEF" })];
+    const { actions, api } = setup({ getCandidates: [ok(liste)] });
+    assert.deepEqual(await actions.candidates(XUID), { kind: "candidates", candidates: liste });
+    assert.deepEqual(api.calls, [{ op: "getCandidates", companyId: 7 }]);
+  });
+
+  it("ne change rien à la vue du joueur", async () => {
+    const { actions, views } = setup({ getCandidates: [ok([candidate()])] });
+    const avant = views.get(XUID);
+    await actions.candidates(XUID);
+    assert.equal(views.get(XUID), avant);
+    assert.equal(views.get(XUID)?.state.version, 1);
+  });
+
+  it("chaque ouverture relit le service", async () => {
+    const { actions, api } = setup({ getCandidates: [ok([candidate()]), ok([candidate({ name: "Denis" })])] });
+    await actions.candidates(XUID);
+    const second = await actions.candidates(XUID);
+    assert.equal(api.calls.length, 2);
+    assert.equal(second.kind === "candidates" ? second.candidates[0]?.name : "", "Denis");
+  });
+
+  it("réseau coupé : échec « network », journalisé", async () => {
+    const { actions, log } = setup({ getCandidates: [unreachable()] });
+    assert.deepEqual(await actions.candidates(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.match(log.warns.join("\n"), /getCandidates : réseau/);
+  });
+
+  it("erreur du service, route pas encore écrite et refus imprévu : échec « error »", async () => {
+    const { actions } = setup({
+      getCandidates: [failure(500, "ERREUR_INTERNE"), failure(501, "PAS_FAIT"), refused("CODE_DU_FUTUR")],
+    });
+    assert.deepEqual(await actions.candidates(XUID), { kind: "failed", failure: "error", reason: "ERREUR_INTERNE" });
+    assert.deepEqual(await actions.candidates(XUID), { kind: "failed", failure: "error", reason: "PAS_FAIT" });
+    assert.deepEqual(await actions.candidates(XUID), { kind: "failed", failure: "error", reason: "CODE_DU_FUTUR" });
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.candidates("999"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
     assert.deepEqual(api.calls, []);
   });
 });
