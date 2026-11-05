@@ -319,7 +319,11 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
     rend la page d'état sans cookie si un compte Discord y est déjà relié ; aucun identifiant Discord ne sort dans une
     page ni un journal, les erreurs du fournisseur ne gardent que leur sorte. La direction a relu le signataire, les
     routes, le fournisseur Discord et le SQL. Réserve de conception (voir « Pour la direction du jeu », point 4) :
-    l'inscription ne prouve pas la possession du gamertag.
+    l'inscription ne prouve pas la possession du gamertag. Points que la session a elle-même relevés, à revoir avec Kr :
+    `pioneer` est toujours vrai, même après l'ouverture (à lier au mode à l'ouverture) ; le jeton du formulaire se
+    rejoue (sans effet : l'inscription est idempotente) ; un espace au bord du gamertag est refusé plutôt que retiré ;
+    les styles du formulaire (champ, case, erreur) sont écrits dans `atelier.css` sans texture de `design/`, à
+    dessiner dans la charte avant de les réutiliser ; le retour Discord n'a pas de limite de débit.
 
 ## À valider par Kr
 
@@ -444,3 +448,8 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   OAuth2, les refus), `HttpDiscordIdentity` (échange du code, lecture de l'identifiant, rien de sensible dans les
   erreurs), le SQL du store (INSERT simple, doublon par la clé, UPDATE conditionnel), les deux contenus. Réserve de
   conception notée pour Kr et pour le jeu : la possession du gamertag n'est pas prouvée. Fusionnée. Suite : S5.
+- 5 novembre 2026, 15 h 20 à 15 h 40 (direction du site, cloud). `main` avait avancé de quatre commits (Gemmes et
+  grades du jeu, décision 40, votes lancés) : fusionné dans la branche de la direction, deux conflits de lignes
+  ajoutées des deux côtés (`Main.kt` : imports ; `Config.kt` : le `toString`), résolus en gardant les deux ;
+  `tools/verifier.sh` vert sur l'arbre fusionné (1316 tests Gradle dont les SQL ignorés). Points « à revoir » de la
+  session S4 consignés (décision 10). `main` poussé. Suite : S5.
