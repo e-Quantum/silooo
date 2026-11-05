@@ -26,6 +26,7 @@ import com.silooo.core.events.InMemoryEventStore
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.GAMERTAG_MAX_LENGTH
 import com.silooo.core.session.InMemorySessionStore
+import com.silooo.core.session.Membership
 import com.silooo.core.session.Production
 import com.silooo.core.session.TestBootstrap
 import com.silooo.core.session.TestEconomy
@@ -116,10 +117,15 @@ class ContractTest {
      * Monte le service. [operationId] pose l'état de départ dont la requête minimale de cette opération a besoin pour
      * réussir (voir [seedFor]) ; sans lui, la base de faux est vide.
      */
-    private fun withService(operationId: String? = null, block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
+    private fun withService(
+        operationId: String? = null,
+        extraSeed: (InMemorySessionStore) -> Unit = {},
+        block: suspend ApplicationTestBuilder.() -> Unit,
+    ) = testApplication {
         val sessions = InMemorySessionStore()
         val economy = TestEconomy()
         if (operationId != null) seedFor(operationId, sessions, economy)
+        extraSeed(sessions)
         application { siloooModule(contractDependencies(sessions, economy)) }
         block()
     }
@@ -130,7 +136,7 @@ class ContractTest {
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
     private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy) {
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep")
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
@@ -146,6 +152,9 @@ class ContractTest {
                 sessions.companies[companyId] = sessions.companies.getValue(companyId).copy(donar = price)
             }
             "restoreStep" -> sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.EN_RUINE, 0, 0, null))
+            // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
+            "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
+                .copy(donarEarned = EconomyEngine(TestDefinitions.loaded).prestigeThreshold(1) * 4)
         }
     }
 
@@ -375,6 +384,10 @@ class ContractTest {
                 "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
                 """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
             ),
+            "prestige" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+            ),
             "buyLevels" to listOf(
                 "{}", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","amount":"2"}""",
                 """{"requestId":"$ID","actor":"$krXuid","amount":1}""", """{"requestId":"abc","actor":"$krXuid","amount":"1"}""",
@@ -394,6 +407,8 @@ class ContractTest {
             }
         } + badCompanyUrls.map { url ->
             dynamicTest("getCompany : $url") { assertBadRequest(operations.single { it.id == "getCompany" }, url, null) }
+        } + badCompanyUrls.map { url ->
+            dynamicTest("prestigePreview : $url") { assertBadRequest(operations.single { it.id == "prestigePreview" }, "$url/prestige/preview", null) }
         } + queries.map { query ->
             dynamicTest("pollEvents : $query") { assertBadRequest(operations.single { it.id == "pollEvents" }, "/v1/events$query", null) }
         }
@@ -465,6 +480,54 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("prestigePreview : le corps suit PrestigePreview, le PDG seul a toute la part, et l'aperçu ne change rien")
+    fun prestigePreview() = withService("prestigePreview") {
+        val response = send("GET", "/v1/companies/1/prestige/preview")
+        val body = response.bodyAsText()
+        assertEquals(200, response.status.value, body)
+        assertConforms(contract.schema("PrestigePreview"), body, "prestigePreview")
+        val json = parse(body).jsonObject
+        assertEquals("true", json.getValue("allowed").jsonPrimitive.content)
+        val shares = json.getValue("shares").jsonArray.map { it.jsonObject }
+        assertEquals(listOf(krXuid), shares.map { it.getValue("xuid").jsonPrimitive.content })
+        assertEquals(json.getValue("lingotsTotal"), shares.single().getValue("lingots"), "seul membre : il reçoit tout")
+        assertEquals(body, send("GET", "/v1/companies/1/prestige/preview").bodyAsText(), "lu deux fois : la même réponse")
+    }
+
+    @Test
+    @DisplayName("prestige : CompanyUpdated à la course suivante, rejoué à l'identique ; sous le seuil 409 SEUIL_NON_ATTEINT ; associé 403 PAS_LE_PDG, au corps Refused")
+    fun prestige() {
+        val url = "/v1/companies/1/prestige"
+        val request = """{"requestId":"$ID","actor":"$krXuid"}"""
+        withService("prestige") {
+            val first = send("POST", url, request)
+            val body = first.bodyAsText()
+            assertEquals(200, first.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "prestige")
+            assertEquals("2", parse(body).jsonObject.getValue("state").jsonObject.getValue("courseNumber").jsonPrimitive.content)
+            assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+        }
+        withService("getCompany") {
+            val short = send("POST", url, request)
+            val body = short.bodyAsText()
+            assertEquals(409, short.status.value, body)
+            assertConforms(refused, body, "prestige (409)")
+            assertEquals(RefusalCodes.THRESHOLD_NOT_REACHED, reason(parse(body)))
+        }
+        val partner = "2535428000000002"
+        withService("prestige", extraSeed = { sessions ->
+            sessions.members[Xuid.parse(partner)!!] = Membership(1, Role.ASSOCIE)
+            sessions.balances[Xuid.parse(partner)!!] = Balances(0, 0, 0, 0)
+        }) {
+            val notCeo = send("POST", url, """{"requestId":"$ID","actor":"$partner"}""")
+            val body = notCeo.bodyAsText()
+            assertEquals(403, notCeo.status.value, body)
+            assertConforms(refused, body, "prestige (403)")
+            assertEquals(RefusalCodes.NOT_THE_CEO, reason(parse(body)))
+        }
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -483,6 +546,7 @@ class ContractTest {
         val WRITTEN = mapOf(
             "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
+            "prestigePreview" to 200, "prestige" to 200,
         )
 
         /**
