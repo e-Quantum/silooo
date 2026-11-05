@@ -1,0 +1,1 @@
+la ville fait 512 blocs de côté, mais l'île principale de iles.json en fait 600

@@ -36,6 +36,7 @@ class DefinitionsLoaderTest {
     private val missionsText = TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE)
     private val personnelText = TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE)
     private val incidentsText = TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE)
+    private val cityText = TestDefinitions.text(DefinitionsLoader.CITY_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
@@ -47,10 +48,11 @@ class DefinitionsLoaderTest {
         missions: String = missionsText,
         personnel: String = personnelText,
         incidents: String = incidentsText,
-    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents)
+        city: String = cityText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents, city)
 
     @Test
-    @DisplayName("Les sept fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les huit fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
@@ -61,6 +63,7 @@ class DefinitionsLoaderTest {
         assertEquals(fromText.missions, fromDirectory.missions)
         assertEquals(fromText.personnel, fromDirectory.personnel)
         assertEquals(fromText.incidents, fromDirectory.incidents)
+        assertEquals(fromText.city, fromDirectory.city)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -513,6 +516,116 @@ class DefinitionsLoaderTest {
         assertTrue(noIncidents.message!!.contains(DefinitionsLoader.INCIDENTS_FILE), noIncidents.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.INCIDENTS_FILE), incidentsText)
+        val noCity = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noCity.message!!.contains(DefinitionsLoader.CITY_FILE), noCity.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.CITY_FILE), cityText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
+    }
+
+    @Test
+    @DisplayName("Retirer n'importe quelle clé de ville.json fait échouer le chargement")
+    fun everyCityKeyIsRequired() {
+        val root = parseJson(cityText)
+        val paths = root.keyPaths()
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("ville.json sans ${path.joinToString(".")}") { load(city = damaged) }
+            assertTrue(error.message!!.contains("ville.json"), error.message)
+        }
+    }
+
+    /** ville.json avec la valeur au chemin [path] (des clés, et des positions pour les listes) remplacée par [value]. */
+    private fun cityWith(path: List<Any>, value: JsonElement): String {
+        fun replace(node: JsonElement, rest: List<Any>): JsonElement {
+            if (rest.isEmpty()) return value
+            val head = rest.first()
+            return when (node) {
+                is JsonObject -> JsonObject(node + ((head as String) to replace(node.getValue(head), rest.drop(1))))
+                is JsonArray -> JsonArray(node.mapIndexed { i, e -> if (i == head) replace(e, rest.drop(1)) else e })
+                else -> error("Chemin impossible : $path")
+            }
+        }
+        return replace(parseJson(cityText), path).toString()
+    }
+
+    /** La position du bâtiment [id] dans la liste de ville.json. */
+    private fun buildingIndex(id: String): Int =
+        parseJson(cityText).getValue("batiments").jsonArray.indexOfFirst { it.jsonObject.getValue("id").jsonPrimitive.content == id }
+
+    @Test
+    @DisplayName("Une ville qui n'a pas de sens est refusée : zones, mairie, logement, plafonds, bâtiments")
+    fun cityMustMakeSense() {
+        fun refused(text: String, expected: String) {
+            val message = assertThrows<DefinitionsException>(expected) { load(city = text) }.message!!
+            assertTrue(message.contains("ville.json") && message.contains(expected), message)
+        }
+        val town = buildingIndex("mairie")
+        val house = buildingIndex("maison")
+        assertTrue(town >= 0 && house >= 0)
+
+        // Le quadrillage et les zones.
+        refused(cityWith(listOf("ile", "parcelleChunks"), JsonPrimitive(3)), "ile.parcelleChunks doit diviser")
+        refused(cityWith(listOf("ile", "blocsParChunk"), JsonPrimitive(0)), "ile.blocsParChunk")
+        refused(cityWith(listOf("zones", "colonnes"), JsonPrimitive(3)), "zones.ordre doit lister")
+        refused(cityWith(listOf("zones", "ordre"), JsonArray(parseJson(cityText).getValue("zones").jsonObject.getValue("ordre").jsonArray.dropLast(1))), "zones.ordre doit lister")
+        val first = parseJson(cityText).getValue("zones").jsonObject.getValue("ordre").jsonArray[0]
+        refused(cityWith(listOf("zones", "ordre", 1), first), "chaque case du quadrillage une fois")
+        refused(cityWith(listOf("zones", "ordre", 0, "niveauMairieRequis"), JsonPrimitive(0)), "zones.ordre[0].niveauMairieRequis")
+        refused(cityWith(listOf("zones", "ordre", 15, "niveauMairieRequis"), JsonPrimitive(1)), "zones.ordre[15].niveauMairieRequis")
+        refused(cityWith(listOf("zones", "premiere", "usinesActivesMin"), JsonPrimitive(-1)), "usinesActivesMin")
+
+        // Les prix des zones restent dans economie.json : un prix de moins, et la ville ne tient plus.
+        val economy = parseJson(economyText)
+        val prices = economy.getValue("ville").jsonObject.getValue("zonesPrixLingots").jsonArray
+        val shortEconomy = JsonObject(economy + ("ville" to JsonObject(economy.getValue("ville").jsonObject + ("zonesPrixLingots" to JsonArray(prices.dropLast(1))))))
+        val priceMessage = assertThrows<DefinitionsException> { load(economy = shortEconomy.toString()) }.message!!
+        assertTrue(priceMessage.contains("zonesPrixLingots"), priceMessage)
+
+        // La mairie de départ.
+        refused(cityWith(listOf("mairie", "emplacementDepart", "x"), JsonPrimitive(8)), "doit tomber sur une parcelle")
+        refused(cityWith(listOf("mairie", "emplacementDepart", "z"), JsonPrimitive(-16)), "doit tomber sur une parcelle")
+        refused(cityWith(listOf("mairie", "emplacementDepart", "x"), JsonPrimitive(0)), "première zone")
+        refused(cityWith(listOf("mairie", "emplacementDepart", "rotation"), JsonPrimitive(45)), "rotation")
+
+        // Le logement et les plafonds.
+        refused(cityWith(listOf("logement", "reductionSalairePourcent"), JsonPrimitive(101)), "reductionSalairePourcent")
+        refused(cityWith(listOf("logement", "reductionSalairePourcent"), JsonPrimitive(-1)), "reductionSalairePourcent")
+        for (type in BuildingBonusType.entries) {
+            refused(cityWith(listOf("plafonds", type.name), JsonPrimitive(0)), "plafonds.$type")
+        }
+
+        // Les bâtiments.
+        refused(cityWith(listOf("batiments", house, "id"), JsonPrimitive("mairie")), "deux bâtiments ont le même id")
+        refused(cityWith(listOf("batiments", house, "id"), JsonPrimitive("Maison")), "kebab-case")
+        refused(cityWith(listOf("batiments", house, "id"), JsonPrimitive("un-batiment-dont-le-nom-est-bien-trop-long")), "32 caractères")
+        refused(cityWith(listOf("batiments", house, "quantiteMax"), JsonPrimitive(0)), "quantiteMax")
+        refused(cityWith(listOf("batiments", house, "niveaux"), JsonArray(emptyList())), "niveaux ne doit pas être vide")
+        refused(cityWith(listOf("batiments", house, "niveaux", 0, "prixLingots"), JsonPrimitive(0)), "prixLingots")
+        refused(cityWith(listOf("batiments", house, "niveaux", 0, "niveauMairieRequis"), JsonPrimitive(99)), "niveauMairieRequis")
+        refused(cityWith(listOf("batiments", house, "niveaux", 0, "bonus"), JsonPrimitive(0)), "bonus")
+        refused(cityWith(listOf("batiments", house, "niveaux", 1, "bonus"), JsonPrimitive(0.5)), "bonus ne peut pas baisser")
+        refused(cityWith(listOf("batiments", town, "posable"), JsonPrimitive(true)), "non posable")
+        refused(cityWith(listOf("batiments", town, "quantiteMax"), JsonPrimitive(2)), "non posable")
+        refused(cityWith(listOf("batiments", town, "niveaux"), JsonArray(parseJson(cityText).getValue("batiments").jsonArray[town].jsonObject.getValue("niveaux").jsonArray.take(3))), "au moins autant de niveaux")
+    }
+
+    @Test
+    @DisplayName("La ville est lue comme elle est écrite : zones dans l'ordre, mairie gratuite au niveau 1, plafonds de chaque type")
+    fun cityIsReadAsWritten() {
+        val loaded = load().city
+        val root = parseJson(cityText)
+        assertEquals(root.getValue("zones").jsonObject.getValue("ordre").jsonArray.size, loaded.zones.order.size)
+        assertEquals(load().economy.city.zonePricesLingots.size, loaded.zones.order.size)
+        assertEquals(BuildingBonusType.entries.toSet(), loaded.caps.keys)
+        val hall = loaded.building(CityDefinitions.TOWN_HALL_ID)!!
+        assertEquals(false, hall.placeable)
+        assertEquals(0L, hall.level(1).priceLingots)
+        assertEquals(null, hall.bonusType)
+        val bonusBuildings = loaded.buildings.filter { it.bonusType != null }
+        assertTrue(bonusBuildings.isNotEmpty())
+        assertTrue(bonusBuildings.all { building -> building.levels.all { it.bonus != null } })
+        assertEquals(loaded.grid.blocksPerChunk * loaded.grid.plotChunks, loaded.grid.plotBlocks())
     }
 }

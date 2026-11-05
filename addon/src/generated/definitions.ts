@@ -450,3 +450,99 @@ export type UsinesUsine = {
   readonly productionParNiveau: number;
   readonly electricite: boolean;
 };
+
+// ---- ville.json
+
+/** Identifiants de ville.json, tableau « batiments ». */
+export type CityBuildingId =
+  | "mairie"
+  | "route"
+  | "maison"
+  | "immeuble"
+  | "commerce"
+  | "garage";
+
+/** Forme de definitions/ville.json : les zones de l'île principale, la mairie, les bâtiments et leurs bonus. Les prix des zones restent dans economie.json (ville.zonesPrixLingots). Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type VilleDefinitions = {
+  readonly version: number;
+  readonly commentaire: string;
+  /** Le quadrillage de l'île principale : un chunk fait blocsParChunk blocs de côté, une parcelle (la place d'un bâtiment) parcelleChunks chunks. */
+  readonly ile: {
+    /** Blocs sur le côté d'un chunk (16 dans Minecraft). */
+    readonly blocsParChunk: number;
+    /** Chunks sur le côté d'une parcelle : un bâtiment en occupe une. */
+    readonly parcelleChunks: number;
+  };
+  /** Les zones de la ville : un quadrillage de colonnes × colonnes zones carrées, achetées dans l'ordre de la liste. */
+  readonly zones: {
+    /** Zones sur un côté de l'île (4 : seize zones). */
+    readonly colonnes: number;
+    /** Chunks sur le côté d'une zone (8). */
+    readonly tailleChunks: number;
+    /** Ce qu'il faut pour acheter la première zone, en plus de son prix. */
+    readonly premiere: {
+      /** Usines actives qu'il faut avoir (la deuxième usine ouvre la ville). */
+      readonly usinesActivesMin: number;
+    };
+    /** Les zones dans l'ordre où on les achète : la première entrée est la zone 1, la deuxième la zone 2. Autant d'entrées que de prix dans economie.json (ville.zonesPrixLingots). */
+    readonly ordre: readonly VilleZone[];
+  };
+  /** La mairie est posée toute seule à l'achat de la première zone. */
+  readonly mairie: {
+    readonly emplacementDepart: VilleEmplacement;
+  };
+  /** Ce que rapporte un salarié logé. */
+  readonly logement: {
+    /** Réduction du salaire d'un membre logé, en pourcent de son salaire. */
+    readonly reductionSalairePourcent: number;
+  };
+  /** Le plus que les bâtiments donnent ensemble pour chaque type de bonus : les bonus restent petits. LOGEMENTS en places, les autres en pourcent. */
+  readonly plafonds: {
+    readonly LOGEMENTS: number;
+    readonly PRODUCTION_DONAR: number;
+    readonly LIVRAISON_VITESSE: number;
+  };
+  /** Le catalogue des bâtiments. Le niveau 1 est celui qu'on pose, les suivants s'achètent un par un. */
+  readonly batiments: readonly VilleBatiment[];
+};
+
+/** Ce qu'un bâtiment donne. LOGEMENTS : des places pour loger des salariés (leur salaire baisse). PRODUCTION_DONAR : un pourcentage de production de Donar en plus, pour toute l'entreprise. LIVRAISON_VITESSE : un pourcentage de vitesse en plus pour les camions de livraison. Jamais de Lingots. */
+export type VilleTypeBonus = "LOGEMENTS" | "PRODUCTION_DONAR" | "LIVRAISON_VITESSE";
+
+export type VilleZone = {
+  /** Colonne de la zone, depuis 0 au plus petit x. */
+  readonly colonne: number;
+  /** Rangée de la zone, depuis 0 au plus petit z. */
+  readonly rangee: number;
+  /** Niveau de mairie qu'il faut avoir pour acheter la zone. */
+  readonly niveauMairieRequis: number;
+};
+
+export type VilleEmplacement = {
+  /** Blocs depuis le coin de l'île, sur une parcelle entière. */
+  readonly x: number;
+  /** Blocs depuis le coin de l'île, sur une parcelle entière. */
+  readonly z: number;
+  readonly rotation: 0 | 90 | 180 | 270;
+};
+
+export type VilleBatiment = {
+  /** Identifiant en kebab-case, 32 caractères au plus (colonne city_buildings.building_type). Il ne change plus une fois le bâtiment posé chez un joueur. */
+  readonly id: CityBuildingId;
+  /** Vrai si le joueur le pose avec l'outil de construction ; faux pour la mairie, posée toute seule. */
+  readonly posable: boolean;
+  /** Combien d'exemplaires une entreprise peut en avoir. */
+  readonly quantiteMax: number;
+  readonly typeBonus?: VilleTypeBonus;
+  /** Un niveau par entrée : la première est le niveau 1. Sans typeBonus, aucun niveau n'a de bonus ; avec lui, tous en ont un. */
+  readonly niveaux: readonly VilleNiveau[];
+};
+
+export type VilleNiveau = {
+  /** Prix en Lingots pour poser le bâtiment (niveau 1) ou pour passer à ce niveau. */
+  readonly prixLingots: number;
+  /** Niveau de mairie qu'il faut avoir pour poser le bâtiment ou passer à ce niveau. */
+  readonly niveauMairieRequis: number;
+  /** Le bonus total que donne le bâtiment à ce niveau, dans l'unité de son typeBonus. */
+  readonly bonus?: number;
+};

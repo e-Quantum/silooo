@@ -33,6 +33,7 @@ const NOMS_IDENTIFIANTS = {
   "boutique.abonnements": "ShopSubscriptionId",
   "missions.missions": "MissionId",
   "incidents.sortes": "IncidentKindId",
+  "ville.batiments": "CityBuildingId",
 };
 
 // ---------------------------------------------------------------- arguments

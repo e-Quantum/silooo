@@ -12,7 +12,7 @@ import kotlinx.serialization.json.longOrNull
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents. Chargé une fois au
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel, les incidents, la ville. Chargé une fois au
  * démarrage ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
@@ -27,6 +27,7 @@ class Definitions(
     val missions: MissionsDefinitions,
     val personnel: PersonnelDefinitions,
     val incidents: IncidentsDefinitions,
+    val city: CityDefinitions,
 ) {
     /**
      * Les Lingots de chaque mission, par identifiant : le nombre que son `recompense` désigne dans economie.json. Le
@@ -40,7 +41,7 @@ class Definitions(
     val resources: List<String> = factories.factories.flatMap { it.products }.distinct()
 
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents)
+        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents, city)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -60,6 +61,12 @@ internal object DefinitionsChecks {
 
     /** La longueur de `world_orders.resource_id` et de `player_findings.finding_id`. */
     const val RESOURCE_ID_MAX_LENGTH = 32
+
+    /** La longueur de `city_buildings.building_type`. */
+    const val BUILDING_ID_MAX_LENGTH = 32
+
+    /** Le plus de zones que le contrat (`buyZone`, chemin `zoneIndex`) et `city_zones.zone_index` connaissent. */
+    const val ZONES_MAX = 16
 
     private val MISSION_ID = Regex("^[a-z0-9]+(-[a-z0-9]+)*$")
     private val economyTree = Json { encodeDefaults = true }
@@ -94,6 +101,7 @@ internal object DefinitionsChecks {
         missions: MissionsDefinitions,
         personnel: PersonnelDefinitions,
         incidents: IncidentsDefinitions,
+        city: CityDefinitions,
     ): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
@@ -183,8 +191,98 @@ internal object DefinitionsChecks {
 
         personnelProblems(personnel, ::check)
         incidentsProblems(incidents, factories, ::check)
+        cityProblems(city, economy, ::check)
         return problems
     }
+
+    private fun cityProblems(city: CityDefinitions, economy: EconomyDefinitions, check: (Boolean, () -> String) -> Unit) {
+        val grid = city.grid
+        check(grid.blocksPerChunk >= 1 && grid.plotChunks >= 1) { "ville.json : ile.blocsParChunk et ile.parcelleChunks doivent être au moins 1" }
+
+        val zones = city.zones
+        val count = zones.order.size
+        check(zones.columns >= 1 && zones.sizeChunks >= 1) { "ville.json : zones.colonnes et zones.tailleChunks doivent être au moins 1" }
+        check(count == zones.columns * zones.columns) {
+            "ville.json : zones.ordre doit lister les ${zones.columns * zones.columns} zones du quadrillage, il en liste $count"
+        }
+        check(count == economy.city.zonePricesLingots.size) {
+            "ville.json : zones.ordre liste $count zones mais economie.json : ville.zonesPrixLingots liste ${economy.city.zonePricesLingots.size} prix"
+        }
+        check(count in 1..ZONES_MAX) { "ville.json : zones.ordre doit lister de 1 à $ZONES_MAX zones (city_zones.zone_index, contrat buyZone)" }
+        check(zones.first.activeFactoriesMin >= 0) { "ville.json : zones.premiere.usinesActivesMin ne peut pas être négatif" }
+        check(grid.plotChunks >= 1 && zones.sizeChunks % grid.plotChunks == 0) {
+            "ville.json : ile.parcelleChunks doit diviser zones.tailleChunks"
+        }
+        check(zones.order.map { it.column to it.row }.toSet().size == count && zones.order.all { it.column in 0 until zones.columns && it.row in 0 until zones.columns }) {
+            "ville.json : zones.ordre doit lister chaque case du quadrillage une fois"
+        }
+        zones.order.forEachIndexed { index, zone ->
+            check(zone.townHallLevelRequired >= 1) { "ville.json : zones.ordre[$index].niveauMairieRequis doit être au moins 1" }
+            check(index == 0 || zone.townHallLevelRequired >= zones.order[index - 1].townHallLevelRequired) {
+                "ville.json : zones.ordre[$index].niveauMairieRequis ne peut pas être plus bas que celui de la zone d'avant"
+            }
+        }
+
+        val plot = city.townHall.startPlot
+        val zoneBlocks = zones.sizeChunks * grid.blocksPerChunk
+        val plotBlocks = grid.plotBlocks()
+        check(plotBlocks >= 1 && plot.x >= 0 && plot.z >= 0 && plot.x % plotBlocks == 0 && plot.z % plotBlocks == 0) {
+            "ville.json : mairie.emplacementDepart doit tomber sur une parcelle ($plotBlocks blocs)"
+        }
+        val first = zones.order.firstOrNull()
+        check(first != null && zoneBlocks >= 1 && plot.x / zoneBlocks == first.column && plot.z / zoneBlocks == first.row) {
+            "ville.json : mairie.emplacementDepart doit être dans la première zone de zones.ordre"
+        }
+        check(plot.rotation in ROTATIONS) { "ville.json : mairie.emplacementDepart.rotation doit valoir 0, 90, 180 ou 270" }
+
+        val discount = city.housing.salaryDiscountPercent
+        check(discount.isFinite() && discount in 0.0..100.0) { "ville.json : logement.reductionSalairePourcent doit être entre 0 et 100" }
+        for (type in BuildingBonusType.entries) {
+            val cap = city.caps[type]
+            check(cap != null && cap.isFinite() && cap > 0.0) { "ville.json : plafonds.$type doit être un nombre positif" }
+        }
+
+        val ids = city.buildings.map { it.id }
+        check(ids.size == ids.toSet().size) { "ville.json : deux bâtiments ont le même id" }
+        val hall = city.building(CityDefinitions.TOWN_HALL_ID)
+        check(hall != null && !hall.placeable && hall.maxCount == 1) {
+            "ville.json : batiments doit avoir la mairie (${CityDefinitions.TOWN_HALL_ID}), non posable, en un seul exemplaire"
+        }
+        val hallLevels = hall?.maxLevel() ?: 0
+        check(hallLevels >= (zones.order.maxOfOrNull { it.townHallLevelRequired } ?: 1)) {
+            "ville.json : la mairie doit avoir au moins autant de niveaux que le plus haut niveauMairieRequis des zones"
+        }
+        city.buildings.forEach { building ->
+            val id = building.id
+            check(MISSION_ID.matches(id) && id.length <= BUILDING_ID_MAX_LENGTH) {
+                "ville.json : batiments « $id » doit avoir un id en kebab-case, $BUILDING_ID_MAX_LENGTH caractères au plus"
+            }
+            check(building.maxCount >= 1) { "ville.json : $id.quantiteMax doit être au moins 1" }
+            check(building.levels.isNotEmpty()) { "ville.json : $id.niveaux ne doit pas être vide" }
+            building.levels.forEachIndexed { index, level ->
+                val where = "$id.niveaux[$index]"
+                check(level.priceLingots >= 0 && (level.priceLingots >= 1 || (id == CityDefinitions.TOWN_HALL_ID && index == 0))) {
+                    "ville.json : $where.prixLingots doit être au moins 1 (seul le niveau 1 de la mairie est gratuit)"
+                }
+                check(level.townHallLevelRequired in 1..maxOf(hallLevels, 1)) {
+                    "ville.json : $where.niveauMairieRequis doit être un niveau de mairie qui existe (1 à $hallLevels)"
+                }
+                check(index == 0 || level.townHallLevelRequired >= building.levels[index - 1].townHallLevelRequired) {
+                    "ville.json : $where.niveauMairieRequis ne peut pas baisser d'un niveau à l'autre"
+                }
+                check((building.bonusType == null) == (level.bonus == null)) {
+                    "ville.json : $where.bonus doit être présent si et seulement si $id a un typeBonus"
+                }
+                val bonus = level.bonus
+                check(bonus == null || (bonus.isFinite() && bonus > 0.0)) { "ville.json : $where.bonus doit être positif" }
+                check(bonus == null || index == 0 || bonus >= (building.levels[index - 1].bonus ?: 0.0)) {
+                    "ville.json : $where.bonus ne peut pas baisser d'un niveau à l'autre"
+                }
+            }
+        }
+    }
+
+    private val ROTATIONS = setOf(0, 90, 180, 270)
 
     private fun incidentsProblems(incidents: IncidentsDefinitions, factories: FactoriesDefinitions, check: (Boolean, () -> String) -> Unit) {
         val frequency = incidents.frequency
