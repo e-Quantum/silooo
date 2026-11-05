@@ -39,6 +39,10 @@ data class Factory(
     val stoppedNoPower: Boolean = false,
 )
 
+/** Schéma `CompanyState.island` : l'origine de l'archipel de l'entreprise, en blocs (`archipelago_slots`). */
+@Serializable
+data class Island(val x: Int, val z: Int)
+
 /** Schéma `CompanyState`. */
 @Serializable
 data class CompanyState(
@@ -54,6 +58,7 @@ data class CompanyState(
     val threshold: Double,
     val factories: List<Factory>,
     val zonesOwned: List<Int>,
+    val island: Island,
     val version: Int,
 )
 

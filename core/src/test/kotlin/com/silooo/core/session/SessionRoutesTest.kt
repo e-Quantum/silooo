@@ -7,6 +7,7 @@ import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Idempotency
+import com.silooo.core.api.Island
 import com.silooo.core.api.JoinResponse
 import com.silooo.core.api.RefusalCodes
 import com.silooo.core.api.RefusedBody
@@ -131,6 +132,17 @@ class SessionRoutesTest {
         assertEquals("Entreprise de Kr", response.state.name)
         assertEquals(emptyList<Int>(), response.state.zonesOwned)
         assertTrue(app.economy.settled.isEmpty(), "rien à encaisser à la création")
+    }
+
+    @Test
+    @DisplayName("L'île rendue est l'origine de la case d'archipel de l'entreprise : une entreprise, une case, la même à chaque join")
+    fun islandIsTheOriginOfTheCompanySlot() = withApp {
+        val first = joined()
+        val second = joined(xuid = other, gamertag = "Autre")
+
+        assertEquals(Island(0, 0), first.state.island)
+        assertEquals(Island(1, 0), second.state.island)
+        assertEquals(first.state.island, joined().state.island, "rejoindre ne déplace pas l'île")
     }
 
     @Test

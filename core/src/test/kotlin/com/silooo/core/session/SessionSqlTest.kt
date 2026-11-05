@@ -2,6 +2,7 @@ package com.silooo.core.session
 
 import com.silooo.core.Dependencies
 import com.silooo.core.TestDefinitions
+import com.silooo.core.api.Island
 import com.silooo.core.api.JoinResponse
 import com.silooo.core.api.Role
 import com.silooo.core.api.SERVER_KEY_HEADER
@@ -206,6 +207,7 @@ class SessionSqlTest {
         val response = join()
 
         assertEquals(3L, MariaDbSupport.long("SELECT slot_index FROM companies WHERE id = ?", response.companyId))
+        assertEquals(Island(300, 0), response.state.island, "l'île est l'origine de la case réutilisée")
         assertEquals(2L, MariaDbSupport.count("archipelago_slots"), "aucune case neuve")
         assertEquals(0L, MariaDbSupport.long("SELECT COUNT(*) FROM archipelago_slots WHERE allocated_at IS NULL"))
     }
@@ -219,6 +221,16 @@ class SessionSqlTest {
 
         assertEquals(8L, MariaDbSupport.long("SELECT slot_index FROM companies WHERE id = ?", response.companyId))
         assertEquals("8|0", MariaDbSupport.string("SELECT CONCAT(origin_x, '|', origin_z) FROM archipelago_slots WHERE slot_index = 8"))
+        assertEquals(Island(8, 0), response.state.island, "l'île est l'origine de la case neuve")
+        assertEquals(Island(8, 0), join().state.island, "rejoindre relit la même île")
+    }
+
+    @Test
+    @DisplayName("Deux entreprises ont chacune l'origine de leur propre case")
+    fun eachCompanyHasItsOwnIsland() = runBlocking {
+        val islands = listOf(kr, xuidOf(2), xuidOf(3)).map { join(it, "Joueur").state.island }
+
+        assertEquals(listOf(Island(0, 0), Island(1, 0), Island(2, 0)), islands)
     }
 
     @Test

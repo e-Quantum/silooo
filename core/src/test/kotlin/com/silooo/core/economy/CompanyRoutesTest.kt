@@ -7,6 +7,7 @@ import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Idempotency
+import com.silooo.core.api.Island
 import com.silooo.core.api.RefusalCodes
 import com.silooo.core.api.RefusedBody
 import com.silooo.core.api.SERVER_KEY_HEADER
@@ -178,6 +179,7 @@ class CompanyRoutesTest {
         assertEquals(company.id, state.companyId)
         assertEquals(company.name, state.name)
         assertEquals(12.5, state.donar)
+        assertEquals(Island(company.island.x, company.island.z), state.island, "l'île vient de la case d'archipel de l'entreprise")
         assertEquals(company.version, state.version)
         assertEquals(figures.ratePerHour, state.ratePerHour)
         assertEquals(figures.multiplier, state.multiplier)

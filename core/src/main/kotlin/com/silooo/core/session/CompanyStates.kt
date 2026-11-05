@@ -2,6 +2,7 @@ package com.silooo.core.session
 
 import com.silooo.core.api.CompanyState
 import com.silooo.core.api.Factory
+import com.silooo.core.api.Island
 
 /**
  * Le schéma `CompanyState` du contrat, bâti à partir d'une ligne de `companies`, de ses usines et des chiffres du
@@ -42,5 +43,6 @@ fun buildCompanyState(
         )
     },
     zonesOwned = zonesOwned,
+    island = Island(company.island.x, company.island.z),
     version = company.version,
 )

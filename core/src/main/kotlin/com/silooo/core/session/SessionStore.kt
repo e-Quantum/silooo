@@ -38,6 +38,8 @@ data class CompanyRecord(
     val siloLevel: Int,
     val offlineCapHours: Double,
     val reputation: Int,
+    /** L'origine de l'archipel : `archipelago_slots` de la case `companies.slot_index`. */
+    val island: SlotOrigin,
     /** `companies.version` : à repasser à `updateCompany` pour écrire (verrou optimiste). */
     val version: Int,
 )
