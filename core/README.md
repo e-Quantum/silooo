@@ -48,6 +48,10 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
 | `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json, missions.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
+| `SILOOO_SITE_PORT` | Port du site public, différent de `SILOOO_PORT` | non, 8081 par défaut |
+| `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
+| `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
+| `SILOOO_SITE_URL_DISCORD` | Le lien Discord affiché sur la page d'accueil et d'attente | non, pas de lien tant qu'elle n'est pas posée |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
@@ -566,3 +570,31 @@ de chiffres sont dans `docs/economie.md`, section « La ville côté service » 
   écrit en dur dans le chemin de `buyZone` (le test de contrat vérifie qu'il égale le nombre de zones des définitions) ;
   `CompanyState.city` est facultatif ; le catalogue des missions n'a que `collect`, donc aucune mission de ville ; `SiloooJson` est
   tolérant et accepte un entier entre guillemets.
+
+## Le site
+
+Le site public `silooo.com` est un module de silooo-core (ADR 0006), pas un service à part. Le paquet est
+`com.silooo.core.site`, les contenus et les fichiers sont dans `src/main/resources/site/`. Il tourne dans la même JVM que
+l'API, sur son propre port (`SILOOO_SITE_PORT`, 8081 par défaut) : `Main.kt` démarre deux serveurs Ktor, celui de l'API
+(`siloooModule`, `/v1`, la clé du serveur) et celui du site (`siteModule`, des pages HTML et des fichiers, sans clé ni JSON). `/v1`
+n'existe pas sur le port du site, et le Caddy de SileneMC ne joint que celui-là. Le `Dockerfile` déclare `EXPOSE 8081` ; le compose
+ne le publie jamais.
+
+- **Deux modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente et `/mentions/` les mentions.
+  En `ouvert`, `/` est un accueil minimal que l'étape S2 remplacera. Toute autre adresse répond 404, avec une page Silooo. Le mode
+  `ouvert` n'est écrit dans aucun fichier du dépôt : seul Kr le pose, dans l'environnement du service.
+- **Les contenus** sont des fichiers Markdown de `site/contenu/`, avec un en-tête entre deux lignes `---` : `titre`, `description`,
+  `url` (elle finit par `/`) et `modes` (`[attente, ouvert]`). `SiteContent` les lit et les rend en HTML (commonmark-java, HTML brut
+  escamoté) une seule fois, au démarrage : un en-tête incomplet arrête le démarrage et nomme le fichier. Un contenu neuf demande
+  son nom dans `SiteContent.BUNDLED` et une fonction de rendu dans `site/pages/` (choisie dans `SiteRoutes.kt`).
+- **Les pages** sont écrites en DSL HTML (`kotlinx.html`) : `pages/Gabarit.kt` pose la page entière (en-tête, `main`, pied avec la mention
+  de Mojang et le lien Mentions), `Attente.kt`, `Accueil.kt`, `Mentions.kt` et `Erreur.kt` posent le `h1` et le contenu. Aucun script.
+- **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
+  copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
+- **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
+  « Lancer »), puis `http://localhost:8081/`. Sans la variable, le site est en `attente`.
+- **Les tests** (sans base) : `site/SiteModuleTest` (les deux modes, `lang`, un seul `h1`, `title`, `description`, `alt`, les
+  en-têtes, le 404, `/v1` absent), `site/SiteContentTest`, `site/SiteLogoTest`, et `ConfigTest` pour les variables.
+- **Les textes** vus par les visiteurs passent `tools/anti_ia.py` (contenus Markdown en entier, littéraux du paquet `site`), et chaque
+  texte neuf reste à valider par Kr. Le CSS de cette étape ne fait que reprendre les couleurs de `design/tokens.css` ; le style Silooo
+  Atelier arrive en S1.
