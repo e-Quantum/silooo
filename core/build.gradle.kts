@@ -47,6 +47,12 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // Les tests lisent definitions/ du dépôt, pas une copie : les chiffres du jeu n'ont qu'un seul endroit.
+    // Le chemin vient de Gradle, jamais d'un chemin relatif écrit dans un test. Déclaré en entrée pour
+    // que Gradle rejoue les tests quand un chiffre du jeu change.
+    val definitionsDir = layout.projectDirectory.dir("../definitions")
+    inputs.dir(definitionsDir).withPropertyName("definitions")
+    systemProperty("silooo.definitions.dir", definitionsDir.asFile.absolutePath)
     testLogging {
         // Un test ignoré (Docker absent) doit se voir : jamais de réussite à vide.
         events("passed", "skipped", "failed")

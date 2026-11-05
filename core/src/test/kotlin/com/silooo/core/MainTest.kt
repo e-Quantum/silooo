@@ -1,8 +1,12 @@
 package com.silooo.core
 
+import com.silooo.core.definitions.DefinitionsLoader
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 /** Les deux modes de démarrage, sans base : ce qui doit échouer échoue net, avec le bon code de sortie. */
 class MainTest {
@@ -12,6 +16,7 @@ class MainTest {
         Config.DB_USER to "silooo",
         Config.DB_PASSWORD to "mot-de-passe-de-test",
         Config.API_KEY to "cle-de-test",
+        Config.DEFINITIONS_DIR to TestDefinitions.directory.toString(),
     )
 
     @Test
@@ -25,6 +30,20 @@ class MainTest {
     @DisplayName("Le démarrage normal sans clé s'arrête avant de toucher à la base")
     fun serviceRefusesWithoutKey() {
         assertEquals(EXIT_CONFIG, runService(unreachable - Config.API_KEY))
+    }
+
+    @Test
+    @DisplayName("Un dossier de définitions absent ou abîmé arrête le démarrage avant la base, avec le code de configuration")
+    fun serviceRefusesBrokenDefinitions(@TempDir temporary: Path) {
+        val missing = temporary.resolve("nulle-part").toString()
+        assertEquals(EXIT_CONFIG, runService(unreachable + (Config.DEFINITIONS_DIR to missing)))
+
+        // Un dossier qui existe mais dont economie.json est un JSON cassé : la base injoignable n'est jamais atteinte
+        // (elle donnerait EXIT_FAILURE).
+        Files.writeString(temporary.resolve(DefinitionsLoader.ECONOMY_FILE), "{ pas du json")
+        Files.writeString(temporary.resolve(DefinitionsLoader.FACTORIES_FILE), TestDefinitions.text(DefinitionsLoader.FACTORIES_FILE))
+        Files.writeString(temporary.resolve(DefinitionsLoader.SHOP_FILE), TestDefinitions.text(DefinitionsLoader.SHOP_FILE))
+        assertEquals(EXIT_CONFIG, runService(unreachable + (Config.DEFINITIONS_DIR to temporary.toString())))
     }
 
     @Test

@@ -1,6 +1,8 @@
 package com.silooo.core
 
 import com.silooo.core.db.HikariDatabase
+import com.silooo.core.definitions.DefinitionsException
+import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
@@ -52,10 +54,13 @@ internal fun runMigrate(env: Map<String, String>): Int = guarded {
 /** Démarrage normal : la base et la clé sont obligatoires, sinon le service ne démarre pas. */
 internal fun runService(env: Map<String, String>): Int = guarded {
     val config = Config.service(env)
+    // Les définitions d'abord : un fichier manquant ou abîmé arrête le démarrage avant de toucher à la base.
+    val definitions = DefinitionsLoader.load(config.definitionsDir)
+    log.info("Définitions chargées depuis {}.", config.definitionsDir)
     Migrations.validate(config.database)
     val database = HikariDatabase.connect(config.database)
     try {
-        val dependencies = Dependencies(database = database, apiKey = config.apiKey)
+        val dependencies = Dependencies(database = database, apiKey = config.apiKey, definitions = definitions)
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.
         embeddedServer(CIO, port = config.port, host = "0.0.0.0") { siloooModule(dependencies) }
@@ -71,6 +76,10 @@ private fun guarded(block: () -> Int): Int =
     try {
         block()
     } catch (e: ConfigException) {
+        System.err.println(e.message)
+        EXIT_CONFIG
+    } catch (e: DefinitionsException) {
+        // Un fichier de definitions/ manque ou est abîmé : c'est de la configuration, pas un bogue.
         System.err.println(e.message)
         EXIT_CONFIG
     } catch (e: Exception) {

@@ -1,11 +1,14 @@
 package com.silooo.core
 
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.io.TempDir
 
 class ConfigTest {
     private val complete = mapOf(
@@ -13,6 +16,7 @@ class ConfigTest {
         Config.DB_USER to "silooo",
         Config.DB_PASSWORD to "mot-de-passe-de-test",
         Config.API_KEY to "cle-de-test",
+        Config.DEFINITIONS_DIR to TestDefinitions.directory.toString(),
     )
 
     @Test
@@ -74,5 +78,45 @@ class ConfigTest {
         val text = Config.service(complete).toString()
         assertFalse(text.contains("mot-de-passe-de-test"), text)
         assertFalse(text.contains("cle-de-test"), text)
+    }
+
+    @Test
+    @DisplayName("SILOOO_DEFINITIONS_DIR désigne le dossier des définitions")
+    fun definitionsDirFromEnvironment() {
+        assertEquals(TestDefinitions.directory, Config.service(complete).definitionsDir)
+    }
+
+    @Test
+    @DisplayName("SILOOO_DEFINITIONS_DIR qui ne désigne pas un dossier est signalée avec les autres problèmes")
+    fun definitionsDirMustBeADirectory(@TempDir temporary: Path) {
+        val missing = temporary.resolve("nulle-part").toString()
+        val error = assertThrows<ConfigException> { Config.service((complete - Config.API_KEY) + (Config.DEFINITIONS_DIR to missing)) }
+        assertTrue(error.message!!.contains(Config.DEFINITIONS_DIR), error.message)
+        assertTrue(error.message!!.contains(Config.API_KEY), "Les problèmes sont rendus d'un coup : ${error.message}")
+    }
+
+    @Test
+    @DisplayName("En développement, sans variable, definitions/ du dépôt se trouve depuis core/ ou depuis la racine")
+    fun definitionsDirFoundFromTheRepository(@TempDir temporary: Path) {
+        val withoutVariable = complete - Config.DEFINITIONS_DIR
+        val definitions = Files.createDirectories(temporary.resolve("definitions"))
+        Files.writeString(definitions.resolve("economie.json"), "{}")
+        val core = Files.createDirectories(temporary.resolve("core"))
+
+        assertEquals(definitions.normalize(), Config.service(withoutVariable, workingDir = core).definitionsDir)
+        assertEquals(definitions.normalize(), Config.service(withoutVariable, workingDir = temporary).definitionsDir)
+    }
+
+    @Test
+    @DisplayName("Sans variable et hors du dépôt, le service refuse de démarrer et nomme la variable")
+    fun definitionsDirMissingEverywhere(@TempDir temporary: Path) {
+        val error = assertThrows<ConfigException> { Config.service(complete - Config.DEFINITIONS_DIR, workingDir = temporary) }
+        assertTrue(error.message!!.contains(Config.DEFINITIONS_DIR), error.message)
+    }
+
+    @Test
+    @DisplayName("Le mode migrate n'a pas besoin des définitions")
+    fun migrateDoesNotNeedDefinitions() {
+        Config.database(complete - Config.DEFINITIONS_DIR)
     }
 }

@@ -1,5 +1,10 @@
 package com.silooo.core
 
+import com.silooo.core.definitions.DefinitionsLoader
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Path
+
 /** Une variable d'environnement absente ou invalide. Le message les liste toutes d'un coup. */
 class ConfigException(message: String) : Exception(message)
 
@@ -8,9 +13,12 @@ data class DatabaseConfig(val url: String, val user: String, val password: Strin
     override fun toString() = "DatabaseConfig(url=$url, user=$user, password=***)"
 }
 
-/** Tout ce qu'il faut pour démarrer le service. La clé ne s'affiche jamais. */
-data class ServiceConfig(val port: Int, val apiKey: String, val database: DatabaseConfig) {
-    override fun toString() = "ServiceConfig(port=$port, apiKey=***, database=$database)"
+/**
+ * Tout ce qu'il faut pour démarrer le service. La clé ne s'affiche jamais.
+ * [definitionsDir] est le dossier qui contient economie.json, usines.json et boutique.json.
+ */
+data class ServiceConfig(val port: Int, val apiKey: String, val database: DatabaseConfig, val definitionsDir: Path) {
+    override fun toString() = "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir)"
 }
 
 /**
@@ -24,13 +32,14 @@ object Config {
     const val DB_USER = "SILOOO_DB_USER"
     const val DB_PASSWORD = "SILOOO_DB_PASSWORD"
     const val API_KEY = "SILOOO_API_KEY"
+    const val DEFINITIONS_DIR = "SILOOO_DEFINITIONS_DIR"
 
     /** Port d'écoute quand `SILOOO_PORT` n'est pas posé : celui de l'OpenAPI (`http://silooo-core:8080`). */
     const val DEFAULT_PORT = 8080
 
     /**
      * Seulement la base : c'est tout ce que le mode `migrate` demande. Le service `silooo-migrate`
-     * du compose n'a donc pas besoin de la clé du serveur.
+     * du compose n'a donc pas besoin de la clé du serveur ni des définitions.
      */
     fun database(env: Map<String, String>): DatabaseConfig {
         val reader = Reader(env)
@@ -39,15 +48,29 @@ object Config {
         return checkNotNull(database)
     }
 
-    /** Démarrage normal : le service refuse de partir sans la base ni la clé. */
-    fun service(env: Map<String, String>): ServiceConfig {
+    /**
+     * Démarrage normal : le service refuse de partir sans la base, la clé ni les définitions.
+     * [workingDir] ne sert qu'à retrouver `definitions/` en développement, quand `SILOOO_DEFINITIONS_DIR`
+     * n'est pas posée : un test le donne explicitement, le service prend le dossier courant.
+     */
+    fun service(env: Map<String, String>, workingDir: Path = Path.of("").toAbsolutePath()): ServiceConfig {
         val reader = Reader(env)
         val database = reader.database()
         val apiKey = reader.required(API_KEY)
         val port = reader.port()
+        val definitionsDir = reader.definitionsDir(workingDir)
         reader.finish()
-        return ServiceConfig(checkNotNull(port), checkNotNull(apiKey), checkNotNull(database))
+        return ServiceConfig(checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir))
     }
+
+    /**
+     * En développement, `definitions/` du dépôt se trouve depuis le dossier courant : `../definitions`
+     * quand on lance depuis `core/`, `definitions` quand on lance depuis la racine. Rien d'autre n'est
+     * deviné ; dans l'image Docker la variable est posée.
+     */
+    internal fun developmentDefinitionsDir(workingDir: Path): Path? =
+        listOf(workingDir.resolve("../definitions").normalize(), workingDir.resolve("definitions").normalize())
+            .firstOrNull { Files.isRegularFile(it.resolve(DefinitionsLoader.ECONOMY_FILE)) }
 
     /** Lit les variables en gardant chaque problème, pour tout signaler en une fois. */
     private class Reader(private val env: Map<String, String>) {
@@ -72,6 +95,28 @@ object Config {
             }
             if (url == null || user == null || password == null) return null
             return DatabaseConfig(url, user, password)
+        }
+
+        fun definitionsDir(workingDir: Path): Path? {
+            val raw = env[DEFINITIONS_DIR]
+            if (raw.isNullOrBlank()) {
+                val found = developmentDefinitionsDir(workingDir)
+                if (found == null) {
+                    problems += "$DEFINITIONS_DIR est absente et le dossier definitions/ du dépôt est introuvable depuis $workingDir"
+                }
+                return found
+            }
+            val directory = try {
+                Path.of(raw.trim())
+            } catch (e: InvalidPathException) {
+                problems += "$DEFINITIONS_DIR n'est pas un chemin valable"
+                return null
+            }
+            if (!Files.isDirectory(directory)) {
+                problems += "$DEFINITIONS_DIR ne désigne pas un dossier : $directory"
+                return null
+            }
+            return directory
         }
 
         fun port(): Int? {

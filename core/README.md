@@ -42,9 +42,15 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DB_USER` | Compte de la base | oui |
 | `SILOOO_DB_PASSWORD` | Mot de passe de la base | oui |
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
+| `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
+
+Les définitions se chargent au démarrage, avant la base, et le chargement est strict : une clé
+manquante, une clé inconnue, un mauvais type ou un fichier absent arrêtent le service avec le code 78
+et un message qui nomme le fichier et le chemin JSON. Les tests lisent le `definitions/` du dépôt
+(Gradle pose la propriété système `silooo.definitions.dir`), jamais une copie.
 
 ## Les deux modes
 
@@ -84,6 +90,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`. Les paquets `ses
 | `Application.kt` | Le module Ktor et `Dependencies` : la base et les services lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), le corps d'erreur du contrat, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `HikariDatabase`, `Migrations` |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique) : classes typées et `DefinitionsLoader` |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock |
 | `session/`, `events/`, `economy/` | À remplir (voir ci-dessous) |
 

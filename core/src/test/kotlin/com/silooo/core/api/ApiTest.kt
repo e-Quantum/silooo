@@ -1,6 +1,7 @@
 package com.silooo.core.api
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.db.FakeDatabase
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.siloooModule
@@ -38,7 +39,7 @@ class ApiTest {
     private fun withApp(block: suspend ApplicationTestBuilder.(Harness) -> Unit) = testApplication {
         val database = FakeDatabase()
         val presence = ServerPresence(Clock.fixed(now, ZoneOffset.UTC))
-        application { siloooModule(Dependencies(database, key, presence)) }
+        application { siloooModule(Dependencies(database, key, presence, TestDefinitions.loaded)) }
         block(Harness(database, presence))
     }
 

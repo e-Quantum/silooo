@@ -7,6 +7,7 @@ import com.silooo.core.api.SiloooJson
 import com.silooo.core.api.notDoneRoutes
 import com.silooo.core.api.respondError
 import com.silooo.core.db.Database
+import com.silooo.core.definitions.Definitions
 import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.eventsRoutes
 import com.silooo.core.server.ServerPresence
@@ -37,6 +38,8 @@ class Dependencies(
     /** La clé attendue dans `X-Silooo-Key`. */
     val apiKey: String,
     val serverPresence: ServerPresence = ServerPresence(),
+    /** Les définitions du jeu, chargées une fois au démarrage (usines, économie, boutique). */
+    val definitions: Definitions,
 )
 
 /**
