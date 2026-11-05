@@ -732,8 +732,10 @@ paths:
         boutique (`definitions/boutique.json`). Les six grades d'abord, dans l'ordre imposé : `owned` si le joueur le
         possède, `available` pour le seul premier grade qu'il n'a pas encore. Puis `pilier` (`owned` tant que
         l'abonnement court ; toujours `available`, pour le prolonger), puis `perso` (`available` seulement si le
-        joueur possède le grade Ultime ; `owned` tant que l'abonnement court). Les cosmétiques, les boosts et le pass
-        de saison s'ajouteront ici quand le jeu les vendra.
+        joueur possède le grade Ultime ; `owned` tant que l'abonnement court). Le pass de saison premium (`pass-premium`)
+        vient ensuite : `owned` si le joueur l'a déjà pour la saison en cours, `available` tant que la saison court
+        et qu'il ne l'a pas ; son prix est celui de `definitions/pass.json`. Les cosmétiques et les boosts s'ajouteront
+        ici quand le jeu les vendra.
       operationId: catalog
       parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
       responses:
@@ -766,6 +768,9 @@ paths:
         inconnu ou un acteur que le service ne connaît pas donnent 400. `DEJA_POSSEDE` pour un grade que le
         destinataire a déjà ; `GRADE_PRECEDENT_REQUIS` pour un grade qui n'est pas le premier qu'il n'a pas, et pour
         `perso` quand il n'a pas le grade Ultime ; `PAS_ASSEZ_DE_GEMMES`, avec `missing`, si les Gemmes manquent.
+        `pass-premium` ouvre la piste premium du pass de la saison en cours pour le destinataire : `DEJA_POSSEDE` s'il
+        l'a déjà, `SAISON_INACTIVE` quand aucune saison ne court (avant son début ou après sa fin) ; cette piste ne
+        donne jamais que des cosmétiques (voir `claimPass`).
         409 `CONFLIT_REESSAYER` si le même `requestId` est encore en cours. `pilier` et `perso` durent `jours` de plus
         à partir du plus tard de maintenant et de la fin de l'abonnement ; chaque achat de `pilier` rend aussitôt ses
         `gemmesRendues` au destinataire. La réponse donne les soldes de l'acheteur.
@@ -797,6 +802,14 @@ paths:
   /v1/pass:
     get:
       summary: Progression du pass de saison
+      description: |
+        Le pass du joueur `actor` pour la saison de `definitions/pass.json` : ses points, s'il a la piste premium,
+        les paliers qu'il a déjà réclamés (`claimed`, des textes « palier-PISTE », par exemple `3-GRATUIT`) et tous
+        les paliers de la saison avec leur récompense. Un joueur qui n'a encore aucun point est rendu à zéro, sans
+        rien écrire. `active` est faux avant le début et après la fin de la saison : les points ne montent que quand
+        elle court, mais les paliers atteints se réclament encore après sa fin. Un acteur que le service ne connaît
+        pas donne 400. Les points viennent du prestige (chaque associé), de la commande du jour terminée (chaque
+        joueur qui a livré) et des missions terminées ; le service les compte, l'add-on ne fait que les montrer.
       operationId: getPass
       parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
       responses:
@@ -808,17 +821,19 @@ paths:
           description: pass
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  seasonId: { type: string }
-                  points: { type: integer }
-                  premium: { type: boolean }
-                  claimed: { type: array, items: { type: string, example: '12-PREMIUM' } }
+              schema: { $ref: '#/components/schemas/PassState' }
 
   /v1/pass/claims:
     post:
       summary: Réclame un palier du pass
+      description: |
+        L'acteur réclame la récompense du palier `tier` sur la piste `track` de la saison de `definitions/pass.json`.
+        La piste `GRATUIT` verse des Lingots hors prestige ; la piste `PREMIUM` ne donne que des cosmétiques, jamais de
+        monnaie. Un palier qui n'existe pas, ou qui n'a pas de récompense sur cette piste, donne 400. Refus 409 :
+        `PALIER_NON_ATTEINT` (avec `missing`, les points qui manquent), `PREMIUM_REQUIS` (piste `PREMIUM` sans l'avoir
+        achetée), `DEJA_RECLAME` (ce palier de cette piste a déjà été réclamé), `CONFLIT_REESSAYER` si le même
+        `requestId` est encore en cours. Rejoué avec le même `requestId`, la réponse est la même et rien n'est versé
+        deux fois. Un cosmétique que le joueur a déjà ne bloque pas la réclamation.
       operationId: claimPass
       requestBody:
         required: true
@@ -837,7 +852,11 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
-        '200': { description: palier réclamé }
+        '200':
+          description: palier réclamé, avec les soldes de l'acteur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PassClaimed' }
         '409': { $ref: '#/components/responses/Refused' }
 
   /v1/players/{xuid}/missions:
@@ -960,7 +979,8 @@ components:
                 type: string
                 enum: [PAS_ASSEZ_DE_DONAR, PAS_ASSEZ_DE_LINGOTS, PAS_ASSEZ_DE_GEMMES, PAS_LE_PDG, SEUIL_NON_ATTEINT,
                        USINE_VERROUILLEE, ZONE_VERROUILLEE, EMPLACEMENT_OCCUPE, ENTREPRISE_PLEINE, DEJA_POSSEDE,
-                       GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER, ENTREPRISE_EN_COURS]
+                       GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER, ENTREPRISE_EN_COURS, PALIER_NON_ATTEINT, DEJA_RECLAME,
+                       PREMIUM_REQUIS, SAISON_INACTIVE]
               missing: { type: number, description: 'ce qui manque, quand c''est une somme' }
     Erreur:
       description: >-
@@ -1186,6 +1206,47 @@ components:
       properties:
         current: { allOf: [ { $ref: '#/components/schemas/Mission' } ], nullable: true, description: la première mission pas terminée ; null quand toutes le sont }
         completed: { type: array, items: { type: string }, description: 'les missions terminées, dans l''ordre du catalogue' }
+    PassState:
+      type: object
+      required: [seasonId, name, startsOn, endsOn, active, points, premium, claimed, tiers]
+      properties:
+        seasonId: { type: string, example: saison-1, description: 'l''identifiant de la saison (pass.json, saison.id)' }
+        name: { type: string, description: 'le nom de la saison (pass.json, saison.nom)' }
+        startsOn: { type: string, format: date, description: 'le premier jour de la saison (UTC)' }
+        endsOn: { type: string, format: date, description: 'le dernier jour de la saison (UTC)' }
+        active: { type: boolean, description: 'la saison court aujourd''hui : les points montent et le premium s''achète' }
+        points: { type: integer, minimum: 0, description: 'les points du joueur dans cette saison' }
+        premium: { type: boolean, description: 'le joueur a acheté la piste premium de cette saison' }
+        claimed: { type: array, items: { type: string, example: '3-GRATUIT' }, description: 'les paliers réclamés, « palier-PISTE », dans l''ordre des paliers puis GRATUIT avant PREMIUM' }
+        tiers: { type: array, items: { $ref: '#/components/schemas/PassTier' }, description: 'les paliers de la saison, du premier au dernier' }
+    PassTier:
+      type: object
+      required: [tier, points, free, premium]
+      properties:
+        tier: { type: integer, minimum: 1 }
+        points: { type: integer, minimum: 1, description: 'les points du joueur à atteindre, en tout, pour réclamer ce palier' }
+        free: { allOf: [ { $ref: '#/components/schemas/PassFreeReward' } ], nullable: true, description: 'la récompense de la piste GRATUIT ; null quand ce palier n''en a pas' }
+        premium: { allOf: [ { $ref: '#/components/schemas/PassPremiumReward' } ], nullable: true, description: 'la récompense de la piste PREMIUM ; null quand ce palier n''en a pas' }
+    PassFreeReward:
+      type: object
+      required: [lingots]
+      properties:
+        lingots: { type: integer, format: int64, minimum: 1, description: 'Lingots hors prestige' }
+    PassPremiumReward:
+      type: object
+      required: [cosmeticId]
+      properties:
+        cosmeticId: { type: string, minLength: 1, maxLength: 48, description: 'identifiant d''un cosmétique : la piste premium ne donne que des cosmétiques' }
+    PassClaimed:
+      type: object
+      required: [seasonId, tier, track, rewardLingots, cosmeticId, balances]
+      properties:
+        seasonId: { type: string }
+        tier: { type: integer, minimum: 1 }
+        track: { type: string, enum: [GRATUIT, PREMIUM] }
+        rewardLingots: { type: integer, format: int64, minimum: 0, description: 'les Lingots versés (0 sur la piste PREMIUM)' }
+        cosmeticId: { type: string, nullable: true, description: 'le cosmétique donné (null sur la piste GRATUIT)' }
+        balances: { $ref: '#/components/schemas/Balances' }
     WorldOrder:
       type: object
       required: [day, resourceId, target, delivered, rewardLingots]

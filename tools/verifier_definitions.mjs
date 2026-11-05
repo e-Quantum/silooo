@@ -476,9 +476,50 @@ function controlesVote(fichier, d) {
   doublons(fichier, "$.sites", liste(d.sites), "le site");
 }
 
+/** Un jour AAAA-MM-JJ qui existe au calendrier (le schéma ne vérifie que la forme), en millisecondes UTC ; null sinon. */
+function jourUtc(valeur) {
+  if (typeof valeur !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valeur)) return null;
+  const instant = Date.parse(`${valeur}T00:00:00Z`);
+  return Number.isNaN(instant) || new Date(instant).toISOString().slice(0, 10) !== valeur ? null : instant;
+}
+
+function controlesPass(fichier, d) {
+  const debut = jourUtc(d.saison?.debut);
+  const fin = jourUtc(d.saison?.fin);
+  if (typeof d.saison?.debut === "string" && debut === null) {
+    signaler(fichier, "$.saison.debut", `« ${d.saison.debut} » n'est pas un jour du calendrier`);
+  }
+  if (typeof d.saison?.fin === "string" && fin === null) {
+    signaler(fichier, "$.saison.fin", `« ${d.saison.fin} » n'est pas un jour du calendrier`);
+  }
+  if (debut !== null && fin !== null && fin < debut) {
+    signaler(fichier, "$.saison.fin", `la saison finit le ${d.saison.fin}, avant son début le ${d.saison.debut}`);
+  }
+  const paliers = liste(d.paliers);
+  // Les numéros se suivent de 1 à n, et le total de points à atteindre ne fait que monter.
+  paliers.forEach((p, i) => {
+    if (Number.isInteger(p?.palier) && p.palier !== i + 1) {
+      signaler(fichier, `$.paliers[${i}].palier`, `le palier n° ${i + 1} porte le numéro ${p.palier} : les numéros se suivent de 1 à ${paliers.length}`);
+    }
+  });
+  croissant(fichier, "$.paliers", paliers.map((p) => p?.points), "les points des paliers");
+  // Un cosmétique ne se gagne qu'à un seul palier.
+  const vus = new Map();
+  paliers.forEach((p, i) => {
+    const id = texte(p?.premium?.cosmetique);
+    if (id === null) return;
+    if (vus.has(id)) {
+      signaler(fichier, `$.paliers[${i}].premium.cosmetique`, `le cosmétique « ${id} » est déjà donné au palier n° ${vus.get(id)}`);
+    } else {
+      vus.set(id, i + 1);
+    }
+  });
+}
+
 const CONTROLES = {
   usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions,
   personnel: controlesPersonnel, incidents: controlesIncidents, ville: controlesVille, vote: controlesVote,
+  pass: controlesPass,
 };
 
 // ---------------------------------------------------------------- programme

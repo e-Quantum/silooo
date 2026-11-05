@@ -444,6 +444,7 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `incidents.json` : `frequence` (`creneauMinutes`, `chancePourcent`), `sortes[]` (`id`, `ralentissement`, `poids`), `recompense.minutesDeRevenu`, `electricite` (`aPartirDeEpoque`, `usineCentrale`) | fichier absent | créneau de `30` minutes, `20` % de chances, incendie x`0,5` (poids `1`), panne x`0,6` (poids `2`), courroie x`0,7` (poids `2`), `10` minutes de revenu, électricité dès l'époque `3`, Centrale `centrale` | Le contrat décrit l'incident (ralentit, réparation par mini-jeu, récompense en Donar) et l'électricité (époque 3 et plus, Centrale) sans chiffres : le service en a besoin pour tirer, ralentir et payer. Valeurs de départ au plus simple (voir la section Les incidents d'usine). **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le simulateur ne joue pas les incidents). |
 | 5 nov. 2026 | `ville.json` : `ile`, `zones` (`colonnes`, `tailleChunks`, `premiere`, `ordre[]`), `mairie.emplacementDepart`, `logement.reductionSalairePourcent`, `plafonds`, `batiments[]` | fichier absent (`ville.zonesPrixLingots` seule, pour les prix des zones) | île de 4 x 4 zones de 8 chunks, parcelle d'un chunk ; première zone dès `2` usines actives ; mairie posée en (192, 192) ; salaire d'un logé `-20` % ; plafonds `60` places, `10` % de production, `40` % de vitesse ; mairie de `16` niveaux, route, maison, immeuble, commerce et garage (prix, mairie requise et bonus par niveau dans la section La ville côté service) | Le contrat décrit `buyZone`, `placeBuilding` et `upgradeBuilding` et le game design promet des bonus « visibles, petits, plafonnés », sans chiffre. Le service en a besoin pour décider. Valeurs de départ au plus simple, aucune ne donne de Lingots. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'achète aucune zone ni aucun bâtiment, donc aucun bonus). |
 | 5 nov. 2026 | `vote.json` : `recompense.lingotsParVote`, `serie` (`jours`, `lingotsEnPlus`), `voteParty` (`votesParJour`, `lingotsParJoueur`), `sites[]` (`id`, `nom`) | fichier absent | `1`, `7` et `2`, `10` et `1`, un site `hubyy` (Hubyy) | Le game design promet une récompense par vote et une Vote party sans règle ni chiffre ; le service en a besoin pour décider (section Les votes). Valeurs de départ au plus simple, versées en Lingots hors prestige. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type ne vote pas). |
+| 5 nov. 2026 | `pass.json` : `saison` (`id`, `nom`, `debut`, `fin`), `premium.gemmes`, `points` (`parPrestige`, `parCommande`, `parMission`), `paliers[]` (`palier`, `points`, `gratuit.lingots`, `premium.cosmetique`) | fichier absent | saison `saison-1` du 5 novembre 2026 au 31 janvier 2027, piste premium à `250` Gemmes, `100`, `20` et `10` points, 10 paliers de `40` à `1300` points, de `1` à `5` Lingots sur la piste gratuite (30 en tout), cinq cosmétiques sur la piste premium (paliers 1, 3, 5, 7 et 10) | Le game design promet un pass de saison à paliers sans règle ni chiffre ; le service en a besoin pour compter les points, vendre la piste premium et verser les récompenses (section Le pass de saison). Valeurs de départ au plus simple, la piste premium ne donne jamais de monnaie. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (les 30 Lingots du pass ne s'obtiennent qu'en réclamant, et le joueur type ne réclame rien). |
 
 ## Les commandes du jour et le Carnet
 
@@ -840,3 +841,74 @@ et, pour le joueur donné, ses votes du jour et sa série. Sans `xuid`, la part 
 - Le service ne limite pas les votes d'un joueur par jour ni par site : il verse tout vote que le site lui envoie.
 - Un site que `vote.json` ne connaît pas est accepté tel qu'il s'annonce.
 - Un vote reçu pendant le `join` du même joueur peut attendre le `join` suivant (course connue, sans perte).
+
+## Le pass de saison
+
+Le game design promet un pass de saison à paliers, avec une piste gratuite et une piste premium, sans règle ni chiffre. Le service prend la
+règle la plus simple pour chaque point, et elle est **à valider par Kr**. Les chiffres, la saison et les paliers sont dans
+`definitions/pass.json` (schéma : `definitions/schemas/pass.schema.json`) et nulle part ailleurs. Une seule saison est décrite à la fois.
+
+| Clé | Valeur de départ | Ce qu'elle règle |
+| --- | --- | --- |
+| `saison` (`id`, `nom`, `debut`, `fin`) | `saison-1`, « Saison 1 », du 5 novembre 2026 au 31 janvier 2027 | La saison en cours, en jours UTC, début et fin compris |
+| `premium.gemmes` | `250` | Le prix de la piste premium, en Gemmes |
+| `points.parPrestige` | `100` | Les points de chaque associé de l'entreprise qui fait le prestige |
+| `points.parCommande` | `20` | Les points de chaque joueur qui a livré à la commande du jour quand elle se termine |
+| `points.parMission` | `10` | Les points d'une mission terminée |
+| `paliers[]` | 10 paliers, seuils `40`, `100`, `180`, `280`, `400`, `540`, `700`, `880`, `1080`, `1300` | Le seuil en points au total (pas par palier) et les récompenses de chaque palier |
+| `paliers[].gratuit.lingots` | `1`, `1`, `2`, `2`, `3`, `3`, `4`, `4`, `5`, `5` (30 en tout) | Les Lingots hors prestige de la piste gratuite |
+| `paliers[].premium.cosmetique` | aux paliers 1, 3, 5, 7 et 10 : `s1-fanion`, `s1-lanterne`, `s1-chat-livreur`, `s1-sillage-dore`, `s1-titre-fondateur` | Le cosmétique de la piste premium |
+
+Le fichier est contrôlé par `tools/verifier.sh` (numéros de palier de 1 à N sans trou, seuils croissants, saison à l'endroit, aucun
+cosmétique en double, aucun Lingot sur la piste premium) et par le chargeur du service, qui refuse de démarrer sinon. Cinq cas invalides
+sont dans `tools/tests/definitions-invalides/pass-*`.
+
+### Les points
+
+- **Une mission terminée** rapporte `points.parMission` à celui qui la termine.
+- **Un prestige** rapporte `points.parPrestige` à **chaque associé** de l'entreprise, pas seulement au PDG qui le déclenche : la
+  course est l'affaire de toute l'entreprise, et c'est la règle du versement de Lingots du prestige.
+- **La commande du jour** rapporte `points.parCommande` à **chaque joueur qui a livré**, au moment où la commande atteint l'objectif
+  (là où la prime de Lingots est versée), pas à chaque livraison.
+- Les points se versent dans la transaction de l'action qui les rapporte : si elle échoue ou est rejouée, les points suivent. Rien
+  ne se compte deux fois.
+- **Les points ne montent que du premier au dernier jour de la saison**, compris, au jour UTC de l'horloge du service. Avant et après,
+  rien n'est écrit : le prestige, la commande et la mission se passent comme avant.
+- Les points d'un joueur n'existent qu'une fois qu'il en a gagné : sa ligne de pass est créée au premier point ou au premier achat.
+
+### Les deux pistes
+
+- **Piste gratuite** : des Lingots hors prestige (motif de journal `pass`, référence `saison:palier:piste`). Elle donne de la monnaie
+  du jeu, la même somme à chaque joueur qui atteint le palier.
+- **Piste premium** : des cosmétiques seulement, jamais de monnaie ni de multiplicateur. Elle s'ouvre avec l'article `pass-premium` de
+  `buyItem`, au prix de `premium.gemmes`, **une fois par joueur et par saison** (`DEJA_POSSEDE` sinon), et **seulement pendant la
+  saison** (`SAISON_INACTIVE` sinon). Un achat en cadeau (`forXuid`) l'ouvre pour le destinataire.
+- **Pas de hasard, pas de pari, aucune monnaie échangée entre joueurs** : le contenu de chaque palier est connu d'avance, et le pass ne
+  donne rien qui se revende.
+
+### La réclamation
+
+`claimPass` (`POST /v1/pass/claims`) réclame un palier sur une piste. Elle est **manuelle**, dans l'ordre que le joueur veut, et passe
+par l'idempotence habituelle (`requestId` rejoué : même réponse, rien de versé deux fois). Les refus sont des 409 :
+
+| Code | Quand | `missing` |
+| --- | --- | --- |
+| `DEJA_RECLAME` | Ce palier a déjà été réclamé sur cette piste (testé en premier) | non |
+| `PREMIUM_REQUIS` | Piste premium sans l'achat, même avec les points | non |
+| `PALIER_NON_ATTEINT` | Les points ne suffisent pas | oui : les points qui manquent |
+| `SAISON_INACTIVE` | `buyItem` de `pass-premium` hors de la saison | non |
+
+Sont des 400 : un palier qui n'existe pas, une piste sans récompense à ce palier, une piste inconnue, un joueur que le service ne
+connaît pas. Les paliers atteints **se réclament encore après la fin de la saison** tant que `pass.json` la décrit. Un cosmétique déjà
+possédé par une autre source ne bloque pas le palier : la réclamation est notée, rien n'est donné de plus. Aucun événement n'est
+publié : l'add-on relit `getPass` (`PassState` : la saison, les points, la piste premium, les paliers réclamés `palier-PISTE` et tous
+les paliers avec leurs récompenses).
+
+### Ce qui reste à valider par Kr
+
+- Tous les chiffres de `pass.json`, la saison (dates comprises) et les cinq noms de cosmétiques, qui sont des valeurs de départ.
+- Le prestige pour chaque associé, la commande du jour pour chaque contributeur, au moment où la commande se termine.
+- Des points seulement pendant la saison ; des paliers réclamables après ; la piste premium vendue seulement pendant la saison.
+- Les cosmétiques du pass doivent être déclarés dans `boutique.json` (`cosmetiques`, `achetable` à faux) quand la boutique des
+  cosmétiques sera fusionnée : le croisement n'est pas encore contrôlé par le vérificateur.
+- Les textes et les visuels du pass vus par les joueurs (noms des cosmétiques, nom de la saison) : à valider par Kr.

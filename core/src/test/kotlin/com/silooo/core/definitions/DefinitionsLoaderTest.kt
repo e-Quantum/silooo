@@ -38,6 +38,7 @@ class DefinitionsLoaderTest {
     private val incidentsText = TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE)
     private val cityText = TestDefinitions.text(DefinitionsLoader.CITY_FILE)
     private val voteText = TestDefinitions.text(DefinitionsLoader.VOTE_FILE)
+    private val passText = TestDefinitions.text(DefinitionsLoader.PASS_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
@@ -51,10 +52,11 @@ class DefinitionsLoaderTest {
         incidents: String = incidentsText,
         city: String = cityText,
         vote: String = voteText,
-    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents, city, vote)
+        pass: String = passText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel, incidents, city, vote, pass)
 
     @Test
-    @DisplayName("Les neuf fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les dix fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
@@ -67,6 +69,7 @@ class DefinitionsLoaderTest {
         assertEquals(fromText.incidents, fromDirectory.incidents)
         assertEquals(fromText.city, fromDirectory.city)
         assertEquals(fromText.vote, fromDirectory.vote)
+        assertEquals(fromText.pass, fromDirectory.pass)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -539,6 +542,10 @@ class DefinitionsLoaderTest {
         assertTrue(noVote.message!!.contains(DefinitionsLoader.VOTE_FILE), noVote.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.VOTE_FILE), voteText)
+        val noPass = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noPass.message!!.contains(DefinitionsLoader.PASS_FILE), noPass.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.PASS_FILE), passText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
     }
 
@@ -604,6 +611,95 @@ class DefinitionsLoaderTest {
         assertEquals(known.id, vote.siteFor(known.id.uppercase()))
         assertEquals(known.id, vote.siteFor("  ${known.name.lowercase()} "))
         assertEquals("autre-site", vote.siteFor("autre-site"))
+    }
+
+    @Test
+    @DisplayName("Retirer une clé obligatoire de pass.json fait échouer le chargement")
+    fun everyRequiredPassKeyIsRequired() {
+        // Un palier porte une récompense par piste, et au moins une : ces deux clés sont facultatives une à une.
+        val optional = { path: List<String> -> path.size == 3 && path[0] == "paliers" && path.last() in setOf("gratuit", "premium") }
+        val root = parseJson(passText)
+        val paths = root.keyPaths().filterNot(optional)
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("pass.json sans ${path.joinToString(".")}") { load(pass = damaged) }
+            assertTrue(error.message!!.contains("pass.json"), error.message)
+        }
+    }
+
+    /** pass.json avec la valeur au chemin [path] (des clés, et des positions pour les listes) remplacée par [value]. */
+    private fun passWith(path: List<Any>, value: JsonElement): String {
+        fun replace(node: JsonElement, rest: List<Any>): JsonElement {
+            if (rest.isEmpty()) return value
+            val head = rest.first()
+            return when (node) {
+                is JsonObject -> JsonObject(node + ((head as String) to replace(node.getValue(head), rest.drop(1))))
+                is JsonArray -> JsonArray(node.mapIndexed { i, e -> if (i == head) replace(e, rest.drop(1)) else e })
+                else -> error("Chemin impossible : $path")
+            }
+        }
+        return replace(parseJson(passText), path).toString()
+    }
+
+    @Test
+    @DisplayName("Un pass qui n'a pas de sens est refusé : saison, prix, points, paliers qui ne se suivent pas, piste premium vide ou en double")
+    fun passMustMakeSense() {
+        fun refused(text: String, expected: String) {
+            val message = assertThrows<DefinitionsException>(expected) { load(pass = text) }.message!!
+            assertTrue(message.contains("pass.json") && message.contains(expected), message)
+        }
+        val tiers = parseJson(passText).getValue("paliers").jsonArray
+
+        refused(passWith(listOf("saison", "id"), JsonPrimitive("Saison-1")), "saison.id")
+        refused(passWith(listOf("saison", "id"), JsonPrimitive("une-saison-beaucoup-trop-longue")), "saison.id")
+        refused(passWith(listOf("saison", "nom"), JsonPrimitive(" ")), "saison.nom doit avoir de 1 à")
+        refused(passWith(listOf("saison", "debut"), JsonPrimitive("2026-13-01")), "saison.debut")
+        refused(passWith(listOf("saison", "fin"), JsonPrimitive("demain")), "saison.fin")
+        refused(passWith(listOf("saison", "fin"), parseJson(passText).getValue("saison").jsonObject.getValue("debut").let { day ->
+            JsonPrimitive(java.time.LocalDate.parse(day.jsonPrimitive.content).minusDays(1).toString())
+        }), "est avant saison.debut")
+        refused(passWith(listOf("premium", "gemmes"), JsonPrimitive(0)), "premium.gemmes doit être au moins 1")
+        refused(passWith(listOf("points", "parPrestige"), JsonPrimitive(-1)), "ne peuvent pas être négatifs")
+        refused(
+            passWith(listOf("points"), buildJsonObject { put("parPrestige", 0); put("parCommande", 0); put("parMission", 0) }),
+            "au moins une action doit rapporter des points",
+        )
+
+        refused(passWith(listOf("paliers"), JsonArray(emptyList())), "paliers ne doit pas être vide")
+        refused(passWith(listOf("paliers", 2, "palier"), JsonPrimitive(7)), "les numéros se suivent")
+        refused(passWith(listOf("paliers", 0, "points"), JsonPrimitive(0)), "paliers[0].points doit être au moins 1")
+        refused(
+            passWith(listOf("paliers", 3, "points"), tiers[2].jsonObject.getValue("points")),
+            "doit dépasser celui du palier précédent",
+        )
+        refused(passWith(listOf("paliers", 1, "gratuit", "lingots"), JsonPrimitive(0)), "gratuit.lingots doit être au moins 1")
+        refused(passWith(listOf("paliers", 0, "premium", "cosmetique"), JsonPrimitive("Fanion")), "premium.cosmetique")
+        refused(
+            passWith(listOf("paliers", 2, "premium", "cosmetique"), tiers[0].jsonObject.getValue("premium").jsonObject.getValue("cosmetique")),
+            "un cosmétique est donné à deux paliers",
+        )
+        refused(
+            passWith(listOf("paliers"), JsonArray(tiers.map { JsonObject(it.jsonObject - "premium") })),
+            "la piste premium ne donne aucun cosmétique",
+        )
+        refused(passWith(listOf("paliers"), JsonArray(tiers.mapIndexed { i, tier ->
+            if (i == 1) JsonObject(tier.jsonObject - "gratuit" - "premium") else tier
+        })), "paliers[1] n'a aucune récompense")
+    }
+
+    @Test
+    @DisplayName("La saison couvre ses jours de début et de fin compris, et un palier se retrouve par son numéro")
+    fun passSeasonAndTiersLookup() {
+        val pass = load().pass
+        val season = pass.season
+        assertTrue(season.covers(season.startDay) && season.covers(season.endDay))
+        assertTrue(!season.covers(season.startDay.minusDays(1)) && !season.covers(season.endDay.plusDays(1)))
+        assertEquals(pass.tiers.first(), pass.tier(1))
+        assertEquals(pass.tiers.last(), pass.tier(pass.tiers.size))
+        assertEquals(null, pass.tier(0))
+        assertEquals(null, pass.tier(pass.tiers.size + 1))
+        assertTrue(pass.tiers.none { it.premium == null && it.free == null })
     }
 
     /** ville.json avec la valeur au chemin [path] (des clés, et des positions pour les listes) remplacée par [value]. */

@@ -35,6 +35,7 @@ class DefinitionsBootstrapTest {
             TestDefinitions.text(DefinitionsLoader.INCIDENTS_FILE),
             TestDefinitions.text(DefinitionsLoader.CITY_FILE),
             TestDefinitions.text(DefinitionsLoader.VOTE_FILE),
+            TestDefinitions.text(DefinitionsLoader.PASS_FILE),
         )
         return DefinitionsBootstrap(engine, changed)
     }

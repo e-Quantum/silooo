@@ -116,7 +116,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
-| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel, votes) : classes typées et `DefinitionsLoader` |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel, votes, pass) : classes typées et `DefinitionsLoader` |
 | `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne, découverte des usines ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`, `prestigePreview`, `prestige`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock (`ServerPresence`, la source de présence de `join`) |
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
@@ -125,6 +125,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries`, Gemmes), `ShopFigures` (les bonus de Donar du PDG que le moteur lit) et `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
+| `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -687,6 +688,53 @@ Ce que le contrat et les docs ne disent pas encore :
 - Le contrat laisse `payload` libre dans `ANNONCE` : l'add-on reconnaît un vote à `payload.action` = `vote` et la fête à `voteParty`.
 - `todayVotes` rend `streakGoalDays` et `mine.streak` mais pas le nombre de jours avant le bonus : l'add-on le calcule (objectif moins
   série, modulo l'objectif).
+
+## Le pass côté service
+
+Deux routes que le contrat déclarait déjà sans les décrire, `getPass` (`GET /v1/pass?actor=`) et `claimPass` (`POST /v1/pass/claims`) : le
+contrat reste à 33 opérations, avec les schémas `PassState` et `PassClaimed` et quatre codes de refus de plus. Un article de plus dans la
+boutique, `pass-premium`. Le service décide de tout (les points, ce qui est
+versé, le prix) ; l'add-on n'a qu'à afficher `PassState`. Les règles et le tableau des chiffres sont dans `docs/economie.md`, section
+« Le pass de saison » ; les chiffres eux-mêmes dans `definitions/pass.json`, **tous à valider par Kr**.
+
+- **Le code** est dans `pass/` : `PassRoutes` (la forme de la requête), `PassService` (`state`, `claim`, les trois points d'entrée des
+  points, les deux gestes que demande la boutique), `PassRules` (les règles pures : saison, refus, forme de `PassState`), `PassStore` et
+  `JdbcPassStore` (le SQL sur `season_pass` et `season_claims`, le crédit en Lingots, `player_cosmetics`). `Dependencies.pass` peut être
+  nul : sans lui, les deux routes ne sont pas posées (le filet 501 répond) et la boutique ne vend pas `pass-premium`, ce qui laisse les
+  tests qui n'en ont pas besoin tels quels.
+- **Sans migration** : `season_pass` et `season_claims` existent depuis `V1__init.sql` et suffisent. Aucune dépendance de plus.
+- **Les points** ne passent par aucune route. `CompanyService.prestige` appelle `onPrestige` pour chaque associé, `OrderService` appelle
+  `onOrderCompleted` pour chaque contributeur quand la commande se termine, `MissionService` appelle `onMissionCompleted`. Chaque appel est
+  fait dans la transaction de l'action, après le crédit de Lingots de la même action, et n'écrit rien hors saison.
+- **`claimPass`** : les cas de 400 (palier ou piste sans récompense, acteur inconnu) tombent avant toute écriture, puis les verrous
+  (la ligne de soldes du joueur, puis celle du pass), puis les refus du jeu (`DEJA_RECLAME`, `PREMIUM_REQUIS`, `PALIER_NON_ATTEINT` avec
+  `missing`), puis le palier est noté (clé primaire de `season_claims`) et la récompense donnée : des Lingots (`creditBalance`, motif
+  `pass`, référence `saison:palier:piste`) ou un cosmétique (`player_cosmetics`, source `pass`, un cosmétique déjà possédé n'empêche rien).
+  Un `requestId` rejoué rend la même réponse, par `call.idempotent`.
+- **L'ordre des verrous** est toujours : la ligne de soldes du joueur, puis la ligne de son pass. C'est celui des actions qui versent des
+  Lingots avant de compter des points. Un achat offert (`forXuid`) prend les verrous du destinataire après ceux de l'acheteur : une
+  impasse très rare avec un prestige du destinataire reste possible, MariaDB la détecte, une des deux transactions est annulée et le
+  client reçoit `CONFLIT_REESSAYER`.
+- **`buyItem` `pass-premium`** : le prix vient de `pass.json`, jamais du code de la boutique ; refusé hors saison (`SAISON_INACTIVE`) et
+  si le destinataire l'a déjà (`DEJA_POSSEDE`) ; l'achat et l'ouverture de la piste tiennent dans la même transaction. `catalog` le
+  montre en dernier, avec `owned` et `available`.
+- **Les quatre codes de refus** que le pass ajoute à `Refused.reason` : `PALIER_NON_ATTEINT`, `DEJA_RECLAME`, `PREMIUM_REQUIS`,
+  `SAISON_INACTIVE` (déclarés dans `api/silooo-core.openapi.yaml`, repris par `RefusalCodes.ALL`, que `ContractTest` compare à l'enum).
+
+Les tests : `PassRulesTest` (les règles, sans base), `PassRoutesTest` (HTTP avec un faux dépôt : état, réclamation, rejeu, refus, 400,
+achat, cadeau, catalogue), `PassPointsTest` (les trois sources de points, hors saison, rejeu), `PassSqlTest` (le SQL réel, la
+concurrence, le parcours HTTP ; ignoré sans Docker comme les autres `*SqlTest`), `DefinitionsLoaderTest` (le fichier et ses refus) et
+`ContractTest` (conformité des deux routes et des refus au contrat). Un faux dépôt (`InMemoryPassStore`) remplace la base ailleurs. Les
+chiffres attendus viennent de `definitions/pass.json`, jamais d'un littéral.
+
+Ce que le contrat et les docs ne disent pas encore :
+
+- Le contrat dit `tier` entier, mais comme partout dans le service, un nombre écrit entre guillemets (`"1"`) est lu comme un nombre : la
+  négociation de contenu est celle de toutes les routes.
+- Les cinq identifiants de cosmétiques de `pass.json` (`s1-fanion`, `s1-lanterne`, `s1-chat-livreur`, `s1-sillage-dore`,
+  `s1-titre-fondateur`) doivent être déclarés dans `boutique.json` (`cosmetiques`, `achetable` à faux) quand la boutique des
+  cosmétiques sera fusionnée ; le vérificateur ne croise pas encore les deux fichiers.
+- `PassState` ne dit pas combien de paliers manquent ni les points du palier suivant : l'add-on les lit dans `tiers`.
 
 ## Le site
 

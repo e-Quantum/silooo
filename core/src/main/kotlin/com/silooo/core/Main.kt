@@ -5,8 +5,11 @@ import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
+import com.silooo.core.pass.JdbcPassStore
+import com.silooo.core.pass.PassService
 import com.silooo.core.registration.HttpDiscordIdentity
 import com.silooo.core.server.ServerPresence
+import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.shop.DeliveryRelief
 import com.silooo.core.shop.JdbcShopStore
 import com.silooo.core.site.siteModule
@@ -70,6 +73,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     val database = HikariDatabase.connect(config.database)
     try {
         val shopStore = JdbcShopStore()
+        val sessionStore = JdbcSessionStore()
         // Les votes : un seul service pour le processus (son verrou range les réceptions en file), qui lit la présence des signaux de vie.
         val presence = ServerPresence()
         val voteStore = JdbcVoteStore()
@@ -86,7 +90,9 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             database = database,
             apiKey = config.apiKey,
             definitions = definitions,
+            sessionStore = sessionStore,
             shopStore = shopStore,
+            pass = PassService(definitions, JdbcPassStore(), sessionStore, Clock.systemUTC()),
             apiRequestRetention = config.apiRequestRetention,
             incidentTick = INCIDENT_TICK_EVERY,
             deliveries = DeliveryRelief(database, shopStore),

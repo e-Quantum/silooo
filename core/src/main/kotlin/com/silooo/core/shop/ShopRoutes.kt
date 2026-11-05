@@ -42,6 +42,7 @@ fun Route.shopRoutes(dependencies: Dependencies) {
         store = dependencies.shopStore,
         sessions = dependencies.sessionStore,
         clock = dependencies.clock,
+        pass = dependencies.pass,
     )
 
     get("/shop/catalog") {

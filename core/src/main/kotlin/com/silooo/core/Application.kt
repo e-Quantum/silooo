@@ -44,6 +44,8 @@ import com.silooo.core.mission.missionRoutes
 import com.silooo.core.orders.JdbcOrderStore
 import com.silooo.core.orders.OrderStore
 import com.silooo.core.orders.orderRoutes
+import com.silooo.core.pass.PassService
+import com.silooo.core.pass.passRoutes
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.server.serverRoutes
 import com.silooo.core.shop.DeliveryRelief
@@ -192,6 +194,12 @@ class Dependencies(
     val shopDeliveryStore: ShopDeliveryStore = JdbcShopDeliveryStore(),
     /** `SILOOO_PAYNOW_WEBHOOK_SECRET` : la clé de la signature du webhook ; `null` : le webhook répond 503. Ne s'affiche jamais. */
     val payNowWebhookSecret: String? = null,
+    /**
+     * Le pass de saison : `getPass`, `claimPass`, les points que le prestige, la commande du jour et les missions rapportent, et la piste
+     * premium de la boutique. `null` : le pass n'est pas branché (les tests qui n'en ont pas besoin) ; ses routes ne sont pas posées, la
+     * boutique ne le vend pas et aucune action ne compte de points.
+     */
+    val pass: PassService? = null,
 )
 
 /**
@@ -243,6 +251,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             memberRoutes(dependencies)
             shopRoutes(dependencies)
             voteRoutes(dependencies)
+            passRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }

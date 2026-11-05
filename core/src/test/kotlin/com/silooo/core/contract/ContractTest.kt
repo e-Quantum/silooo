@@ -41,6 +41,9 @@ import com.silooo.core.members.InMemoryMemberStore
 import com.silooo.core.members.Invitation
 import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.orders.InMemoryOrderStore
+import com.silooo.core.pass.InMemoryPassStore
+import com.silooo.core.pass.PassService
+import com.silooo.core.pass.PassTrack
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.GAMERTAG_MAX_LENGTH
 import com.silooo.core.session.InMemorySessionStore
@@ -68,7 +71,9 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.lang.reflect.Modifier
 import java.net.URLEncoder
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -142,6 +147,7 @@ class ContractTest {
         members: InMemoryMemberStore,
         city: InMemoryCityStore,
         shop: InMemoryShopStore,
+        pass: PassService? = null,
     ): Dependencies {
         val database = RecordingDatabase()
         val clock = MutableClock(sessions.now)
@@ -167,6 +173,7 @@ class ContractTest {
             shopStore = shop,
             voteStore = votes,
             voteService = VoteService(TestDefinitions.loaded, votes, clock) { emptySet() },
+            pass = pass,
         )
     }
 
@@ -179,6 +186,9 @@ class ContractTest {
         extraSeed: (InMemorySessionStore) -> Unit = {},
         inspect: (InMemorySessionStore, InMemoryMissionStore) -> Unit = { _, _ -> },
         shopSeed: (InMemoryShopStore) -> Unit = {},
+        passSeed: (InMemoryPassStore) -> Unit = {},
+        passAt: Instant = seasonStart,
+        withPass: Boolean = operationId in PASS_OPERATIONS,
         block: suspend ApplicationTestBuilder.() -> Unit,
     ) = testApplication {
         val sessions = InMemorySessionStore()
@@ -190,9 +200,16 @@ class ContractTest {
         if (operationId != null) seedFor(operationId, sessions, economy, incidents, members, city)
         extraSeed(sessions)
         shopSeed(shop)
+        val passStore = InMemoryPassStore(sessions)
+        if (operationId == "claimPass") {
+            // De quoi réclamer le premier palier de la piste gratuite : la requête minimale du contrat y mène.
+            passStore.seed(Xuid.parse(krXuid)!!, TestDefinitions.loaded.pass.season.id, points = TestDefinitions.loaded.pass.tiers.first().points)
+        }
+        passSeed(passStore)
+        val pass = PassService(TestDefinitions.loaded, passStore, sessions, Clock.fixed(passAt, ZoneOffset.UTC)).takeIf { withPass }
         val missions = InMemoryMissionStore(sessions)
         inspect(sessions, missions)
-        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members, city, shop)) }
+        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members, city, shop, pass)) }
         block()
     }
 
@@ -216,7 +233,7 @@ class ContractTest {
             sessions.balances[player] = Balances(0, ShopRules(TestDefinitions.loaded).grades.first().gems, 0, 0)
             return
         }
-        if (operationId == "getMissions" || operationId == "getFindings") {
+        if (operationId == "getMissions" || operationId == "getFindings" || operationId == "getPass" || operationId == "claimPass") {
             // Un joueur déjà inscrit, sans entreprise : les missions et le Carnet ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
             return
@@ -569,6 +586,9 @@ class ContractTest {
             val forXuid = gift?.let { ""","forXuid":$it""" }.orEmpty()
             return """{"requestId":"$requestId","actor":"$actor","itemId":$item$forXuid}"""
         }
+        fun claiming(requestId: String = ID, actor: String = krXuid, tier: String = "1", track: String = "\"GRATUIT\""): String =
+            """{"requestId":"$requestId","actor":"$actor","tier":$tier,"track":$track}"""
+        val passTiers = TestDefinitions.loaded.pass.tiers
         val bad = mapOf(
             "heartbeat" to listOf(
                 "{}", "pas du json", """{"serverId":"bds-1"}""", """{"serverId":"bds-1","onlineXuids":["abc"]}""",
@@ -689,6 +709,18 @@ class ContractTest {
                 // Ce que le service sait et le contrat non : un article que le jeu ne vend pas, un acheteur ou un destinataire inconnus.
                 buying(item = "\"inconnu\""), buying(actor = stranger), buying(gift = "\"$stranger\""),
             ),
+            "claimPass" to listOf(
+                "{}", "pas du json", claiming(requestId = "abc"), claiming(actor = "abc"),
+                """{"requestId":"$ID","actor":"$krXuid","track":"GRATUIT"}""", """{"requestId":"$ID","actor":"$krXuid","tier":1}""",
+                """{"actor":"$krXuid","tier":1,"track":"GRATUIT"}""", """{"requestId":"$ID","tier":1,"track":"GRATUIT"}""",
+                // Un palier à zéro, négatif, décimal ou écrit en texte ; une piste inconnue, en minuscules ou qui n'est pas du texte.
+                claiming(tier = "0"), claiming(tier = "-1"), claiming(tier = "1.5"), claiming(tier = "\"un\""),
+                claiming(track = "\"BRONZE\""), claiming(track = "\"gratuit\""), claiming(track = "1"),
+                // Ce que le service sait et le contrat non : un palier qui n'existe pas, une piste sans récompense à ce palier, un acteur inconnu.
+                claiming(tier = (passTiers.size + 1).toString()),
+                claiming(tier = passTiers.first { it.premium == null }.tier.toString(), track = "\"PREMIUM\""),
+                claiming(actor = stranger),
+            ),
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
@@ -724,10 +756,12 @@ class ContractTest {
                 listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("placeBuilding", "$it/city/buildings", placing()) }
         // La boutique : un acteur absent, vide, mal formé, trop long, ou un joueur que le service ne connaît pas.
         val badCatalogQueries = listOf("", "?actor=", "?actor=abc", "?actor=-1", "?actor=123456789012345678901", "?actor=$stranger")
+        // Le pass : un acteur absent, vide, mal formé, trop long, ou un joueur que le service ne connaît pas.
+        val badPassQueries = listOf("", "?actor=", "?actor=abc", "?actor=-1", "?actor=123456789012345678901", "?actor=$stranger")
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
-        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares", "buyZone", "placeBuilding", "upgradeBuilding", "buyItem")
+        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares", "buyZone", "placeBuilding", "upgradeBuilding", "buyItem", "claimPass")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
@@ -738,6 +772,8 @@ class ContractTest {
             dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
         } + badCatalogQueries.map { query ->
             dynamicTest("catalog : $query") { assertBadRequest(operations.single { it.id == "catalog" }, "/v1/shop/catalog$query", null, seed = "catalog") }
+        } + badPassQueries.map { query ->
+            dynamicTest("getPass : $query") { assertBadRequest(operations.single { it.id == "getPass" }, "/v1/pass$query", null, seed = "getPass") }
         } + incidentUrls.map { url ->
             dynamicTest("resolveIncident : $url") { assertBadRequest(operations.single { it.id == "resolveIncident" }, url, resolveBody, seed = "resolveIncident") }
         } + badCompanyUrls.map { url ->
@@ -1333,6 +1369,139 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("catalog avec le pass branché : l'article pass-premium vient en dernier, au prix de pass.json, à acheter pendant la saison, conforme au contrat")
+    fun catalogWithThePass() {
+        val pass = TestDefinitions.loaded.pass
+        val rules = ShopRules(TestDefinitions.loaded)
+        val schema = operations.single { it.id == "catalog" }.responses.getValue(200)!!
+        withService("catalog", withPass = true) {
+            val body = send("GET", "/v1/shop/catalog?actor=$krXuid").bodyAsText()
+            assertConforms(schema, body, "catalog")
+            val items = parse(body).jsonArray.map { it.jsonObject }
+            assertEquals((rules.grades + rules.subscriptions).map { it.id } + "pass-premium", items.map { it.getValue("itemId").jsonPrimitive.content })
+            val premium = items.last()
+            assertEquals(pass.premium.gems, premium.getValue("gemmes").jsonPrimitive.content.toLong())
+            assertEquals("false", premium.getValue("owned").jsonPrimitive.content)
+            assertEquals("true", premium.getValue("available").jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    @DisplayName("buyItem pass-premium : les soldes de l'acheteur, rejoué sans repayer ; DEJA_POSSEDE, PAS_ASSEZ_DE_GEMMES avec missing, SAISON_INACTIVE hors saison")
+    fun buyItemPassPremium() {
+        val pass = TestDefinitions.loaded.pass
+        val price = pass.premium.gems
+        val kr = Xuid.parse(krXuid)!!
+        val url = "/v1/shop/purchases"
+        fun request(n: Int) = """{"requestId":"${id(n)}","actor":"$krXuid","itemId":"pass-premium"}"""
+        var shop: InMemoryShopStore? = null
+        var passStore: InMemoryPassStore? = null
+
+        withService("buyItem", extraSeed = { it.balances[kr] = Balances(0, price + 3, 0, 0) }, shopSeed = { shop = it }, passSeed = { passStore = it }, withPass = true) {
+            val bought = send("POST", url, request(41))
+            val body = bought.bodyAsText()
+            assertEquals(200, bought.status.value, body)
+            assertConforms(contract.schema("Balances"), body, "buyItem (pass-premium)")
+            assertEquals(3L, parse(body).jsonObject.getValue("gemmes").jsonPrimitive.content.toLong(), "le prix de pass.json est retiré des Gemmes")
+            assertTrue(passStore!!.premiumOf(kr, pass.season.id), "la piste premium est ouverte")
+            assertEquals(body, send("POST", url, request(41)).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+            assertEquals(1, shop!!.purchases.size, "rejoué : un seul achat")
+
+            assertRefusal(send("POST", url, request(42)), RefusalCodes.ALREADY_OWNED)
+            assertEquals(3L, shop!!.gemmes(kr), "un refus ne retire rien")
+        }
+        withService("buyItem", extraSeed = { it.balances[kr] = Balances(0, price - 1, 0, 0) }, withPass = true) {
+            val poor = assertRefusal(send("POST", url, request(43)), RefusalCodes.NOT_ENOUGH_GEMS)
+            assertEquals(1.0, parse(poor).jsonObject.getValue("missing").jsonPrimitive.content.toDouble(), "ce qui manque")
+        }
+        val afterSeason = pass.season.endDay.plusDays(1).atTime(12, 0).toInstant(ZoneOffset.UTC)
+        withService("buyItem", extraSeed = { it.balances[kr] = Balances(0, price, 0, 0) }, passAt = afterSeason, withPass = true) {
+            assertRefusal(send("POST", url, request(44)), RefusalCodes.SEASON_INACTIVE)
+        }
+    }
+
+    @Test
+    @DisplayName("getPass : le pass conforme au contrat, à zéro pour un joueur neuf, avec ses points, sa piste premium et ses paliers réclamés sinon ; un palier sans récompense premium porte null")
+    fun getPass() {
+        val pass = TestDefinitions.loaded.pass
+        val schema = operations.single { it.id == "getPass" }.responses.getValue(200)!!
+        val kr = Xuid.parse(krXuid)!!
+
+        withService("getPass") {
+            val response = send("GET", "/v1/pass?actor=$krXuid")
+            val body = response.bodyAsText()
+            assertEquals(200, response.status.value, body)
+            assertConforms(schema, body, "getPass")
+            val state = parse(body).jsonObject
+            assertEquals(pass.season.id, state.getValue("seasonId").jsonPrimitive.content)
+            assertEquals(pass.season.start, state.getValue("startsOn").jsonPrimitive.content)
+            assertEquals("true", state.getValue("active").jsonPrimitive.content)
+            assertEquals("0", state.getValue("points").jsonPrimitive.content)
+            assertEquals("false", state.getValue("premium").jsonPrimitive.content)
+            assertEquals(0, state.getValue("claimed").jsonArray.size)
+            val tiers = state.getValue("tiers").jsonArray.map { it.jsonObject }
+            assertEquals(pass.tiers.map { it.points }, tiers.map { it.getValue("points").jsonPrimitive.content.toInt() })
+            assertTrue(tiers.any { it.getValue("premium") is JsonNull }, "un palier sans récompense premium : premium nul")
+            assertTrue(tiers.any { it.getValue("premium") !is JsonNull }, "un palier avec un cosmétique : premium écrit")
+            assertTrue(tiers.all { it.getValue("free") !is JsonNull }, "la piste gratuite verse des Lingots à chaque palier des valeurs de départ")
+        }
+        val first = pass.tiers.first()
+        withService("getPass", passSeed = {
+            it.seed(kr, pass.season.id, points = first.points + 4, premium = true)
+            it.seedClaim(kr, pass.season.id, first.tier, PassTrack.FREE)
+        }) {
+            val body = send("GET", "/v1/pass?actor=$krXuid").bodyAsText()
+            assertConforms(schema, body, "getPass (avec des points)")
+            val state = parse(body).jsonObject
+            assertEquals((first.points + 4).toString(), state.getValue("points").jsonPrimitive.content)
+            assertEquals("true", state.getValue("premium").jsonPrimitive.content)
+            assertEquals(listOf("${first.tier}-GRATUIT"), state.getValue("claimed").jsonArray.map { it.jsonPrimitive.content })
+        }
+    }
+
+    @Test
+    @DisplayName("claimPass : PassClaimed avec les Lingots de la piste gratuite, rejoué à l'identique sans reverser ; PALIER_NON_ATTEINT avec missing, DEJA_RECLAME, PREMIUM_REQUIS ; la piste premium donne un cosmétique")
+    fun claimPass() {
+        val pass = TestDefinitions.loaded.pass
+        val kr = Xuid.parse(krXuid)!!
+        val url = "/v1/pass/claims"
+        val first = pass.tiers.first()
+        val last = pass.tiers.last()
+        val reward = checkNotNull(first.free).lingots
+        fun request(n: Int, tier: Int, track: String) = """{"requestId":"${id(n)}","actor":"$krXuid","tier":$tier,"track":"$track"}"""
+        var passStore: InMemoryPassStore? = null
+
+        withService("claimPass", passSeed = { passStore = it }) {
+            val claimed = send("POST", url, request(51, first.tier, "GRATUIT"))
+            val body = claimed.bodyAsText()
+            assertEquals(200, claimed.status.value, body)
+            assertConforms(contract.schema("PassClaimed"), body, "claimPass")
+            val result = parse(body).jsonObject
+            assertEquals(reward.toString(), result.getValue("rewardLingots").jsonPrimitive.content)
+            assertTrue(result.getValue("cosmeticId") is JsonNull, "la piste gratuite ne donne aucun cosmétique")
+            assertEquals(reward.toString(), result.getValue("balances").jsonObject.getValue("lingots").jsonPrimitive.content)
+            assertEquals(body, send("POST", url, request(51, first.tier, "GRATUIT")).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+            assertEquals(1, passStore!!.movements.size, "rejoué : les Lingots ne sont versés qu'une fois")
+
+            assertRefusal(send("POST", url, request(52, first.tier, "GRATUIT")), RefusalCodes.ALREADY_CLAIMED)
+            assertRefusal(send("POST", url, request(53, first.tier, "PREMIUM")), RefusalCodes.PREMIUM_REQUIRED)
+            val short = assertRefusal(send("POST", url, request(54, last.tier, "GRATUIT")), RefusalCodes.TIER_NOT_REACHED)
+            assertEquals((last.points - first.points).toDouble(), parse(short).jsonObject.getValue("missing").jsonPrimitive.content.toDouble(), "les points qui manquent")
+            assertEquals(1, passStore.movements.size, "un refus ne verse rien")
+        }
+        withService("claimPass", passSeed = { it.seed(kr, pass.season.id, points = last.points, premium = true) }) {
+            val premiumTier = pass.tiers.first { it.premium != null }
+            val response = send("POST", url, request(55, premiumTier.tier, "PREMIUM"))
+            val body = response.bodyAsText()
+            assertEquals(200, response.status.value, body)
+            assertConforms(contract.schema("PassClaimed"), body, "claimPass (premium)")
+            val result = parse(body).jsonObject
+            assertEquals(checkNotNull(premiumTier.premium).cosmeticId, result.getValue("cosmeticId").jsonPrimitive.content)
+            assertEquals("0", result.getValue("rewardLingots").jsonPrimitive.content, "la piste premium ne verse jamais de monnaie")
+        }
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -1364,7 +1533,15 @@ class ContractTest {
             "catalog" to 200,
             "buyItem" to 200,
             "todayVotes" to 200,
+            "getPass" to 200,
+            "claimPass" to 200,
         )
+
+        /** Les opérations du pass de saison : le service ne les pose que si un pass est branché. */
+        val PASS_OPERATIONS = setOf("getPass", "claimPass")
+
+        /** Le premier jour de la saison de `pass.json`, à midi UTC : l'instant où le pass du test est dans sa saison. */
+        val seasonStart: Instant = TestDefinitions.loaded.pass.season.startDay.atTime(12, 0).toInstant(ZoneOffset.UTC)
 
         /** Les Lingots du PDG dans les tests de la ville quand le prix n'est pas l'objet du test : de quoi tout payer. */
         const val CITY_LINGOTS = 10_000L

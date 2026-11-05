@@ -343,6 +343,55 @@ export type MondeDefinitions = {
   };
 };
 
+// ---- pass.json
+
+/** Forme de definitions/pass.json : la saison, le prix de la piste premium, les points que rapportent les actions et les paliers. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. La piste premium ne peut donner qu'un cosmétique : un palier premium avec des Lingots ou des Gemmes est refusé par la forme même du fichier. */
+export type PassDefinitions = {
+  readonly version: number;
+  readonly commentaire: string;
+  /** La saison en cours. Une seule à la fois ; en ouvrir une autre se fait en remplaçant ce fichier. */
+  readonly saison: {
+    /** L'identifiant de la saison, en minuscules et tirets (16 caractères au plus : season_pass.season_id). Il ne change jamais pour une saison commencée. */
+    readonly id: string;
+    /** Le nom de la saison tel que le joueur le lit. */
+    readonly nom: string;
+    /** Le premier jour de la saison (jour UTC, AAAA-MM-JJ). */
+    readonly debut: string;
+    /** Le dernier jour de la saison (jour UTC, AAAA-MM-JJ), au plus tôt le jour du début. */
+    readonly fin: string;
+  };
+  /** La piste premium, qui s'achète en Gemmes dans la boutique en jeu. */
+  readonly premium: {
+    /** Le prix de la piste premium pour la saison, en Gemmes. Au moins une : un pass premium gratuit n'a pas de sens. */
+    readonly gemmes: number;
+  };
+  /** Les points que rapporte chaque action du joueur pendant la saison. */
+  readonly points: {
+    /** Les points de chaque associé de l'entreprise quand elle fait un prestige. */
+    readonly parPrestige: number;
+    /** Les points de chaque joueur qui a livré à la commande du jour quand elle se termine. */
+    readonly parCommande: number;
+    /** Les points d'une mission terminée. */
+    readonly parMission: number;
+  };
+  /** Les paliers de la saison, du premier au dernier. Le seuil est le total de points du joueur, il croît d'un palier au suivant. */
+  readonly paliers: readonly {
+    /** Le numéro du palier : 1 pour le premier, puis un de plus à chaque palier. */
+    readonly palier: number;
+    /** Le total de points du joueur à atteindre pour réclamer ce palier. */
+    readonly points: number;
+    /** La récompense de la piste gratuite : des Lingots hors prestige. */
+    readonly gratuit?: {
+      readonly lingots: number;
+    };
+    /** La récompense de la piste premium : un cosmétique, et rien d'autre. */
+    readonly premium?: {
+      /** L'identifiant d'un cosmétique de boutique.json (48 caractères au plus : player_cosmetics.cosmetic_id). */
+      readonly cosmetique: string;
+    };
+  }[];
+};
+
 // ---- personnel.json
 
 /** Forme de definitions/personnel.json : l'agence d'emploi, les raretés, les rôles, les postes des usines et le chef d'équipe. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */

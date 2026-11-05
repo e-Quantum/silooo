@@ -7,6 +7,7 @@ import com.silooo.core.definitions.Definitions
 import com.silooo.core.definitions.MissionDefinition
 import com.silooo.core.definitions.MissionEvent
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.pass.PassService
 import java.sql.Connection
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -26,6 +27,8 @@ import kotlinx.serialization.json.put
 class MissionService(
     private val definitions: Definitions,
     private val store: MissionStore,
+    /** Le pass de saison : une mission terminée rapporte des points. `null` : pas de pass (les tests qui n'en ont pas besoin). */
+    private val pass: PassService? = null,
 ) {
     private val catalogue: List<MissionDefinition> get() = definitions.missions.missions
 
@@ -74,6 +77,8 @@ class MissionService(
                 put("rewardLingots", reward)
             },
         )
+        // Les points du pass viennent après les Lingots : les verrous se prennent dans le même ordre que partout.
+        pass?.onMissionCompleted(connection, actor)
     }
 
     private fun rewardOf(mission: MissionDefinition): Long = definitions.missionRewards.getValue(mission.id)

@@ -4,10 +4,11 @@ import com.silooo.core.api.CatalogItem
 import com.silooo.core.api.RefusalCodes
 import com.silooo.core.definitions.Definitions
 import com.silooo.core.economy.ShopBonuses
+import com.silooo.core.pass.PassRules
 import java.time.Duration
 import java.time.Instant
 
-/** Un article que le service vend, tiré de `boutique.json`. Les cosmétiques, les boosts et le pass s'ajouteront ici quand le jeu les vendra. */
+/** Un article que le service vend, tiré de `boutique.json` (et de `pass.json` pour la piste premium). Les cosmétiques et les boosts s'ajouteront ici quand le jeu les vendra. */
 sealed interface ShopItem {
     val id: String
 
@@ -29,6 +30,12 @@ sealed interface ShopItem {
         val requiredGradeId: String?,
         val donarBonusPercent: Int,
     ) : ShopItem
+
+    /**
+     * La piste premium du pass de la saison en cours, au prix de `pass.json`. Ce que le destinataire possède et si la saison court ne sont
+     * pas dans [Holdings] : c'est [com.silooo.core.pass.PassService] qui refuse l'achat et qui ouvre la piste.
+     */
+    data class PassPremium(override val id: String, override val gems: Long) : ShopItem
 }
 
 /**
@@ -69,7 +76,10 @@ class ShopRules(definitions: Definitions) {
         ShopItem.Subscription(it.id, it.gems, it.days, it.gemsReturned ?: 0L, it.reservedForGradeId, it.donarBonusPercent ?: 0)
     }
 
-    private val byId: Map<String, ShopItem> = (grades + subscriptions).associateBy { it.id }
+    /** La piste premium du pass, au prix de `pass.json`. */
+    val passPremium = ShopItem.PassPremium(PassRules.PREMIUM_ITEM_ID, definitions.pass.premium.gems)
+
+    private val byId: Map<String, ShopItem> = (grades + subscriptions + passPremium).associateBy { it.id }
 
     /** L'article [itemId] que le service vend, ou `null` s'il n'existe pas ou si le jeu ne le vend pas encore. */
     fun item(itemId: String): ShopItem? = byId[itemId]
@@ -91,7 +101,8 @@ class ShopRules(definitions: Definitions) {
     /**
      * Le code de refus d'un achat de [item] par un destinataire qui possède [holdings], ou `null` si rien ne s'y oppose. Les Gemmes ne
      * sont pas ici : elles se vérifient après. Un grade déjà possédé : `DEJA_POSSEDE` ; un grade qui n'est pas le premier non
-     * possédé : `GRADE_PRECEDENT_REQUIS` ; un abonnement dont le grade manque : `GRADE_PRECEDENT_REQUIS`.
+     * possédé : `GRADE_PRECEDENT_REQUIS` ; un abonnement dont le grade manque : `GRADE_PRECEDENT_REQUIS`. La piste premium du pass n'a pas de
+     * refus ici : la saison et la possession se lisent dans `season_pass`, c'est [com.silooo.core.pass.PassService.premiumRefusal].
      */
     fun refusalFor(item: ShopItem, holdings: Holdings): String? = when (item) {
         is ShopItem.Grade -> when {
@@ -100,6 +111,7 @@ class ShopRules(definitions: Definitions) {
             else -> null
         }
         is ShopItem.Subscription -> if (meetsRequirement(item, holdings)) null else RefusalCodes.PREVIOUS_RANK_REQUIRED
+        is ShopItem.PassPremium -> null
     }
 
     /**

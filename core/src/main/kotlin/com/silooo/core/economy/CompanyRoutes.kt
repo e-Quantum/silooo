@@ -68,8 +68,9 @@ fun Route.companyRoutes(dependencies: Dependencies) {
         companies = dependencies.companyStore,
         engine = dependencies.economy,
         figures = dependencies.economyFigures,
-        missions = MissionService(dependencies.definitions, dependencies.missionStore),
+        missions = MissionService(dependencies.definitions, dependencies.missionStore, dependencies.pass),
         findings = FindingService(dependencies.definitions, dependencies.findingStore),
+        pass = dependencies.pass,
     )
 
     get("/companies/{companyId}") {

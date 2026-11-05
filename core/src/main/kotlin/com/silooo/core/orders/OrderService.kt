@@ -10,6 +10,7 @@ import com.silooo.core.db.updateCompany
 import com.silooo.core.definitions.Definitions
 import com.silooo.core.economy.RequestRejected
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.pass.PassService
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.Regime
 import com.silooo.core.session.SessionStore
@@ -47,6 +48,8 @@ class OrderService(
     private val orders: OrderStore,
     private val figures: EconomyFigures,
     private val clock: Clock,
+    /** Le pass de saison : la commande qui se termine rapporte des points à chaque joueur qui a livré. `null` : pas de pass (les tests qui n'en ont pas besoin). */
+    private val pass: PassService? = null,
 ) {
     private val plan = OrderPlan(definitions)
 
@@ -148,6 +151,8 @@ class OrderService(
             if (row.rewardLingots > 0) orders.creditLingots(connection, contributor, row.rewardLingots, REASON, "$REASON-${row.day}")
             orders.markRewarded(connection, row.id, contributor)
             orders.publish(connection, GameEventKind.COMMANDE_TERMINEE, contributor, finished(row))
+            // Les points du pass viennent après la prime en Lingots : les verrous se prennent dans le même ordre que partout.
+            pass?.onOrderCompleted(connection, contributor)
         }
     }
 
