@@ -91,7 +91,7 @@ Chaque règle est détaillée dans [socle.md](socle.md), section « Règles à g
 | Dossier | Contenu | État |
 | --- | --- | --- |
 | `api/` | [silooo-core.openapi.yaml](../api/silooo-core.openapi.yaml), le contrat | présent |
-| `core/` | silooo-core : Kotlin, Ktor, Gradle, migrations Flyway | la migration V1 seulement |
+| `core/` | silooo-core : Kotlin, Ktor, Gradle, migrations Flyway | squelette de la phase 1 : clé, heartbeat, Flyway, filet 501 ; voir `core/README.md` |
 | `addon/` | Pack de comportement : TypeScript strict, compilé par esbuild en un seul fichier | à créer en phase 2 |
 | `resource-pack/` | Textures du design system, JSON UI, police, entité Oooscar | à créer en phase 2 |
 | `definitions/` | Les chiffres du jeu et leurs schémas | présent |

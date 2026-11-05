@@ -34,7 +34,7 @@ Dernière mise à jour : 5 novembre 2026, 3 h 45, fin de la phase 0 (session de 
 
 - [ ] Projet Gradle Kotlin (Ktor), build et tests en local et dans la CI (`actions/setup-java` 17, cache Gradle)
 - [ ] Flyway avec la migration V1, test de migration Testcontainers sur MariaDB 12.3 (ignoré proprement sans Docker, jamais faux-vert)
-- [ ] Clé `X-Silooo-Key`, `GET /v1/server/heartbeat`
+- [ ] Clé `X-Silooo-Key`, `POST /v1/server/heartbeat` (toute route `/v1` pas encore écrite répond 501)
 - [ ] `session/join` et `session/leave`
 - [ ] `GET /v1/events` avec curseur
 - [ ] Idempotence par `requestId` (table `api_requests`)
@@ -69,8 +69,10 @@ Dernière mise à jour : 5 novembre 2026, 3 h 45, fin de la phase 0 (session de 
 3. **Lancement des sessions.** Les sessions de travail sont lancées depuis l'application Claude (worktrees
    locaux ou cloud), ce qui revient au `claude --cloud` de `docs/direction.md` : même branche `claude/*`,
    même relecture avant fusion. Les sessions cadrées tournent sur Sonnet pour ménager le quota de Kr ; la
-   direction garde son modèle. Les sessions PC en worktree demandent un clic « Trust repository » de Kr :
-   tant qu'il n'est pas donné, le travail PC passe par des sous-agents dans le dépôt principal.
+   direction garde son modèle. Les sessions PC en worktree demandent un clic « Trust repository » de Kr,
+   et une session cloud ne peut être lancée que sur un tour ouvert par un message de Kr : en son absence,
+   le travail passe par des sous-agents (Sonnet), chacun dans son propre worktree git, branche `claude/*`,
+   relus et fusionnés par la direction comme n'importe quelle session.
 4. **Ce que les sessions ne touchent pas.** `docs/passation.md`, `docs/README.md` et `CLAUDE.md` restent à la
    direction, pour éviter les conflits de fusion ; chaque session rend compte dans son message final et la
    direction écrit le journal.
