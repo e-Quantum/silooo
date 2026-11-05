@@ -418,7 +418,8 @@ paths:
         font 100 à eux tous. Un associé qui vient d'entrer a une part nulle jusqu'à ce que le PDG la fixe. Une liste qui
         oublie un membre, en nomme un qui n'en est pas, nomme deux fois le même ou ne fait pas 100 donne 400 : la
         requête est fausse, ce n'est pas un refus du jeu. Refus : 403 `PAS_LE_PDG` (l'acteur est un associé),
-        409 `CONFLIT_REESSAYER`. Les parts nouvelles sont dans `CompanyState.members` de la réponse.
+        409 `CONFLIT_REESSAYER`. Les parts nouvelles sont dans `CompanyState.members` de la réponse. L'écriture publie un
+        événement `ANNONCE` dont `payload.action` vaut `setShares` (`companyId`, et `shares` : la liste des `xuid` et `percent`).
       operationId: setShares
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody:

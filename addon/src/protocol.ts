@@ -156,6 +156,7 @@ export const REFUSAL_REASONS = [
   "DEJA_POSSEDE",
   "GRADE_PRECEDENT_REQUIS",
   "CONFLIT_REESSAYER",
+  "ENTREPRISE_EN_COURS",
 ] as const;
 
 export type RefusalReason = (typeof REFUSAL_REASONS)[number];
