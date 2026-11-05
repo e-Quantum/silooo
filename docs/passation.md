@@ -1131,6 +1131,6 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     Bedrock dans le signal de vie et le dernier prestige pour le bandeau du site (point 9 du site).
   - Décisions prises seul depuis 19 h : 47. À valider : rien de nouveau (aucun texte nouveau).
   - Directions du site et du Discord : rien de nouveau dans « Pour la direction du jeu » depuis le bilan de 19 h.
-  - État du dépôt : `main` = `origin/main` = 9f5376a, arbre propre hors `.agents/` et `.codex/` (ligne de Kr) ; les
+  - État du dépôt : `main` = `origin/main` = 3127ae5 (9f5376a, puis la fusion d'`origin/main` à 07e2eef, direction du site, vérificateur vert à 19 h 40), arbre propre hors `.agents/` et `.codex/` (ligne de Kr) ; les
     branches `claude/phase5-*` restent sur `origin`, fusionnées (ligne de Kr). CI : `gh run list --branch main --limit 3`.
   - Vérifier : `git log --oneline -6 origin/main`, `git status --short`.
