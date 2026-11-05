@@ -1,0 +1,17 @@
+{
+  "name": "silooo-outils",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Outillage du dépôt Silooo : vérification des définitions. Le code du jeu vit dans core/ et addon/.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "verifier:definitions": "node tools/verifier_definitions.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

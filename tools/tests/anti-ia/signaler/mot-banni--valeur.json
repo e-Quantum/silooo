@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "usines": [
+    { "id": "scierie", "nom": "Scierie" },
+    { "id": "fonderie", "nom": "Plonge dans la Fonderie" }
+  ]
+}

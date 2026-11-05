@@ -1,0 +1,1 @@
+$.niveaux.croissancePrix: doit être strictement supérieur à 1

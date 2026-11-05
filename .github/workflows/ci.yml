@@ -1,0 +1,82 @@
+name: CI
+
+# Sur chaque push (toutes branches) et chaque demande de fusion. Une nouvelle exécution sur la même
+# branche annule la précédente : seule la dernière compte.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # La même commande que celle des sessions Claude : tools/verifier.sh (définitions, anti-IA, liens
+  # morts, tests de l'outillage, et core/ addon/ resource-pack/ quand ils existent). Java : celui du
+  # runner suffit tant que core/ n'a pas de Gradle ; ajouter actions/setup-java quand il en aura un.
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: "**/package-lock.json"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Vérifier le dépôt
+        run: bash tools/verifier.sh
+
+  # La migration V1 rejouée sur la même version de MariaDB que la production (12.3.3 sur SileneMC).
+  # Les tests Testcontainers de core/ viendront en phase 1 ; ceci attrape une migration cassée dès maintenant.
+  migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Mot de passe jetable d'un conteneur qui n'existe que le temps du job.
+      MARIADB_ROOT_PASSWORD: ci-${{ github.run_id }}
+    services:
+      mariadb:
+        image: mariadb:12.3.3
+        env:
+          # Le contexte « env » n'existe pas ici : même valeur que ci-dessus, bâtie de la même façon.
+          MARIADB_ROOT_PASSWORD: ci-${{ github.run_id }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer le client mariadb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client
+      - name: Créer la base silooo
+        run: |
+          export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"
+          mariadb --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -e "CREATE DATABASE silooo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+      - name: Rejouer V1__init.sql et compter les tables
+        run: |
+          set -euo pipefail
+          export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"
+          script=core/src/main/resources/db/migration/V1__init.sql
+          mariadb --protocol=tcp -h 127.0.0.1 -P 3306 -u root silooo < "$script"
+          # Le nombre attendu vient du script lui-même : pas de chiffre écrit ici.
+          attendu="$(grep -ciE '^[[:space:]]*CREATE[[:space:]]+TABLE' "$script")"
+          obtenu="$(mariadb --protocol=tcp -h 127.0.0.1 -P 3306 -u root -N -B -e \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'silooo' AND table_type = 'BASE TABLE'")"
+          echo "CREATE TABLE dans le script : $attendu ; tables dans la base : $obtenu"
+          if [ "$attendu" -lt 1 ] || [ "$attendu" != "$obtenu" ]; then
+            echo "::error::La base ne contient pas autant de tables que le script en crée."
+            exit 1
+          fi

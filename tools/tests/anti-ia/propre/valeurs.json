@@ -1,0 +1,8 @@
+{
+  "épique": "Scierie",
+  "plonge": ["Fonderie", "Silo"],
+  "ultime": { "nom": "Carrière" },
+  "commentaire": "Note pour les développeurs : aa = 1e12, ab = 1e15, ... et un tiret — long.",
+  "unites": { "prixNiveau1": "Donar..." },
+  "decouverte": "epique-ou-pas"
+}

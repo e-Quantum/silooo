@@ -1,0 +1,1 @@
+$.usines[1].productionParNiveau: propriété obligatoire absente
