@@ -1,315 +1,169 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 15 h 48, mise en ligne suspendue, révision en cours (direction du site, deuxième passage, en local).
-
-Ce fichier est tenu par la session de direction du site ([site-direction.md](site-direction.md)). Il ne remplace pas
-[passation.md](passation.md), qui reste à la direction du jeu : ici, seulement le site `silooo.com`, décrit dans
-[site.md](site.md) et tranché par l'[ADR 0006](adr/0006-site-silooo-com.md).
+Dernière mise à jour : 5 novembre 2026, 16 h 19, révision écrite, fichiers du site réalignés sur le kit (direction du
+site, deuxième passage, en local). Tenue par la direction du site (`docs/site-direction.md`). La direction du jeu
+lit « Pour la direction du jeu », la direction du Discord lit « Pour la direction du Discord ».
 
 ## État
 
-- **Suspendu : révision en cours** (5 novembre 2026, 15 h 48). Une deuxième direction du site, en local sur le poste de Kr,
-  relit S0 à S5 contre le kit de Kr (`docs/references/site-kit/`, `docs/references/site/`), que la première direction,
-  dans le cloud, n'avait pas lu. Le site ne se met pas en ligne avant la fin de cette révision (section du même nom).
-- **S5 est sur `main`** : les joueurs en ligne sur l'accueil (d'après le dernier `heartbeat`, « Serveur fermé pour
-  l'instant. » sans battement récent), les classements de la semaine ISO en Lingots gagnés (`/classements/`, pages de
-  25, cache d'une minute), la fiche d'entreprise (`/entreprise/{id}/`), le webhook PayNow (`POST /paynow/webhook`,
-  signature HMAC-SHA256 supposée, une ligne `shop_deliveries` par commande, rejeu sans doublon), et la section
-  « Mettre en ligne » de `docs/site.md`. Les accès SQL sont dans `com.silooo.core.sitedata`, en lecture seule hors
-  des livraisons. **S0 à S5 sont cochées sauf les cases de Kr : le site est prêt à mettre en ligne** (section plus bas).
-- **S4 est sur `main`** : la migration V7 (`site_registrations`), la page `/pionniers/` dans les deux modes
-  (inscription par gamertag, jeton de formulaire signé, cookie de session signé d'une heure, limite de débit,
-  compteur des inscrits), « Relier Discord » par OAuth2 (`identify`) seulement si Kr pose l'application, la règle
-  d'admission `SILOOO_SITE_ADMISSION` (`discord` par défaut, `tous` pour l'ouverture), les mentions qui disent le
-  cookie et les données gardées ; tests Ktor avec un faux fournisseur, tests SQL Testcontainers (CI).
-- **S3 est sur `main`** : le wiki, treize pages sous `/wiki/` en mode `ouvert` (index, première heure, usines, Silo et
-  hors ligne, personnel, monnaies, prestige, incidents et électricité, commande du jour et Carnet, entreprise
-  partagée, ville, mots du jeu, règles à écrire par Kr), les tableaux et les chiffres rendus depuis les définitions
-  par des blocs `{{nom}}`, un test qui refuse tout chiffre tapé dans un contenu ; 1196 tests Gradle dont 169 ignorés.
-- **S2 est sur `main`** : en mode `ouvert`, l'accueil (adresse et port sur des tickets, emplacement des joueurs en
-  ligne pour S5, Discord), Rejoindre (PC, téléphone, tablette ; la console attend Kr), Ce qui se vend (packs, grades,
-  abonnements rendus depuis `definitions/boutique.json`, la liste de ce qui ne se vend jamais), Boutique, Vote (sites
-  de vote et adresse de la boutique lus dans l'environnement, vides tant que Kr ne les donne pas), Mises à jour (une
-  entrée par fichier daté, aucune pour l'instant) ; quatre variables de plus (`SILOOO_SITE_ADRESSE_JEU`,
-  `SILOOO_SITE_PORT_JEU` comparé au compose par un test, `SILOOO_SITE_URL_BOUTIQUE`, `SILOOO_SITE_SITES_DE_VOTE`) ;
-  1182 tests Gradle dont 169 ignorés. Captures relues par la direction.
-- **S1 est sur `main`** : Silooo Atelier pour le web (`site.css` importe `atelier/tokens.css` puis `atelier.css` ;
-  textures, icônes, Oooscar et logos copiés de `design/` et comparés octet pour octet ; polices Jersey 10, Pixelify
-  Sans et Silkscreen servies par le site, paquets Fontsource 5.3.0, licence OFL ; gabarit commun avec navigation par
-  mode, `og:*`, lien d'évitement ; page d'attente avec Oooscar et sa bulle ; pages de lecture sur papier ; 1155 tests
-  Gradle dont 169 ignorés). Captures à 360 et 1280 px relues par la direction : rien ne déborde, le style tient.
-- **S0 est sur `main`** : silooo-core démarre un second serveur Ktor sur `SILOOO_SITE_PORT` (8081) qui sert la page
-  d'attente et les mentions en mode `attente`, un accueil minimal en mode `ouvert`, les fichiers de
-  `core/src/main/resources/site/public/`, une page 404 Silooo ; `tools/anti_ia.py` relit les contenus et les
-  littéraux du paquet `site` (1142 tests Gradle, 168 ignorés sans Docker ; `tools/verifier.sh` vert).
-- Kr a tranché le cadre le 5 novembre 2026 (décision 37 de [passation.md](passation.md)) :
-  le site vit **dans silooo-core** (`core/src/main/kotlin/com/silooo/core/site/`, `core/src/main/resources/site/`), il
-  écrit dans `shop_deliveries` les commandes du webhook PayNow, il dit quelle table rend un joueur « admis », et la
-  direction du jeu déploie silooo-core, site compris, quand ce fichier dit « Prêt à mettre en ligne ». L'ADR 0006
-  applique ce cadre : son propre port (`SILOOO_SITE_PORT`), deux modes (`SILOOO_SITE_MODE`, `attente` par défaut),
-  rendu côté serveur en Kotlin, lecture de la base par les accès du service.
-- Les fichiers de cadrage de Kr (`docs/site-direction.md`, `docs/site-passation.md`, `docs/references/site/`, dans le
-  worktree `silooo-site` de son PC) **ne sont pas poussés** : la direction du jeu les voit non suivis dans son dossier
-  ([passation.md](passation.md), « À faire par Kr »). La direction du site lancée dans le cloud ne les a donc pas lus ;
-  elle a écrit les siens d'après [direction.md](direction.md), la décision 37 et les réponses du journal du jeu, et
-  les réalignera sur ceux de Kr dès qu'ils seront sur `main`.
-- Le jeu est en phase 4 : le service connaît les usines, le personnel, le prestige, les missions, les incidents, la
-  commande du jour, le Carnet et l'entreprise partagée ; l'add-on de l'entreprise partagée est fusionné. Le serveur
-  n'a pas encore tourné sur le VPS (base, port, DNS et zip de BDS attendent Kr). Le site se construit en mode
-  `attente` : il ne promet rien qui ne soit pas joignable.
-- `main` au départ de la direction du site (`21381cd`) est vert en CI ; dans la session cloud, `tools/verifier.sh`
-  passe aussi (Gradle a eu besoin de cinq essais et d'un seul téléchargement à la fois, Maven Central limitant le
-  débit : `GRADLE_OPTS="-Dorg.gradle.workers.max=1"`), tests SQL ignorés sans Docker, comme prévu.
-- Une première version de l'ADR 0006 et des étapes (site statique à part dans un conteneur, générateur Node) a été
-  écrite et poussée sur la branche de la direction avant la lecture de la décision 37, puis remplacée le même jour ;
-  la session de travail S0 lancée sur cette version a été arrêtée avant toute fusion, sa branche effacée.
+- **Suspendu : révision en cours** (depuis le 5 novembre 2026, 15 h 48). Le site ne se met pas en ligne avant la fin
+  de la révision ; la section « Suspendu » dit ce qui doit être vrai pour que « Prêt à mettre en ligne » revienne.
+- **Le jeu** : phase 5 en cours (`docs/passation.md`). Dernière migration du site sur `main` : `V7__site_registrations.sql` ;
+  la suivante prend le numéro libre à la fusion.
+- **Le site** : les six étapes S0 à S5 de la première direction sont sur `main` (commit `69d98b1`), revues dans
+  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, vingt-quatre à corriger, treize à
+  refaire, quatre posées à Kr (trois questions T1, T2, T3). Le kit de Kr est sur `main` : `docs/site.md` le reprend,
+  complété par « Où en est `main` » ; l'original est dans `docs/references/site-kit/`.
+- **Étape en cours** : la première branche de correction, `claude/site-socle`.
+- **Kr** : trois questions dans la révision. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
 
-## Les étapes
+## Les écarts à corriger
 
-Chaque étape est une session de travail, une à la fois, sur une branche `claude/site-sN`, relue et vérifiée
-(`tools/verifier.sh`) par la direction avant la fusion en avance rapide sur `main`. Le code du site reste dans
-`core/.../site/` et `core/src/main/resources/site/` ; les fichiers partagés de `core/` reçoivent des lignes, pas des
-réécritures, parce que deux tranches du jeu y travaillent en même temps.
+La file d'attente, dans l'ordre des sorties du kit : la page d'attente, la bêta, l'ouverture. Les `R` renvoient aux
+lignes de [site-revision.md](site-revision.md). Une case se coche quand la branche est fusionnée sur `main` et que
+ses lignes sont passées à « corrigé ».
 
-### S0 : le socle du site dans silooo-core
+La page d'attente :
 
-Critère de fin : silooo-core écoute aussi sur `SILOOO_SITE_PORT` et y sert la page d'attente et les mentions ;
-`SILOOO_SITE_MODE` est lu et contrôlé ; tests Ktor sans Docker ; `tools/anti_ia.py` lit les textes du site ;
-`tools/verifier.sh` vert.
+- [ ] `claude/site-socle` : R4 (Gradle copie `design/`), R5 (`tools/verifier_site.mjs`), R7 (`robots.txt`,
+  `sitemap.xml`), R8 (`Empreinte.kt` et ses vecteurs), R13 (404 avec Oooscar), R30 (débordement de
+  `/wiki/personnel/`), R37 (image de partage logo et Oooscar), R2 pour moitié (la politique de sécurité admet les
+  scripts du site), R3 selon T1 (`composants.css` dérivé de `bundle.css`)
+- [ ] `claude/site-gabarit` : R26 (Oooscar vivant sur chaque page, `oooscar.js`), R31 (navigation du kit), R32 (pied
+  avec SileneMC et Hubyy), R33 (ciel, îles, sol), R36 (bandeau direct et `/site/direct.json`)
+- [ ] `claude/site-attente` : R34 (page d'attente de la maquette), R25 (quatre pages légales), R49 pour moitié
+  (`/actus` et `/actus/<slug>` au plan fixe, lues dans des fichiers avec la marque « étape »)
+- [ ] `claude/site-comptes` : R6 (mode `beta`), R15 (Xbox prototypé en premier, Discord), R16 (inscription), R17
+  (migration des comptes et sessions Redis), R18 (admission par le staff, refus de `join` en bêta par le contrat),
+  R19 (Pionnier côté jeu), R21 pour `/compte/lier`, R23 selon T3
+- [ ] `claude/site-admin` : R20 (les cinq pages admin, rôle staff, journal), R42 (bêta : seul le staff paie), le reste
+  de R49 (actus écrites dans l'admin)
 
-- [x] `Config.kt` : `SILOOO_SITE_PORT` (8081 par défaut, distinct de `SILOOO_PORT`) et `SILOOO_SITE_MODE` (`attente`
-  par défaut, `ouvert` ; toute autre valeur est une erreur de configuration listée avec les autres, code 78) ;
-  `ServiceConfig` et `Dependencies` les portent (avec des valeurs par défaut pour ne pas toucher aux tests) ;
-  `Main.kt` démarre un second serveur Ktor pour le site, dans la même JVM, sur `0.0.0.0:SILOOO_SITE_PORT`, à côté
-  de celui de l'API ; les deux s'arrêtent ensemble
-- [x] Paquet `com.silooo.core.site` : `siteModule` (le module Ktor du site, sans `/v1`, sans clé), `SiteMode`,
-  `SiteRoutes`, le gabarit de page en DSL HTML (`ktor-server-html-builder`, version du catalogue), le rendu du
-  Markdown des ressources (commonmark-java, version épinglée), les fichiers statiques de
-  `core/src/main/resources/site/public/` servis sous `/public/` ; en-têtes `Cache-Control` raisonnables ; aucun
-  JavaScript nécessaire
-- [x] Ressources `core/src/main/resources/site/` : `contenu/` (Markdown avec un en-tête `titre`, `description`, `url`,
-  `modes`), `public/site.css` (court : les couleurs des jetons recopiées en variables, polices de secours ; le style
-  Silooo Atelier arrive en S1), le logo copié de `design/logo/` (un test compare la copie à la source octet pour octet,
-  le dossier `design/` se retrouvant à côté de `definitions/`)
-- [x] Les pages : en mode `attente`, `/` (le logo, le jeu en une phrase, « Le serveur ouvre bientôt. », le lien Discord
-  seulement s'il est configuré) et `/mentions/` ; en mode `ouvert`, `/` est un accueil minimal que S2 remplace, et
-  `/mentions/` ; tout le reste 404 avec une page Silooo ; la mention « NOT AN OFFICIAL MINECRAFT SERVICE. NOT APPROVED
-  BY OR ASSOCIATED WITH MOJANG OR MICROSOFT. » dans le pied de chaque page et dans les mentions ; les trous des
-  mentions (éditeur, hébergeur, contact) marqués « À compléter par Kr. » ; textes **à valider par Kr**
-- [x] Tests : `ConfigTest` (défauts, mode inconnu refusé, port du site distinct) ; `SiteModuleTest` par
-  `testApplication` (les deux modes, `lang="fr"`, un seul `h1`, `title`, `meta description`, `alt` sur chaque image,
-  `/v1/server/heartbeat` répond 404 sur le module du site, le CSS et le logo servis avec le bon type, 404 en page
-  Silooo) ; le test de copie du logo
-- [x] `tools/anti_ia.py` : `core/src/main/resources/site/**/*.md` (texte entier) et
-  `core/src/main/kotlin/com/silooo/core/site/**/*.kt` (littéraux de chaînes, lecteur étendu à `.kt`) dans
-  `TEXTES_JOUEURS` ; exception explicite et visible `MENTIONS_PERMISES` pour la seule phrase de Mojang ; cas dans
-  `tools/tests/` (hook et `--tout`) ; `python3 tools/anti_ia.py --tout` vert
-- [x] `core/README.md`, section « Le site » (variables, port, modes, où sont les pages, comment relire en local avec
-  `SILOOO_SITE_MODE=ouvert` sur son poste) ; `docs/site.md`, « Comment le site se construit », point S0
+La bêta :
 
-### S1 : Silooo Atelier pour le web
+- [ ] `claude/site-rejoindre` : R38
+- [ ] `claude/site-boutique` : R39 (fenêtre d'achat, `POST /boutique/commande`), R40 (une seule page Boutique),
+  R41 (l'empreinte dans `shop_deliveries`)
+- [ ] `claude/site-pantheon` : R43 (les salles, `site_leaderboards`, `/site/classements.json`), R44 selon T2, R27
+  (`compteur.js`)
+- [ ] `claude/site-vote` : R45 (`definitions/site-votes.json`), R46 (jauge, récompenses, série), R28 (`vote-party.js`)
+- [ ] `claude/site-guide` : R47 (`/guide` généré ; les champs `description` et `astuce` demandés au jeu)
+- [ ] `claude/site-compte` : le reste de R21 (`/compte`, `/compte/entreprise`, `/compte/gemmes`, `/compte/recompenses`)
 
-Critère de fin : la page d'attente et les mentions ont le gabarit commun et le style Silooo Atelier ; lisibles à
-360 px de large sans défilement horizontal ; polices servies par le site ; `tools/verifier.sh` vert.
+L'ouverture :
 
-- [x] `public/atelier.css` : les jetons copiés de `design/tokens.css` (copie contrôlée), puis les composants du web
-  d'après `design/composants/bundle.css` : panneau, plaque, bouton (rouge, laiton, fonte, appuyé, focus), ticket,
-  monnaie, puce, icône, bulle ; `border-image` sur les textures de `design/textures/` copiées dans
-  `public/atelier/textures/` ; `image-rendering: pixelated` ; aucun arrondi, dégradé, flou ; une seule ombre ; un seul
-  bouton rouge par page ; un test compare chaque copie à sa source et refuse `border-radius`, `linear-gradient`,
-  `radial-gradient`, `blur(`, `backdrop-filter` dans le CSS
-- [x] Les trois polices (Jersey 10, Pixelify Sans, Silkscreen) : fichiers `woff2` du sous-ensemble latin tirés des paquets
-  `@fontsource/*` (licence OFL, fichier de licence commis à côté, version notée), `@font-face` avec `font-display: swap`,
-  secours de `tokens.css` ; rien chargé depuis un autre hôte
-- [x] Les tailles du web : corps lisible sur téléphone (20 px au moins, interligne 1,3), `affiche` pour les titres (h1
-  sur une plaque, deux tailles d'affiche au plus par page), `etiquette` pour les légendes, multiples de 3 px ; fond
-  des pages de lecture choisi et justifié (fonte et papier, ou papier et fonte), contrastes de la charte
-- [x] Gabarit commun : en-tête (logo SVG, nom, navigation du mode : en `attente` seulement Mentions ; en `ouvert`
-  Accueil, Rejoindre, Wiki, Classements, Boutique, Vote, Mises à jour, Mentions, les pages absentes ne s'affichent
-  pas), pied (mention Mojang, Mentions, Discord si configuré), `og:title`, `og:description`, `og:image` absolu
-  (`SILOOO_SITE_URL`, `https://silooo.com` par défaut), icône de site (logo 64), `theme-color` ; focus visible
-- [x] Mobile : 360 px sans défilement horizontal, cibles de 60 px, texte à 20 px ; captures Playwright à 360 et 1280 px
-  hors du dépôt quand Chromium est là (pas dans les tests)
-- [x] Oooscar `joie` sur la page d'attente avec une bulle de six mots au plus (« Le serveur ouvre bientôt ! ») ; texte
-  **à valider par Kr** ; `docs/site.md`, point S1 : ce que le web ajoute à la charte
+- [ ] `claude/site-vitrine` : R35 (la vitrine), R29 (`ile.js`)
 
-### S2 : les pages publiques du mode ouvert
+Dans chaque branche : R50, les textes des maquettes remplacent ceux de `main` page par page, et restent « à valider
+par Kr ». Fini quand chaque ligne de la révision est « gardé » ou « corrigé », sauf ce qui attend Kr.
 
-Critère de fin : Accueil, Rejoindre, Ce qui se vend, Boutique, Vote et Mises à jour rendues en mode `ouvert`,
-absentes en `attente` (404) ; aucun chiffre tapé ; textes marqués à valider ; `tools/verifier.sh` vert.
+## Ce que la première direction a livré
 
-- [x] Accueil : le jeu en une phrase, l'adresse et le port, l'emplacement des joueurs en ligne (rempli en S5, caché
-  tant que la donnée manque), une vidéo et une capture à poser par Kr (emplacements marqués), le lien Discord ;
-  quatre paragraphes au plus
-- [x] Rejoindre : l'adresse (`SILOOO_SITE_ADRESSE_JEU`, `play.silooo.com` par défaut) et le port (`SILOOO_SITE_PORT_JEU`,
-  même défaut que `BDS_PORT` du compose, un test compare la constante à `deploy/compose.yml`), la marche à suivre par
-  plate-forme (PC, téléphone et tablette, console : l'ajout d'un serveur n'est pas offert par toutes les consoles,
-  la méthode est **à valider par Kr**)
-- [x] Ce qui se vend : la promesse « Tout ce qui s'achète se gagne aussi en jouant », les packs de Gemmes, les grades
-  et leur bonus, le Pilier, lus dans `ShopDefinitions` ; la liste de ce qui n'est jamais en vente ([vision.md](vision.md)) ;
-  un test compare la page aux définitions
-- [x] Boutique : les grades et le Pilier (mêmes définitions), où s'achètent les Gemmes (`SILOOO_SITE_URL_BOUTIQUE`, vide
-  tant que Kr ne l'a pas donnée : le lien ne s'affiche pas), les interdits, la note sur l'historique d'achats (en jeu)
-- [x] Vote : les sites de vote (`SILOOO_SITE_SITES_DE_VOTE`, liste vide tant que Kr ne les a pas donnés), la récompense
-  par vote seulement quand `definitions/` la chiffre (sinon la page dit qu'elle arrive), la jauge de la Vote party
-  plus tard
-- [x] Mises à jour : `contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md`, une entrée par tag déployé, la plus récente en tête ;
-  sans entrée, la page dit que le serveur n'a pas encore ouvert ; un test refuse un nom de fichier mal formé
-- [x] `docs/site.md` : le tableau des pages pointe vers les fichiers de `contenu/`
-
-### S3 : le wiki
-
-Critère de fin : les pages du wiki rendues en mode `ouvert`, dans l'ordre où le joueur rencontre les systèmes ;
-les listes (usines, raretés, sortes d'incidents) tirées des définitions chargées ; `tools/verifier.sh` vert.
-
-- [x] `contenu/wiki/` : la première heure ; les usines et les paliers ; le Silo et les gains hors ligne ; le personnel
-  et l'agence ; les trois monnaies ; le prestige et les étoiles ; les incidents et l'électricité ; la commande du jour
-  et le Carnet ; l'entreprise partagée ; la ville (en construction, dit comme tel) ; les mots du jeu (glossaire pour
-  les joueurs, écrit à la main) ; les règles du serveur (page avec un trou marqué : **à écrire par Kr**)
-- [x] Les tableaux générés depuis `Definitions` : usines (nom, produit, entrées, époque), raretés et postes du
-  personnel, sortes d'incidents, packs ; jamais un chiffre tapé ; un test compare chaque usine aux pages
-- [x] Pas de commande à taper ; phrases courtes ; mots du glossaire ; textes **à valider par Kr** ; une page d'index du
-  wiki et sa place dans la navigation ; `docs/site.md` : la liste des pages du wiki
-
-### S4 : les pionniers, Relier Discord, l'admission
-
-Critère de fin : un joueur s'inscrit comme pionnier avec son gamertag en mode `attente` comme en `ouvert`, relie son
-compte Discord quand Kr a posé l'application, et la table dit qui est admis ; la direction du jeu a de quoi refuser
-les non-admis dans `join` ; migration prise à la fusion ; `tools/verifier.sh` vert. Le dessin de cette étape est
-**à valider par Kr** : il reconstruit ce que la décision 37 et le journal du jeu laissent voir (« Pionnier », « Relier
-Discord », « refus des non-admis »), faute des fichiers de Kr.
-
-- [x] Migration (numéro pris à la fusion ; V6 est prise par la ville depuis le 5 novembre à 13 h, V7 attendue) : table `site_registrations` (gamertag en minuscules en clé,
-  gamertag tel que saisi, identifiant Discord facultatif jamais affiché, `created_at`, `admitted_at` facultatif,
-  `pioneer` booléen), index sur `admitted_at` ; `docs/base-de-donnees.md` n'est pas touché par la direction du site :
-  la table est décrite dans `core/README.md` et demandée dans « Pour la direction du jeu »
-- [x] Page `/pionniers/` : un formulaire (gamertag, case à cocher des règles), limite de débit simple par adresse,
-  pas de courriel ; un gamertag déjà inscrit rend la même page avec son état ; le compteur des pionniers inscrits ;
-  textes **à valider par Kr**
-- [x] « Relier Discord » : OAuth2 de Discord (identité seule), activé seulement si `SILOOO_DISCORD_CLIENT_ID`,
-  `SILOOO_DISCORD_CLIENT_SECRET` et `SILOOO_SITE_URL` sont posés, sinon la page explique que ce n'est pas encore
-  ouvert ; l'identifiant Discord se range dans `site_registrations`, jamais affiché ; état et jeton CSRF en cookie de
-  session signé, de courte durée, seul cookie du site (les mentions le disent) ; faux fournisseur dans les tests
-- [x] L'admission : `admitted_at` posé par une règle lisible dans `core/README.md` (par exemple : inscrit et relié,
-  ou admis à la main par Kr avec une commande ou une requête documentée) ; le site n'écrit rien d'autre ; la
-  direction du jeu lit `site_registrations.admitted_at` par le gamertag pour refuser dans `join` (contrat d'abord)
-- [x] La récompense du pionnier (titre et objet) reste au jeu : le site ne touche pas `player_cosmetics` ; la ligne
-  `pioneer` suffit au jeu pour la créditer plus tard (demandé dans « Pour la direction du jeu »)
-
-### S5 : les données vivantes et la mise en ligne
-
-Critère de fin : joueurs en ligne sur l'accueil, Classements et fiches d'entreprise rendus en mode `ouvert` ; le
-webhook PayNow écrit `shop_deliveries` ; la liste « Prêt à mettre en ligne » écrite ; `tools/verifier.sh` vert.
-
-- [x] Joueurs en ligne : lus dans `ServerPresence` (le dernier `heartbeat`), affichés sur l'accueil ; « Serveur fermé »
-  sans heartbeat récent
-- [x] Classements : la semaine ISO en cours, les joueurs par Lingots gagnés dans la semaine (`currency_ledger`,
-  `LINGOTS`, `delta > 0`), gamertag et nom d'entreprise, taille de page technique dans le code ; cache d'une minute ;
-  tests SQL Testcontainers
-- [x] Fiche d'entreprise `/entreprise/{id}/` : nom, époque, étoiles, membres (gamertag et rôle, PDG d'abord), nombre de
-  prestiges, date de création ; 404 en page Silooo pour une entreprise inconnue ; jamais de XUID ni de solde
-- [x] Webhook PayNow `POST /paynow/webhook` : signature contrôlée avec `SILOOO_PAYNOW_WEBHOOK_SECRET` (le format exact de
-  PayNow est **à confirmer par Kr** ; en attendant, HMAC-SHA256 du corps dans un en-tête nommé, à changer en une
-  constante), une ligne `shop_deliveries` par commande (`order_id`, gamertag, Gemmes), rejeu sans double ligne
-  (clé primaire), 401 sans signature, 503 sans secret configuré ; tests SQL
-- [x] « Prêt à mettre en ligne » : la section est écrite ici quand S0 à S5 sont sur `main`, avec la marche à suivre de
-  Kr (DNS, bloc Caddy vers `silooo-core:8081`, mentions remplies, variables posées, `SILOOO_SITE_MODE` laissé à
-  `attente`) ; `docs/site.md` complet
+S0 à S5, du 5 novembre 2026, 12 h 45 à 15 h 30, dans le cloud : le module `site` dans silooo-core sur son propre
+port, Silooo Atelier pour le web, les pages publiques du mode `ouvert`, le wiki de treize pages, les pionniers avec
+« Relier Discord » et l'admission, le classement hebdomadaire, la fiche d'entreprise, les joueurs en ligne et le
+webhook PayNow. Le détail de ce qui existe est dans `docs/site.md`, « Où en est `main` » ; ce qui en est gardé, et
+pourquoi, ligne par ligne, dans [site-revision.md](site-revision.md). Les cases S0 à S5 de l'ancienne passation sont
+dans l'historique git (`git show 69d98b1:docs/site-passation.md`).
 
 ## Suspendu : révision en cours
 
-Depuis le 5 novembre 2026, 15 h 48, cette section remplace « Prêt à mettre en ligne ». La première direction du site
-(cloud) a construit S0 à S5 sans lire le kit de Kr : `docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md`
-et `docs/references/site/`, non suivis dans son dossier. Une deuxième direction, en local sur le poste de Kr (worktree
-`silooo-site`, branche `claude/site-revision`), relit ce qui est sur `main` contre ce que Kr a décidé (kit, cadrage, plan,
-maquettes) et écrit chaque écart dans `docs/site-revision.md`, avec un verdict : garder, corriger, refaire, à trancher par Kr.
-Le kit est versionné tel quel dans `docs/references/site-kit/` et `docs/references/site/`.
+Depuis le 5 novembre 2026, 15 h 48. La première direction du site avait écrit « Prêt à mettre en ligne » pour la page
+d'attente ; cette page ne suit pas le kit de Kr (R34), n'a ni inscription par Xbox ou Discord (R15, R16), ni actus
+(R49), ni pages légales (R25). **Le site ne se met pas en ligne avant la fin de la révision.** Le déploiement du jeu ne
+change pas : le site y reste en `attente`, son port n'est pas publié, aucun bloc Caddy n'existe.
 
-**Le site ne se met pas en ligne avant la fin de la révision.** Rien ne change au déploiement du jeu : le site est dans
-l'image de silooo-core, en mode `attente` par défaut, sur un port que le compose ne publie pas, et aucun bloc Caddy ne le
-joint. Cette section redeviendra « Prêt à mettre en ligne » quand chaque ligne de `docs/site-revision.md` sera gardée
-ou corrigée, sauf ce qui attend Kr.
+Cette section redevient « Prêt à mettre en ligne » quand les branches `socle`, `gabarit`, `attente`, `comptes` et
+`admin` sont fusionnées, que leurs lignes sont « corrigé » (sauf ce qui attend Kr : l'application Azure, l'application
+Discord, les textes), et que `tools/verifier.sh` et `tools/verifier_site.mjs` sont verts. Elle dira alors le commit,
+et ce que Kr doit avoir fait avant.
 
 ## Pour la direction du jeu
 
 Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses attendues dans son journal.
 
-**Depuis le 5 novembre 2026, 15 h 48 : ne déployez pas le site avant la fin de la révision.** La deuxième direction du site
-relit S0 à S5 contre le kit de Kr (section « Suspendu : révision en cours »). Déployer silooo-core pour le jeu reste
-possible : le site y reste en `attente`, sans bloc Caddy ni variable posée. Ne demandez pas à Kr le DNS, le bloc Caddy
-ni les variables du site tant que cette passation ne dit pas de nouveau « Prêt à mettre en ligne ».
+**Depuis le 5 novembre 2026, 15 h 48 : ne déployez pas le site avant la fin de la révision.** Déployer silooo-core pour
+le jeu reste possible : le site y reste en `attente`, sans bloc Caddy ni variable posée. Ne demandez pas à Kr le DNS,
+le bloc Caddy ni les variables du site tant que cette passation ne dit pas de nouveau « Prêt à mettre en ligne ».
 
-**Le kit de Kr est sur `main`** : `docs/references/site-kit/` (ses trois `site*.md`) et `docs/references/site/` (maquettes,
-prototype d'Oooscar). Votre dossier `silooo` garde une copie non suivie de `docs/references/site/`, identique octet pour
-octet : supprimez-la avant de fusionner `origin/main`, sinon git refuse d'écraser des fichiers non suivis. Le point 1
-ci-dessous est donc réglé.
+**Le kit de Kr est sur `main`** : `docs/references/site-kit/` (ses trois `site*.md`), `docs/references/site/`
+(maquettes, prototype d'Oooscar, captures de la révision), et `docs/site.md` qui le reprend. Votre dossier `silooo`
+garde une copie non suivie de `docs/references/site/`, identique octet pour octet : supprimez-la avant de fusionner
+`origin/main`, sinon git refuse d'écraser des fichiers non suivis.
 
-1. **Les fichiers de Kr.** Vous voyez `docs/site-direction.md`, `docs/site-passation.md` et `docs/references/site/`
-   non suivis dans votre dossier. La direction du site du cloud ne les a pas. Si vous pouvez les lire sans les
-   ajouter à votre index, copiez leur texte tel quel dans votre journal, ou dites à Kr de les pousser (branche
-   `claude/site-kr`, ou le worktree `silooo-site`) : la direction du site réalignera ses étapes dessus.
-2. **Fichiers partagés de `core/`.** S0 ajoute des lignes dans `Config.kt`, `Main.kt`, `Application.kt`
-   (`Dependencies`), `libs.versions.toml` et `core/README.md`, et crée le paquet `site/`. Dites à vos tranches de ne
-   pas réécrire ces fichiers d'un bloc, et prévenez ici si l'une d'elles y travaille.
-3. **Variables d'environnement du site**, lues par silooo-core par `env_file` (rien à changer dans le compose) :
-   `SILOOO_SITE_PORT` (8081), `SILOOO_SITE_MODE` (`attente`), `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`,
-   `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU` (le défaut de `BDS_PORT`, un test les compare), `SILOOO_SITE_URL_BOUTIQUE`,
-   `SILOOO_SITE_SITES_DE_VOTE` (`nom|url;nom|url`), `SILOOO_SITE_ADMISSION`, `SILOOO_DISCORD_CLIENT_ID`,
-   `SILOOO_DISCORD_CLIENT_SECRET`, `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET` : treize variables, toutes
-   facultatives avec un défaut sûr, toutes décrites dans le tableau des variables de `core/README.md` et dans
-   `docs/site.md`, « Mettre en ligne ». `deploy/exemple.env.txt` et le tableau des variables
-   de `docs/deploiement.md` sont à vous : merci d'y ajouter ces lignes (S0 est sur `main` : les quatre premières
-   sont lues par `Config.kt`), avec l'avertissement « jamais `ouvert` par une session », puis de retirer leurs noms
-   de la liste `reglees` de `tools/tests/deploy-compose.mjs`, où S0 les a exemptés faute de pouvoir toucher `deploy/`.
-4. **L'admission (S4, sur `main`).** La table est `site_registrations` (migration V7) (gamertag en minuscules en clé, `admitted_at`
-   facultatif, `pioneer` booléen) : « admis » veut dire `admitted_at IS NOT NULL` pour `LOWER(players.gamertag)`.
-   `join` reçoit le gamertag : pas besoin de l'empreinte. La clé se calcule par `SiteRegistrations.key(gamertag)`
-   (`core/src/main/kotlin/com/silooo/core/registration/`) : espaces des bords retirés, espaces réduits à un seul,
-   minuscules ; la requête est dans `core/README.md`, « Le site ». Un code `Refused` nommé (par exemple `PAS_ADMIS`)
-   est à déclarer dans `api/` par vous, puis la route. Réserve connue : le site ne prouve pas qu'un visiteur possède le
-   gamertag qu'il inscrit (pas de courriel, pas de connexion Xbox) ; quelqu'un peut inscrire le gamertag d'un autre et
-   y relier son Discord. Si l'admission doit être sûre, il faut une preuve côté jeu (un code montré en jeu, saisi sur
-   le site) : c'est un choix de Kr, noté dans « À faire par Kr ». Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
-5. **Rien à vous demander pour S0 à S3** : contenus, style et wiki ne touchent ni `api/`, ni `addon/`, ni `deploy/`.
-7. **Un nom affiché pour les raretés du personnel.** `definitions/personnel.json` et le code n'ont que les
-   identifiants `COMMUN`, `RARE`, `EPIQUE` ; le wiki affiche donc les identifiants en minuscules, dont le troisième
-   est un mot que la charte bannit (`docs/glossaire.md` le note déjà : « le nom affiché est à confirmer par Kr »).
-   Un `nom` par rareté dans `personnel.json` réglerait le wiki et l'add-on d'un coup.
-9. **Ce que le site attend du jeu, après S5.** (a) La route de `join` qui refuse les non-admis (point 4), avec un code
-   `Refused` nommé dans `api/`. (b) Le crédit du titre et de l'objet du pionnier d'après `site_registrations.pioneer`.
-   (c) Les livraisons : le webhook écrit `shop_deliveries` (`order_id`, `gamertag`, `gemmes`), votre relevé
-   (`DeliveryRelief`) les crédite ; le pseudo est écrit tel que PayNow l'envoie, à rapprocher d'un gamertag Bedrock
-   (préfixe Floodgate, casse) de votre côté ou du côté de PayNow. (d) `docs/base-de-donnees.md` : la table
-   `site_registrations` (V7) y manque, ce fichier est à vous.
-8. **L'agence : `game-design.md` et `economie.md` se contredisent.** Le game design parle d'une nouvelle liste de
+1. **Les variables du site** (treize aujourd'hui, dans `deploy/exemple.env.txt` et `docs/deploiement.md`, merci) vont
+   bouger avec les corrections : `SILOOO_SITE_URL_BOUTIQUE` disparaît (les Gemmes passent par la boutique PayNow de
+   Silooo, kit « L'achat de Gemmes »), `SILOOO_SITE_SITES_DE_VOTE` aussi (les sites de vote vivent dans
+   `definitions/site-votes.json`), `SILOOO_SITE_MODE` gagne la valeur `beta`, et des variables arrivent pour
+   l'application Azure de la connexion Xbox, l'API de commande PayNow et Redis (sessions sous `silooo:web:session:`).
+   Chaque branche qui en change une l'annonce ici avant sa fusion ; rien à faire d'ici là.
+2. **L'admission et la preuve du gamertag.** Le kit répond à la réserve de S4 : l'inscription se fait par Xbox (le
+   gamertag vient du jeton XSTS) ou par Discord suivi d'un code de six caractères tapé en jeu (le gamertag vient du
+   jeu). Deux choses vous reviennent, contrat d'abord (`api/silooo-core.openapi.yaml`, puis le test de contrat, puis
+   le code) : `POST /v1/links/discord` (l'add-on envoie le code tapé ; le service relie le compte) et, en mode
+   `beta` du site, le refus de `session/join` pour un joueur absent de `beta_access`, avec un code `Refused` nommé
+   (par exemple `PAS_ADMIS`). D'ici là, la règle `SILOOO_SITE_ADMISSION` sur `site_registrations` (V7) reste telle
+   quelle. La direction du site vous écrira le dessin exact de la table avant la migration.
+3. **Le Pionnier** : le kit le donne une seule fois, au premier `session/join` d'un inscrit, par une ligne de
+   `player_cosmetics` de source `evenement` ; le drapeau `pioneer` de V7 ne sert plus. Le titre et l'objet de déco
+   restent à dessiner (Kr).
+4. **Le Guide généré** : le kit demande un champ `description` (une phrase, 160 caractères au plus) et, si utile,
+   `astuce` sur chaque usine, époque, amélioration et bâtiment de `definitions/`, dans les schémas, plus
+   `definitions/site-faq.json` et `definitions/site-votes.json`. `tools/verifier.sh` échouera sur une description
+   manquante ou un tic d'IA. La direction du site propose de les ajouter elle-même sur une branche `claude/site-guide`,
+   textes « à valider par Kr », en touchant `definitions/` et ses schémas et rien d'autre du jeu. Dites ici si vous
+   préférez les écrire, ou si une tranche du jeu travaille sur ces fichiers.
+5. **Ce que le site attend du jeu, plus tard** : (a) les votes (Votifier, `server_votes`, Vote party, séries, décision
+   42 : `GET /v1/votes/today` existe ; le site lira la jauge et les séries par les accès du service) ; (b) les
+   livraisons : le webhook écrira aussi l'empreinte du gamertag dans `shop_deliveries.xuid` (kit « L'identité des
+   joueurs », décision 25) dès que `Empreinte.kt` existe, en plus du pseudo tel que PayNow l'envoie ; (c) un
+   `nom` par rareté dans `definitions/personnel.json` et par abonnement dans `definitions/boutique.json` (le wiki
+   et la boutique affichent les identifiants faute de nom) ; (d) `docs/base-de-donnees.md` : `site_registrations`
+   (V7) y manque, ce fichier est à vous.
+6. **Fichiers partagés de `core/`** : les branches du site touchent `Config.kt`, `Main.kt`, `Application.kt`
+   (`Dependencies`), `libs.versions.toml`, `core/build.gradle.kts` (la copie de `design/`) et `core/README.md` par
+   quelques lignes. Dites à vos tranches de ne pas réécrire ces fichiers d'un bloc, et prévenez ici si l'une d'elles
+   y travaille.
+7. **L'agence : `game-design.md` et `economie.md` se contredisent.** Le game design parle d'une nouvelle liste de
    candidats achetée en Donar ; le service (décision 33) et `economie.md` disent « rien à acheter ». Le wiki suit le
    service. À trancher par Kr, et le game design à mettre d'accord.
-6. **Un nom lisible pour les abonnements dans `definitions/boutique.json`.** Les grades ont un `nom`, les
-   abonnements (`pilier`, `perso`) n'ont qu'un `id` : le site écrit « Pilier » et « Préfixe perso » dans son code
-   (`site/pages/Offres.kt`), ce qui contredit « une seule source par donnée ». Si la tranche de la boutique ajoute
-   un `nom` à chaque abonnement (schéma compris), le site le lira à la place, et l'add-on aussi.
+
+## Pour la direction du Discord
+
+Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « Pour la direction du site »). Réponses
+à vos quatre points :
+
+1. **La liaison** : d'accord. Le site affiche « relié » dès l'OAuth2 ; « prouvé » vient du jeu, par le code tapé en
+   jeu (`POST /v1/links/discord`, demandé à la direction du jeu). Le bot donne le pseudo et les rôles après ce code.
+2. **La case « Rejoindre aussi le Discord »** : la portée `guilds.join` est demandée seulement quand la case est
+   cochée (deux adresses d'autorisation), `identify` seul sinon. Question T3 de `docs/site-revision.md`, posée à Kr.
+3. **Les textes** : le site publiera les règles des tirages et la page Confidentialité (journal de salon gardé trente
+   jours) dans `claude/site-attente` (R25). Envoyez vos brouillons par votre passation ; en attendant, le site écrit
+   une phrase « à compléter par la direction du Discord ».
+4. **Les actus** : une actu publiée depuis l'admin du site (R49) deviendra un événement du service pour le bot
+   (décision 43 : le service publie, le bot écoute), avec un champ « aussi dans #annonces ». Le dessin de
+   l'événement vous sera proposé ici avant la branche `claude/site-admin`.
 
 ## À faire par Kr
 
-- [ ] Pousser les fichiers de cadrage du worktree `silooo-site` (`docs/site-direction.md`, `docs/site-passation.md`,
-  `docs/references/site/`) : la direction du site du cloud a écrit les siens sans les lire et se réalignera
-- [ ] Relire l'[ADR 0006](adr/0006-site-silooo-com.md) (statut « Proposée ») : le site dans silooo-core, sur son propre
-  port, deux modes, rendu Kotlin, ce que le site écrit
-- [ ] Relire le dessin de S4 (pionniers, Relier Discord, admission), maintenant sur `main` : en particulier, décider si
-  l'inscription doit prouver la possession du gamertag (un code montré en jeu, saisi sur le site), et la règle
-  d'admission (`SILOOO_SITE_ADMISSION` : `discord` ou `tous`)
-- [ ] Le DNS de `silooo.com` (et `www`) vers l'IP du VPS, quand le site sera déployé
+- [ ] Répondre aux trois questions de [site-revision.md](site-revision.md) (T1 socle technique, T2 classement
+  hebdomadaire, T3 portée Discord) ; sans réponse, la recommandation s'applique
+- [ ] Relire l'[ADR 0006](adr/0006-site-silooo-com.md) (statut « Proposée »), que `claude/site-socle` amende selon T1
+- [ ] Le DNS de `silooo.com`, `www` et `play.silooo.com` vers l'IP du VPS ; ouvrir le port 19142 en UDP et TCP
 - [ ] Le bloc `silooo.com` dans le Caddy de SileneMC (`/var/www/minecraft`, qu'aucune session Silooo ne touche) :
   mandat vers `silooo-core:8081` sur le réseau `silenemc`, TLS automatique
-- [ ] L'identité légale des mentions : éditeur, hébergeur, contact, conditions de vente, protection des données
-- [ ] L'adresse de la boutique de SileneMC pour les Gemmes de Silooo, et les sites de vote
-- [ ] Le lien d'invitation Discord, l'application Discord (identifiant et secret) pour « Relier Discord »
-- [ ] Le format exact du webhook PayNow (en-tête de signature, calcul, champs du corps) et son secret : le site suppose
-  `PayNow-Signature` en HMAC-SHA256 hexadécimal du corps et les champs `order_id`, `gamertag`, `gemmes`
-  (`core/.../site/PayNowWebhook.kt`, une seule classe à changer)
-- [ ] Compléter la section « Données » des mentions si le pseudo d'une commande de Gemmes doit y être déclaré
-- [ ] Le relevé de `skyblock.rinaorc.com` (grille de [site.md](site.md)), depuis le PC ou en autorisant le domaine
-- [ ] Le passage de `SILOOO_SITE_MODE` à `ouvert` dans le fichier d'environnement du VPS, à l'ouverture (phase 7)
+- [ ] Créer le serveur Discord Silooo, son application (connexion et bot) et le rôle staff ; poser les identifiants
+- [ ] Créer l'application Azure de la connexion Xbox (comptes Microsoft personnels) ; poser ses identifiants
+- [ ] Brancher Votifier sur Hubyy vers silooo-core et poser le jeton ; choisir plus tard d'autres sites de vote
+- [ ] Ajouter Silooo au menu de Hubyy (troisième étape de `/rejoindre`)
+- [ ] Ouvrir la boutique PayNow de Silooo en mode test, poser la clé du webhook ; confirmer le format exact du webhook
+  (le site suppose `PayNow-Signature` en HMAC-SHA256 hexadécimal du corps et les champs `order_id`, `gamertag`,
+  `gemmes`, `core/.../site/PayNowWebhook.kt`) ; plus tard, la passer en réel
+- [ ] L'identité légale (micro-entreprise, OVH) et la relecture des quatre brouillons légaux ; les textes de chaque
+  page (section « À valider par Kr ») ; le dessin du Pionnier ; les captures et la bande-annonce de la vitrine
+- [ ] Le relevé de `skyblock.rinaorc.com` (grille de [site.md](site.md), « La référence »), depuis le PC : le domaine
+  n'est pas joignable depuis les sessions
+- [ ] À l'ouverture : `SILOOO_SITE_MODE=ouvert` dans le fichier d'environnement du VPS, après la vitrine validée
 
 ## Décisions prises sans Kr
 
@@ -376,6 +230,23 @@ ci-dessous est donc réglé.
     sont écrits en `fonte-900` sur le papier, l'icône seule porte l'or (lisibilité). À la fusion, la direction a mis la
     plaque du titre en taille « petite » sous 480 px (la charte le prévoit sur mobile) : « CLASSEMENTS » se coupait au
     milieu du mot à 360 px.
+
+12. **Le deuxième passage (5 novembre 2026, 15 h 30 à 16 h 19).** Le kit de Kr l'emporte sur les choix de la première
+    direction (ordre du brief de Kr : ce qu'il dit en session, puis `docs/passation.md`, puis le kit, le cadrage et les
+    maquettes, puis la première direction) ; ce qui marche et ne contredit rien est gardé. Les verdicts sont dans
+    `docs/site-revision.md`. Les trois questions T1 (kotlinx.html et `atelier.css` contre Pebble et `composants.css`),
+    T2 (le classement hebdomadaire comme sixième salle du Panthéon) et T3 (`guilds.join` seulement quand la case est
+    cochée) attendent Kr ; sans réponse au moment de la branche concernée, la recommandation de la révision
+    s'applique et la ligne le dit.
+13. **Les fichiers réalignés.** `docs/site.md` est le kit, précédé d'un paragraphe de deuxième passage et suivi de
+    « Où en est `main` » et de la grille rinaorc de la première direction ; `docs/site-direction.md` est le kit adapté
+    au travail en local ; cette passation remplace les cases S0 à S5 par la file d'attente des écarts. Les quatre
+    décisions du kit sont reprises : Pebble (sous T1), la page Vote rafraîchie toutes les 10 s et le reste toutes les
+    30 s, Oooscar qui dort de 22 h à 7 h à l'heure du joueur, la bulle « Production ×2 pour tout le monde ! » pendant
+    une Vote party.
+14. **Les captures comme preuves.** Seize captures JPEG du site rendu en local sont commises dans
+    `docs/references/site/captures-revision/` (1,1 Mo) ; les quatre-vingt-huit captures complètes se régénèrent avec
+    `SiteRenderToDisk` et Chromium, ce que `tools/verifier_site.mjs` (R5) outillera.
 
 ## À valider par Kr
 
@@ -447,6 +318,10 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   « N étoiles », « N prestiges », « Créée le … », « Membres », « PDG », « Associé », « Voir les classements », la
   description), `pages/Joueurs.kt` (« Serveur fermé pour l'instant. », « Personne en ligne pour l'instant. »,
   « N joueurs en ligne »).
+
+- Le kit : les bulles d'Oooscar (`docs/site.md`, « Animations ») ; la page d'attente, l'inscription, Rejoindre, la boutique,
+  le Panthéon, le Guide de la Scierie, l'article d'exemple (maquettes de `docs/references/site/maquettes/`) : à reprendre
+  tels quels jusqu'à son avis.
 
 ## Journal
 
@@ -543,3 +418,9 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   `sitedata/` et les ressources du site. Premier geste : « Prêt à mettre en ligne » devient « Suspendu : révision en
   cours », une ligne pour la direction du jeu. Suite : le site rendu en local, captures à 360 et 1 280 px, puis
   `docs/site-revision.md`.
+- 5 novembre 2026, 15 h 48 à 16 h 19 (direction du site, deuxième passage, en local). Le site rendu en local dans les
+  deux modes (44 pages), captures Chromium à 360 et 1 280 px (88 ; une seule erreur : `/wiki/personnel/` déborde à
+  1 280), maquettes relues. Écrit `docs/site-revision.md` (55 lignes, 14 gardées, 24 à corriger, 13 à refaire, 4 posées
+  à Kr), seize captures commises, puis `docs/site.md`, `docs/site-direction.md` et cette passation réalignés sur le
+  kit. Envoyé la révision à Kr avec les trois questions. Suite : `claude/site-socle` (R4, R5, R7, R8, R13, R30, R37,
+  R2 pour moitié, R3 selon T1).
