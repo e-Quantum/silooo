@@ -28,6 +28,7 @@ import com.silooo.core.events.EVENTS_DEFAULT_LIMIT
 import com.silooo.core.events.EVENTS_MAX_LIMIT
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.events.InMemoryEventStore
+import com.silooo.core.incident.InMemoryIncidentStore
 import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.GAMERTAG_MAX_LENGTH
@@ -52,6 +53,7 @@ import io.ktor.server.testing.testApplication
 import java.lang.reflect.Modifier
 import java.net.URLEncoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -112,7 +114,12 @@ class ContractTest {
      * routes d'économie écrivent l'entreprise par `updateCompany`, qu'une connexion qui note les écritures suffit à
      * satisfaire ; `join` et `pollEvents` n'y touchent jamais.
      */
-    private fun contractDependencies(sessions: InMemorySessionStore, economy: TestEconomy, missions: InMemoryMissionStore): Dependencies {
+    private fun contractDependencies(
+        sessions: InMemorySessionStore,
+        economy: TestEconomy,
+        missions: InMemoryMissionStore,
+        incidents: InMemoryIncidentStore,
+    ): Dependencies {
         val database = RecordingDatabase()
         return Dependencies(
             database = database,
@@ -127,6 +134,7 @@ class ContractTest {
             missionStore = missions,
             clock = MutableClock(sessions.now),
             staffStore = InMemoryStaffStore(sessions),
+            incidentStore = incidents,
         )
     }
 
@@ -142,11 +150,12 @@ class ContractTest {
     ) = testApplication {
         val sessions = InMemorySessionStore()
         val economy = TestEconomy(sessions)
-        if (operationId != null) seedFor(operationId, sessions, economy)
+        val incidents = InMemoryIncidentStore(sessions)
+        if (operationId != null) seedFor(operationId, sessions, economy, incidents)
         extraSeed(sessions)
         val missions = InMemoryMissionStore(sessions)
         inspect(sessions, missions)
-        application { siloooModule(contractDependencies(sessions, economy, missions)) }
+        application { siloooModule(contractDependencies(sessions, economy, missions, incidents)) }
         block()
     }
 
@@ -155,13 +164,13 @@ class ContractTest {
      * contrat), son PDG [krXuid], et l'usine `factoryId` d'exemple du contrat, dans l'état que chaque opération veut
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
-    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy) {
+    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy, incidents: InMemoryIncidentStore) {
         if (operationId == "getMissions") {
             // Un joueur déjà inscrit, sans entreprise : les missions ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
             return
         }
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff")
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "resolveIncident")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
@@ -187,6 +196,11 @@ class ContractTest {
             "assignStaff", "fireStaff" -> {
                 sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
                 sessions.staff[companyId] = mutableListOf(StaffRecord(1, null, "Membre de test", "ouvrier-casque", StaffRole.SALARIE, StaffRarity.COMMUN))
+            }
+            // Un incident ouvert, le numéro 1 : l'usine d'exemple du contrat est ralentie, la requête minimale la répare.
+            "resolveIncident" -> {
+                sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
+                incidents.seedOpen(companyId, factoryId, "panne", 0.6, sessions.now)
             }
             // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
             "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
@@ -455,6 +469,11 @@ class ContractTest {
                 """{"requestId":"$ID","actor":"$krXuid","factoryId":"usine-inconnue"}""",
                 """{"requestId":"$ID","actor":"$stranger","factoryId":"scierie"}""",
             ),
+            "resolveIncident" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+                """{"requestId":"$ID","actor":"$stranger"}""",
+            ),
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
@@ -474,16 +493,22 @@ class ContractTest {
                 listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("fireStaff", "$it/staff/1?$fireQuery", null) } +
                 listOf("", "?requestId=$ID", "?actor=$krXuid", "?requestId=abc&actor=$krXuid", "?requestId=$ID&actor=abc", "?requestId=$ID&actor=$stranger")
                     .map { Triple("fireStaff", "/v1/companies/1/staff/1$it", null) }
+        // Les incidents : un incident ou une entreprise qui n'existent pas, ou que le chemin ne sait pas lire.
+        val resolveBody = """{"requestId":"$ID","actor":"$krXuid"}"""
+        val incidentUrls = listOf("0", "-1", "abc", "99", "1.5").map { "/v1/companies/1/incidents/$it/resolve" } +
+            listOf("0", "-1", "abc", "99").map { "/v1/companies/$it/incidents/1/resolve" }
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
-        val seeded = setOf("hire", "assignStaff")
+        val seeded = setOf("hire", "assignStaff", "resolveIncident")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
             }
         } + staffRequests.map { (opId, url, body) ->
             dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
+        } + incidentUrls.map { url ->
+            dynamicTest("resolveIncident : $url") { assertBadRequest(operations.single { it.id == "resolveIncident" }, url, resolveBody, seed = "resolveIncident") }
         } + badCompanyUrls.map { url ->
             dynamicTest("getCompany : $url") { assertBadRequest(operations.single { it.id == "getCompany" }, url, null) }
         } + badCompanyUrls.map { url ->
@@ -752,6 +777,33 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("resolveIncident : CompanyUpdated sans incident sur l'usine, rejoué à l'identique ; un incident déjà clos rend le même 200 sans nouvelle récompense")
+    fun resolveIncident() = withService("resolveIncident") {
+        val url = "/v1/companies/1/incidents/1/resolve"
+        val request = """{"requestId":"${id(9)}","actor":"$krXuid"}"""
+        fun donar(body: String) = parse(body).jsonObject.getValue("state").jsonObject.getValue("donar").jsonPrimitive.content.toDouble()
+
+        val first = send("POST", url, request)
+        val body = first.bodyAsText()
+        assertEquals(200, first.status.value, body)
+        assertConforms(contract.responseSchema("CompanyUpdated"), body, "resolveIncident")
+        val factories = parse(body).jsonObject.getValue("state").jsonObject.getValue("factories").jsonArray.map { it.jsonObject }
+        val repaired = factories.single { it.getValue("factoryId").jsonPrimitive.content == "scierie" }
+        assertTrue(repaired["incidentId"].let { it == null || it is JsonNull }, "l'incident est clos : l'usine n'en porte plus")
+        assertTrue(repaired["incidentKind"].let { it == null || it is JsonNull }, "la sorte part avec l'incident")
+        assertTrue(donar(body) > 0.0, "la réparation rapporte une petite récompense")
+        assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+
+        val closed = send("POST", url, """{"requestId":"${id(10)}","actor":"$krXuid"}""")
+        val closedBody = closed.bodyAsText()
+        assertEquals(200, closed.status.value, closedBody)
+        assertConforms(contract.responseSchema("CompanyUpdated"), closedBody, "resolveIncident (déjà clos)")
+        // Les faux ne gardent pas l'écriture de l'entreprise (la connexion note l'UPDATE) : la réponse d'un incident clos est l'état
+        // d'avant, sans la récompense que la première réponse montre. Les montants exacts sont dans IncidentRoutesTest.
+        assertEquals(0.0, donar(closedBody), "un incident déjà clos ne rapporte rien")
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -772,6 +824,7 @@ class ContractTest {
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
             "getCandidates" to 200, "hire" to 200, "assignStaff" to 200, "fireStaff" to 200,
+            "resolveIncident" to 200,
         )
 
         /** Plus de Donar que n'importe quelle embauche n'en coûte au revenu fictif de `TestEconomy` (11 par heure). */

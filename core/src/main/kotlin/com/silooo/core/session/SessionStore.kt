@@ -46,13 +46,18 @@ data class CompanyRecord(
     val version: Int,
 )
 
-/** Une ligne de `company_factories`, avec l'incident ouvert s'il y en a un. */
+/**
+ * Une ligne de `company_factories`, avec l'incident ouvert s'il y en a un : son identifiant, son facteur de production
+ * (`factory_incidents.slowdown`) et sa sorte. Sans incident, [incidentSlowdown] vaut 1 (la production entière).
+ */
 data class FactoryRecord(
     val factoryId: String,
     val state: FactoryState,
     val restoreStep: Int,
     val level: Int,
     val openIncidentId: Long?,
+    val incidentSlowdown: Double = 1.0,
+    val incidentKind: String? = null,
 )
 
 /** Une ligne de `staff` : un membre du personnel embauché, affecté ou non à une usine. */

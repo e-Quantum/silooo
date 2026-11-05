@@ -134,7 +134,7 @@ class ApiTest {
     fun notDoneRoutes() = withApp { app ->
         suspend fun check(response: HttpResponse) = assertError(response, HttpStatusCode.NotImplemented, ErrorCodes.NOT_DONE)
 
-        // join, leave, pollEvents, les routes d'entreprise getCompany, collect, buyLevels, restoreStep et celles du personnel (getCandidates, hire, assignStaff, fireStaff) sont écrits (SessionRoutesTest, EventsRoutesTest, CompanyRoutesTest, StaffRoutesTest) : le filet couvre le reste du contrat.
+        // join, leave, pollEvents, les routes d'entreprise getCompany, collect, buyLevels, restoreStep, celles du personnel (getCandidates, hire, assignStaff, fireStaff) et resolveIncident sont écrits (SessionRoutesTest, EventsRoutesTest, CompanyRoutesTest, StaffRoutesTest, IncidentRoutesTest) : le filet couvre le reste du contrat.
         check(client.get("/v1/orders/today") { header(SERVER_KEY_HEADER, key) })
         check(
             client.post("/v1/market/listings") {
@@ -144,10 +144,10 @@ class ApiTest {
             },
         )
         check(
-            client.post("/v1/companies/1/incidents/1/resolve") {
+            client.post("/v1/companies/1/members") {
                 header(SERVER_KEY_HEADER, key)
                 contentType(ContentType.Application.Json)
-                setBody("""{"requestId":"6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e91","actor":"2535428000000001"}""")
+                setBody("""{"requestId":"6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e91","actor":"2535428000000001","targetXuid":"2535428000000002"}""")
             },
         )
         check(client.get("/v1/n-importe-quoi/profond/comme/ca") { header(SERVER_KEY_HEADER, key) })

@@ -214,6 +214,14 @@ paths:
   /v1/companies/{companyId}/incidents/{incidentId}/resolve:
     post:
       summary: Le mini-jeu de réparation est réussi ; relance l'usine et donne la petite récompense
+      description: |
+        Clôt l'incident `incidentId` de l'entreprise : l'usine reprend son rythme normal et l'entreprise reçoit en Donar une
+        récompense, le nombre de minutes de revenu de l'usine (sans ralentissement) que dit `definitions/incidents.json`. Le
+        Donar produit jusqu'à cet instant est versé d'abord, au rythme ralenti. Le service ne juge pas le mini-jeu : l'add-on
+        l'a joué, le service clôt. Un incident qui n'est plus ouvert (un associé l'a déjà réparé, un prestige l'a clos) ne
+        change rien et ne rapporte rien : la réponse est le même 200, avec l'état d'aujourd'hui. Un incident qui n'existe
+        pas, ou qui est à une autre entreprise, un acteur qui n'est pas de l'entreprise : 400. L'ouverture et la clôture d'un
+        incident sont aussi annoncées par l'événement `INCIDENT` (voir `GameEvent`).
       operationId: resolveIncident
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -818,8 +826,9 @@ components:
         ratePerHour: { $ref: '#/components/schemas/Donar' }
         nextCost: { $ref: '#/components/schemas/Donar' }
         nextMilestone: { type: integer, description: prochain palier ×2 }
-        incidentId: { type: integer, format: int64, nullable: true }
-        stoppedNoPower: { type: boolean, description: 'époque 3 et plus, sans électricité' }
+        incidentId: { type: integer, format: int64, nullable: true, description: "l'incident ouvert de cette usine, s'il y en a un : sa production est alors ralentie (`ratePerHour` en tient compte)" }
+        incidentKind: { type: string, nullable: true, description: "la sorte de l'incident ouvert (`definitions/incidents.json`, tableau `sortes`) ; nul sans incident. Elle dit quel mini-jeu l'add-on propose" }
+        stoppedNoPower: { type: boolean, description: "époque 3 et plus, sans électricité : l'usine dépend du courant et l'entreprise n'a pas de Centrale active. L'usine est à l'arrêt, `ratePerHour` vaut 0 et elle ne coûte pas de salaire" }
     CompanyState:
       type: object
       required: [companyId, name, era, stars, courseNumber, donar, donarEarned, ratePerHour, multiplier, threshold, factories, version]
@@ -936,6 +945,13 @@ components:
         remaining: { type: integer, format: int64 }
         unitPrice: { type: integer, format: int64 }
     GameEvent:
+      description: |
+        `INCIDENT` : l'usine d'une entreprise tombe en panne, ou un incident est réparé. Un événement par membre de
+        l'entreprise connecté (`xuid`). `payload.action` vaut `opened` ou `resolved` ; `payload.companyId`,
+        `payload.incidentId`, `payload.factoryId` et `payload.kind` (la sorte de `definitions/incidents.json`) sont toujours là.
+        `opened` ajoute `payload.slowdown` (le facteur sur la production de l'usine, entre 0 et 1) ; `resolved` ajoute
+        `payload.reward` (le Donar versé, 0 quand l'incident était déjà clos) et `payload.resolvedBy` (le XUID de
+        celui qui a réparé). Un incident ne s'ouvre jamais pendant que tous les membres sont hors ligne.
       type: object
       required: [id, kind, payload]
       properties:

@@ -21,6 +21,12 @@ import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.EventStore
 import com.silooo.core.events.JdbcEventStore
 import com.silooo.core.events.eventsRoutes
+import com.silooo.core.incident.IncidentStore
+import com.silooo.core.incident.IncidentTicker
+import com.silooo.core.incident.JdbcIncidentStore
+import com.silooo.core.incident.incidentRoutes
+import com.silooo.core.incident.incidentService
+import com.silooo.core.incident.launchIncidentTicker
 import com.silooo.core.mission.JdbcMissionStore
 import com.silooo.core.mission.MissionStore
 import com.silooo.core.mission.missionRoutes
@@ -82,8 +88,12 @@ class Dependencies(
     val missionStore: MissionStore = JdbcMissionStore(),
     /** Les accès SQL du personnel et de l'agence d'emploi (`staff`, `agency_candidates`). */
     val staffStore: StaffStore = JdbcStaffStore(),
+    /** Les accès SQL des incidents d'usine (`factory_incidents`). */
+    val incidentStore: IncidentStore = JdbcIncidentStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
     val apiRequestRetention: Duration? = null,
+    /** Intervalle du minuteur des incidents d'usine ; `null` : pas de minuteur, aucun incident ne s'ouvre (les tests). */
+    val incidentTick: Duration? = null,
 )
 
 /**
@@ -107,6 +117,12 @@ fun Application.siloooModule(dependencies: Dependencies) {
     }
 
     dependencies.apiRequestRetention?.let { launchApiRequestPurge(dependencies.idempotency, it) }
+    dependencies.incidentTick?.let { every ->
+        val ticker = IncidentTicker(dependencies.database, dependencies.sessionStore, incidentService(dependencies)) {
+            dependencies.serverPresence.onlineXuids()
+        }
+        launchIncidentTicker(ticker, every)
+    }
 
     routing {
         route("/v1") {
@@ -118,6 +134,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             sessionRoutes(dependencies)
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
+            incidentRoutes(dependencies)
             missionRoutes(dependencies)
             staffRoutes(dependencies)
 
