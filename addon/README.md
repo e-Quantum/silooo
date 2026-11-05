@@ -224,6 +224,18 @@ dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phr
 | Refus `GRADE_PRECEDENT_REQUIS` | rien | Il faut d'abord le grade précédent. |
 | Refus `CONFLIT_REESSAYER`, si le second essai échoue aussi | rien | Ça a bougé. Réessaie. |
 
+La cinématique d'arrivée (`design/composants/Cinematique.md`) : quatre plans, une phrase d'Oooscar par plan, plus la
+consigne pour passer. Le nom de qui parle (« Oooscar ») est le titre du sous-titre, la phrase en est le texte. Chaque
+phrase tient en huit mots au plus et reste à l'écran trois secondes au moins.
+
+| Où | Avant | Après |
+|---|---|---|
+| Cinématique, plan 1 | rien | Bienvenue chez toi, patron. |
+| Cinématique, plan 2 | rien | Tu hérites d'une vieille carrière abandonnée. |
+| Cinématique, plan 3 | rien | Les murs tiennent encore, à peu près. |
+| Cinématique, plan 4 | rien | Remettons-la en état, je t'accompagne. |
+| Cinématique, consigne pour passer (barre d'action) | rien | Reste accroupi pour passer. |
+
 Les échecs techniques, dans le code `network`, `unavailable` et `error` : `network` et `unavailable` donnent « Le
 service ne répond pas. » ; `error` avec la raison `PAS_FAIT` (route pas encore écrite) donne « Pas encore
 disponible. » ; tout autre `error` donne « Problème côté service. ».

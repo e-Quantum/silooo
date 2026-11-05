@@ -33,6 +33,10 @@ export interface UiSettings {
   readonly menuItem: string;
   /** Attente avant de donner l'objet : l'inventaire n'est pas toujours prêt au tout premier tick. */
   readonly menuItemDelaySeconds: number;
+  /** Tant que le joueur arrive (île posée, cinématique en cours), la boussole attend : on revérifie à ce rythme... */
+  readonly menuItemWaitStepSeconds: number;
+  /** ...pendant cette durée au plus, puis on la donne quand même : une cinématique ne doit jamais priver le joueur de son menu. */
+  readonly menuItemWaitMaxSeconds: number;
   /** Nouveaux essais d'un formulaire que Bedrock refuse parce que le joueur a déjà un écran ouvert (le tchat, un autre menu). */
   readonly formBusyRetries: number;
   /** Attente entre deux de ces essais. */
@@ -40,6 +44,49 @@ export interface UiSettings {
   /** Tuiles au plus par écran de menu (design/composants/Menu.md : grille de 4 sur 2). */
   readonly tilesPerScreen: number;
   readonly hud: HudSettings;
+}
+
+/** La pose des îles et la place d'Oooscar. Des réglages techniques : les chiffres de l'archipel sont dans definitions/iles.json. */
+export interface WorldSettings {
+  /** Secondes entre deux relevés des îles des joueurs présents (usine changée par une action, île donnée après le join). */
+  readonly syncSeconds: number;
+  /** Opérations de bloc exécutées d'un coup avant de rendre la main au serveur : une île ne fige pas le jeu. */
+  readonly opsPerBatch: number;
+  readonly batchPauseSeconds: number;
+  /** Première attente après un échec de pose (zone impossible à charger), doublée à chaque échec jusqu'au plafond. */
+  readonly buildRetrySeconds: number;
+  readonly buildRetryMaxSeconds: number;
+  /** Combien de temps l'arrivée attend que la mini-île de départ soit posée, avant de laisser le joueur où il est. */
+  readonly arrivalWaitSeconds: number;
+  /** L'entité d'Oooscar : l'identifiant de pack/entities/oooscar.json. */
+  readonly oooscarType: string;
+  /** Oooscar apparaît après cette attente, et on réessaie ce nombre de fois : le chunk d'arrivée n'est pas chargé à la seconde où le joueur y arrive. */
+  readonly oooscarSpawnRetrySeconds: number;
+  readonly oooscarSpawnRetries: number;
+  /** Rayon autour de l'arrivée où l'on retire les Oooscar oubliés avant d'en poser un. */
+  readonly oooscarSweepRadius: number;
+  /** Nom du dossier de ticking area : tous les identifiants de zone commencent ainsi, pour les retrouver. */
+  readonly areaPrefix: string;
+}
+
+/** La cinématique d'arrivée (design/composants/Cinematique.md). Les plans et leurs durées sont dans definitions/iles.json. */
+export interface CinematicSettings {
+  /** Intervalle du pas de la cinématique : lecture de l'accroupissement, étapes dues. */
+  readonly tickSeconds: number;
+  /** Durée où il faut rester accroupi pour passer. */
+  readonly skipHoldSeconds: number;
+  /** Un sous-titre reste à l'écran au moins ce temps. */
+  readonly subtitleMinSeconds: number;
+  /** Attente entre le début d'un plan et l'apparition de son sous-titre. */
+  readonly subtitleLeadSeconds: number;
+  /** Le fondu au noir qui cache une coupe : vers le noir, tenu, puis retour. */
+  readonly fadeInSeconds: number;
+  readonly fadeHoldSeconds: number;
+  readonly fadeOutSeconds: number;
+  /** Délai entre la coupe et le début du glissé de la caméra : le temps que la coupe soit prise en compte. */
+  readonly moveLeadSeconds: number;
+  /** Rythme du rappel « reste accroupi pour passer ». */
+  readonly hintRepeatSeconds: number;
 }
 
 export interface Config {
@@ -50,6 +97,8 @@ export interface Config {
   readonly heartbeatIntervalSeconds: number;
   readonly events: EventsSettings;
   readonly ui: UiSettings;
+  readonly world: WorldSettings;
+  readonly cinematic: CinematicSettings;
   readonly logPrefix: string;
 }
 
@@ -77,6 +126,8 @@ export const config: Config = {
   ui: {
     menuItem: "minecraft:compass",
     menuItemDelaySeconds: 2,
+    menuItemWaitStepSeconds: 0.5,
+    menuItemWaitMaxSeconds: 60,
     formBusyRetries: 10,
     formBusyRetrySeconds: 0.5,
     tilesPerScreen: 8,
@@ -87,6 +138,30 @@ export const config: Config = {
       titleChannel: false,
       titleStaySeconds: 4,
     },
+  },
+  world: {
+    syncSeconds: 5,
+    opsPerBatch: 40,
+    batchPauseSeconds: 0.05,
+    buildRetrySeconds: 2,
+    buildRetryMaxSeconds: 30,
+    arrivalWaitSeconds: 30,
+    oooscarType: "silooo:oooscar",
+    oooscarSpawnRetrySeconds: 1,
+    oooscarSpawnRetries: 5,
+    oooscarSweepRadius: 16,
+    areaPrefix: "silooo_ile_",
+  },
+  cinematic: {
+    tickSeconds: 0.05,
+    skipHoldSeconds: 1,
+    subtitleMinSeconds: 3,
+    subtitleLeadSeconds: 0.6,
+    fadeInSeconds: 0.25,
+    fadeHoldSeconds: 0.15,
+    fadeOutSeconds: 0.35,
+    moveLeadSeconds: 0.1,
+    hintRepeatSeconds: 1,
   },
   /** Préfixe des lignes du journal du serveur. */
   logPrefix: "[silooo]",

@@ -223,3 +223,19 @@ export const SILO_TEXTES = {
   encaisser: "Encaisser",
   retour: "Retour",
 } as const;
+
+// ---------------------------------------------------------------- la cinématique d'arrivée
+
+export const CINEMATIQUE_TEXTES = {
+  /** Qui parle, en tête de chaque sous-titre (design/composants/Cinematique.md). */
+  qui: OOOSCAR,
+  /** Une phrase de huit mots au plus par plan, trois secondes à l'écran au moins. Le joueur hérite d'une vieille carrière. */
+  plans: [
+    "Bienvenue chez toi, patron.",
+    "Tu hérites d'une vieille carrière abandonnée.",
+    "Les murs tiennent encore, à peu près.",
+    "Remettons-la en état, je t'accompagne.",
+  ],
+  /** La consigne pour passer, dans la bande du bas. */
+  passer: "Reste accroupi pour passer.",
+} as const;

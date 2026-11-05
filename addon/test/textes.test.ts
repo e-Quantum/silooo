@@ -7,6 +7,7 @@ import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, colored } from "../src/ui/ap
 import {
   BOUSSOLE_TEXTES,
   BULLES,
+  CINEMATIQUE_TEXTES,
   FACTORY_NAMES,
   FICHE_TEXTES,
   HUD_TEXTES,
@@ -149,6 +150,7 @@ const TOUS = [
   ...feuilles(USINES_TEXTES, "USINES_TEXTES"),
   ...feuilles(FICHE_TEXTES, "FICHE_TEXTES"),
   ...feuilles(SILO_TEXTES, "SILO_TEXTES"),
+  ...feuilles(CINEMATIQUE_TEXTES, "CINEMATIQUE_TEXTES"),
   ...toutesLesBulles().map(({ nom, bulle }) => ({ chemin: `bulle ${nom}`, texte: bulle.text })),
 ];
 
@@ -197,6 +199,17 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
     for (const bouton of [SILO_TEXTES.encaisser, ...FICHE_TEXTES.etapes.map((etape) => etape.bouton)]) {
       assert.equal(mots(bouton).length, 1, bouton);
     }
+  });
+
+  it("la cinématique : Oooscar parle, une phrase de huit mots au plus par plan, sur une ligne", () => {
+    assert.equal(CINEMATIQUE_TEXTES.qui, "Oooscar");
+    assert.equal(CINEMATIQUE_TEXTES.plans.length, 4);
+    for (const phrase of CINEMATIQUE_TEXTES.plans) {
+      assert.ok(mots(phrase).length >= 1 && mots(phrase).length <= 8, phrase);
+      assert.doesNotMatch(phrase, /\n/);
+      assert.match(phrase, /[.]$/, "une phrase finit par un point");
+    }
+    assert.ok(mots(CINEMATIQUE_TEXTES.passer).length <= 8);
   });
 
   it("aucun texte ne dépasse deux lignes", () => {
