@@ -3,6 +3,7 @@ package com.silooo.core.session
 import com.silooo.core.api.Balances
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Role
+import com.silooo.core.db.VersionConflict
 import com.silooo.core.db.Xuid
 import com.silooo.core.db.isDuplicateKey
 import com.silooo.core.db.setXuid
@@ -19,7 +20,7 @@ import java.time.ZoneOffset
  * (`SessionSqlTest`), jamais avec un faux.
  *
  * Deux règles de verrou tiennent tout l'ensemble :
- *  - Tout part de la ligne `players` du joueur ([enterPlayer]) : deux appels pour le même XUID se
+ *  - Tout part de la ligne `players` du joueur ([enterPlayer], lecture `FOR UPDATE`) : deux appels pour le même XUID se
  *    suivent, donc un seul crée l'entreprise.
  *  - Les lectures qui suivent n'ouvrent la vue cohérente d'InnoDB (REPEATABLE READ) qu'APRÈS ce verrou ;
  *    ce que l'appel précédent a validé est donc visible.
@@ -27,45 +28,54 @@ import java.time.ZoneOffset
 class JdbcSessionStore : SessionStore {
 
     override fun enterPlayer(connection: Connection, xuid: Xuid, gamertag: String): PlayerEntry {
-        // On tente l'insertion d'abord : sur un joueur neuf elle réussit, sur un joueur connu elle échoue sur la
-        // clé primaire. Si un autre appel du même XUID crée la ligne en même temps, notre INSERT attend sa fin.
-        val created = try {
+        // Lecture verrouillée d'abord : pour un joueur connu, les appels du même XUID font la queue sur le verrou
+        // de la ligne, sans interblocage. (Un INSERT qui échoue sur la clé primaire prendrait un verrou partagé que
+        // deux appels simultanés ne pourraient plus échanger contre un verrou exclusif.)
+        val known = connection
+            .prepareStatement("SELECT tutorial_step, last_seen_at FROM players WHERE xuid = ? FOR UPDATE")
+            .use {
+                it.setXuid(1, xuid)
+                it.executeQuery().use { rows ->
+                    if (rows.next()) rows.getInt("tutorial_step") to rows.instantOrNull("last_seen_at") else null
+                }
+            }
+
+        val entry = if (known == null) {
+            insertPlayer(connection, xuid, gamertag)
+            PlayerEntry(created = true, tutorialStep = 0, previousLastSeenAt = null)
+        } else {
+            connection.prepareStatement("UPDATE players SET gamertag = ?, last_seen_at = UTC_TIMESTAMP(3) WHERE xuid = ?").use {
+                it.setString(1, gamertag)
+                it.setXuid(2, xuid)
+                it.executeUpdate()
+            }
+            PlayerEntry(created = false, tutorialStep = known.first, previousLastSeenAt = known.second)
+        }
+        // À zéro, une seule fois : IGNORE si la ligne existe déjà (le verrou de `players` ci-dessus la protège).
+        connection.prepareStatement("INSERT IGNORE INTO player_balances (xuid) VALUES (?)").use {
+            it.setXuid(1, xuid)
+            it.executeUpdate()
+        }
+        return entry
+    }
+
+    /**
+     * Deux premiers passages du même XUID en même temps se bloquent l'un l'autre sur l'insertion : la base
+     * en annule un (`SQLTransactionRollbackException`), que `SessionService` rejoue, et le rejeu trouve la
+     * ligne. Une clé déjà prise malgré le verrou veut dire qu'un autre appel vient de la créer : même issue.
+     */
+    private fun insertPlayer(connection: Connection, xuid: Xuid, gamertag: String) {
+        try {
             connection.prepareStatement("INSERT INTO players (xuid, floodgate_uuid, gamertag) VALUES (?, ?, ?)").use {
                 it.setXuid(1, xuid)
                 it.setString(2, xuid.floodgateUuid.toString())
                 it.setString(3, gamertag)
                 it.executeUpdate()
             }
-            true
         } catch (e: SQLException) {
-            if (!e.isDuplicateKey()) throw e
-            false
+            if (e.isDuplicateKey()) throw VersionConflict()
+            throw e
         }
-
-        // Lecture verrouillée : elle voit la dernière version validée, et garde la ligne pour nous jusqu'à la fin.
-        val (tutorialStep, lastSeenAt) = connection
-            .prepareStatement("SELECT tutorial_step, last_seen_at FROM players WHERE xuid = ? FOR UPDATE")
-            .use {
-                it.setXuid(1, xuid)
-                it.executeQuery().use { rows ->
-                    check(rows.next()) { "players : ligne introuvable pour $xuid" }
-                    rows.getInt("tutorial_step") to rows.instantOrNull("last_seen_at")
-                }
-            }
-
-        if (!created) {
-            connection.prepareStatement("UPDATE players SET gamertag = ?, last_seen_at = UTC_TIMESTAMP(3) WHERE xuid = ?").use {
-                it.setString(1, gamertag)
-                it.setXuid(2, xuid)
-                it.executeUpdate()
-            }
-        }
-        // À zéro, une seule fois : IGNORE si la ligne existe déjà.
-        connection.prepareStatement("INSERT IGNORE INTO player_balances (xuid) VALUES (?)").use {
-            it.setXuid(1, xuid)
-            it.executeUpdate()
-        }
-        return PlayerEntry(created = created, tutorialStep = tutorialStep, previousLastSeenAt = if (created) null else lastSeenAt)
     }
 
     override fun membershipOf(connection: Connection, xuid: Xuid): Membership? =

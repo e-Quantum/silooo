@@ -10,6 +10,15 @@ import java.sql.Connection
 import java.sql.SQLTransactionRollbackException
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import kotlin.random.Random
+import kotlinx.coroutines.delay
+
+/**
+ * Essais de `join` avant de rendre `CONFLIT_REESSAYER`. Un conflit de version est rare ; ce sont surtout les
+ * premiers passages simultanés (du même joueur, ou de deux joueurs qui prennent la toute première case)
+ * qui se bloquent : la base en annule un, et son rejeu trouve le travail de l'autre déjà validé.
+ */
+internal const val MAX_JOIN_ATTEMPTS = 8
 
 /**
  * `join` et `leave`, sans HTTP : les routes valident l'entrée et répondent, ce service tient la transaction.
@@ -28,10 +37,10 @@ class SessionService(
      * Inscrit le joueur, crée son entreprise au premier passage, encaisse l'absence (via [EconomyFigures])
      * et rend `JoinResponse`. Si le moteur perd contre un autre associé (version de l'entreprise dépassée) ou
      * si la base annule la transaction (blocage), on recommence : tout est relu à neuf. Après
-     * [MAX_ATTEMPTS] essais, le refus `CONFLIT_REESSAYER` remonte (409).
+     * [MAX_JOIN_ATTEMPTS] essais, le refus `CONFLIT_REESSAYER` remonte (409).
      */
     suspend fun join(xuid: Xuid, gamertag: String): JoinResponse {
-        repeat(MAX_ATTEMPTS - 1) {
+        repeat(MAX_JOIN_ATTEMPTS - 1) { attempt ->
             try {
                 return database.transaction { joinIn(it, xuid, gamertag) }
             } catch (_: VersionConflict) {
@@ -39,6 +48,8 @@ class SessionService(
             } catch (_: SQLTransactionRollbackException) {
                 // blocage détecté par la base : elle a annulé notre transaction, on recommence
             }
+            // Une courte pause au hasard, de plus en plus longue : deux appels qui se bloquent ne repartent pas au même instant.
+            delay(Random.nextLong(5L, 20L) * (attempt + 1))
         }
         try {
             return database.transaction { joinIn(it, xuid, gamertag) }
@@ -115,9 +126,4 @@ class SessionService(
     }
 
     private fun isoUtc(instant: Instant): String = DateTimeFormatter.ISO_INSTANT.format(instant)
-
-    private companion object {
-        /** Essais de `join` avant de rendre `CONFLIT_REESSAYER` : un conflit de version est rare, trois essais suffisent. */
-        const val MAX_ATTEMPTS = 3
-    }
 }
