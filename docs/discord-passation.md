@@ -168,8 +168,11 @@ manière de Silooo Atelier, les images en pixel 2D tirées de `design/` sans lis
 - [ ] Un rendu de contrôle SileneMC refait après, signalé à Kr (le PC de Kr : prévenu d'abord, voir « À faire par Kr »)
 - [ ] Oooscar en 3D dans Blockbench (`.bbmodel`, cinq visages, trois animations : se balancer, cligner, toit qui
   glisse), proposé à la direction du jeu pour le pack de ressources (la session ne l'y met pas)
-- [ ] L'avatar d'Oooscar (512 × 512 PNG, et le GIF où il se balance) : brief, contrôle, critique, relecture à froid,
-  envoi à Kr
+- [x] L'avatar d'Oooscar (512 × 512 PNG, et le GIF où il se balance) : brief, contrôle, critique, relecture à froid,
+  envoi à Kr (session bannière, 5 novembre : visage « joie » du resource-pack, **sans les bras** — correction de Kr —,
+  balancement ±8,5° en boucle parfaite de 2 s sur le ciel `#8fb8d6` exact ; relecture à froid passée, échelle du silo
+  cachée ; **validé par Kr le 5 novembre** ; exports PNG + GIF + WebP dans `design/discord/`, sources sur le PC dans
+  `projets/2026-11-05_banniere-silooo/avatar/`)
 - [ ] L'icône du serveur (512 × 512 PNG, et le GIF où le toit glisse et revient en 3 s) : même boucle
 - [ ] Les stickers (cinq humeurs, 320 × 320, 512 Ko au plus, fond transparent)
 - [ ] Les treize emojis du serveur (128 × 128, 256 Ko au plus) : les icônes de `design/` et les cinq têtes d'Oooscar
@@ -807,6 +810,14 @@ AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
 - Le plan de promotion par Hubyy, à travailler avec Kr.
 
 ## Journal
+
+- 5 novembre 2026, 19 h à 21 h (session bannière, PC, projet `2026-11-05_banniere-silooo`, branche
+  `claude/banniere-silooo`). Les 4 masters de la bannière « Le patron » (jour/nuit × avec/sans Silo, 5120×2160) et le
+  recadrage 1600×400 validés par Kr ; Kr arrête là les déclinaisons de bannières (strips, variantes logo : plus tard).
+  Puis l'avatar animé du bot : Oooscar « joie », sans les bras (correction de Kr), balancement ±8,5° en boucle parfaite
+  de 2 s sur le ciel `#8fb8d6` exact, PNG + GIF + WebP 512×512, autocritique 9,3 et relecture à froid passées.
+  **Validé par Kr**, exports dans `design/discord/` avec leur `LISEZ-MOI.md`, poussés sur `claude/banniere-silooo`.
+  Reste de D1 : icône du serveur, stickers, emojis, plaques du Guide, bannières Discord 960×540 et 1920×1080.
 
 - 5 novembre 2026, 15 h 00 à 15 h 31 (session Discord, PC, worktree `silooo-discord`). Lecture de `CLAUDE.md`,
   `docs/README.md`, `docs/passation.md` (phase 5 en cours ; le Discord par webhook y reste une case non cochée, que le
