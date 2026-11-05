@@ -21,10 +21,11 @@ import {
 } from "./monde/bedrock";
 import { createCinematicRunner } from "./monde/cinematique";
 import { createIslandBuilder } from "./monde/constructeur";
-import { ILES } from "./monde/definitions";
+import { ILES, VILLE } from "./monde/definitions";
+import type { Pos, Xz } from "./monde/geometrie";
 import { createOooscarManager } from "./monde/oooscar";
 import { createWorldSync } from "./monde/synchro";
-import { createTravel, type Travel } from "./monde/voyage";
+import { createCityTravel, createTravel, type CityTravel, type Travel } from "./monde/voyage";
 import {
   consoleLogger,
   createRequestIdGenerator,
@@ -41,6 +42,7 @@ import type { Xuid } from "./protocol";
 import { combineHooks, createSessionHandlers, registerSessionEvents, type SessionHooks } from "./session";
 import { createPlayerStore, type PlayerStore } from "./state";
 import { createActions } from "./ui/actions";
+import { createCityEvents } from "./ui/annonces-ville";
 import { registerMenuItem } from "./ui/boussole";
 import { createLinkState, createViewStore, observeApi, type LinkState, type ViewStore } from "./ui/etat";
 import { createFormPresenter } from "./ui/formulaires";
@@ -76,6 +78,12 @@ interface WorldPart {
   readonly busy: (player: Player) => boolean;
   /** Téléporte un joueur sur l'île d'une de ses usines (la carte du menu). Absent quand le monde n'a pas démarré. */
   readonly travel?: Travel<Player>;
+  /** Téléporte un joueur à la mairie de l'île principale (la carte du menu). */
+  readonly travelCity?: CityTravel<Player>;
+  /** Où se tient le joueur (la pose d'un bâtiment lit la parcelle). */
+  readonly where?: (player: Player) => Pos | undefined;
+  /** La dernière origine d'archipel connue d'une entreprise. */
+  readonly originOf?: (companyId: number) => Xz | undefined;
 }
 
 /** Sans partie « monde » : rien n'est occupé, aucun crochet, aucun voyage. */
@@ -152,6 +160,9 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
       },
       busy: arrivals.busy,
       travel: createTravel<Player>({ defs: ILES, builder, world: arrivalWorld, originOf: sync.originOf, log }),
+      travelCity: createCityTravel<Player>({ defs: ILES, ville: VILLE, builder, world: arrivalWorld, originOf: sync.originOf, log }),
+      where: arrivalWorld.locate,
+      originOf: sync.originOf,
     };
   } catch (error) {
     log.error(`monde indisponible : ${describeError(error)}`);
@@ -172,10 +183,13 @@ function startScreens(deps: {
   readonly link: LinkState;
   readonly busy: (player: Player) => boolean;
   readonly travel: Travel<Player> | undefined;
+  readonly travelCity: CityTravel<Player> | undefined;
+  readonly where: ((player: Player) => Pos | undefined) | undefined;
+  readonly originOf: ((companyId: number) => Xz | undefined) | undefined;
   readonly scheduler: Scheduler;
   readonly log: Logger;
 }): void {
-  const { api, views, missions, invitations, store, link, busy, travel, scheduler, log } = deps;
+  const { api, views, missions, invitations, store, link, busy, travel, travelCity, where, originOf, scheduler, log } = deps;
   try {
     const hud = createHud<Player>({
       players: () => world.getAllPlayers(),
@@ -208,6 +222,9 @@ function startScreens(deps: {
           return joined === undefined ? [] : [{ xuid, name: joined.gamertag }];
         }),
       ...(travel === undefined ? {} : { travel }),
+      ...(travelCity === undefined ? {} : { travelCity }),
+      ...(where === undefined ? {} : { where }),
+      ...(originOf === undefined ? {} : { originOf }),
       presenter: createFormPresenter(),
       clock: systemClock,
       wait: (seconds) => pause(scheduler, seconds),
@@ -282,14 +299,17 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    // Les écouteurs : l'annonce d'une mission terminée, les incidents d'usine (ouverts, réparés), l'invitation à une entreprise
-    // et l'annonce d'un changement de parts. Les autres événements du service arrivent plus tard.
+    // Les écouteurs : l'annonce d'une mission terminée, les incidents d'usine (ouverts, réparés), l'invitation à une entreprise,
+    // l'annonce d'un changement de parts et celles de la ville. Les autres événements du service arrivent plus tard.
     const listeners = createEventListeners(log);
     listeners.on("ANNONCE", missions.onAnnonce);
     listeners.on("ANNONCE", invitations.onAnnonce);
     listeners.on("INVITATION", invitations.onInvitation);
     const incidents = createIncidents({ api, views, say: tellPlayer, log });
     listeners.on("INCIDENT", incidents.onIncident);
+    // La ville : zone achetée, bâtiment posé ou amélioré. Les autres ANNONCE sont lues par missions et invitations, qui ignorent celles-ci.
+    const cityEvents = createCityEvents({ api, views, say: tellPlayer, log });
+    listeners.on("ANNONCE", cityEvents.onAnnonce);
     startEventPolling(
       scheduler,
       createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),
@@ -297,7 +317,21 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    startScreens({ api, views, missions, invitations, store, link, busy: worldPart.busy, travel: worldPart.travel, scheduler, log });
+    startScreens({
+      api,
+      views,
+      missions,
+      invitations,
+      store,
+      link,
+      busy: worldPart.busy,
+      travel: worldPart.travel,
+      travelCity: worldPart.travelCity,
+      where: worldPart.where,
+      originOf: worldPart.originOf,
+      scheduler,
+      log,
+    });
 
     log.info(`add-on démarré (serveur ${serverId})`);
   } catch (error) {

@@ -109,7 +109,7 @@ describe("LinkState", () => {
 });
 
 describe("observeApi", () => {
-  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les dix-neuf routes", async () => {
+  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les vingt-deux routes", async () => {
     const answers: ApiResult<unknown>[] = [];
     const result = (): Promise<ApiResult<never>> => {
       const next = answers.shift();
@@ -136,6 +136,9 @@ describe("observeApi", () => {
       invite: result,
       setShares: result,
       acceptInvite: result,
+      buyZone: result,
+      placeBuilding: result,
+      upgradeBuilding: result,
     };
     const link = createLinkState();
     const seen = observeApi(api, link);
@@ -160,6 +163,9 @@ describe("observeApi", () => {
       () => seen.invite(7, action, "2535465000000001"),
       () => seen.setShares(7, action, [{ xuid: XUID, percent: 100 }]),
       () => seen.acceptInvite(8, action),
+      () => seen.buyZone(7, 1, action),
+      () => seen.placeBuilding(7, action, "maison", 128, 128, 0),
+      () => seen.upgradeBuilding(7, 3, action),
     ];
     for (const call of calls) {
       const failed: ApiResult<unknown> = { kind: "network", message: "coupé" };

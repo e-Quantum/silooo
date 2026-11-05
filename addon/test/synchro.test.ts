@@ -7,7 +7,7 @@ import { createIslandBuilder } from "../src/monde/constructeur";
 import { ILES } from "../src/monde/definitions";
 import type { Xz } from "../src/monde/geometrie";
 import { createWorldSync } from "../src/monde/synchro";
-import type { Factory, Xuid } from "../src/protocol";
+import type { CityState, Factory, Xuid } from "../src/protocol";
 import type { CompanyView } from "../src/ui/etat";
 import { balances, companyState, factory, recordingLogger } from "./helpers";
 import { fakeMarks, fakeWorld, virtualTime } from "./monde-helpers";
@@ -30,16 +30,20 @@ function banc(vues: Record<Xuid, CompanyView>, joueurs: Joueur[]) {
   const log = recordingLogger();
   const syncs: Array<{ companyId: number; origin: Xz; ids: string[] }> = [];
   const reaps: Array<ReadonlySet<string>> = [];
+  const cities: Array<{ companyId: number; origin: Xz; city: CityState }> = [];
   const sync = createWorldSync<Joueur>({
     defs: ILES,
     players: () => joueurs,
     xuidOf: (joueur) => joueur.xuid,
     views: { get: (xuid) => vues[xuid] },
-    builder: { sync: (companyId, origin, factories) => (syncs.push({ companyId, origin, ids: factories.map((u) => u.factoryId) }), factories.length) },
+    builder: {
+      sync: (companyId, origin, factories) => (syncs.push({ companyId, origin, ids: factories.map((u) => u.factoryId) }), factories.length),
+      syncCity: (companyId, origin, city) => (cities.push({ companyId, origin, city }), city.buildings.length),
+    },
     oooscar: { reap: (online) => (reaps.push(online), 0) },
     log,
   });
-  return { sync, log, syncs, reaps };
+  return { sync, log, syncs, reaps, cities };
 }
 
 describe("le relevé des îles", () => {
@@ -114,7 +118,7 @@ describe("le relevé des îles", () => {
       players: () => [{ xuid: "a" }],
       xuidOf: (joueur) => joueur.xuid,
       views: { get: () => undefined },
-      builder: { sync: () => 0 },
+      builder: { sync: () => 0, syncCity: () => 0 },
       log,
     });
     assert.doesNotThrow(() => sync.tick());

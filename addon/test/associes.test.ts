@@ -48,13 +48,13 @@ describe("membersOf et la tuile du menu", () => {
     assert.equal(associesDetail(viewOf({ members: [PDG, ADA, { ...ADA, xuid: "9", name: "Bo" }] })), "3 associés");
   });
 
-  it("la tuile du menu est juste avant « Amis », active, avec sa ligne d'info", () => {
+  it("la tuile du menu est juste avant « Ville », active, avec sa ligne d'info", () => {
     const screen = mainScreen(viewOf({ members: [PDG, ADA] }), missionState());
     const noms = screen.spec.buttons.map((texte) => bare(texte));
     const index = noms.findIndex((texte) => texte.includes(MENU_TEXTES.associes));
     assert.ok(index > 0, noms.join("|"));
     assert.ok(noms[index]?.endsWith("2 associés"), noms[index]);
-    assert.ok(noms[index + 1]?.includes("Amis"), "Associés est juste avant Amis");
+    assert.ok(noms[index + 1]?.includes("Ville"), "Associés est juste avant Ville");
     assert.deepEqual(screen.targets[index], { kind: "go", route: { screen: "associes" } });
   });
 });

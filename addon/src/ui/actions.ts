@@ -19,10 +19,13 @@
 // nouvelle entreprise, et la vue du joueur la prend sans comparer les versions (ViewStore.switchCompany). Sur un
 // conflit, il n'y a pas d'état à recharger (celui de l'entreprise du joueur n'y est pour rien) : l'action est
 // rejouée une fois, avec le même `requestId`.
+//
+// La ville : acheter une zone, poser un bâtiment et l'améliorer passent par l'entreprise du joueur comme les autres
+// actions. Les Lingots sont ceux du joueur qui agit : la réponse rend les soldes, la vue les prend.
 
 import type { CoreApi } from "../api";
 import { describeFailure, type ApiResult } from "../http";
-import type { ActionBase, BuyAmount, Candidate, PrestigePreview, ShareInput, Xuid } from "../protocol";
+import type { ActionBase, BuildingRotation, BuyAmount, Candidate, PrestigePreview, ShareInput, Xuid } from "../protocol";
 import { describeError, type Logger } from "../runtime";
 import type { ViewStore, ViewUpdate } from "./etat";
 
@@ -47,6 +50,11 @@ export type ActionOutcome =
   | { readonly kind: "sharesSet" }
   /** L'invitation est acceptée : la vue du joueur est celle de la nouvelle entreprise. */
   | { readonly kind: "joined" }
+  /** La zone est achetée : la vue du joueur a la ville à jour. */
+  | { readonly kind: "zoneBought" }
+  /** Le bâtiment est posé au niveau 1. */
+  | { readonly kind: "buildingPlaced" }
+  | { readonly kind: "buildingUpgraded" }
   | { readonly kind: "refused"; readonly reason: string; readonly missing?: number }
   | { readonly kind: "failed"; readonly failure: "network" | "error" | "unavailable"; readonly reason: string }
   /** Une action du même joueur est encore en cours : celle-ci est ignorée. */
@@ -90,6 +98,12 @@ export interface Actions {
   setShares(xuid: Xuid, shares: readonly ShareInput[]): Promise<ActionOutcome>;
   /** Accepte l'invitation de l'entreprise `companyId`. La vue du joueur devient celle de cette entreprise. */
   acceptInvite(xuid: Xuid, companyId: number): Promise<ActionOutcome>;
+  /** Achète la zone `zoneIndex` de la ville. Le service fixe le prix, juge l'ordre des zones et le niveau de la mairie. */
+  buyZone(xuid: Xuid, zoneIndex: number): Promise<ActionOutcome>;
+  /** Pose un bâtiment sur la parcelle de coin `(x, z)`, en blocs depuis le coin de l'île principale. Le service juge tout le reste. */
+  placeBuilding(xuid: Xuid, buildingType: string, x: number, z: number, rotation: BuildingRotation): Promise<ActionOutcome>;
+  /** Passe un bâtiment au niveau suivant. */
+  upgradeBuilding(xuid: Xuid, buildingId: number): Promise<ActionOutcome>;
   /** Relit l'entreprise du joueur (GET getCompany) : la liste des associés change sans que le joueur n'agisse. */
   refresh(xuid: Xuid): Promise<RefreshOutcome>;
 }
@@ -111,6 +125,9 @@ export interface ActionsDeps {
     | "invite"
     | "setShares"
     | "acceptInvite"
+    | "buyZone"
+    | "placeBuilding"
+    | "upgradeBuilding"
   >;
   readonly views: ViewStore;
   /** Un UUID neuf à chaque appel (runtime.ts, createRequestIdGenerator). */
@@ -296,6 +313,24 @@ export function createActions(deps: ActionsDeps): Actions {
       if (outcome.kind === "joined") await afterJoin(xuid);
       return outcome;
     },
+    buyZone: (xuid, zoneIndex) =>
+      run(xuid, {
+        label: "buyZone",
+        send: (companyId, action) => api.buyZone(companyId, zoneIndex, action),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "zoneBought" } }),
+      }),
+    placeBuilding: (xuid, buildingType, x, z, rotation) =>
+      run(xuid, {
+        label: "placeBuilding",
+        send: (companyId, action) => api.placeBuilding(companyId, action, buildingType, x, z, rotation),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "buildingPlaced" } }),
+      }),
+    upgradeBuilding: (xuid, buildingId) =>
+      run(xuid, {
+        label: "upgradeBuilding",
+        send: (companyId, action) => api.upgradeBuilding(companyId, buildingId, action),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "buildingUpgraded" } }),
+      }),
     refresh: async (xuid) => {
       const view = views.get(xuid);
       if (view === undefined) return { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" };

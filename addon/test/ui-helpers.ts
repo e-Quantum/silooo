@@ -8,6 +8,7 @@ import { provisionalXuid } from "../src/identity";
 import type {
   ActionBase,
   Balances,
+  BuildingRotation,
   BuyAmount,
   Candidate,
   CollectResponse,
@@ -85,6 +86,9 @@ export type Company = Pick<
   | "invite"
   | "setShares"
   | "acceptInvite"
+  | "buyZone"
+  | "placeBuilding"
+  | "upgradeBuilding"
 >;
 
 export type Call =
@@ -101,7 +105,18 @@ export type Call =
   | { readonly op: "fireStaff"; readonly companyId: number; readonly staffId: number; readonly action: ActionBase }
   | { readonly op: "invite"; readonly companyId: number; readonly action: ActionBase; readonly targetXuid: Xuid }
   | { readonly op: "setShares"; readonly companyId: number; readonly action: ActionBase; readonly shares: readonly ShareInput[] }
-  | { readonly op: "acceptInvite"; readonly companyId: number; readonly action: ActionBase };
+  | { readonly op: "acceptInvite"; readonly companyId: number; readonly action: ActionBase }
+  | { readonly op: "buyZone"; readonly companyId: number; readonly zoneIndex: number; readonly action: ActionBase }
+  | {
+      readonly op: "placeBuilding";
+      readonly companyId: number;
+      readonly action: ActionBase;
+      readonly buildingType: string;
+      readonly x: number;
+      readonly z: number;
+      readonly rotation: BuildingRotation;
+    }
+  | { readonly op: "upgradeBuilding"; readonly companyId: number; readonly buildingId: number; readonly action: ActionBase };
 
 export interface Script {
   getCompany?: Array<ApiResult<CompanyState>>;
@@ -118,6 +133,9 @@ export interface Script {
   invite?: Array<ApiResult<CompanyUpdated>>;
   setShares?: Array<ApiResult<CompanyUpdated>>;
   acceptInvite?: Array<ApiResult<CompanyUpdated>>;
+  buyZone?: Array<ApiResult<CompanyUpdated>>;
+  placeBuilding?: Array<ApiResult<CompanyUpdated>>;
+  upgradeBuilding?: Array<ApiResult<CompanyUpdated>>;
 }
 
 export interface FakeCompany extends Company {
@@ -189,6 +207,18 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     acceptInvite(companyId, action) {
       calls.push({ op: "acceptInvite", companyId, action });
       return next("acceptInvite", script.acceptInvite);
+    },
+    buyZone(companyId, zoneIndex, action) {
+      calls.push({ op: "buyZone", companyId, zoneIndex, action });
+      return next("buyZone", script.buyZone);
+    },
+    placeBuilding(companyId, action, buildingType, x, z, rotation) {
+      calls.push({ op: "placeBuilding", companyId, action, buildingType, x, z, rotation });
+      return next("placeBuilding", script.placeBuilding);
+    },
+    upgradeBuilding(companyId, buildingId, action) {
+      calls.push({ op: "upgradeBuilding", companyId, buildingId, action });
+      return next("upgradeBuilding", script.upgradeBuilding);
     },
   };
 }

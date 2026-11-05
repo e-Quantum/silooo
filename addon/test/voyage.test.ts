@@ -59,6 +59,7 @@ function banc(options: BancOptions = {}) {
 
   const world = {
     isOnline: (joueur: Joueur): boolean => joueur.online,
+    locate: (): Pos | undefined => undefined,
     teleport(player: Joueur, at: Pos, facing: Pos): void {
       if (refuse) throw new Error("téléportation refusée");
       teleports.push({ player, at, facing });

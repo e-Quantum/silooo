@@ -2,11 +2,11 @@
 // montré (`Screen`), et les petites pièces qui les fabriquent. Aucun écran ici : menu.ts et personnel.ts les
 // dessinent, createMenu les enchaîne. Ce fichier ne calcule rien et n'importe rien de Bedrock.
 
-import { RESTORE_STEP_MAX, type BuyAmount, type Factory, type Xuid } from "../protocol";
+import { RESTORE_STEP_MAX, type BuildingRotation, type BuyAmount, type Factory, type Xuid } from "../protocol";
 import { COLOR, colored, ICON } from "./apparence";
 import type { ActionFormSpec } from "./formulaires";
 import { formatCount, formatRate } from "./nombres";
-import { incidentTexts, renderBubble, USINES_TEXTES, type Bubble } from "./textes";
+import { incidentTexts, MENU_TEXTES, renderBubble, USINES_TEXTES, type Bubble } from "./textes";
 import type { FactoryStatus } from "./usines";
 
 // ---------------------------------------------------------------- vocabulaire des écrans
@@ -41,7 +41,17 @@ export type Route =
   /** Le choix du joueur à inviter, parmi les joueurs connectés. */
   | { readonly screen: "inviter"; readonly page: number }
   /** Une invitation reçue, avec Accepter et Plus tard. */
-  | { readonly screen: "invitation"; readonly companyId: number };
+  | { readonly screen: "invitation"; readonly companyId: number }
+  /** La ville de l'île principale (ville.ts) : mairie, bonus, prochaine zone. */
+  | { readonly screen: "ville" }
+  /** Les bâtiments de la ville, une page à la fois. */
+  | { readonly screen: "batiments"; readonly page: number }
+  /** La fiche d'un bâtiment ; `page` est celle de la liste d'où l'on vient. */
+  | { readonly screen: "batiment"; readonly buildingId: number; readonly page: number }
+  /** Le choix du bâtiment à poser. */
+  | { readonly screen: "construire" }
+  /** La pose d'un bâtiment sur la parcelle où se tient le joueur, avec la rotation choisie. */
+  | { readonly screen: "poser"; readonly buildingType: string; readonly rotation: BuildingRotation };
 
 /** Ce que fait un bouton. */
 export type Target =
@@ -72,6 +82,14 @@ export type Target =
   | { readonly kind: "parts" }
   /** Accepte l'invitation de l'entreprise `companyId`. */
   | { readonly kind: "accept"; readonly companyId: number }
+  /** L'île principale sur la carte : y téléporte le joueur, devant la mairie. */
+  | { readonly kind: "travelCity" }
+  /** Achète la zone `zoneIndex` de la ville. */
+  | { readonly kind: "buyZone"; readonly zoneIndex: number }
+  /** Passe le bâtiment `buildingId` au niveau suivant. */
+  | { readonly kind: "upgrade"; readonly buildingId: number }
+  /** Pose un bâtiment sur la parcelle où se tient le joueur : la parcelle est lue au moment du clic. */
+  | { readonly kind: "place"; readonly buildingType: string; readonly rotation: BuildingRotation }
   /** Ferme le menu. */
   | { readonly kind: "end" };
 
@@ -88,6 +106,14 @@ export interface Notice {
 }
 
 export const MAIN: Route = { screen: "main" };
+
+/** Une tuile verrouillée : un cadenas, du gris, et un mot (« Bientôt ») ou ce qu'il faut pour l'ouvrir. Elle ne mène nulle part. */
+export function lockedTile(label: string, detail: string = MENU_TEXTES.bientot): Entry {
+  return {
+    text: `${COLOR.locked}${ICON.cadenas} ${label}\n${detail}${COLOR.reset}`,
+    target: { kind: "soon" },
+  };
+}
 
 export function go(route: Route): Target {
   return { kind: "go", route };

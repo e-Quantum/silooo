@@ -94,6 +94,7 @@ function banc() {
     teleportLeve: false as boolean,
     teleports: [] as Array<{ player: Joueur; at: Pos; facing: Pos }>,
     isOnline: (joueur: Joueur): boolean => joueur.online,
+    locate: (): Pos | undefined => undefined,
     teleport(player: Joueur, at: Pos, facing: Pos): void {
       if (monde.teleportLeve) throw new Error("téléportation refusée");
       monde.teleports.push({ player, at, facing });
@@ -407,7 +408,7 @@ describe("une usine de départ sans île dans le fichier", () => {
   it("le dit et ne déplace personne", async () => {
     const temps = virtualTime();
     const log = recordingLogger();
-    const monde: ArrivalWorld<Joueur> = { isOnline: () => true, teleport: () => assert.fail("pas de téléportation") };
+    const monde: ArrivalWorld<Joueur> = { isOnline: () => true, locate: () => undefined, teleport: () => assert.fail("pas de téléportation") };
     const arrivees = createArrivals<Joueur>({
       defs: { ...ILES, apparition: { ...ILES.apparition, usine: "ailleurs" } } as unknown as typeof ILES,
       builder: { sync: () => assert.fail("rien à poser"), whenReady: () => Promise.resolve(true) },

@@ -36,6 +36,7 @@ import {
   refusalBubble,
   SILO_TEXTES,
   USINES_TEXTES,
+  VILLE_TEXTES,
 } from "../src/ui/textes";
 import { balances, companyState, factory, mission, missionState, ok, prestigePreview, recordingLogger } from "./helpers";
 import {
@@ -79,7 +80,7 @@ const titleOf = (spec: { title: string }) => spec.title;
 describe("menu principal", () => {
   const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }), missionState());
 
-  it("huit tuiles : Silo, Usines, Carte, Objectifs, Prestige, Personnel et Associés actifs, Amis verrouillé", () => {
+  it("huit tuiles : Silo, Usines, Carte, Objectifs, Prestige, Personnel et Associés actifs, Ville verrouillée tant que le service ne donne pas de ville", () => {
     assert.equal(screen.spec.title, MENU_TEXTES.titre);
     assert.equal(screen.spec.buttons.length, 8);
     assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
@@ -100,12 +101,12 @@ describe("menu principal", () => {
     assert.match(buttons[1] ?? "", /Usines\n3 usines/);
   });
 
-  it("la tuile verrouillée porte un cadenas et un mot, en gris", () => {
+  it("la tuile verrouillée porte un cadenas et ce qu'il faut pour l'ouvrir, en gris", () => {
     const text = screen.spec.buttons[7] ?? "";
     assert.ok(text.startsWith(COLOR.locked), text);
     assert.ok(bare(text).includes("[X]"));
-    assert.ok(bare(text).endsWith(MENU_TEXTES.bientot));
-    assert.match(bare(text), /Amis/);
+    assert.ok(bare(text).endsWith(VILLE_TEXTES.tuile.verrouillee("2")));
+    assert.match(bare(text), /Ville/);
     for (const index of [0, 1, 2, 3, 4, 5, 6]) {
       assert.ok(!(screen.spec.buttons[index] ?? "").startsWith(COLOR.locked), `tuile ${index}`);
     }
@@ -641,8 +642,8 @@ describe("parcours : Silo et encaissement", () => {
 });
 
 describe("parcours : tuiles verrouillées", () => {
-  it("Amis : le menu reste, Oooscar dit que ce n'est pas encore disponible, aucun appel au service", async () => {
-    const { menu, presenter, api } = setup([press("Amis"), close]);
+  it("Ville sans ville du service : le menu reste, Oooscar dit que ce n'est pas encore disponible, aucun appel au service", async () => {
+    const { menu, presenter, api } = setup([press("Ville"), close]);
     await menu.open(PLAYER);
     assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MENU"]);
     assert.match(bare(presenter.shown[1]?.body ?? ""), /^Oooscar \[oups\] Pas encore disponible\./);
@@ -650,7 +651,7 @@ describe("parcours : tuiles verrouillées", () => {
   });
 
   it("la bulle ne reste qu'un écran", async () => {
-    const { menu, presenter } = setup([press("Amis"), press("Usines"), press("Retour"), close]);
+    const { menu, presenter } = setup([press("Ville"), press("Usines"), press("Retour"), close]);
     await menu.open(PLAYER);
     assert.doesNotMatch(bare(presenter.shown[3]?.body ?? ""), /Oooscar/);
   });
@@ -982,10 +983,10 @@ describe("écran de la carte", () => {
     assert.deepEqual(screen.targets.at(-1), { kind: "go", route: { screen: "main" } });
   });
 
-  it("l'île principale n'est pas construite : cadenas, gris, « Bientôt », et Oooscar dit « Pas encore disponible »", () => {
+  it("sans première zone, l'île principale est fermée : cadenas, gris, ce qu'il faut faire, et Oooscar dit « Pas encore disponible »", () => {
     const text = screen.spec.buttons[0] ?? "";
     assert.ok(text.startsWith(COLOR.locked), text);
-    assert.equal(bare(text), `[X] ${CARTE_TEXTES.ilePrincipale}\n${MENU_TEXTES.bientot}`);
+    assert.equal(bare(text), `[X] ${CARTE_TEXTES.ilePrincipale}\n${CARTE_TEXTES.ilePrincipaleVerrouillee}`);
     assert.deepEqual(screen.targets[0], { kind: "soon" });
   });
 

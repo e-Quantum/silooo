@@ -11,12 +11,13 @@
 // pas (il reste là où l'arrivée l'a posé). Rien ici n'importe @minecraft/* : le monde est un `ArrivalWorld`.
 
 import { config } from "../config";
-import type { IlesDefinitions } from "../generated/definitions";
+import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
 import type { CompanyState } from "../protocol";
 import type { Logger } from "../runtime";
 import { inBuildOrder, type ArrivalWorld } from "./arrivee";
 import type { IslandBuilder } from "./constructeur";
 import { arrivalAt, type Xz } from "./geometrie";
+import { buildingKey, doorArrival, HALL } from "./ville";
 
 /**
  * Ce qui s'est passé :
@@ -71,6 +72,55 @@ export function createTravel<P extends { readonly name: string }>(deps: TravelDe
     }
     world.teleport(player, arrival.position, arrival.facing);
     log.info(`voyage de ${player.name} : sur l'île de ${factoryId}`);
+    return "arrived";
+  };
+}
+
+// ---------------------------------------------------------------- vers la mairie, depuis la carte
+
+export interface CityTravelDeps<P extends { readonly name: string }> {
+  readonly defs: IlesDefinitions;
+  readonly ville: VilleDefinitions;
+  readonly builder: Pick<IslandBuilder, "syncCity" | "whenReady">;
+  readonly world: ArrivalWorld<P>;
+  readonly originOf: (companyId: number) => Xz | undefined;
+  readonly log: Logger;
+  readonly settings?: TravelSettings;
+}
+
+export type CityTravel<P> = (player: P, state: CompanyState) => Promise<TravelOutcome>;
+
+/**
+ * Le voyage vers l'île principale : le joueur arrive devant la porte de la mairie. Comme pour une mini-île, le constructeur
+ * pose d'abord ce que le service dit (la plateforme de la zone de la mairie, puis la mairie), et on attend la mairie.
+ * Sans ville dans l'état, ou sans mairie, il n'y a nulle part où aller.
+ */
+export function createCityTravel<P extends { readonly name: string }>(deps: CityTravelDeps<P>): CityTravel<P> {
+  const { defs, ville, builder, world, originOf, log } = deps;
+  const settings = deps.settings ?? config.world;
+
+  return async (player, state) => {
+    const origin = state.island ?? originOf(state.companyId);
+    if (origin === undefined) {
+      log.info(`voyage de ${player.name} : le service ne donne pas d'origine d'île, nulle part où aller`);
+      return "unavailable";
+    }
+    const city = state.city;
+    const hall = city?.buildings.find((building) => building.buildingType === HALL);
+    if (city === undefined || hall === undefined) {
+      log.info(`voyage de ${player.name} : l'entreprise n'a pas de mairie posée`);
+      return "unavailable";
+    }
+    const arrival = doorArrival(origin, defs, ville, hall);
+    builder.syncCity(state.companyId, origin, city);
+    const ready = await builder.whenReady(state.companyId, buildingKey(hall.buildingId), settings.travelWaitSeconds);
+    if (!world.isOnline(player)) return "gone";
+    if (!ready) {
+      log.warn(`voyage de ${player.name} : la mairie n'est pas prête après ${settings.travelWaitSeconds} s, joueur laissé où il est`);
+      return "waiting";
+    }
+    world.teleport(player, arrival.position, arrival.facing);
+    log.info(`voyage de ${player.name} : à la mairie`);
     return "arrived";
   };
 }

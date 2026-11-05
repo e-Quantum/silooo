@@ -9,6 +9,7 @@ import {
   agencyPath,
   assignStaffBody,
   buyLevelsBody,
+  buyZonePath,
   collectPath,
   companyPath,
   eventsUrl,
@@ -34,6 +35,8 @@ import {
   parseMissionState,
   parsePrestigePreview,
   PATHS,
+  placeBuildingBody,
+  placeBuildingPath,
   prestigePath,
   prestigePreviewPath,
   resolveIncidentPath,
@@ -41,7 +44,9 @@ import {
   restoreStepBody,
   setSharesBody,
   staffPath,
+  upgradeBuildingPath,
   type ActionBase,
+  type BuildingRotation,
   type BuyAmount,
   type Candidate,
   type CollectResponse,
@@ -98,6 +103,12 @@ export interface CoreApi {
   setShares(companyId: number, action: ActionBase, shares: readonly ShareInput[]): Promise<ApiResult<CompanyUpdated>>;
   /** POST /v1/companies/{companyId}/members/accept (acceptInvite), 200 CompanyUpdated de l'entreprise rejointe, ou 409 Refused. `companyId` est celle qui a invité. */
   acceptInvite(companyId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
+  /** POST /v1/companies/{companyId}/city/zones/{zoneIndex} (buyZone), 200 CompanyUpdated ou 409 Refused. Les zones s'achètent dans l'ordre, de 1 à 16. */
+  buyZone(companyId: number, zoneIndex: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
+  /** POST /v1/companies/{companyId}/city/buildings (placeBuilding), 200 CompanyUpdated ou 409 Refused. `x` et `z` sont le coin de la parcelle, en blocs depuis le coin de l'île principale. */
+  placeBuilding(companyId: number, action: ActionBase, buildingType: string, x: number, z: number, rotation: BuildingRotation): Promise<ApiResult<CompanyUpdated>>;
+  /** POST /v1/companies/{companyId}/city/buildings/{buildingId} (upgradeBuilding), 200 CompanyUpdated ou 409 Refused. */
+  upgradeBuilding(companyId: number, buildingId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -224,6 +235,28 @@ export function createCoreApi(client: CoreClient): CoreApi {
     },
     async acceptInvite(companyId, action) {
       const target = pathOrError(() => acceptInvitePath(companyId));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
+    },
+    async buyZone(companyId, zoneIndex, action) {
+      const target = pathOrError(() => buyZonePath(companyId, zoneIndex));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
+    },
+    async placeBuilding(companyId, action, buildingType, x, z, rotation) {
+      const target = pathOrError(() => placeBuildingPath(companyId));
+      if ("failure" in target) return target.failure;
+      // Un type, une parcelle ou une rotation que le contrat refuserait n'envoie rien.
+      let body: ReturnType<typeof placeBuildingBody>;
+      try {
+        body = placeBuildingBody(action, buildingType, x, z, rotation);
+      } catch (error) {
+        return invalidArgument(describeError(error));
+      }
+      return readBody(await client.post(target.path, body), parseCompanyUpdated);
+    },
+    async upgradeBuilding(companyId, buildingId, action) {
+      const target = pathOrError(() => upgradeBuildingPath(companyId, buildingId));
       if ("failure" in target) return target.failure;
       return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
     },
