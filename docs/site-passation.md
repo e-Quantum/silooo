@@ -19,10 +19,12 @@ lit « Pour la direction du jeu », la direction du Discord lit « Pour la direc
   (fusionnées sur `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-admin`.
 - **Kr** : une question encore ouverte dans la révision (T2) ; T1 et T3 ont été appliquées par leur recommandation
   (décisions 15 et 19), Kr peut les retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
-- **Le déploiement** : Kr a dit en séance, le 5 novembre 2026, de déployer le site sur le VPS sous `silooo.com` quand il
-  sera prêt. La direction du site s'en chargera à la fin de la révision (le seul projet Docker « silooo », en mode
-  `attente`, après un verifier vert) et écrira ici l'enregistrement DNS à poser et le bloc Caddy à coller : le compte OVH
-  et le Caddy de SileneMC restent à Kr.
+- **Le déploiement** : fait le 5 novembre 2026 à 21 h 46, à la demande de Kr en séance (« poste le site web dans l'état,
+  le reste attendra »). Le projet Docker « silooo » tourne sur le VPS au tag `bbfb4b5` (le `main` de la fusion de
+  `claude/site-comptes`), en mode `attente`, schéma V11 ; `deploy/scripts/deploy.sh` a sauvegardé, migré, démarré et
+  passé le test de fumée. Le réseau Docker de SileneMC s'appelle `bw_internal` (pas `silenemc_default`) : le script se
+  lance avec `SILENEMC_NETWORK=bw_internal`. Le site répond en https sur `https://silooo.com/` : Kr a posé le DNS et le
+  bloc Caddy (`reverse_proxy silooo-silooo-core-1:8081`). L'admin et les branches suivantes attendent.
 
 ## Les écarts à corriger
 
@@ -662,3 +664,11 @@ plus. Ce qui les remplace, tout à valider :
   tailles ; à 1 280 px la bulle d'Oooscar passait sur le dernier bloc, corrigé par une marge). `tools/verifier.sh` vert,
   rebase sur `origin/main` (le Discord D2 avait avancé), fusion sur `main`. Kr a demandé en séance de déployer sous
   `silooo.com` quand ce sera prêt (État). Suite : `claude/site-admin`.
+
+- **5 novembre 2026, 20 h 42 à 21 h 46 (déploiement).** CI verte sur `claude/site-comptes`, deux rebases sur `origin/main`
+  (commits Discord, rien dans `core/`), `tools/verifier.sh` vert, fusion sur `main` à `bbfb4b5`, CI de `main` verte et
+  images publiées. Kr, à 1 % de sa limite d'usage, a demandé de poster le site dans l'état. Déploiement sur le VPS :
+  `deploy/` copié, `docker login ghcr.io` avec le jeton posé par Kr, trois arrêts avant tout changement (une ligne sans
+  nom de variable dans le fichier d'environnement, `localhost` comme hôte de la base, un nom de compte d'exemple), corrigés
+  par Kr sans que la session lise le fichier ; puis sauvegarde, migration (schéma déjà à V11), démarrage, test de fumée
+  réussi. `https://silooo.com/` répond en mode attente. Suite : `claude/site-admin`.
