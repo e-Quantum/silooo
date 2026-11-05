@@ -31,7 +31,8 @@ ou que Kr fera le relevé depuis son PC.
 | Boutique (`contenu/boutique.md`, `pages/Boutique.kt`) | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
 | Vote (`contenu/vote.md`, `pages/Vote.kt`) | Les sites de vote et Hubyy, la récompense par vote, la jauge de la Vote party | « Votes » |
 | Mises à jour (`contenu/mises-a-jour.md`, entrées dans `contenu/mises-a-jour/`, `pages/MisesAJour.kt`) | Une entrée datée par tag déployé, écrite pour les joueurs | Référence Rinaorc, ADR 0006 |
-| Mentions | « NOT AN OFFICIAL MINECRAFT SERVICE », mentions légales, conditions de vente, protection des mineurs ; le site n'a ni traceur ni cookie | Obligations |
+| Pionniers (`contenu/pionniers.md`, `site/PioneerRoutes.kt`, `pages/Pionniers.kt`) | L'inscription avant l'ouverture avec le gamertag, le nombre de pionniers, l'état de l'inscription, « Relier Discord » ; rendue en `attente` comme en `ouvert` | Décision 37, ADR 0006 |
+| Mentions | « NOT AN OFFICIAL MINECRAFT SERVICE », mentions légales, conditions de vente, protection des mineurs ; le site n'a ni traceur, et un seul cookie de session après une inscription | Obligations |
 
 Aucune liaison de compte (Discord, site) n'est obligatoire pour jouer. Le site est en français
 seulement, comme la marque.
@@ -49,8 +50,8 @@ seulement, comme la marque.
   [design/tokens.css](../design/tokens.css)), adapté au web par l'étape S1 ; ce que le web ajoute s'écrit dans
   la section « Comment le site se construit » ci-dessous, à confirmer par Kr.
 - Aucun hôte tiers : les polices sont servies par le site lui-même (fichiers des paquets Fontsource, licence
-  OFL, commis avec leur licence), pas de script de mesure, pas de cookie. Le site n'a rien à déclarer dans un
-  bandeau.
+  OFL, commis avec leur licence), pas de script de mesure. Le seul cookie est un cookie de session, posé après une inscription de pionnier, pour retrouver
+  l'inscription : signé, d'une heure, nécessaire au service, donc sans bandeau (les mentions le disent).
 
 ## La référence : skyblock.rinaorc.com
 
@@ -210,6 +211,26 @@ Section tenue par la direction du site, étape par étape ([site-passation.md](s
     heures, h, €, joueurs ou associés. Une règle dont le chiffre n'est pas lisible dans les définitions s'écrit en mots.
   - Les textes sont **à valider par Kr**. Le nom de la troisième rareté n'est pas écrit : le tableau affiche l'identifiant
     des définitions en minuscules.
+
+- S4 : les pionniers, Relier Discord, l'admission. Tout est **à valider par Kr** (dessin de la direction du site, textes compris).
+  - **La table** `site_registrations` (migration V7) : le gamertag en minuscules (espaces réduits à un seul) en clé, le gamertag tel
+    qu'écrit, l'identifiant Discord facultatif (jamais affiché), `pioneer`, `created_at`, `linked_at`, `admitted_at`. Le site n'écrit
+    que cette table. `admitted_at` non nul veut dire admis ; le jeu le lira dans `join` (la route est à la direction du jeu).
+  - **Les pages**, rendues en `attente` comme en `ouvert` : `/pionniers/` (texte, nombre de pionniers lu avec un cache d'une minute,
+    formulaire HTML sans script : gamertag, case « J'ai lu les règles », jeton caché signé valable dix minutes, un seul bouton rouge),
+    `POST /pionniers/` (valide, inscrit, pose le cookie de session, 303 vers `/pionniers/etat/`), `/pionniers/etat/` (Inscrit, Compte
+    Discord relié, Admis), `/pionniers/discord/` et `/pionniers/discord/retour/` (OAuth2, portée `identify` seule, `state` dans le
+    cookie signé). Sans application Discord (variables absentes), ces deux dernières n'existent pas et l'état dit « Relier ton compte
+    Discord arrive. ».
+  - **L'admission** (`SILOOO_SITE_ADMISSION`) : `discord` (par défaut), admis quand le compte Discord est relié ; `tous`, admis dès
+    l'inscription, pour l'ouverture. Kr peut admettre à la main (requête dans `core/README.md`). Une seule fonction,
+    `SiteAdmission.admitsAt`.
+  - **Le cookie** `silooo_pionnier` : `HttpOnly`, `SameSite=Lax`, `Secure` si `SILOOO_SITE_URL` est en https, une heure, limité au
+    chemin `/pionniers/`. Signé par un secret tiré au démarrage : un redémarrage invalide les cookies et les jetons.
+  - **La limite de débit** : cinq `POST` par minute et par adresse, en mémoire et bornée, 429 au-delà. L'adresse est celle vue par
+    silooo-core, ou le dernier maillon de `X-Forwarded-For` quand `SILOOO_SITE_TRUSTED_PROXY=true`.
+  - **Aucune donnée personnelle affichée** : l'identifiant Discord n'entre dans aucune page, aucun journal, aucun message d'erreur
+    (un test le cherche dans toutes les pages d'un parcours complet).
 
 ## Ce qui est tranché, provisoirement
 

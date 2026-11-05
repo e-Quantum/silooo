@@ -1,6 +1,6 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 14 h 50, S3 fusionnée (direction du site, cloud).
+Dernière mise à jour : 5 novembre 2026, 15 h 20, S4 fusionnée (direction du site, cloud).
 
 Ce fichier est tenu par la session de direction du site ([site-direction.md](site-direction.md)). Il ne remplace pas
 [passation.md](passation.md), qui reste à la direction du jeu : ici, seulement le site `silooo.com`, décrit dans
@@ -8,6 +8,11 @@ Ce fichier est tenu par la session de direction du site ([site-direction.md](sit
 
 ## État
 
+- **S4 est sur `main`** : la migration V7 (`site_registrations`), la page `/pionniers/` dans les deux modes
+  (inscription par gamertag, jeton de formulaire signé, cookie de session signé d'une heure, limite de débit,
+  compteur des inscrits), « Relier Discord » par OAuth2 (`identify`) seulement si Kr pose l'application, la règle
+  d'admission `SILOOO_SITE_ADMISSION` (`discord` par défaut, `tous` pour l'ouverture), les mentions qui disent le
+  cookie et les données gardées ; tests Ktor avec un faux fournisseur, tests SQL Testcontainers (CI).
 - **S3 est sur `main`** : le wiki, treize pages sous `/wiki/` en mode `ouvert` (index, première heure, usines, Silo et
   hors ligne, personnel, monnaies, prestige, incidents et électricité, commande du jour et Carnet, entreprise
   partagée, ville, mots du jeu, règles à écrire par Kr), les tableaux et les chiffres rendus depuis les définitions
@@ -165,21 +170,21 @@ les non-admis dans `join` ; migration prise à la fusion ; `tools/verifier.sh` v
 **à valider par Kr** : il reconstruit ce que la décision 37 et le journal du jeu laissent voir (« Pionnier », « Relier
 Discord », « refus des non-admis »), faute des fichiers de Kr.
 
-- [ ] Migration (numéro pris à la fusion ; V6 est prise par la ville depuis le 5 novembre à 13 h, V7 attendue) : table `site_registrations` (gamertag en minuscules en clé,
+- [x] Migration (numéro pris à la fusion ; V6 est prise par la ville depuis le 5 novembre à 13 h, V7 attendue) : table `site_registrations` (gamertag en minuscules en clé,
   gamertag tel que saisi, identifiant Discord facultatif jamais affiché, `created_at`, `admitted_at` facultatif,
   `pioneer` booléen), index sur `admitted_at` ; `docs/base-de-donnees.md` n'est pas touché par la direction du site :
   la table est décrite dans `core/README.md` et demandée dans « Pour la direction du jeu »
-- [ ] Page `/pionniers/` : un formulaire (gamertag, case à cocher des règles), limite de débit simple par adresse,
+- [x] Page `/pionniers/` : un formulaire (gamertag, case à cocher des règles), limite de débit simple par adresse,
   pas de courriel ; un gamertag déjà inscrit rend la même page avec son état ; le compteur des pionniers inscrits ;
   textes **à valider par Kr**
-- [ ] « Relier Discord » : OAuth2 de Discord (identité seule), activé seulement si `SILOOO_DISCORD_CLIENT_ID`,
+- [x] « Relier Discord » : OAuth2 de Discord (identité seule), activé seulement si `SILOOO_DISCORD_CLIENT_ID`,
   `SILOOO_DISCORD_CLIENT_SECRET` et `SILOOO_SITE_URL` sont posés, sinon la page explique que ce n'est pas encore
   ouvert ; l'identifiant Discord se range dans `site_registrations`, jamais affiché ; état et jeton CSRF en cookie de
   session signé, de courte durée, seul cookie du site (les mentions le disent) ; faux fournisseur dans les tests
-- [ ] L'admission : `admitted_at` posé par une règle lisible dans `core/README.md` (par exemple : inscrit et relié,
+- [x] L'admission : `admitted_at` posé par une règle lisible dans `core/README.md` (par exemple : inscrit et relié,
   ou admis à la main par Kr avec une commande ou une requête documentée) ; le site n'écrit rien d'autre ; la
   direction du jeu lit `site_registrations.admitted_at` par le gamertag pour refuser dans `join` (contrat d'abord)
-- [ ] La récompense du pionnier (titre et objet) reste au jeu : le site ne touche pas `player_cosmetics` ; la ligne
+- [x] La récompense du pionnier (titre et objet) reste au jeu : le site ne touche pas `player_cosmetics` ; la ligne
   `pioneer` suffit au jeu pour la créditer plus tard (demandé dans « Pour la direction du jeu »)
 
 ### S5 : les données vivantes et la mise en ligne
@@ -221,10 +226,15 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    de `docs/deploiement.md` sont à vous : merci d'y ajouter ces lignes (S0 est sur `main` : les quatre premières
    sont lues par `Config.kt`), avec l'avertissement « jamais `ouvert` par une session », puis de retirer leurs noms
    de la liste `reglees` de `tools/tests/deploy-compose.mjs`, où S0 les a exemptés faute de pouvoir toucher `deploy/`.
-4. **L'admission (S4).** La table proposée est `site_registrations` (gamertag en minuscules en clé, `admitted_at`
+4. **L'admission (S4, sur `main`).** La table est `site_registrations` (migration V7) (gamertag en minuscules en clé, `admitted_at`
    facultatif, `pioneer` booléen) : « admis » veut dire `admitted_at IS NOT NULL` pour `LOWER(players.gamertag)`.
-   `join` reçoit le gamertag : pas besoin de l'empreinte. Le numéro de migration se prend à la fusion de S4 (V7 si
-   personne ne l'a pris : la ville a pris V6). Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
+   `join` reçoit le gamertag : pas besoin de l'empreinte. La clé se calcule par `SiteRegistrations.key(gamertag)`
+   (`core/src/main/kotlin/com/silooo/core/registration/`) : espaces des bords retirés, espaces réduits à un seul,
+   minuscules ; la requête est dans `core/README.md`, « Le site ». Un code `Refused` nommé (par exemple `PAS_ADMIS`)
+   est à déclarer dans `api/` par vous, puis la route. Réserve connue : le site ne prouve pas qu'un visiteur possède le
+   gamertag qu'il inscrit (pas de courriel, pas de connexion Xbox) ; quelqu'un peut inscrire le gamertag d'un autre et
+   y relier son Discord. Si l'admission doit être sûre, il faut une preuve côté jeu (un code montré en jeu, saisi sur
+   le site) : c'est un choix de Kr, noté dans « À faire par Kr ». Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
 5. **Rien à vous demander pour S0 à S3** : contenus, style et wiki ne touchent ni `api/`, ni `addon/`, ni `deploy/`.
 7. **Un nom affiché pour les raretés du personnel.** `definitions/personnel.json` et le code n'ont que les
    identifiants `COMMUN`, `RARE`, `EPIQUE` ; le wiki affiche donc les identifiants en minuscules, dont le troisième
@@ -244,7 +254,9 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
   `docs/references/site/`) : la direction du site du cloud a écrit les siens sans les lire et se réalignera
 - [ ] Relire l'[ADR 0006](adr/0006-site-silooo-com.md) (statut « Proposée ») : le site dans silooo-core, sur son propre
   port, deux modes, rendu Kotlin, ce que le site écrit
-- [ ] Relire le dessin de S4 (pionniers, Relier Discord, admission) avant que la session de travail le commence
+- [ ] Relire le dessin de S4 (pionniers, Relier Discord, admission), maintenant sur `main` : en particulier, décider si
+  l'inscription doit prouver la possession du gamertag (un code montré en jeu, saisi sur le site), et la règle
+  d'admission (`SILOOO_SITE_ADMISSION` : `discord` ou `tous`)
 - [ ] Le DNS de `silooo.com` (et `www`) vers l'IP du VPS, quand le site sera déployé
 - [ ] Le bloc `silooo.com` dans le Caddy de SileneMC (`/var/www/minecraft`, qu'aucune session Silooo ne touche) :
   mandat vers `silooo-core:8081` sur le réseau `silenemc`, TLS automatique
@@ -300,6 +312,18 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    les raretés s'affichent par leur identifiant faute de nom. À la fusion, la direction a corrigé deux phrases : le
    nom de l'entreprise n'est pas encore choisi par le joueur (« arrive plus tard »), et la remise en état n'est
    gratuite que « pour l'instant » (le coût attend Kr, `passation.md`).
+10. **S4, tranché par la session et gardé à la fusion** : le cookie et le jeton de formulaire sont signés en HMAC-SHA256
+    avec un secret tiré au démarrage (un redémarrage les invalide, c'est voulu), la charge porte une lettre qui dit
+    son rôle ; l'état OAuth2 vit dans le cookie et sert une fois ; le compteur des inscrits est mis en cache une
+    minute ; la limite de débit est de cinq essais par minute et par adresse, table bornée ; un gamertag déjà inscrit
+    rend la page d'état sans cookie si un compte Discord y est déjà relié ; aucun identifiant Discord ne sort dans une
+    page ni un journal, les erreurs du fournisseur ne gardent que leur sorte. La direction a relu le signataire, les
+    routes, le fournisseur Discord et le SQL. Réserve de conception (voir « Pour la direction du jeu », point 4) :
+    l'inscription ne prouve pas la possession du gamertag. Points que la session a elle-même relevés, à revoir avec Kr :
+    `pioneer` est toujours vrai, même après l'ouverture (à lier au mode à l'ouverture) ; le jeton du formulaire se
+    rejoue (sans effet : l'inscription est idempotente) ; un espace au bord du gamertag est refusé plutôt que retiré ;
+    les styles du formulaire (champ, case, erreur) sont écrits dans `atelier.css` sans texture de `design/`, à
+    dessiner dans la charte avant de les réutiliser ; le retour Discord n'a pas de limite de débit.
 
 ## À valider par Kr
 
@@ -356,6 +380,14 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   `pages/WikiBlocs.kt` (légendes, en-têtes de colonnes, phrases des blocs : « L'agence propose N candidats par
   jour », « Le plafond de départ est de N heures », « Une entreprise compte N membres au plus », « Le courant est
   demandé à partir de l'époque N. Il vient de la Centrale. ») ; `regles.md` est **à écrire par Kr**.
+- S4, `contenu/pionniers.md` (« Tu t'inscris avant l'ouverture. Tu entres parmi les premiers. », « Ton gamertag
+  suffit : pas de courriel, pas de mot de passe. »), `contenu/mentions.md` section « Données » (le cookie de session,
+  les données gardées, l'effacement par le contact), et tous les libellés de `pages/Pionniers.kt` (formulaire,
+  « M'inscrire », « J'ai lu les règles », les refus du gamertag, « Tu es déjà inscrit. », « Inscrit. », « Compte Discord
+  relié. », « Admis : tu peux entrer dès l'ouverture. », « Relier Discord », « Relier ton compte Discord arrive. »,
+  « Trop d'essais. Réessaie dans une minute. », « Ce compte Discord est déjà relié à un autre joueur. », « N pionniers
+  inscrits »), plus « Pionniers » dans la navigation. Le dessin entier de S4 (gamertag seul, admission par Discord)
+  est **à valider par Kr**.
 
 ## Journal
 
@@ -409,3 +441,15 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   rendus (aucun chiffre hors des définitions), la capture de la page des usines à 360 px (tableau en fiches). Deux
   phrases corrigées à la fusion (décision 9). Deux points ouverts remontés au jeu (noms des raretés, agence payante
   ou non). Suite : S4.
+- 5 novembre 2026, 14 h 50 à 15 h 20 (direction du site, cloud). `main` poussé avec S3 (`ba9cd57`). Session S4
+  (Sonnet, worktree, partie de `main`) lancée à 14 h 55, revenue à 15 h 10 avec trois commits. Relu en entier :
+  la migration V7, `SiteRegistrations` (clé, contrôle du gamertag, règle d'admission), `SiteSigner` (HMAC, rôles,
+  durées, comparaison en temps constant), `RateLimiter`, `PioneerRoutes` (les cinq routes, le cookie, l'état
+  OAuth2, les refus), `HttpDiscordIdentity` (échange du code, lecture de l'identifiant, rien de sensible dans les
+  erreurs), le SQL du store (INSERT simple, doublon par la clé, UPDATE conditionnel), les deux contenus. Réserve de
+  conception notée pour Kr et pour le jeu : la possession du gamertag n'est pas prouvée. Fusionnée. Suite : S5.
+- 5 novembre 2026, 15 h 20 à 15 h 40 (direction du site, cloud). `main` avait avancé de quatre commits (Gemmes et
+  grades du jeu, décision 40, votes lancés) : fusionné dans la branche de la direction, deux conflits de lignes
+  ajoutées des deux côtés (`Main.kt` : imports ; `Config.kt` : le `toString`), résolus en gardant les deux ;
+  `tools/verifier.sh` vert sur l'arbre fusionné (1316 tests Gradle dont les SQL ignorés). Points « à revoir » de la
+  session S4 consignés (décision 10). `main` poussé. Suite : S5.

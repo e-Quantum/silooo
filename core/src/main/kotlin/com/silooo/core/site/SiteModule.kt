@@ -17,6 +17,9 @@ import io.ktor.server.request.httpMethod
 import io.ktor.server.request.uri
 import io.ktor.server.routing.routing
 
+/** La page des règles du wiki, que la case des pionniers cite quand elle existe. */
+private const val RULES_URL = "/wiki/regles/"
+
 /** Le préfixe des fichiers statiques : le seul endroit où une réponse peut se garder en cache. */
 internal const val PUBLIC_PREFIX = "/public/"
 
@@ -80,5 +83,12 @@ fun Application.siteModule(
         }
     }
 
-    routing { siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") }) }
+    routing {
+        siteRoutes(pages, shell, updates, pages.filter { it.name.startsWith("wiki/") })
+        // Les pionniers : en mode ouvert la case des règles mène au wiki, en attente aux mentions (le wiki n'y existe pas).
+        pages.firstOrNull { it.name == PIONEERS_PAGE }?.let { page ->
+            val rules = if (pages.any { it.url == RULES_URL }) RULES_URL else "/mentions/"
+            pioneerRoutes(dependencies, shell, page, rules)
+        }
+    }
 }

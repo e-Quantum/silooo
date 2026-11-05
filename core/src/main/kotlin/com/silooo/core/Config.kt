@@ -1,6 +1,8 @@
 package com.silooo.core
 
 import com.silooo.core.definitions.DefinitionsLoader
+import com.silooo.core.registration.DiscordConfig
+import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 import com.silooo.core.site.VoteSite
@@ -43,10 +45,17 @@ data class ServiceConfig(
     val discordUrl: String? = null,
     /** L'adresse et le port du jeu, la boutique et les sites de vote que les pages affichent (`SILOOO_SITE_ADRESSE_JEU` et suivantes). */
     val siteSettings: SiteSettings = SiteSettings(),
+    /** La règle d'admission des inscrits (`SILOOO_SITE_ADMISSION`). */
+    val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
+    /** L'application Discord de « Relier Discord » ; `null` tant que Kr ne l'a pas créée. */
+    val discord: DiscordConfig? = null,
+    /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For`. */
+    val siteTrustedProxy: Boolean = false,
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
-            "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings)"
+            "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
+            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy)"
 }
 
 /**
@@ -69,6 +78,10 @@ object Config {
     const val SITE_GAME_PORT = "SILOOO_SITE_PORT_JEU"
     const val SITE_SHOP_URL = "SILOOO_SITE_URL_BOUTIQUE"
     const val SITE_VOTE_SITES = "SILOOO_SITE_SITES_DE_VOTE"
+    const val SITE_ADMISSION = "SILOOO_SITE_ADMISSION"
+    const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
+    const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
+    const val SITE_TRUSTED_PROXY = "SILOOO_SITE_TRUSTED_PROXY"
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -148,12 +161,16 @@ object Config {
         val siteUrl = reader.siteUrl(SITE_URL, DEFAULT_SITE_URL)
         val discordUrl = reader.siteUrl(SITE_URL_DISCORD, null)
         val siteSettings = reader.siteSettings()
+        val siteAdmission = reader.siteAdmission()
+        val discord = reader.discord()
+        val trustedProxy = reader.trustedProxy()
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
             deliveryPoll = checkNotNull(deliveryPoll),
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
             siteSettings = checkNotNull(siteSettings),
+            siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
         )
     }
 
@@ -318,6 +335,42 @@ object Config {
                 }
             }
             return sites
+        }
+
+        /** `discord` quand la variable n'est pas posée ; toute valeur inconnue arrête le démarrage. */
+        fun siteAdmission(): SiteAdmission? {
+            val raw = env[SITE_ADMISSION]
+            if (raw.isNullOrBlank()) return SiteAdmission.DISCORD
+            val rule = SiteAdmission.parse(raw)
+            if (rule == null) {
+                problems += "$SITE_ADMISSION doit valoir ${SiteAdmission.entries.joinToString(" ou ") { it.word }}"
+            }
+            return rule
+        }
+
+        /** Les deux variables de l'application Discord, ou aucune : une seule des deux est une erreur. */
+        fun discord(): DiscordConfig? {
+            val id = env[DISCORD_CLIENT_ID]?.trim()?.takeIf { it.isNotEmpty() }
+            val secret = env[DISCORD_CLIENT_SECRET]?.trim()?.takeIf { it.isNotEmpty() }
+            if (id == null && secret == null) return null
+            if (id == null || secret == null) {
+                problems += "$DISCORD_CLIENT_ID et $DISCORD_CLIENT_SECRET vont ensemble : pose les deux, ou aucune"
+                return null
+            }
+            return DiscordConfig(id, secret)
+        }
+
+        /** `false` quand la variable n'est pas posée ; seuls `true` et `false` sont acceptés. */
+        fun trustedProxy(): Boolean? {
+            val raw = env[SITE_TRUSTED_PROXY]?.trim()?.lowercase()
+            return when (raw) {
+                null, "", "false" -> false
+                "true" -> true
+                else -> {
+                    problems += "$SITE_TRUSTED_PROXY doit valoir true ou false"
+                    null
+                }
+            }
         }
 
         fun finish() {

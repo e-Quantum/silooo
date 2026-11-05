@@ -60,6 +60,10 @@ import com.silooo.core.session.SessionStore
 import com.silooo.core.session.sessionRoutes
 import com.silooo.core.staff.JdbcStaffStore
 import com.silooo.core.staff.StaffStore
+import com.silooo.core.registration.DiscordIdentity
+import com.silooo.core.registration.JdbcSiteRegistrationStore
+import com.silooo.core.registration.SiteAdmission
+import com.silooo.core.registration.SiteRegistrationStore
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 import com.silooo.core.staff.staffRoutes
@@ -75,6 +79,7 @@ import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import java.time.Clock
+import java.security.SecureRandom
 import java.time.Duration
 
 /**
@@ -146,6 +151,16 @@ class Dependencies(
     val discordUrl: String? = null,
     /** Ce que les pages du site affichent du jeu : adresse, port, boutique, sites de vote. */
     val siteSettings: SiteSettings = SiteSettings(),
+    /** Les accès SQL des inscriptions du site (`site_registrations`) : la seule table où le site écrit. */
+    val siteRegistrationStore: SiteRegistrationStore = JdbcSiteRegistrationStore(),
+    /** La règle d'admission des inscrits (`SILOOO_SITE_ADMISSION`). */
+    val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
+    /** Le fournisseur de « Relier Discord » ; `null` : l'application Discord n'est pas configurée, le bouton n'est pas proposé. */
+    val discordIdentity: DiscordIdentity? = null,
+    /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose). */
+    val siteTrustedProxy: Boolean = false,
+    /** Signe les cookies et les jetons du site. Tiré au démarrage : il change à chaque redémarrage, une inscription en cours recommence. */
+    val siteSessionSecret: ByteArray = ByteArray(32).also { SecureRandom().nextBytes(it) },
 )
 
 /**

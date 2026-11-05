@@ -61,14 +61,14 @@ class SiteStyleTest {
     }
 
     @Test
-    @DisplayName("Navigation : en attente seulement Mentions, en ouvert les pages rendues")
+    @DisplayName("Navigation : en attente Pionniers puis Mentions, en ouvert les pages rendues")
     fun navigationByMode() {
         withSite(SiteMode.ATTENTE) { client ->
-            for (path in listOf("/", "/mentions/", "/wiki/")) assertEquals(listOf("Mentions"), navLabels(client.get(path).bodyAsText()), path)
+            for (path in listOf("/", "/mentions/", "/wiki/")) assertEquals(listOf("Pionniers", "Mentions"), navLabels(client.get(path).bodyAsText()), path)
         }
         withSite(SiteMode.OUVERT) { client ->
             val html = client.get("/mentions/").bodyAsText()
-            assertEquals(listOf("Accueil", "Rejoindre", "Wiki", "Boutique", "Vote", "Mises à jour", "Mentions"), navLabels(html))
+            assertEquals(listOf("Accueil", "Rejoindre", "Pionniers", "Wiki", "Boutique", "Vote", "Mises à jour", "Mentions"), navLabels(html))
             assertEquals(1, Regex("""aria-current="page"""").findAll(html).count(), "la page courante est marquée une fois")
         }
     }
@@ -77,8 +77,8 @@ class SiteStyleTest {
     @DisplayName("Navigation : l'ordre est celui de la liste d'adresses, et une page absente n'a pas de lien")
     fun navigationOrder() {
         fun page(url: String) = ContentPage(url.trim('/'), "t", "d", url, SiteMode.entries.toSet(), "")
-        val every = listOf("/mentions/", "/vote/", "/", "/wiki/", "/mises-a-jour/", "/boutique/", "/classements/", "/rejoindre/").map(::page)
-        val all = listOf("/", "/rejoindre/", "/wiki/", "/classements/", "/boutique/", "/vote/", "/mises-a-jour/", "/mentions/")
+        val every = listOf("/mentions/", "/vote/", "/", "/wiki/", "/mises-a-jour/", "/boutique/", "/classements/", "/rejoindre/", "/pionniers/").map(::page)
+        val all = listOf("/", "/rejoindre/", "/pionniers/", "/wiki/", "/classements/", "/boutique/", "/vote/", "/mises-a-jour/", "/mentions/")
         assertEquals(all, Navigation.items(SiteMode.OUVERT, every).map { it.url })
         assertEquals(all.drop(1), Navigation.items(SiteMode.ATTENTE, every).map { it.url })
         assertEquals(listOf("/mentions/"), Navigation.items(SiteMode.OUVERT, listOf(page("/mentions/"))).map { it.url })

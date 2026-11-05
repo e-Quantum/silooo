@@ -378,3 +378,27 @@ main { margin-bottom: var(--pas-6); }
   .tableau thead th { font-family: var(--font-etiquette); font-size: 16px; line-height: 24px; letter-spacing: 1px; font-weight: 400; }
   .tableau td::before { content: none; }
 }
+
+/* ---------- S4 : les pionniers (formulaire et état). Le formulaire n'est pas encore dans design/ : à y dessiner avant de le réutiliser. */
+.compteur { font-weight: 600; }
+.formulaire { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pas-4); margin: 0; }
+.formulaire__champ { display: flex; flex-direction: column; gap: var(--pas-2); width: 100%; max-width: 360px; }
+.formulaire__champ label, .formulaire__case label { font-weight: 600; }
+.formulaire__saisie {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--pas-2) var(--pas-4);
+  border: 3px solid var(--fonte-900);
+  appearance: none;
+  background: var(--email-creme);
+  color: var(--fonte-900);
+  font-family: var(--font-corps);
+  font-size: 20px;
+  line-height: 27px;
+}
+.formulaire__aide { margin: 0; }
+.formulaire__case { display: flex; align-items: center; gap: var(--pas-4); }
+.formulaire__coche { flex: none; width: 27px; height: 27px; margin: 0; accent-color: var(--email-rouge); }
+.formulaire__erreur { margin: 0; padding-left: var(--pas-4); border-left: 6px solid var(--email-rouge); font-weight: 600; }
+.etat { list-style: none; margin: 0 0 var(--pas-4); padding: 0; }
+.etat li { padding: var(--pas-1) 0; font-weight: 600; }

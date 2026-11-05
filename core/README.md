@@ -57,6 +57,10 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_SITE_PORT_JEU` | Le port du jeu affiché, entier de 1 à 65535 (le défaut est celui de `BDS_PORT` dans `deploy/compose.yml`, ADR 0004) | non, `19142` par défaut |
 | `SILOOO_SITE_URL_BOUTIQUE` | L'adresse où s'achètent les Gemmes, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
 | `SILOOO_SITE_SITES_DE_VOTE` | Les sites de vote, `nom\|url` séparés par des points-virgules (une entrée mal formée arrête le service) | non, aucun site par défaut |
+| `SILOOO_SITE_ADMISSION` | La règle d'admission des pionniers : `discord` (admis quand le compte Discord est relié) ou `tous` (admis dès l'inscription, pour l'ouverture) ; toute autre valeur arrête le service | non, `discord` par défaut |
+| `SILOOO_DISCORD_CLIENT_ID` | L'identifiant de l'application Discord de « Relier Discord » ; va avec le secret (une seule des deux arrête le service) | non, pas de bouton « Relier Discord » sans elle |
+| `SILOOO_DISCORD_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
+| `SILOOO_SITE_TRUSTED_PROXY` | `true` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose) ; `false` ou absente : l'adresse vue par silooo-core | non, `false` par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
@@ -655,6 +659,34 @@ ne le publie jamais.
   de `pages/WikiBlocs.kt`, tirés de `Dependencies.definitions`. Ajouter une page : créer le `.md` (url `/wiki/<sujet>/`, `modes:
   [ouvert]`, un `ordre` libre), l'ajouter à `BUNDLED` et, si elle porte un bloc, à `wikiBlocks`. Le test des chiffres refuse dans
   ces Markdown un nombre suivi de : Donar, Lingots, Gemmes, %, heures, h, €, joueurs, associés (les dates et « époque 1 » passent).
+- **Les pionniers, Relier Discord, l'admission** (S4, **dessin et textes à valider par Kr**) : `/pionniers/`, `/pionniers/etat/`,
+  `/pionniers/discord/` et `/pionniers/discord/retour/`, rendus en `attente` comme en `ouvert` (`site/PioneerRoutes.kt`,
+  `site/pages/Pionniers.kt`, texte dans `contenu/pionniers.md`). Le site n'écrit que `site_registrations` (V7). Le code de l'inscription
+  est dans `com.silooo.core.registration` (hors du paquet `site`, dont les littéraux passent le filtre de texte) : `SiteRegistrationStore`
+  et `JdbcSiteRegistrationStore`, `SiteAdmission`, `DiscordIdentity` (`HttpDiscordIdentity` sur le client Ktor CIO ; un faux dans les tests).
+  - **La table** `site_registrations` : `gamertag_key` (clé primaire), `gamertag`, `discord_user_id` (unique, nul tant que rien n'est
+    relié, jamais affiché), `pioneer`, `created_at`, `linked_at`, `admitted_at`.
+  - **La clé** : `SiteRegistrations.key(gamertag)` (sans espace aux bords, espaces réduits à un seul, minuscules, `Locale.ROOT`). La route
+    de `join` appelle cette fonction, jamais une copie.
+  - **La règle d'admission** : `SiteAdmission.admitsAt(moment)`, une seule fonction. `tous` pose `admitted_at` à l'inscription, `discord`
+    au moment où le compte est relié (`UPDATE ... COALESCE(admitted_at, ...)` : une admission n'est jamais retirée ni refaite). Un
+    identifiant Discord ne se relie qu'à un gamertag (clé unique) ; le deuxième essai rend la page « déjà relié » sans rien écrire.
+  - **Admettre à la main** (Kr, sur la base `silooo`, jamais exécuté par le code) :
+    `UPDATE site_registrations SET admitted_at = UTC_TIMESTAMP(3) WHERE gamertag_key = ?` avec la clé en minuscules (`kr test` pour « Kr Test »).
+  - **Le cookie** `silooo_pionnier` (seul cookie du site, après une inscription) : `HttpOnly`, `SameSite=Lax`, `Secure` si `SILOOO_SITE_URL`
+    est en https, une heure, chemin `/pionniers/`. Il porte la clé du gamertag et, pendant « Relier Discord », l'`state` attendu ; signé en
+    HMAC-SHA256 avec `Dependencies.siteSessionSecret`, tiré au démarrage (`SecureRandom`, 32 octets) : il change à chaque redémarrage, une
+    inscription en cours recommence. Le jeton caché du formulaire est signé de la même façon, valable dix minutes.
+  - **La limite de débit** : cinq `POST /pionniers/` par minute et par adresse (mémoire, 10 000 adresses au plus), 429 et `Retry-After`
+    au-delà. Avec `SILOOO_SITE_TRUSTED_PROXY=true`, l'adresse est le dernier maillon de `X-Forwarded-For`.
+  - **Relier Discord** : activé si les deux variables Discord sont posées. L'URL de retour est `SILOOO_SITE_URL` + `/pionniers/discord/retour/` :
+    c'est celle que Kr déclare dans l'application Discord. Portée `identify` seule. L'identifiant Discord ne sort jamais dans une page, un
+    journal ou un message d'erreur.
+  - **Pour la direction du jeu** : `join` refuse quand `site_registrations.admitted_at` est nul pour la clé du gamertag
+    (`SELECT 1 FROM site_registrations WHERE gamertag_key = ? AND admitted_at IS NOT NULL`, la clé venant de `SiteRegistrations.key`). La
+    colonne `pioneer` suffit au jeu pour créditer le titre et l'objet du pionnier ; le site ne touche ni `players` ni `player_cosmetics`.
+  - **Les tests** : `site/PioneerRoutesTest` (parcours complet avec faux dépôt et faux fournisseur), `site/SiteAdmissionConfigTest`,
+    `registration/SiteRegistrationSqlTest` (MariaDB, ignoré sans Docker).
 - **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
   copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir
