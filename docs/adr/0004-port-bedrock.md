@@ -1,6 +1,6 @@
 # 0004 : le port du serveur Bedrock
 
-Date : 5 novembre 2026. Statut : Proposée, à valider par Kr.
+Date : 5 novembre 2026. Statut : Acceptée (Kr a choisi le port 19142 le 5 novembre 2026).
 
 ## Contexte
 

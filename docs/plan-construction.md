@@ -150,7 +150,7 @@ sessions et tous les agents. Le détail est dans docs/ : commence par docs/READM
   (GitHub, PayNow, OVH, Discord, sites de vote).
 - Aucun texte ni visuel nouveau vu par les joueurs sans avant / après validé par Kr, et sans tic
   d'IA (docs/anti-ia.md). Le hook anti_ia.py signale les tics : corrige-les.
-- Aucune mécanique de hasard payant, de pari ni de monnaie échangeable entre joueurs.
+- Aucune mécanique de pari ni de monnaie échangeable entre joueurs (les lootbox payantes sont permises depuis le 5 novembre 2026, voir `CLAUDE.md`).
 
 ## Ressources partagées
 
@@ -269,12 +269,12 @@ Six décisions reviennent à Kr avant ou pendant la phase 0 ; aucune ne bloque l
 
 | Décision | Possibilités | Recommandation | Statut |
 | --- | --- | --- | --- |
-| Port du serveur Bedrock | Un autre port, comme 19142 (gratuit, les joueurs le saisissent) ; ou une IP en plus chez OVH pour garder 19132 (payant) | 19142 pour la bêta ; l'IP en plus avant l'ouverture si le port gêne | À trancher |
-| Accès du VPS à GitHub | Une clé de déploiement limitée au dépôt ; ou le compte de Kr | La clé de déploiement | À trancher |
+| Port du serveur Bedrock | Un autre port, comme 19142 (gratuit, les joueurs le saisissent) ; ou une IP en plus chez OVH pour garder 19132 (payant) | 19142 pour la bêta ; l'IP en plus avant l'ouverture si le port gêne | Tranché par Kr le 5 nov. 2026 : 19142 |
+| Accès du VPS à GitHub | Une clé de déploiement limitée au dépôt ; ou le compte de Kr | La clé de déploiement | Tranché par Kr le 5 nov. 2026 : la clé de déploiement |
 | Où construire | CI GitHub et registre privé ; ou Gradle sur le VPS | La CI : le VPS manque de mémoire. Le quota de minutes des dépôts privés est à surveiller | À trancher |
 | Coordination des sessions | Le tableau `chantier.py` de SileneMC, partagé ; ou un journal dans `docs/passation.md` | Le tableau s'il accepte un second projet, sinon le journal | À trancher |
 | Réseau Docker | Rejoindre celui de SileneMC ; ou une MariaDB à part | Le rejoindre, ce qui suit le choix déjà fait d'une base `silooo` dans la MariaDB de SileneMC | À trancher |
-| Marché entre joueurs | L'OpenAPI prévoit des annonces entre joueurs ; le design system exclut la monnaie échangeable | Un marché où l'on vend au Silo à prix fixé par le jeu, et retirer les annonces de l'API | À trancher |
+| Marché entre joueurs | L'OpenAPI prévoit des annonces entre joueurs ; le design system exclut la monnaie échangeable | Un marché où l'on vend au Silo à prix fixé par le jeu, et retirer les annonces de l'API | Tranché par Kr le 5 nov. 2026 : vente au Silo, annonces retirées de l'API |
 
 ### Risques
 

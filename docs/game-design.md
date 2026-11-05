@@ -6,7 +6,7 @@ Nov 4, 2026 · @Kr
 
 Un tycoon dans le ciel : on rachète des usines, on embauche, on regarde son archipel travailler, on fait un prestige et on recommence plus fort, seul ou à quatre amis, en sessions de 15 minutes. Nom : Silooo (play.silooo.com), marque indépendante promue par Hubyy.
 
-**Identité** (décidé le 4 nov. 2026) : le logo dessine les trois « o » de Silooo comme trois silos. Oooscar, une mascotte silo rigolote et maladroite, guide le joueur. Pas de promotion croisée avec SileneMC pour l'instant : Silooo pourrait plus tard devenir un mode de jeu de SileneMC avec sa propre boutique. C'est pourquoi ses grades sont calqués sur ceux de SileneMC et sa boutique en ligne reprend celle de SileneMC.
+**Identité** (décidé le 4 nov. 2026) : le logo dessine les trois « o » de Silooo comme trois silos. Oooscar, une mascotte silo rigolote et maladroite, guide le joueur ; depuis le 5 nov. 2026, il est aussi taquin et charrie gentiment le joueur. Pas de promotion croisée avec SileneMC pour l'instant : Silooo pourrait plus tard devenir un mode de jeu de SileneMC avec sa propre boutique. C'est pourquoi ses grades sont calqués sur ceux de SileneMC et sa boutique en ligne reprend celle de SileneMC.
 
 **Public** : tout public, avec en priorité les joueurs console et mobile qui arrivent par Hubyy, souvent en groupe d'amis. Deux rythmes : les usines en sessions courtes au quotidien, la ville en longues sessions.
 
@@ -60,9 +60,9 @@ Réponses du 4 nov. 2026 ; le reste du document les applique.
 | Parrainage | Cosmétique pour le parrain quand le filleul atteint sa 2e usine, sans échange de Donar |
 | Alertes | Bot Discord (message privé si le compte est lié, désactivable) : silo plein, commande qui expire |
 | Commandes | Tableau de 3 à 5 contrats par jour (délai, prime, refus possible) ; réputation d'entreprise qui débloque de meilleurs contrats et candidats |
-| Hub | Bourse et marché, lootbox, boutique en mur comme SileneMC, courses de véhicules, mini-jeux, lieux d'événements et arènes |
+| Hub | Bourse et marché, lootbox, boutique en mur comme SileneMC, courses de véhicules, mini-jeux, lieux d'événements et arènes ; au lancement, un hub minimal : point d'arrivée soigné, PNJ et panneaux (décidé le 5 nov. 2026) |
 | Zone AFK | Rapporte des jetons AFK, échangés contre clés et cosmétiques ; jamais de Donar |
-| Lootbox | Plusieurs gammes à prix différents ; clés gagnées en jeu ou achetées en monnaie de boutique |
+| Lootbox | Plusieurs gammes à prix différents ; clés gagnées en jeu ou achetées en monnaie de boutique. Décidé par Kr le 5 nov. 2026 : une caisse payante peut tout contenir, salariés compris, et ses probabilités s'affichent avant l'achat |
 | Îles d'usines | L'usine est fixe, le reste de l'île se décore librement ; chute dans le vide = retour au dernier point sûr sans perte ; aucun monstre hostile |
 | Identité d'entreprise | Nom, logo, couleurs, slogan, uniformes des salariés ; visibles sur enseignes, véhicules et fiche publique |
 | Site | Wiki et guides, classements en direct, fiche publique par entreprise, boutique et vote |
@@ -169,13 +169,13 @@ Scierie et Ferme existent dès le lancement en production simple ; leurs chaîne
 - Vente au coffre, au meilleur prix de la chaîne.
 - Matériaux de construction de la ville (briques, verre, poutres, meubles).
 - Commandes clients : contrats de PNJ avec un délai et une prime ; les commandes mondiales en sont la version collective.
-- Marché entre joueurs, taxé à 10 %.
+- Pas de marché entre joueurs (décidé le 5 nov. 2026) : tout se vend au Silo, à un prix fixé par le jeu.
 
 **Les boss du week-end : des catastrophes industrielles** (machine folle, golem de scories, tempête sur l'archipel), avec une variante par époque. Tous les joueurs les affrontent ensemble ; la récompense est un cosmétique ou un bonus temporaire pour tout le serveur, jamais une ressource rare qui pèserait sur l'économie.
 
 **Les incidents d'usine** (décidé le 4 nov. 2026) : de temps en temps, une usine a un petit incident (début d'incendie, machine en panne, courroie cassée). Elle ralentit et une icône apparaît sur la carte ; un mini-jeu d'une trentaine de secondes (éteindre le feu, réparer la machine) la relance et donne une petite récompense. Jamais de perte, et aucun incident pendant que le joueur est hors ligne : c'est une animation qui donne envie de passer voir ses usines, pas une punition.
 
-**Les pannes, précisées le 5 nov. 2026** : un incident peut ralentir l'usine ou l'arrêter. Le stock produit avant l'incident reste bloqué et revient entier à la réparation : jamais de perte. Une usine arrêtée ralentit les usines qui dépendent d'elle dans le réseau, faute d'entrées, sans autre pénalité. Toujours aucun incident hors ligne. La réparation se fait selon le scénario de la panne : mini-jeu, pièce de rechange à apporter ou simple interaction ; un technicien embauché répare aussi, plus lentement, sans le joueur. Les sortes de pannes, leurs effets et le technicien sont à écrire dans `definitions/incidents.json` et `definitions/personnel.json`, puis à équilibrer.
+**Les pannes, précisées le 5 nov. 2026** : un incident peut ralentir l'usine ou l'arrêter. Le stock produit avant l'incident reste bloqué et revient entier à la réparation : jamais de perte. Une usine arrêtée ralentit les usines qui dépendent d'elle dans le réseau, faute d'entrées, sans autre pénalité. Toujours aucun incident hors ligne. La réparation se fait selon le scénario de la panne : mini-jeu, pièce de rechange à apporter ou simple interaction ; le chef d'équipe répare aussi, plus lentement, sans le joueur, à partir d'un niveau d'amélioration. Les sortes de pannes, leurs effets et ce niveau du chef sont à écrire dans `definitions/incidents.json` et `definitions/personnel.json`, puis à équilibrer. La première panne de chaque joueur arrive dans sa première heure, déclenchée par le service et guidée par Oooscar, pas au hasard.
 
 **Salariés légendaires** : production plus élevée, apparence unique et nom propre, de quoi en faire des personnages que les joueurs reconnaissent et montrent.
 
@@ -240,7 +240,7 @@ Les déplacements évoluent avec l'île principale : téléportation par la cart
 | Moment | Moyen | Usage |
 | --- | --- | --- |
 | Dès la première usine, toujours | Téléportation depuis la carte | Aller d'une usine à l'autre |
-| Dès la deuxième usine voisine | Ponts du réseau | Relient chaque île d'usine à ses voisines de chaîne sur l'anneau (décidé le 5 nov. 2026) |
+| À la remise en état d'une usine voisine | Ponts du réseau | Relient chaque île d'usine à ses voisines de chaîne sur l'anneau ; le pont apparaît dans la cinématique de chantier (décidé le 5 nov. 2026) |
 | Île principale débloquée | Ponts vers la ville | Relient l'île principale à chaque île d'usine possédée |
 | Île principale débloquée | Avion personnel | Vol libre entre toutes les îles de l'archipel |
 | Sur l'île principale | Véhicules (voiturette, quad…) | Traverser une île immense sans s'ennuyer |
@@ -311,21 +311,21 @@ Cette section décrit le contenu cible ; ce qui est présent au lancement est d�
 
 Décidé avec Kr le 5 nov. 2026. Silooo se joue en regardant son archipel travailler : chaque bâtiment est un build soigné, et presque tout ce qui s'y passe a son animation. Cette section fixe les règles et ce qui entre au lancement ; les chiffres (tailles, seuils, budgets d'entités) vivent dans `definitions/`.
 
-**Le style** : cartoon chaleureux, dans l'esprit d'Oooscar, en blocs. Chaque époque a son style, décliné par chaîne. Aucun rendu générique : chaque build passe la règle de l'avant / après de [anti-ia.md](anti-ia.md).
+**Le style** : cartoon chaleureux, dans l'esprit d'Oooscar, en blocs. Kr n'a pas de références à imposer : Claude propose à partir du design system Silooo Atelier et d'Oooscar, Kr réagit. Chaque époque a son style, décliné par chaîne. Aucun rendu générique : chaque build passe la règle de l'avant / après de [anti-ia.md](anti-ia.md).
 
 **Les builds** : chaque usine existe en structures préfabriquées (`.mcstructure`), une par époque et par taille d'île, plus sa ruine. Une structure porte des points d'ancrage : où poser l'entité décor, la fumée, les ouvriers, l'enseigne. Le code pose la plateforme et choisit la structure ; il ne dessine plus le bâtiment bloc par bloc.
 
-**Les îles qui grandissent** : trois tailles d'île d'usine, de plus en plus larges avec la progression de l'usine (le plus grand rayon est `plateforme.rayonMax` dans `definitions/iles.json`, les seuils restent à écrire). La carte est dimensionnée dès maintenant pour la plus grande taille : une île ne touche jamais l'île principale, sa voisine ni l'archipel d'à côté.
+**Les îles qui grandissent** : trois tailles d'île d'usine, de rayon 7, puis 12 au palier de 25 salariés, puis 18 au palier de 100 (les paliers ×2 de la production). Le plus grand rayon est `plateforme.rayonMax` dans `definitions/iles.json` ; les tailles intermédiaires et leurs paliers restent à y écrire. La carte est dimensionnée dès maintenant pour la plus grande taille : une île ne touche jamais l'île principale, sa voisine ni l'archipel d'à côté.
 
-**La cinématique de chantier** : une trentaine de secondes, à la remise en état d'une usine et donc à chaque changement d'époque. Ouvriers, grues et camions arrivent par les ponts et montent le bâtiment ; Oooscar commente en bulles, avec un petit babillage sonore. La caméra est prise pour tous les joueurs présents sur l'île ; la cinématique se passe (accroupi une seconde, comme celle d'arrivée), mais ne se rejoue pas. Les plans sont communs, les détails propres à chaque usine. Au prestige, une cérémonie de vente joue avant que l'archipel reparte dans la nouvelle époque.
+**La cinématique de chantier** : une trentaine de secondes, à la remise en état d'une usine et donc à chaque changement d'époque. Ouvriers, grues et camions arrivent par les ponts et montent le bâtiment ; Oooscar commente en bulles, avec un petit babillage sonore. La caméra est prise pour tous les joueurs présents sur l'île ; la cinématique se passe (accroupi une seconde, comme celle d'arrivée), mais ne se rejoue pas. Les plans sont communs, les détails propres à chaque usine. La cinématique dure 30 secondes la première fois pour une usine et une époque, puis une version de 8 secondes. Au prestige, une cérémonie de vente joue avant que l'archipel reparte dans la nouvelle époque ; la remise en état d'une usine déjà connue se résume alors à la livraison des matériaux, puis la cinématique.
 
 **Les animations d'un bâtiment** : elles se déclenchent par la production continue, une amélioration, un événement (panne, record, visite) ou une interaction du joueur. Chaque bâtiment a sa fiche : quelles animations, sur quel déclencheur, avec quelle règle. Les règles ne sont pas communes à tous les bâtiments.
 
 **Les salariés** : de 3 à 100 par usine dans les chiffres, une dizaine visibles au plus. Leur tenue se lit en calques : la chaîne (casque de mineur, tablier, blouse), l'époque, la rareté et le grade (chef, directeur).
 
-**Les événements animés** : au lancement, la visite d'inspecteur et le record de production. L'inspecteur donne un bonus ou rien, jamais de malus. La commande du jour existe déjà ; la fête d'entreprise vient en saison 1.
+**Les événements animés** : au lancement, la visite d'inspecteur et le record de production. L'inspecteur passe par surprise quand le joueur est sur l'île et donne un bonus si l'usine tourne bien, jamais de malus. Un record se fête sur l'île (les ouvriers célèbrent, Oooscar en fait trop, petite récompense) et s'annonce sur le Discord. La commande du jour existe déjà ; la fête d'entreprise vient en saison 1.
 
-**Le son** : un thème musical Silooo, décliné par chaîne avec d'autres instruments, plus les bruits de chantier et le babillage d'Oooscar.
+**Le son** : un thème musical Silooo, décliné par chaîne avec d'autres instruments, plus les bruits de chantier et le babillage d'Oooscar. La musique vient d'une bibliothèque libre : licences qui permettent l'usage commercial seulement (Silooo a une boutique), auteurs crédités quand la licence le demande.
 
 **Les textures** : un pack « vanilla+ » cartoon en 16 × 16, formes et couleurs reconnaissables. Au lancement, la palette réellement utilisée par les builds et les blocs custom (machines, tapis) ; la refonte complète des textures vient plus tard, parce que chaque mise à jour de Bedrock ajoute des blocs à entretenir.
 
@@ -403,7 +403,7 @@ Trois monnaies séparées : le Donar, gagné en jouant (appelé « pièces » da
 | Grades à vie, les mêmes que SileneMC : MVIP, VIP, VIP+, Héros, Légende, Ultime, à prendre dans l'ordre | Préfixe et couleur, confort (vol sur ses îles, emplacements de visite, file prioritaire) et bonus de Donar, comme le bonus de coins de SileneMC : +5 % (MVIP, VIP), +10 % (VIP+), +20 % (Héros), +30 % (Légende), +50 % (Ultime) | Les nombres de SileneMC : 100, 500, 1 000, 2 000, 3 500 et 6 000 Gemmes |
 | Abonnement Pilier (28 jours) | Comme sur SileneMC : badge ✦ qui évolue avec les mois, +10 % de Donar en plus du grade, 50 Gemmes rendues chaque mois ; option préfixe perso réservée aux Ultime | 400 Gemmes les 28 jours |
 
-**Interdits** : pièces, usines, salariés, niveaux, multiplicateurs personnels et ressources à la vente . Lootbox : plusieurs gammes à prix différents au hub, clés gagnées en jeu (votes, jetons AFK, événements) ou achetées en monnaie de boutique ; taux de chance affichés pour chaque objet.
+**Interdits** : pièces, usines, salariés, niveaux, multiplicateurs personnels et ressources à la vente directe. Lootbox : plusieurs gammes à prix différents au hub, clés gagnées en jeu (votes, jetons AFK, événements) ou achetées en monnaie de boutique ; taux de chance affichés pour chaque objet avant l'achat. Décidé par Kr le 5 nov. 2026, en connaissance du risque (classement PEGI 16 par défaut des jeux à objets aléatoires payants depuis juin 2026, projets européens d'interdiction pour les mineurs) : une caisse payante peut contenir tout objet du jeu, salariés et bonus compris. Un joueur mineur achète avec l'accord d'un parent, sous un plafond mensuel.
 
 **Obligations** : prix affichés sur le site et la fiche Hubyy avant la connexion, historique d'achats consultable, mention « NOT AN OFFICIAL MINECRAFT SERVICE » sur le site.
 
@@ -414,7 +414,7 @@ Le Donar explose, de quelques milliers aux « aa », et repart de zéro à chaqu
 | Couche | Monnaie | Évolution | Sert à | Remise à zéro |
 | --- | --- | --- | --- | --- |
 | Course | Donar | Exponentielle : k, M, Md, puis aa, ab… | Usines, salariés, améliorations, logistique | À chaque prestige, au choix du joueur |
-| Patrimoine | Lingots | Lente, jamais d'explosion | Zones et bâtiments de la ville, marché entre joueurs, boutique de prestige | Jamais |
+| Patrimoine | Lingots | Lente, jamais d'explosion | Zones et bâtiments de la ville, boutique de prestige | Jamais |
 | Boutique | Gemmes | Achetée en euros | Boutique en jeu | Jamais |
 
 **Faire exploser le Donar** : chaque usine gagne un multiplicateur ×2 quand elle atteint 25, 50, 100, 200… salariés ou niveaux cumulés, et chaque Lingot détenu ajoute +1 % à toute la production de Donar. Dépenser ses Lingots en ville réduit donc ce bonus : c'est le vrai choix stratégique du joueur, entre aller plus vite et bâtir.
@@ -438,7 +438,7 @@ Le Donar explose, de quelques milliers aux « aa », et repart de zéro à chaqu
 | Pack de départ unique à petit prix | Fait passer un joueur de gratuit à payeur | Nul |
 | Pass de saison, cosmétiques, lootbox | Collection et apparence | Nul |
 
-**Jamais en vente** : Lingots, zones de ville, places au classement. Les classements hebdomadaires se mesurent en Lingots gagnés dans la semaine, ce qui limite l'effet des achats. Ce modèle revient à « payer pour aller plus vite » : courant sur les serveurs tycoon, mais la promesse affichée aux joueurs Hubyy devient « tout ce qui s'achète se gagne aussi en jouant », et non plus « 0 pay-to-win ».
+**Jamais en vente** : Lingots, zones de ville, places au classement. Les classements hebdomadaires mesurent les Lingots gagnés dans la semaine, la plus belle ville (votes des joueurs) et les prestiges (décidé le 5 nov. 2026). Ce modèle revient à « payer pour aller plus vite » : courant sur les serveurs tycoon, mais la promesse affichée aux joueurs Hubyy devient « tout ce qui s'achète se gagne aussi en jouant », et non plus « 0 pay-to-win ».
 
 ## Économie sur le long terme, sans reset
 
@@ -464,7 +464,7 @@ Objectif : sur une semaine, les sorties détruisent au moins 80 % de ce que les 
 
 **3. Les échanges entre joueurs sont encadrés**
 
-Le danger principal d'une économie sans reset est le transfert de richesse : un ancien joueur ou un multi-compte qui finance un nouveau. Règle retenue : pas de don de monnaie entre joueurs, et un marché de ressources taxé à 10 %, en Lingots sur chaque vente (nouvelle sortie d'argent).
+Le danger principal d'une économie sans reset est le transfert de richesse : un ancien joueur ou un multi-compte qui finance un nouveau. Règle retenue : pas de don de monnaie entre joueurs, et pas de marché entre joueurs (décidé le 5 nov. 2026) : tout se vend au Silo, à un prix fixé par le jeu.
 
 **4. Les nouveaux joueurs gardent une chance**
 
@@ -569,6 +569,43 @@ L'API compte 33 opérations, groupées comme le jeu : session (arrivée, départ
 
 **Viser plus de 200 joueurs simultanés** change l'architecture : un seul serveur Bedrock ne suffira pas. Il faut plusieurs instances (par exemple le hub sur l'une, les archipels répartis sur les autres) reliées par un proxy Bedrock qui fait passer le joueur d'une instance à l'autre. La compatibilité d'un tel proxy avec BDS + Endstone est à valider dès le prototype ; et ce palier dépassera probablement le budget de 100 €/mois, à financer par les revenus une fois l'audience là. Au lancement, une seule instance suffit : l'architecture doit simplement permettre de la découper plus tard.
 
+## Lancement, communauté et exploitation
+
+Décidé avec Kr le 5 nov. 2026.
+
+**Public et réussite** : mobile et console d'abord, au même niveau ; tout doit y être fluide. Un mois après l'ouverture, le lancement se juge sur quatre chiffres : les joueurs connectés au pic, la rétention à J1 et J7, les revenus (la boutique paie au moins le serveur) et la vie de la communauté (Discord actif, vidéos de joueurs).
+
+**La première heure** doit montrer trois choses : une cinématique de chantier (la Scierie remise en état), un premier salarié embauché qu'on voit travailler, et une première panne guidée par Oooscar. Le reste du rythme ne change pas : 1er prestige en 10 à 15 heures, plafond hors ligne de 8 heures au départ, une session type de 15 minutes pour encaisser et améliorer.
+
+**Entre joueurs**
+
+- Les visiteurs d'un archipel font ce que le PDG leur permet dans ses réglages.
+- Trois classements hebdomadaires : Lingots gagnés, plus belle ville (votes des joueurs), prestiges.
+- La décoration de la ville se fait avec un catalogue de blocs et avec les produits des usines (planches, briques, verre).
+- L'identité d'entreprise au lancement : un nom et deux couleurs, sur les enseignes et les uniformes ; logo et slogan plus tard.
+- Une commande mondiale par jour.
+- Les habitants de la ville restent un décor vivant : quelques PNJ visibles quand le joueur est là, aucun besoin à gérer.
+
+**Communauté** : le Discord sert aux annonces et alertes (Oooscar y poste), à la vie de la communauté et au support. Les créateurs de contenu ont un programme (un grade et un cosmétique contre des vidéos régulières) et un code en boutique qui leur reverse une part. Les idées des joueurs arrivent dans une boîte à idées sur le Discord, triée par Kr.
+
+**Modération** : une liste de mots interdits dans le tchat, tenue dans `definitions/`, une commande pour signaler un joueur qui arrive sur le Discord du staff, Kr en renfort, puis des modérateurs recrutés par sessions.
+
+**Comptes** : un compte Silooo est indépendant, lié au seul gamertag Xbox ; pas de compte commun avec Hubyy ni SileneMC.
+
+**Boutique** : les ventes de Gemmes sont encaissées par une micro-entreprise de Kr. Un joueur mineur achète avec l'accord d'un parent, sous un plafond mensuel.
+
+**Joueurs absents** : un archipel inactif depuis 6 mois est archivé ; ses blocs quittent le monde, et il se reconstruit depuis la base au retour du joueur.
+
+**Exploitation**
+
+- Une session autonome suit chaque mise à jour de Bedrock : serveur de test d'abord, production ensuite si tout passe.
+- Anti-triche léger : le service décide de toute l'économie, tricher rapporte peu ; vol et vitesse surveillés au hub.
+- Un serveur qui tombe redémarre seul et prévient le Discord du staff.
+- Sauvegarde du monde et de la base chaque nuit, gardée 7 jours, plus une avant chaque mise à jour.
+- Le serveur de l'ouverture est un nouveau VPS, entre 30 et 60 € par mois, choisi d'après la mesure faite sur l'usine pilote.
+
+**Les deux autres Skyblocks** (crossplay et Java) reprennent après la saison 1 de Silooo.
+
 ## Roadmap Bedrock
 
 Pas de date imposée : chaque étape démarre quand la précédente est prête. Les dates ci-dessous sont des cibles indicatives.
@@ -578,9 +615,9 @@ Pas de date imposée : chaque étape démarre quand la précédente est prête. 
 **Contenu minimum de chaque étape**
 
 - Prototype : la chaîne du fer avec son personnel, la carte, le coffre de vente, une zone de ville avec la mairie, un prestige, la sauvegarde en base, une mise à jour Bedrock passée sans casse.
-- Alpha ouverte à tous : tout le contenu de la version de lancement (ci-dessous), boutique en mode test, promotion via Hubyy.
-- Lancement : la version de lancement, boutique réelle, deux modérateurs.
-- Ensuite : une mise à jour de contenu par mois environ, décidée d'après les chiffres du mois précédent.
+- Alpha fermée : une vague de 30 à 50 joueurs Hubyy invités (décidé le 5 nov. 2026), tout le contenu de la version de lancement (ci-dessous), boutique en mode test.
+- Lancement : la version de lancement, boutique réelle, mise en avant sur Hubyy, vidéos TikTok et une soirée d'ouverture ; modération par liste de mots, signalement et Kr, puis des modérateurs recrutés.
+- Ensuite : une saison de contenu tous les 3 mois (décidé le 5 nov. 2026), décidée d'après les chiffres de la précédente. Saison 1 : l'alimentaire (Élevage, Conserverie, marchés de ville), la fête d'entreprise, les boss du week-end, les véhicules et l'avion perso.
 
 **Version de lancement : assez complète pour accrocher, avec de la marge pour la suite**
 
@@ -590,14 +627,14 @@ Pas de date imposée : chaque étape démarre quand la précédente est prête. 
 | Personnel | Agence d'emploi, 3 raretés, chefs d'équipe, directeurs | Raretés supplémentaires, salariés légendaires nommés |
 | Époques | Artisanale et vapeur (1er prestige) ; moderne livrée dans le premier mois | Futuriste, puis étoiles sans fin |
 | Ville | Zone 1 : mairie, maison du joueur, logements, routes, un commerce ; préfabriqués + décoration libre | Zones suivantes, banque, garages, véhicules, civils |
-| Déplacements | TP par la carte, ponts | Avion perso, véhicules |
-| Économie | Coffre de vente, commandes PNJ quotidiennes, plafond hors ligne de 8 h | Marché entre joueurs taxé (une fois l'économie observée), prêts |
+| Déplacements | TP par la carte, ponts | Avion perso et véhicules en saison 1 |
+| Économie | Coffre de vente, commandes PNJ quotidiennes, plafond hors ligne de 8 h | Prêts ; pas de marché entre joueurs (décidé le 5 nov. 2026) |
 | Social | Hub minimal, entreprise à 4, visites, classement hebdomadaire | Concours de villes, alliances |
-| Événements | Commandes mondiales, visite d'inspecteur, record de production | Fête d'entreprise, boss du week-end |
+| Événements | Une commande mondiale par jour, visite d'inspecteur, record de production | Fête d'entreprise, boss du week-end (saison 1) |
 | Visuels | Builds et cinématique de chantier de la chaîne du fer, îles qui grandissent, palette retexturée (« Builds, animations et cinématiques ») | Autres chaînes, refonte complète des textures |
 | Boutique | Cosmétiques, un grade, boosts collectifs | Pass de saison, autres grades, abonnement |
 
-Le marché entre joueurs arrive après le lancement à dessein : il faut d'abord observer l'économie quelques semaines avant d'ouvrir les échanges.
+Pas de marché entre joueurs (décidé le 5 nov. 2026) : tout se vend au Silo, à un prix fixé par le jeu. Les annonces entre joueurs sortent de l'OpenAPI.
 
 ## Questions ouvertes
 

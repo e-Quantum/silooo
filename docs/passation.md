@@ -165,11 +165,12 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 `docs/discord-passation.md`, paquet `core/.../discord/`, ADR 0007, migration V8) : la phase 5 du jeu publie les
 événements que le bot lit, elle n'écrit rien sur Discord (décision 43). Le filet 501 des tests (`ApiTest`) passe de `/v1/shop/catalog` à `/v1/market/listings`, qui reste « pas fait ».
 
-## Cadre visuel (décidé par Kr le 5 novembre 2026)
+## Cadre visuel et décisions du 5 novembre (décidés par Kr)
 
-Kr a fixé avec une session de chat l'ambition visuelle et quatre règles du jeu : `docs/game-design.md`, section
-« Builds, animations et cinématiques », et les paragraphes datés du 5 nov. (réseau, Silo, pannes, époques). Ce ne
-sont pas des décisions prises sans Kr. Kr achètera un nouveau VPS pour l'ouverture, choisi d'après la mesure faite
+Kr a fixé avec une session de chat l'ambition visuelle, des règles du jeu et le cadre du lancement :
+`docs/game-design.md`, sections « Builds, animations et cinématiques » et « Lancement, communauté et
+exploitation », et les paragraphes datés du 5 nov. Ce ne sont pas des décisions prises sans Kr. Kr peut donner
+plus de 5 heures par semaine aux validations. Kr achètera un nouveau VPS pour l'ouverture, choisi d'après la mesure faite
 sur l'usine pilote ; le VPS actuel sert jusque-là.
 
 - [x] Les décisions écrites dans `docs/game-design.md`, roadmap de lancement comprise
@@ -179,22 +180,39 @@ sur l'usine pilote ; le VPS actuel sert jusque-là.
   chantier, capture sur console, mesure de la mémoire et du processeur ; la mesure décide du nouveau VPS
 - [ ] Poser des structures préfabriquées (`.mcstructure`, avec points d'ancrage) au lieu de dessiner le bâtiment
   dans `addon/src/monde/plan.ts`
-- [ ] Les trois tailles d'île (rayons 7, 12 et 18 proposés) : seuils dans `definitions/`, taille dite par le service
+- [ ] Les trois tailles d'île (rayon 7, 12 à 25 salariés, 18 à 100) : dans `definitions/`, taille dite par le service
   (OpenAPI d'abord), pose par l'add-on
-- [ ] Les ponts du réseau et les camions (une entité par pont, près du joueur seulement)
-- [ ] Les pannes : arrêt total, stock bloqué rendu à la réparation, technicien, scénarios de réparation
-  (`incidents.json`, `personnel.json`, service ; recette `silooo-equilibrage`)
-- [ ] La modernisation par la remise en état après un prestige (service, puis style d'époque côté add-on)
-- [ ] La cinématique de chantier d'environ 30 s, pour tous les joueurs de l'île (base : `monde/cinematique.ts`)
-- [ ] Les événements animés du lancement : visite d'inspecteur, record de production
+- [ ] Les ponts du réseau (posés à la remise en état d'une usine voisine, dans sa cinématique) et les camions (une
+  entité par pont, près du joueur seulement)
+- [ ] Les pannes : arrêt total, stock bloqué rendu à la réparation, réparation lente par le chef d'équipe amélioré,
+  scénarios de réparation, première panne de la première heure déclenchée par le service (`incidents.json`,
+  `personnel.json`, service ; recette `silooo-equilibrage`)
+- [ ] La modernisation par la remise en état après un prestige : version courte (livraison des matériaux, puis la
+  cinématique) pour une usine déjà connue (service, puis style d'époque côté add-on)
+- [ ] La cinématique de chantier : 30 s la première fois par usine et par époque, 8 s ensuite, pour tous les
+  joueurs de l'île (base : `monde/cinematique.ts`)
+- [ ] Les événements animés du lancement : visite d'inspecteur par surprise (bonus, jamais de malus), record de
+  production (scène sur l'île, petite récompense, annonce Discord)
 - [ ] Le pack de textures : la palette des builds en vanilla+ cartoon 16 × 16
+- [ ] Retirer `createListing` et `buyListing` (et ce qui les sert) de l'OpenAPI, des tests de contrat et de la base
+  (nouvelle migration) : pas de marché entre joueurs
+- [ ] Les lootbox : gammes, clés gagnées ou achetées, contenu complet, probabilités affichées avant l'achat, accord
+  parental et plafond mensuel pour un mineur (`boutique.json`, OpenAPI, service, add-on, site) ; codes
+  `PAS_ASSEZ_DE_CLES` et `PAS_ASSEZ_DE_JETONS`
+- [ ] La modération : liste de mots dans `definitions/`, commande de signalement vers le Discord du staff
+- [ ] Les réglages du PDG pour les visiteurs ; les classements (Lingots, plus belle ville, prestiges) ; la commande
+  mondiale quotidienne ; l'identité d'entreprise (nom et deux couleurs) ; la décoration par catalogue et produits
+- [ ] L'archivage d'un archipel inactif depuis 6 mois, reconstruit depuis la base au retour
+- [ ] Le programme créateur (grade, cosmétique) et le code créateur en boutique (avec la direction du site)
+- [ ] Exploitation : redémarrage automatique et alerte Discord du staff, sauvegarde chaque nuit gardée 7 jours,
+  une session autonome qui suit les mises à jour de Bedrock (test, puis production)
 
 ## À faire par Kr
 
-- [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
-- [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (le compose de `deploy/` propose 19143 à 19174 pour 32 joueurs ; `docs/adr/0004-port-bedrock.md`)
-- [ ] Télécharger `bedrock-server-1.26.62.1.zip` dans un navigateur (minecraft.net refuse `curl`, même avec un User-Agent honnête, depuis le PC comme depuis les runners GitHub), calculer `sha256sum`, écrire la somme dans `deploy/bds/bds.sha256`, créer `/var/www/silooo/bds/` sur le VPS (`mkdir -p`, puis `chown 10001:10001` : l'uid du conteneur), y poser le zip (décision 26, `docs/deploiement.md`, « Le zip de BDS »)
-- [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
+- [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`). Confié à Claude le 5 novembre 2026 (exception de `CLAUDE.md`, premier déploiement seulement)
+- [ ] Port choisi par Kr le 5 novembre 2026 : 19142 (ADR 0004 acceptée). L'ouvrir, avec les commandes préparées par Claude : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (le compose de `deploy/` propose 19143 à 19174 pour 32 joueurs ; `docs/adr/0004-port-bedrock.md`)
+- [ ] Confié à Claude le 5 novembre 2026, par le navigateur du PC de Kr : télécharger `bedrock-server-1.26.62.1.zip` dans un navigateur (minecraft.net refuse `curl`, même avec un User-Agent honnête, depuis le PC comme depuis les runners GitHub), calculer `sha256sum`, écrire la somme dans `deploy/bds/bds.sha256`, créer `/var/www/silooo/bds/` sur le VPS (`mkdir -p`, puis `chown 10001:10001` : l'uid du conteneur), y poser le zip (décision 26, `docs/deploiement.md`, « Le zip de BDS »)
+- [ ] Confié à Claude le 5 novembre 2026 (exception de `CLAUDE.md`) : `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
 - [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions ; et pour le prestige et la carte : la téléportation vers une zone déchargée, le rendu des formulaires Carte (deux pages) et Prestige, les repères `[P]` et `[C]` ; et pour le personnel : les PATCH et DELETE par `http.request` (DELETE sans corps), la longueur des formulaires PERSONNEL et AGENCE, le rendu des repères `[M]` et `[R]` et des couleurs de rareté ; et pour les incidents : les repères flamme et éclair sur la tuile et la carte, le mini-jeu en trois formulaires, le message du tchat à l'ouverture et à la réparation ; et pour l'entreprise partagée : la tuile Associés et son repère `[N]`, la liste des joueurs connectés à inviter, le formulaire des parts, l'invitation reçue qui arrive pendant le jeu
@@ -202,12 +220,12 @@ sur l'usine pilote ; le VPS actuel sert jusque-là.
 - [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; `PRESTIGE_ENTREPRISE` est publié pour tout le serveur depuis la tranche Discord, en plus d'un `ANNONCE` par membre avec sa part ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques ; l'add-on ne branche aucun événement de prestige (le service n'en publie qu'un `ANNONCE` par membre, `payload` non décrit) ; `deliverOrder` sur une commande déjà terminée rend 200 sans effet (pas de code de refus : un nouveau code casserait les tests de l'add-on) ; `getFindings` n'était pas au contrat de départ (31 opérations) ; pour le personnel vu de l'add-on : pas de capacité de postes dans `CompanyState.factories[]` (l'add-on ne sait pas combien de places restent), pas de désaffectation ni de promotion en chef, pas de nom lisible pour une apparence (`skinId` montré brut), le rôle du joueur (PDG ou associé) n'est pas dans l'état (l'add-on montre Renvoyer à tous et laisse le service refuser) ; `resolveIncident` sur un incident déjà clos rend 200 sans effet (pas de code `INCIDENT_CLOS`, il aurait touché l'add-on) ; l'alerte du courant qui manque (`ANNONCE` `sansCourant`) n'est pas encore lue par l'add-on, et son relais sur Discord est au bot de la direction du Discord ; entreprise partagée : aucune route pour quitter l'entreprise, reprendre ou libérer l'entreprise de départ laissée sans membre ; l'add-on ne lit pas encore `CompanyState.members` ; relevés par l'add-on des incidents : la réponse de `resolveIncident` ne donne pas la récompense (elle vient de l'événement), aucun événement quand l'incident était déjà clos, la charge de `INCIDENT` n'a pas de schéma, et l'événement ne porte pas l'état, d'où un `getCompany` par événement ; relevés par la ville : aucun code pour « bâtiment verrouillé par la mairie » (rendu `ZONE_VERROUILLEE`) ni pour « quantité maximale atteinte » et « dernier niveau » (rendus `DEJA_POSSEDE`), le maximum de 16 zones est fixé par le contrat et le code de `buyZone` et non par `ville.json`, `LIVRAISON_VITESSE` n'a pas encore de lecteur ; relevés par l'add-on de l'entreprise partagée : aucune route pour quitter une entreprise ni pour lister ses invitations en attente (une invitation manquée à la reconnexion est perdue), `ANNONCE` ne va qu'à celui qui agit, accepter quitte l'ancienne entreprise sans retour, le XUID est encore un condensé du gamertag ; relevés par la boutique : aucun code de refus pour `perso` sans Ultime (rendu `GRADE_PRECEDENT_REQUIS`), pas de 404 ni de 403 (l'inconnu donne 400), aucun événement d'achat, `buyItem` ne rend que `Balances` ; relevés par l'add-on de la ville : le payload d'`ANNONCE` n'a pas de schéma, `city` ne donne ni le prix d'un bâtiment neuf (lu dans `ville.json`) ni le bonus du niveau suivant, aucune route ne donne la position du joueur, les gabarits des préfabriqués (dimensions, matériaux) sont dans le code de l'add-on et pas dans `ville.json` ; relevés par les votes : la réception Votifier (TCP) n'est pas dans l'OpenAPI, le `payload` d'`ANNONCE` reste libre (`action` vote, voteParty), `todayVotes` ne dit pas les jours qui restent avant le bonus de série ; relevés par les cosmétiques : aucune route ne rend le boost collectif en cours (l'add-on ne le sait que par l'événement), `ceoHoldings` ignore les cosmétiques, `site_registrations.pioneer` est vrai par défaut et le site ne l'écrit pas (tout inscrit est pionnier : à dire à la direction du site)
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`). **Le simulateur montre que ce trou compte** : avec une remise en état gratuite, la Scierie et la Mine profonde tombent à 0,08 h, le prestige 2 à 20,9 h, le prestige 3 à 48,5 h, la première étoile à 17,5 h, tous hors cible ; le tableur suppose un rachat payant. Deux cibles ont peu de marge (première amélioration : 13 s ; Mine profonde : 1 min)
 - [ ] La clé `decouverte` de `usines.json` (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`) n'est pas lue par le service : rien ne révèle une usine, rien ne la rachète (pas de route). `EconomyEngine.isDiscovered` la lit maintenant (`apres-<usine>` = usine remise en état, à valider) ; la route de découverte et de rachat reste à écrire une fois le coût fixé
-- [ ] DNS `play.silooo.com` vers l'IP du VPS
+- [ ] DNS `play.silooo.com` vers l'IP du VPS (commandes et enregistrements préparés par Claude)
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI, et une clé de lecture du registre `ghcr.io` pour le VPS
 - [ ] Relire la section « Décisions prises sans Kr » et dire ce qui ne va pas
-- [ ] Relire l'ADR 0004 (port 19142, statut « Proposée ») et l'ADR 0003 (réseau Docker de SileneMC rejoint en externe)
-- [ ] Trancher les deux points ouverts de `docs/vision.md` : les lootbox à clés (le game design les cite, la règle « aucun hasard payant » les interdit) et le marché d'annonces entre joueurs (`createListing`, `buyListing`), que le plan recommande de remplacer par une vente au Silo à prix fixé. Rien ne s'écrit sur ces deux sujets avant ta réponse.
+- [ ] Relire l'ADR 0003 (réseau Docker de SileneMC rejoint en externe) ; l'ADR 0004 (port 19142) est acceptée depuis le 5 novembre 2026
+- [x] Trancher les deux points ouverts de `docs/vision.md` : fait le 5 novembre 2026. Lootbox payantes permises, contenu complet, probabilités affichées, accord parental pour un mineur (`CLAUDE.md` et le game design mis à jour) ; marché : vente au Silo, annonces retirées de l'API.
 - [ ] Trancher les huit points d'interprétation du tableur et la règle d'arrondi des Lingots : `core/src/test/resources/golden/README.md`, section « Points d'interprétation ». En attendant, le moteur suit le tableur.
 - [ ] Dans l'application Claude, ouvrir les deux sessions « Phase 0 : outillage » et « Phase 0 : recettes » restées en attente de « Trust repository » et les fermer (leur travail a été fait par la direction) ; au prochain lancement d'une session PC en worktree, cliquer « Trust repository » une fois
 - [ ] Trancher trois trous du contrat relevés par les tests : aucune route pour nommer l'entreprise (le game design le demande à l'étape 1 de l'onboarding ; en attendant, nom provisoire « Entreprise de <gamertag> ») ; aucune route ne fait avancer `tutorial_step` (à prévoir en phase 3) ; `PAS_ASSEZ_DE_JETONS` et `PAS_ASSEZ_DE_CLES` manquent dans `Refused` (les clés dépendent de ta décision sur les lootbox)
@@ -215,7 +233,7 @@ sur l'usine pilote ; le VPS actuel sert jusque-là.
 - [ ] Phase 5 : un achat réel de test sur la boutique PayNow, livré une fois et une seule, puis la vérification en jeu (le site écrit `shop_deliveries`, le jeu crédite et montre `GEMMES_RECUES`).
 - [ ] Phase 5 : Hubyy : déclarer Silooo avec l'adresse, le port Votifier et le jeton ; ouvrir ce port sur le VPS ; le jeton dans l'environnement du conteneur silooo, jamais dans le dépôt. Les autres sites de vote plus tard, par le même chemin.
 - [ ] Discord (direction du Discord, `docs/discord-passation.md`, point 8) : quand elle écrit « Prêt à mettre en ligne » (le QG, fin de D2) et que Kr a donné le jeton du bot (`SILOOO_DISCORD_TOKEN`) et l'identifiant du serveur (`SILOOO_DISCORD_SERVEUR`), posés dans l'environnement du conteneur silooo et jamais dans le dépôt, la direction du jeu déploie `main` (projet Docker « silooo ») avec `SILOOO_DISCORD_ACTIF=a-blanc`, puis `oui` ; rien avant, jamais sans vérificateur vert ni CI verte.
-- [ ] Phase 5 : trancher le marché entre joueurs (`listMarket`, `createListing`, `buyListing`) : `CLAUDE.md` interdit toute monnaie échangeable entre joueurs, donc ces routes restent « pas fait » tant que Kr n'a pas dit ce qu'il en reste.
+- [x] Phase 5 : trancher le marché entre joueurs : fait le 5 novembre 2026, vente au Silo ; `createListing` et `buyListing` sortent de l'OpenAPI (tâche dans « Cadre visuel et décisions du 5 novembre »).
 - [ ] Deux dossiers `.agents/` et `.codex/` sont apparus non suivis dans le dossier de la direction du jeu le 5 novembre 2026 à 13 h 16, sans qu'elle les écrive : dire s'il faut les ignorer dans `.gitignore` ou les retirer. Les copies locales de `docs/site.md`, `docs/site-direction.md` et `docs/site-passation.md` qui traînaient dans ce dossier (plus anciennes que `main`, elles bloquaient chaque fusion) sont mises de côté dans un stash (`git stash list` : « copies locales des docs du site ») : les reprendre ou les jeter (`git stash drop`). Depuis ddf698f (direction du site), `docs/references/site/` est sur `main`, octet pour octet identique à la copie non suivie qui bloquait la fusion : cette copie est dans un second stash (`stash@{0}`, 16 h 45) ; les deux stashs peuvent être jetés (`git stash drop`), rien n'y manque à `main`.
 - [ ] Phase 4 : au test sur console, tout l'add-on de la phase 4, jamais essayé en jeu : la ville et l'île principale (zones posées quand la mairie les débloque, catalogue, pose, amélioration, bulles d'Oooscar), le prestige, la carte et le voyage, le personnel, les incidents et la réparation, l'entreprise partagée.
 - [ ] L'agence : `docs/game-design.md` (une nouvelle liste de candidats achetée en Donar) contredit le service et `docs/economie.md` (décision 33 : rien à acheter, cinq candidats du jour) ; le wiki du site suit le service. Trancher, et mettre le game design d'accord (point 8 de la direction du site).
@@ -575,10 +593,6 @@ sur l'usine pilote ; le VPS actuel sert jusque-là.
 - Trois règles du hors ligne prises par le branchement (`docs/economie.md`) : l'absence se compte depuis
   `last_collect_at` de l'entreprise et non depuis le départ du joueur ; la colonne `offline_cap_hours` fait foi
   (recopiée de `horsLigne.plafondHeures` à la création) ; le surplus au-delà du plafond est perdu.
-- Le cadre visuel, proposé par la session de chat et pas décidé par Kr mot pour mot : l'ordre des usines sur
-  l'anneau (`definitions/iles.json`, angles : la chaîne du fer à la suite de la Carrière, la Briqueterie de l'autre
-  côté), les tailles intermédiaires d'île (7, 12, 18), et le moment où arrivent les ponts du réseau (« dès la
-  deuxième usine voisine », `docs/game-design.md`, « Se déplacer »).
 
 ## Journal
 
@@ -1063,3 +1077,10 @@ sur l'usine pilote ; le VPS actuel sert jusque-là.
   types générés) ; tests de l'add-on adaptés aux nouvelles coordonnées (1423 tests). `tools/verifier.sh` vert sauf
   l'étape Gradle, qui ne peut pas télécharger Gradle depuis le conteneur de la session : à voir dans la CI de
   `claude/cadre-visuels`. Les tâches sont dans « Cadre visuel ». Vérifier : `gh run list --branch claude/cadre-visuels`.
+- **5 novembre 2026, 18 h 20 : session de chat, les décisions du 5 novembre.** Kr a répondu à une série de
+  questions sur tout le projet : carte (Centrale à côté de la Carrière, tailles d'île aux paliers de 25 et 100
+  salariés, ponts à la remise en état), pannes, événements, prestige, public, boutique (lootbox payantes au contenu
+  complet, retrait de l'interdit dans `CLAUDE.md`, `docs/vision.md`, `design/README.md`), marché (vente au Silo),
+  modération, communauté, exploitation, saisons de 3 mois (saison 1 : l'alimentaire). Écrit dans
+  `docs/game-design.md` ; ADR 0004 acceptée (port 19142) ; trois décisions du plan tranchées ; exception de
+  `CLAUDE.md` pour la base et `docker login` au premier déploiement. Vérifier : `gh run list --branch claude/cadre-visuels`.

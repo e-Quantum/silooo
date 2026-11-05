@@ -48,25 +48,25 @@ Toute idée qui ne sert aucun pilier est rejetée.
 Ces interdits sont dans [CLAUDE.md](../CLAUDE.md) et dans [design/README.md](../design/README.md),
 section « HUD, menus, cinématiques, Vote party ». Ils valent pour le jeu, le site et Discord.
 
-- Pas de hasard payant : aucun coffre ouvert au hasard contre une clé achetée, aucun pile ou face.
+- Pas de pile ou face. Les lootbox payantes sont permises depuis le 5 novembre 2026, par décision de Kr,
+  probabilités affichées avant l'achat et accord parental pour un mineur ([game-design.md](game-design.md)).
 - Pas de pari ni d'enchère entre joueurs.
 - Pas de monnaie échangeable entre joueurs : aucun don de Donar, de Lingots ni de Gemmes.
-- Jamais en vente : Lingots, zones de ville, places au classement, usines, salariés, niveaux,
-  multiplicateurs personnels, ressources.
+- Jamais en vente directe : Lingots, zones de ville, places au classement, usines, salariés, niveaux,
+  multiplicateurs personnels, ressources. Une lootbox payante peut contenir tout objet du jeu (décision
+  de Kr du 5 novembre 2026).
 - Pas de tic d'IA dans un texte ou une image vus par les joueurs : voir [anti-ia.md](anti-ia.md).
 - Pas de message d'achat pendant la première heure de jeu, pas de fenêtre de vente qui s'ouvre seule.
 - Pas de besoins à gérer en ville (faim, humeur) : la ville sert à progresser et à se montrer.
 - Pas de punition : jamais de grève ni d'incident pendant une absence, et une chute dans le vide
   ramène au dernier point sûr sans perte.
 
-## Deux points que le game design laisse ouverts
+## Deux points tranchés par Kr le 5 novembre 2026
 
-- Le game design cite encore des lootbox avec des clés achetables. Les règles du dépôt interdisent
-  le hasard payant. Tant que Kr n'a pas tranché, aucun écran ni aucune route de lootbox ne s'écrit :
-  à confirmer par Kr.
-- L'OpenAPI prévoit un marché d'annonces entre joueurs (`createListing`, `buyListing`). Le plan
-  recommande un marché où l'on vend au Silo à un prix fixé par le jeu, et de retirer les annonces de
-  l'API : à confirmer par Kr. Voir [economie.md](economie.md), section « Le marché ».
+- Les lootbox : payantes permises, contenu complet, probabilités affichées avant l'achat
+  ([game-design.md](game-design.md), « Économie et boutique »).
+- Le marché : pas d'annonces entre joueurs, tout se vend au Silo à un prix fixé par le jeu ; les
+  annonces sortent de l'OpenAPI. Voir [economie.md](economie.md), section « Le marché ».
 
 ## Où lire ensuite
 

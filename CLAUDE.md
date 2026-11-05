@@ -37,10 +37,15 @@ sessions et tous les agents. Le détail est dans docs/ : commence par docs/READM
 ## Ce qui reste interdit, même en mode autonome
 
 - Lire ou modifier un fichier .env, une clé ou un secret, sous-agents compris. Aucun secret dans le dépôt.
+  Exception accordée par Kr le 5 novembre 2026, pour le premier déploiement seulement : créer la base silooo et
+  son utilisateur dans MariaDB, et faire docker login ghcr.io sur le VPS. Le secret ne s'affiche ni ne se recopie
+  dans une réponse, un journal ou un commit.
 - Toucher à /var/www/minecraft ou /var/www/huby : ce sont d'autres projets, et Hubyy doit rester en ligne.
 - Agir sur un compte externe (GitHub, PayNow, OVH, Discord, sites de vote) au-delà de pousser ce dépôt.
 - Désactiver ou affaiblir un test pour le faire passer.
-- Toute mécanique de hasard payant, de pari ou de monnaie échangeable entre joueurs.
+- Toute mécanique de pari ou de monnaie échangeable entre joueurs. Les lootbox payantes sont permises depuis le
+  5 novembre 2026, par décision de Kr : probabilités affichées avant l'achat, accord parental pour un mineur
+  (docs/game-design.md).
 - Tout tic d'IA dans les textes des joueurs : mots-réclame, questions de pub, emoji (design/README.md,
   section « Écrire sans slop »).
 

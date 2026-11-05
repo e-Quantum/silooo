@@ -11,7 +11,7 @@ applique une décision cite son numéro.
 | [0001](0001-depot-unique.md) | Un seul dépôt pour tout Silooo | Acceptée |
 | [0002](0002-service-autoritaire.md) | Le service décide, l'add-on affiche | Acceptée |
 | [0003](0003-base-partagee.md) | Une base `silooo` dans la MariaDB de SileneMC | Acceptée |
-| [0004](0004-port-bedrock.md) | Le port du serveur Bedrock | Proposée, à valider par Kr |
+| [0004](0004-port-bedrock.md) | Le port du serveur Bedrock | Acceptée |
 | [0005](0005-langues-du-code.md) | Les langues du code, des textes et de la documentation | Acceptée |
 | [0006](0006-site-silooo-com.md) | Le site silooo.com vit dans silooo-core, sur son propre port, en deux modes | Proposée, à valider par Kr |
 | [0007](0007-bot-discord-jda.md) | Le bot Discord Oooscar vit dans silooo-core, sur JDA, derrière une interface | Proposée, à valider par Kr |

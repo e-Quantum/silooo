@@ -425,8 +425,10 @@ presque pas de marge : le moindre réglage les fera sortir.
 
 L'OpenAPI prévoit des annonces entre joueurs en Lingots, taxées (`market_listings`,
 `market_trades.tax`). Le plan recommande plutôt une vente au Silo à prix fixé par le jeu, sans
-annonces, pour qu'aucune monnaie ne circule entre joueurs. Tant que Kr n'a pas tranché, les
-opérations de marché répondent « pas fait » et aucune valeur de marché n'entre dans `definitions/`.
+annonces, pour qu'aucune monnaie ne circule entre joueurs. Kr a tranché le 5 novembre 2026 : vente au
+Silo, pas d'annonces entre joueurs. Les opérations d'annonces sortent de l'OpenAPI (tâche dans
+[passation.md](passation.md)) ; en attendant, elles répondent « pas fait » et aucune valeur de marché
+n'entre dans `definitions/`.
 
 ## Historique des réglages
 

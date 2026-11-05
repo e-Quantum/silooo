@@ -13,7 +13,7 @@ Silooo Atelier est l'interface de Silooo, un tycoon d'usines dans le ciel sur Mi
 ## Les mots
 
 - Français, tutoiement, phrases très courtes. Le jeu se comprend sans lire : l'icône et le chiffre portent le sens, le mot confirme.
-- Oooscar parle en **6 mots au plus** par bulle (`sa-bulle`), avec un point d'exclamation quand il se réjouit : « La Fonderie t'attend ! ».
+- Oooscar parle en **6 mots au plus** par bulle (`sa-bulle`), avec un point d'exclamation quand il se réjouit : « La Fonderie t'attend ! ». Depuis le 5 novembre 2026, il est aussi taquin : il charrie gentiment le joueur, sans jamais se moquer d'un échec.
 - Les titres de fenêtre sont en capitales sur une plaque (`sa-plaque`) : SCIERIE, CARTE, BOUTIQUE.
 - Chiffres à la française : virgule décimale, espace fine entre milliers (12 400), suffixes k, M, Md, puis aa, ab, ac… collés à un espace près : « 84,3 Md », « 1,2 aa ».
 - Les verbes des boutons disent l'action : « Y aller », « Prestige ! », « Pas encore ». Jamais « OK ».
@@ -73,7 +73,7 @@ Côté dessin, même filtre : pas de dégradé violet, pas de lueur, pas de verr
 - **Menus refaits de zéro** (composants Menu et Fiche) : des tuiles, pas des coffres. Appuyer sur une tuile ouvre sa fiche : sur mobile et console, il n'y a pas de survol, donc pas d'info-bulle.
 - **Cinématiques** (composant Cinématique) : bandes, sous-titre d'une phrase avec le nom de qui parle, toujours passables.
 - **Vote party** (composant Vote party) : jauge commune en haut de l'écran, fête de 6 secondes, même récompense pour tous.
-- Ce qu'on ne reprend pas des serveurs Java : pile ou face et paris, enchères entre joueurs, coffres payants au hasard, monnaie échangeable. Pour des raisons de règles Mojang et de protection des mineurs.
+- Ce qu'on ne reprend pas des serveurs Java : pile ou face et paris, enchères entre joueurs, monnaie échangeable. Pour des raisons de règles Mojang et de protection des mineurs. Les lootbox payantes sont l'exception décidée par Kr le 5 novembre 2026 : probabilités affichées avant l'achat, accord parental pour un mineur.
 
 ## Icônes
 
