@@ -8,12 +8,15 @@ import com.silooo.core.discord.ChannelSpec
 import com.silooo.core.discord.CommandSpec
 import com.silooo.core.discord.DiscordConnection
 import com.silooo.core.discord.DiscordEvent
+import com.silooo.core.discord.DiscordRefusal
 import com.silooo.core.discord.DiscordServer
 import com.silooo.core.discord.ExistingCategory
 import com.silooo.core.discord.ExistingChannel
 import com.silooo.core.discord.ExistingRole
+import com.silooo.core.discord.OnboardingState
 import com.silooo.core.discord.RoleSpec
 import com.silooo.core.discord.ServerSnapshot
+import com.silooo.core.discord.rest.DiscordRest
 import java.time.Duration
 import java.util.EnumSet
 import kotlinx.coroutines.future.await
@@ -39,19 +42,18 @@ import net.dv8tion.jda.api.utils.ChunkingFilter
 import net.dv8tion.jda.api.utils.MemberCachePolicy
 import net.dv8tion.jda.api.utils.cache.CacheFlag
 
-/** Discord a refusé quelque chose que le bot sait expliquer ; le message ne contient jamais le jeton. */
-class DiscordRefusal(message: String) : Exception(message)
-
 /**
  * La connexion JDA (ADR 0007) : avec [JdaServer], [JdaEvents] et [JdaMessages], le seul endroit qui importe JDA.
  * Les intentions : membres, messages et leur contenu, réactions, vocaux ; les membres et le contenu sont
  * privilégiés, Kr les accorde dans le portail des développeurs. Le cache des membres se limite aux derniers vus
- * ([MEMBER_CACHE]) et à ceux en vocal : l'accueil guidé et les vocaux en ont besoin, rien d'autre.
+ * ([MEMBER_CACHE]) et à ceux en vocal : l'accueil guidé et les vocaux en ont besoin, rien d'autre. Ce que JDA ne
+ * couvre pas (l'accueil guidé) passe par [DiscordRest], ouvert et fermé avec la connexion.
  */
 class JdaConnection private constructor(
     private val jda: JDA,
     private val guild: Guild,
     override val server: DiscordServer,
+    private val rest: DiscordRest,
 ) : DiscordConnection {
     override fun onEvent(handler: (DiscordEvent) -> Unit) {
         jda.addEventListener(JdaEvents(guild.idLong, handler))
@@ -60,6 +62,7 @@ class JdaConnection private constructor(
     override fun close() {
         jda.shutdown()
         if (!jda.awaitShutdown(SHUTDOWN_WAIT)) jda.shutdownNow()
+        rest.close()
     }
 
     companion object {
@@ -84,12 +87,14 @@ class JdaConnection private constructor(
                 .setChunkingFilter(ChunkingFilter.NONE)
                 .setLargeThreshold(50)
                 .build()
+            val rest = DiscordRest(config.token)
             try {
                 jda.awaitReady()
                 val guild = jda.getGuildById(config.guildId)
                     ?: throw DiscordRefusal("le bot n'est pas sur le serveur ${config.guildId} (invite-le, puis vérifie SILOOO_DISCORD_SERVEUR)")
-                return JdaConnection(jda, guild, JdaServer(guild))
+                return JdaConnection(jda, guild, JdaServer(guild, rest), rest)
             } catch (e: Exception) {
+                rest.close()
                 jda.shutdownNow()
                 throw e
             }
@@ -97,8 +102,11 @@ class JdaConnection private constructor(
     }
 }
 
-/** [DiscordServer] sur un serveur JDA. Chaque appel attend la réponse de Discord dans une coroutine. */
-class JdaServer(private val guild: Guild) : DiscordServer {
+/**
+ * [DiscordServer] sur un serveur JDA. Chaque appel attend la réponse de Discord dans une coroutine ; l'accueil
+ * guidé, que JDA ne couvre pas, passe par [rest].
+ */
+class JdaServer(private val guild: Guild, private val rest: DiscordRest) : DiscordServer {
 
     override suspend fun snapshot(): ServerSnapshot = ServerSnapshot(
         roles = guild.roles.filter { !it.isPublicRole && !it.isManaged }.map { ExistingRole(it.id, it.name, colorOf(it)) },
@@ -190,6 +198,10 @@ class JdaServer(private val guild: Guild) : DiscordServer {
     override suspend fun installCommands(commands: List<CommandSpec>) {
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
     }
+
+    override suspend fun onboarding(): OnboardingState = rest.onboarding(guild.id)
+
+    override suspend fun setOnboarding(state: OnboardingState): OnboardingState = rest.setOnboarding(guild.id, state)
 
     private fun messageChannel(channelId: String): GuildMessageChannel =
         guild.getChannelById(GuildMessageChannel::class.java, channelId)

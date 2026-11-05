@@ -129,7 +129,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, cosmétiques, boost, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `player_cosmetics`, `server_boosts`, `shop_purchases`, `shop_deliveries`, `site_registrations` en lecture, Gemmes), `ShopFigures` (les bonus de Donar du PDG et le boost collectif que le moteur lit), `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) et `PioneerTitle` (le titre Pionnier, donné au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -851,9 +851,19 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   Discord) ou du texte, avec boutons, menu, image ; les formulaires et les commandes ont leurs modèles. `discord/jda/JdaMessages`
   et `JdaEvents` traduisent dans les deux sens. Les chiffres du Discord sont dans `definitions/discord.json`
   (`DiscordDefinitions`, chargé à part du jeu, vérifié contre le plan : rôles et salons cités, niveaux qui montent) ; ses tables
-  sont celles de la migration V8, toutes préfixées `discord_`.
+  sont celles de la migration V10, toutes préfixées `discord_`.
+- **L'accueil guidé.** La clé `accueil` du plan : des questions dont chaque réponse donne un rôle du plan (la plateforme, une
+  seule réponse, obligatoire ; les notifications, plusieurs). `OnboardingPlanner` en fait l'état que Discord attend, avec pour
+  salons par défaut tous les salons publics de la phase, et compte avant d'envoyer la règle de Discord (7 salons par défaut, dont
+  5 où tout le monde écrit) ; `OnboardingSync` compare à ce que le serveur a, identifiants mis à part, et garde ceux que Discord
+  connaît ; `OnboardingApplier` ne renvoie rien si tout est en place, dit ce qu'il poserait à blanc, et met un refus dans les
+  échecs du compte rendu. JDA ne couvre pas l'accueil guidé : `discord/rest/DiscordRest` l'envoie en REST (`GET` et `PUT
+  /guilds/{id}/onboarding`) avec le client Ktor du service, le jeton dans le seul en-tête `Authorization`, un refus rendu avec son
+  code HTTP et le message de Discord. Le Guide du serveur, lui, n'a pas d'API : `docs/discord-guide.md` dit ce que Kr pose.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
-  sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/DiscordBotTest`
+  sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
+  (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
+  `discord/rest/DiscordRestTest` (la requête telle que Discord l'attend sur un `MockEngine`, les refus sans le jeton), `discord/DiscordBotTest`
   (rien ne lève, le jeton ne s'affiche pas, les événements servis jusqu'à `close`), `discord/BotRuntimeTest` (l'ordre, l'isolement,
   la file pleine, les minuteries), `discord/DiscordDefinitionsTest` (le fichier du dépôt colle au plan, la formule des niveaux),
   `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans `build/mesure-memoire-discord.txt`) et

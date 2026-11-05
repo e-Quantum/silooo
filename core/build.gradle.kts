@@ -49,6 +49,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(libs.testcontainers.mariadb)
     testImplementation(libs.snakeyaml)
     testRuntimeOnly(libs.junit.platform.launcher)

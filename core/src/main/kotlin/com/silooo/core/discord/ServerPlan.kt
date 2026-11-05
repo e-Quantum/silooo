@@ -19,6 +19,8 @@ data class ServerPlan(
     val commentaire: String? = null,
     val roles: List<PlannedRole> = emptyList(),
     val categories: List<PlannedCategory> = emptyList(),
+    /** L'accueil guidé de Discord ; absent, le bot n'y touche pas. */
+    val accueil: PlannedOnboarding? = null,
 ) {
     val channels: List<PlannedChannel> get() = categories.flatMap { it.salons }
 
@@ -53,6 +55,20 @@ data class ServerPlan(
                 if (EMOJI.containsMatchIn(channel.nom)) problems += "le nom du salon « ${channel.id} » contient un emoji : il va dans la clé emoji"
                 if (channel.type != ChannelKind.VOCAL && !TEXT_NAME.matches(channel.nom)) {
                     problems += "le nom du salon « ${channel.id} » doit être en minuscules, sans espace (Discord le réécrirait)"
+                }
+            }
+        }
+        accueil?.let { onboarding ->
+            unique("la question de l'accueil", onboarding.questions.map { it.id })
+            for (question in onboarding.questions) {
+                val where = "la question « ${question.id} »"
+                if (EMOJI.containsMatchIn(question.titre)) problems += "$where a un emoji dans son titre"
+                if (question.options.isEmpty()) problems += "$where n'a pas de réponse"
+                unique("dans $where, le rôle", question.options.map { it.role })
+                for (option in question.options) {
+                    if (option.role !in roleIds) problems += "$where cite le rôle inconnu « ${option.role} »"
+                    if (option.emoji.isBlank()) problems += "la réponse « ${option.titre} » de $where n'a pas d'emoji"
+                    if (EMOJI.containsMatchIn(option.titre)) problems += "la réponse « ${option.titre} » de $where a un emoji dans son titre : il va dans la clé emoji"
                 }
             }
         }
@@ -167,3 +183,32 @@ enum class PlanPhase(val word: String) {
 
     fun existsIn(current: ServerPhase): Boolean = ordinal <= current.ordinal
 }
+
+/**
+ * L'accueil guidé de Discord : les questions posées à l'arrivée, chaque réponse donnant un rôle du plan. Le bot le
+ * pose en REST ([OnboardingApplier]) ; les salons par défaut sont les salons publics de la phase, pas une clé.
+ */
+@Serializable
+data class PlannedOnboarding(
+    val commentaire: String? = null,
+    val questions: List<PlannedQuestion> = emptyList(),
+)
+
+/** Une question. [unique] : une seule réponse ; [obligatoire] : il faut répondre pour finir l'accueil. */
+@Serializable
+data class PlannedQuestion(
+    val id: String,
+    val titre: String,
+    val unique: Boolean = false,
+    val obligatoire: Boolean = false,
+    val options: List<PlannedAnswer> = emptyList(),
+)
+
+/** Une réponse, qui donne [role] ; [emoji] suit la règle des salons (un seul, dans sa clé). */
+@Serializable
+data class PlannedAnswer(
+    val role: String,
+    val emoji: String,
+    val titre: String,
+    val description: String? = null,
+)
