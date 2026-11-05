@@ -1,0 +1,25 @@
+# Ce qui n'entre pas dans le contexte de construction de l'image (docker build -t silooo-core core).
+
+# Sorties de construction et caches : l'image se construit à neuf.
+build/
+.gradle/
+.kotlin/
+out/
+
+# Éditeurs et dépôt.
+.idea/
+*.iml
+.vscode/
+.git
+.gitignore
+.gitattributes
+
+# Jamais de secret dans une image : fichiers d'environnement, clés, certificats.
+.env
+.env.*
+*.key
+*.pem
+
+# Les tests tournent dans la CI (job verifier), pas dans l'image.
+src/test/
+README.md
