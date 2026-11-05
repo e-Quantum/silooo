@@ -61,7 +61,7 @@ class SitePublicPagesTest {
         for (img in Regex("<img[^>]*>").findAll(html)) {
             assertTrue(Regex("""\balt="[^"]+"""").containsMatchIn(img.value), "$where : image sans alt : ${img.value}")
         }
-        assertFalse(html.contains("<script", ignoreCase = true), "$where : aucun script")
+        assertOnlySiteScripts(html, where)
         assertFalse(html.contains("{{"), "$where : un marqueur de contenu est resté dans la page")
         assertTrue(Regex("""class="sa-bouton"""").findAll(html).count() <= 1, "$where : un seul bouton rouge par page")
     }
@@ -107,7 +107,8 @@ class SitePublicPagesTest {
             val response = client.get("/")
             assertEquals(HttpStatusCode.OK, response.status)
             val html = response.bodyAsText()
-            assertTrue(html.contains("Le serveur ouvre bientôt !"))
+            assertTrue(html.contains("On construit. Reviens vite !"), "la bulle d'Oooscar dit l'attente")
+            assertFalse(html.contains("Le serveur ouvre bientôt !"), "l'ancienne annonce n'existe plus")
             assertFalse(html.contains("/rejoindre/"))
             assertFalse(html.contains("play.silooo.com"))
         }
@@ -390,12 +391,15 @@ class SitePublicPagesTest {
     }
 
     @Test
-    @DisplayName("La navigation du mode ouvert montre les pages dans l'ordre (Classements depuis S5), sans Ce qui se vend")
+    @DisplayName("La navigation du mode ouvert montre sept entrées dans l'ordre (Mon compte en bouton), sans Accueil, Ce qui se vend ni Mentions")
     fun navigation() = withSite { client ->
         val html = client.get("/").bodyAsText()
-        val labels = Regex("""<a href="[^"]*" class="sa-bouton sa-bouton--fonte sa-bouton--nav"[^>]*>([^<]+)</a>""")
+        val labels = Regex("""<a href="[^"]*" class="[^"]*navigation__(?:lien|bouton)"[^>]*>([^<]+)</a>""")
             .findAll(html).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("Accueil", "Rejoindre", "Pionniers", "Wiki", "Classements", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
+        assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), labels)
+        // Mon compte est le seul bouton de fonte de la navigation ; il mène à l'inscription des pionniers.
+        assertTrue(html.contains("""<a href="/pionniers/" class="sa-bouton sa-bouton--fonte navigation__bouton">Mon compte</a>"""))
+        assertEquals(1, Regex("""navigation__bouton""").findAll(html).count())
     }
 
     @Test

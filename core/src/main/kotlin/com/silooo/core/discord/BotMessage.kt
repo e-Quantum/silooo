@@ -120,10 +120,16 @@ data class CommandSpec(
     }
 }
 
-/** Une option de commande, toujours en texte ; [choices] : les seules valeurs acceptées, s'il y en a. */
+/**
+ * Une option de commande ; [choices] : les seules valeurs acceptées, s'il y en a (texte seulement). [kind] :
+ * un texte, ou un fichier joint que le bot reçoit dans [DiscordEvent.CommandUsed.files].
+ */
 data class CommandOption(
     val name: String,
     val description: String,
     val required: Boolean = false,
     val choices: List<String> = emptyList(),
+    val kind: OptionKind = OptionKind.TEXTE,
 )
+
+enum class OptionKind { TEXTE, FICHIER }

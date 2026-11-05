@@ -48,9 +48,25 @@ interface DiscordServer {
 
     suspend fun memberCount(): Int
 
+    /**
+     * Les identifiants des membres qui ont réagi au message [messageId] de [channelId] avec l'emoji du serveur nommé
+     * [emojiName], les bots exclus. Un emoji que le serveur n'a pas : un ensemble vide. Discord refuse (message ou
+     * salon disparu, droit manquant) : [DiscordRefusal].
+     */
+    suspend fun reactors(channelId: String, messageId: String, emojiName: String): Set<String>
+
     /** Pose les commandes du bot sur le serveur, à la place des précédentes. */
     suspend fun installCommands(commands: List<CommandSpec>)
+
+    /** L'accueil guidé tel qu'il est ; un serveur qui n'en a jamais eu rend [OnboardingState.NONE]. */
+    suspend fun onboarding(): OnboardingState
+
+    /** Remplace l'accueil guidé par [state] et rend ce que Discord a gardé, ses identifiants compris. */
+    suspend fun setOnboarding(state: OnboardingState): OnboardingState
 }
+
+/** Discord a refusé quelque chose que le bot sait expliquer ; le message ne contient jamais le jeton. */
+class DiscordRefusal(message: String) : Exception(message)
 
 /** Une connexion ouverte à Discord ; [close] la coupe proprement. */
 interface DiscordConnection : AutoCloseable {

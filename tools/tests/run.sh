@@ -285,6 +285,10 @@ essai_plan "un salon avant sa catégorie" "apparaît avant sa catégorie" 'p.cat
 essai_plan "un identifiant en double" "est en double" 'p.roles[1].id = p.roles[0].id'
 essai_plan "une clé inconnue" "additional properties" 'p.roles[0].couleurs = "#e0614f"'
 essai_plan "sans journal" "journal-du-bot" 'p.categories = p.categories.filter((c) => c.id !== "staff")'
+essai_plan "une réponse de l'accueil vers un rôle inconnu" "accueil.questions[0].options[0].role: le rôle « fantome » n'existe pas" 'p.accueil.questions[0].options[0].role = "fantome"'
+essai_plan "deux emoji sur une réponse de l'accueil" "accueil.questions[0].options[0].emoji: un seul emoji" 'p.accueil.questions[0].options[0].emoji = "🎮🎮"'
+essai_plan "le même rôle deux fois dans une question" "accueil.questions[0].options[1]: le rôle « console » est en double" 'p.accueil.questions[0].options[1].role = "console"'
+essai_plan "un titre de réponse trop long" "accueil.questions.0.options.0.titre" 'p.accueil.questions[0].options[0].titre = "x".repeat(51)'
 
 # ------------------------------------------------------------------ deploy/
 # Trois essais, chacun dans son fichier : start.sh (sans Docker), deploy.sh et sauvegarde.sh (avec un faux docker),

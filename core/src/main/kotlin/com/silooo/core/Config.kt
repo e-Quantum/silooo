@@ -90,6 +90,8 @@ object Config {
     const val SITE_GAME_PORT = "SILOOO_SITE_PORT_JEU"
     const val SITE_SHOP_URL = "SILOOO_SITE_URL_BOUTIQUE"
     const val SITE_VOTE_SITES = "SILOOO_SITE_SITES_DE_VOTE"
+    const val SITE_URL_SILENEMC = "SILOOO_SITE_URL_SILENEMC"
+    const val SITE_URL_HUBYY = "SILOOO_SITE_URL_HUBYY"
     const val SITE_ADMISSION = "SILOOO_SITE_ADMISSION"
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
@@ -373,8 +375,11 @@ object Config {
             }
             val shopUrl = siteUrl(SITE_SHOP_URL, null)
             val voteSites = voteSites()
+            // Les sites frères du pied de page : des adresses facultatives, lues comme la boutique.
+            val sileneMcUrl = siteUrl(SITE_URL_SILENEMC, null)
+            val hubyyUrl = siteUrl(SITE_URL_HUBYY, null)
             if (problems.size > before) return null
-            return SiteSettings(address, checkNotNull(port), shopUrl, voteSites)
+            return SiteSettings(address, checkNotNull(port), shopUrl, voteSites, sileneMcUrl, hubyyUrl)
         }
 
         /** `nom|url;nom|url` : une entrée sans nom, sans url ou sans « | » refuse tout le démarrage. */

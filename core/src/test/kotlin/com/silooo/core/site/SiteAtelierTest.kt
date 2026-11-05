@@ -41,10 +41,10 @@ class SiteAtelierTest {
     @DisplayName("Les jetons, textures, icônes, Oooscar et logos du site sont les copies exactes de design/, en entier")
     fun copiesAreExact() {
         assertCopy(design.resolve("tokens.css"), publicDir.resolve("atelier/tokens.css"))
-        val folders = mapOf("atelier/textures" to "textures", "atelier/icones" to "icones", "atelier/oooscar" to "mascotte", "logo" to "logo")
+        val folders = mapOf("atelier/textures" to "textures", "atelier/icones" to "icones", "atelier/oooscar" to "mascotte", "atelier/decor" to "decor", "logo" to "logo")
         for ((served, source) in folders) {
             val copies = filesIn(publicDir.resolve(served))
-            // Tout le dossier source est là : les 14 icônes, les cinq visages d'Oooscar (PNG et SVG), chaque texture, chaque logo.
+            // Tout le dossier source est là : les 14 icônes, les cinq visages d'Oooscar (PNG et SVG), chaque texture, les cinq tuiles du décor, chaque logo.
             assertEquals(filesIn(design.resolve(source)).map { it.fileName }, copies.map { it.fileName }, "$served n'a pas les fichiers de design/$source")
             for (copy in copies) assertCopy(design.resolve(source).resolve(copy.fileName.toString()), copy)
         }

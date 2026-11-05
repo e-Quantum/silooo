@@ -49,6 +49,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(libs.testcontainers.mariadb)
     testImplementation(libs.snakeyaml)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -91,6 +92,8 @@ tasks.processResources {
     from(design.dir("textures")) { into("site/public/atelier/textures") }
     from(design.dir("icones")) { into("site/public/atelier/icones") }
     from(design.dir("mascotte")) { into("site/public/atelier/oooscar") }
+    // Le décor (terre, herbe, pierre, planches) : le sol de la scène d'Oooscar, sous chaque page.
+    from(design.dir("decor")) { into("site/public/atelier/decor") }
     from(design.dir("logo")) { into("site/public/logo") }
     from(design.file("composants/bundle.css")) {
         into("site/public/atelier")

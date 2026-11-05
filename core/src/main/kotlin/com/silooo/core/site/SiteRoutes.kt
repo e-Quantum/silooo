@@ -33,6 +33,7 @@ internal fun Route.siteRoutes(
     shell: SiteShell,
     updates: List<UpdateEntry>,
     wiki: List<ContentPage>,
+    direct: SiteDirectSource? = null,
     online: () -> PlayersOnline? = { null },
 ) {
     for (page in pages) {
@@ -55,6 +56,14 @@ internal fun Route.siteRoutes(
     get("/sitemap.xml") {
         call.response.headers.append(HttpHeaders.CacheControl, "public, max-age=3600")
         call.respondText(sitemapXml(shell, pages), ContentType.Application.Xml)
+    }
+    // Le bandeau direct : l'état du jeu en JSON, trente secondes de cache (docs/site.md). Dans les deux modes : la
+    // réponse ne dit rien de plus que la présence et les votes du jour.
+    if (direct != null) {
+        get(DIRECT_URL) {
+            call.response.headers.append(HttpHeaders.CacheControl, "public, max-age=30")
+            call.respondText(direct.readJson(), ContentType.Application.Json)
+        }
     }
 }
 

@@ -81,7 +81,7 @@ Routes techniques, sans page :
 
 | Route | Rôle |
 | --- | --- |
-| `GET /site/direct.json` | Bandeau direct : joueurs en ligne, état, version de Bedrock, Vote party, dernier prestige. Cache 30 s |
+| `GET /site/direct.json` | Bandeau direct : joueurs en ligne, état, version de Bedrock, Vote party, dernier prestige. Cache 30 s. Une route du site, pas de l'API : hors du contrat OpenAPI, sans clé |
 | `GET /site/classements.json` | Les salles du Panthéon. Recalculées toutes les 5 min dans des tables prêtes à lire |
 | `GET /connexion/xbox`, `/connexion/xbox/retour` | OAuth Microsoft, puis jetons Xbox Live |
 | `GET /connexion/discord`, `/connexion/discord/retour` | OAuth2 Discord, portée `identify` seulement |
@@ -467,16 +467,25 @@ corriger, treize à refaire, quatre posées à Kr.
   statistiques) et les tests SQL de `sitedata` (ignorés sans Docker, joués en CI). `SiteRenderToDisk` écrit les
   pages rendues dans `core/build/site-rendu/` à chaque `gradlew test` (Gradle pose `SILOOO_SITE_RENDER_DIR`) ;
   `tools/verifier_site.mjs` les ouvre dans Chromium à 360 et 1 280 px, et `--captures` en tire les captures de relecture.
-- **Les variables** (treize, toutes facultatives, décrites dans `core/README.md`) : `SILOOO_SITE_PORT`,
+- **Les variables** (quinze, toutes facultatives, décrites dans `core/README.md`) : `SILOOO_SITE_PORT`,
   `SILOOO_SITE_MODE`, `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`, `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU`,
   `SILOOO_SITE_URL_BOUTIQUE` (disparaît avec la boutique PayNow), `SILOOO_SITE_SITES_DE_VOTE` (disparaît au profit de
   `definitions/site-votes.json`), `SILOOO_SITE_ADMISSION`, `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`,
-  `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET`.
+  `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET`, et depuis `claude/site-gabarit` `SILOOO_SITE_URL_SILENEMC` et
+  `SILOOO_SITE_URL_HUBYY` (les liens « Voir aussi » du pied).
 - **Ce qui manque** par rapport à ce fichier : les comptes (Xbox, Discord avec code en jeu, sessions), l'espace joueur,
   l'admin, les actus, trois des quatre pages légales, le bandeau direct, le Panthéon, la jauge et la série du vote, le
   Guide généré, la fenêtre d'achat et la commande PayNow, les quatre animations, la vitrine. Depuis `claude/site-socle`
   (5 novembre 2026) : `robots.txt`, `sitemap.xml`, l'empreinte du gamertag, `tools/verifier_site.mjs`, la copie de
-  `design/` par Gradle, `composants.css` dérivé, l'image de partage et la 404 avec Oooscar sont là.
+  `design/` par Gradle, `composants.css` dérivé, l'image de partage et la 404 avec Oooscar sont là. Depuis
+  `claude/site-gabarit` (5 novembre 2026) : le gabarit des maquettes (en-tête avec le menu replié sous 700 px, la
+  navigation par mode, le bandeau direct en mode ouvert, la scène d'Oooscar sur le sol sous chaque page, le pied
+  sombre avec « Voir aussi »), les composants à l'échelle ×2 sous 700 px, `oooscar.js` (le SVG articulé du prototype,
+  les réactions de la table ci-dessus, la nuit, `prefers-reduced-motion`), `menu.js`, `direct.js` et
+  `GET /site/direct.json` (présence et votes du jour ; la version de Bedrock et le dernier prestige restent à `null`
+  tant que le jeu ne les donne pas). Les bulles d'arrivée sont celles de la table « Oooscar », sauf Vote et Mon
+  entreprise (leurs nombres viennent de pages qui n'existent pas encore : accueil en attendant) ; le Guide lit son
+  palier dans `economie.json`.
 
 ## La référence : skyblock.rinaorc.com
 

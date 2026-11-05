@@ -21,7 +21,10 @@ import org.slf4j.LoggerFactory
 interface Feature {
     val name: String
 
-    /** Au démarrage, le plan appliqué : poser les commandes, les tableaux, les minuteries. */
+    /** Les commandes de la fonction : [BotRuntime] pose l'union de celles de toutes les fonctions, une fois, avant [start]. */
+    val commands: List<CommandSpec> get() = emptyList()
+
+    /** Au démarrage, le plan appliqué et les commandes posées : les tableaux, les minuteries. */
     suspend fun start() {}
 
     suspend fun handle(event: DiscordEvent) {}
@@ -141,6 +144,8 @@ class BotRuntime(
         coroutineScope {
             val timer = CoroutineTimer(this, clock, mask)
             val features = build(BotContext(server, ids, timer, phase))
+            val commands = features.flatMap { it.commands }.distinctBy { it.name }
+            if (commands.isNotEmpty()) guarded("commandes", "démarrage") { server.installCommands(commands) }
             for (feature in features) guarded(feature.name, "démarrage") { feature.start() }
             while (running) {
                 val event = queue.poll()

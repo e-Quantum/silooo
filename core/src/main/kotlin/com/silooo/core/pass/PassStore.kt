@@ -35,7 +35,11 @@ data class PassProgress(val points: Int, val premium: Boolean, val claims: Set<P
  * Aucune table nouvelle : le pass vit dans celles de V1.
  */
 interface PassStore {
-    /** Vrai si [xuid] a une ligne `players` : un joueur que le service connaît (il est déjà passé par `join`). */
+    /**
+     * Vrai si [xuid] a une ligne `players` : un joueur que le service connaît (il est déjà passé par `join`). Lecture verrouillée en
+     * partage : appelée en premier dans une transaction, elle n'ouvre pas la vue cohérente, pour que le verrou des soldes qui suit
+     * serialise deux appels du même joueur au lieu de rendre un conflit à rejouer (`ER_CHECKREAD`).
+     */
     fun isKnownPlayer(connection: Connection, xuid: Xuid): Boolean
 
     /** Le pass de [xuid] dans la saison [seasonId], sans verrou ; [PassProgress.NOTHING] s'il n'a pas de ligne. Rien n'est écrit. */

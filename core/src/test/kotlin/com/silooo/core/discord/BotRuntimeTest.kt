@@ -127,4 +127,53 @@ class BotRuntimeTest {
         thread.join(2000)
         assertFalse(thread.isAlive)
     }
+
+    private class WithCommands(override val name: String, names: List<String>) : Feature {
+        override val commands = names.map { CommandSpec(it, "Une commande de test") }
+
+        @Volatile
+        var startedWith: Int = -1
+
+        @Volatile
+        var installedAtStart: Int = -1
+        lateinit var fake: FakeDiscordServer
+
+        override suspend fun start() {
+            installedAtStart = fake.commandInstalls
+            startedWith = commands.size
+        }
+    }
+
+    @Test
+    @DisplayName("Les commandes de toutes les fonctions sont posées une seule fois, avant leur démarrage, sans doublon")
+    fun installsTheUnionOfCommandsOnce() {
+        val fake = FakeDiscordServer()
+        val first = WithCommands("une", listOf("spoil", "sondage")).also { it.fake = fake }
+        val second = WithCommands("deux", listOf("sondage", "rappels")).also { it.fake = fake }
+        val runtime = runtime(fake) { listOf(first, second, Recording()) }
+        val thread = runtime.inThread()
+        awaitUntil("les commandes") { fake.commandInstalls == 1 && second.startedWith >= 0 }
+        assertEquals(listOf("spoil", "sondage", "rappels"), fake.commands.map { it.name })
+        assertEquals(1, first.installedAtStart, "posées avant le démarrage des fonctions")
+        runtime.offer(joined("1"))
+        Thread.sleep(30)
+        assertEquals(1, fake.commandInstalls)
+        runtime.stop()
+        thread.join(2000)
+        assertFalse(thread.isAlive)
+    }
+
+    @Test
+    @DisplayName("Sans aucune commande déclarée, le bot n'en pose pas et n'efface rien")
+    fun installsNothingWithoutCommands() {
+        val fake = FakeDiscordServer()
+        val recording = Recording()
+        val runtime = runtime(fake) { listOf(recording) }
+        val thread = runtime.inThread()
+        awaitUntil("le démarrage") { recording.started }
+        assertEquals(0, fake.commandInstalls)
+        runtime.stop()
+        thread.join(2000)
+        assertFalse(thread.isAlive)
+    }
 }
