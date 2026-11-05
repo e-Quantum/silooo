@@ -357,6 +357,11 @@ describe("noticeOf", () => {
     assert.deepEqual(n({ kind: "stepDone" }), { bubble: BULLES.etape });
   });
 
+  it("un incident réparé : la bulle de joie « L'usine repart », sans somme (elle vient de l'événement du service)", () => {
+    assert.deepEqual(n({ kind: "incidentResolved" }), { bubble: BULLES.usineRepart });
+    assert.equal(BULLES.usineRepart.expression, "joie");
+  });
+
   it("un refus du jeu : la bulle du code, avec la somme qui manque", () => {
     assert.equal(n({ kind: "refused", reason: "PAS_ASSEZ_DE_DONAR", missing: 120 })?.bubble.text, "Il te manque 120 Donar.");
     assert.equal(n({ kind: "refused", reason: "PAS_LE_PDG" })?.bubble.text, "Seul le PDG peut le faire.");

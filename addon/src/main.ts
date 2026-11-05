@@ -45,6 +45,7 @@ import { registerMenuItem } from "./ui/boussole";
 import { createLinkState, createViewStore, observeApi, type LinkState, type ViewStore } from "./ui/etat";
 import { createFormPresenter } from "./ui/formulaires";
 import { createHud, startHud } from "./ui/hud";
+import { createIncidents } from "./ui/incidents";
 import { createMenu } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
 import { BOUSSOLE_TEXTES, CINEMATIQUE_TEXTES } from "./ui/textes";
@@ -262,9 +263,12 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    // Un seul écouteur pour l'instant : l'annonce d'une mission terminée. Les autres événements du service arrivent plus tard.
+    // Deux écouteurs pour l'instant : l'annonce d'une mission terminée, et les incidents d'usine (ouverts, réparés).
+    // Les autres événements du service arrivent plus tard.
     const listeners = createEventListeners(log);
     listeners.on("ANNONCE", missions.onAnnonce);
+    const incidents = createIncidents({ api, views, say: tellPlayer, log });
+    listeners.on("INCIDENT", incidents.onIncident);
     startEventPolling(
       scheduler,
       createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),

@@ -16,7 +16,7 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, réparation, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
 | `src/monde/` | Le monde : îles des usines, arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
@@ -73,12 +73,13 @@ Appels bêta, tous dans `src/beta.ts` :
 Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
 la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
 de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service). La phase 4
-y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »).
+y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »), puis les incidents d'usine et leur réparation (voir « Les incidents »).
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
                   ├─ Usines ─── tuile ─── fiche ─┬─ Monter de 1, de 10, au palier, au max ... buyLevels
-                  │                              └─ Parler, Réparer, Livrer, Recruter ....... restoreStep
+                  │                              ├─ Parler, Réparer, Livrer, Recruter ....... restoreStep
+                  │                              └─ Réparer (usine en incident) ─ mini-jeu ... resolveIncident
                   ├─ Objectifs ─ la mission en cours, les missions terminées ................ getMissions
                   ├─ Carte ──── une ligne par usine ─── île choisie ... téléportation (monde/voyage.ts)
                   ├─ Prestige ─ l'aperçu du service ─── Prestige ! ... prestige ── écran d'après
@@ -101,12 +102,14 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
 | `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne est ignorée) et l'état de la liaison avec le service. |
-| `actions.ts` | Les sept actions (encaisser, acheter des niveaux, remettre en état, prestige, embaucher, affecter, renvoyer) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
+| `actions.ts` | Les huit actions (encaisser, acheter des niveaux, remettre en état, réparer un incident, prestige, embaucher, affecter, renvoyer) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
 | `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
 | `ecran.ts` | Le vocabulaire commun des écrans : routes, cibles des boutons, `Screen`, bulle et pages. Aucun écran, aucun import de Bedrock. |
 | `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel compris. |
+| `reparation.ts` | Le mini-jeu de réparation : la logique pure (`repairMove`, qui juge un choix et rend l'étape suivante, la même étape après une erreur, ou la fin), l'écran d'une étape, et `playRepair`, qui enchaîne les formulaires et rend `done` ou `back`. Il n'appelle pas le service : c'est `menu.ts` qui appelle `resolveIncident` après la dernière étape réussie. |
+| `incidents.ts` | L'événement `INCIDENT` en phrases pour le tchat (un incident s'ouvre, un incident est réparé, avec la récompense du service), puis la relecture de l'état de l'entreprise pour que la fiche d'usine suive. |
 | `personnel.ts` | Les écrans du personnel et de l'agence, et la ligne d'équipe de la fiche d'usine : des fonctions pures, comme celles de `menu.ts`. |
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
@@ -244,6 +247,30 @@ somme qui manque, `USINE_VERROUILLEE`, `EMPLACEMENT_OCCUPE`, `DEJA_POSSEDE`), l'
 **La fiche d'usine.** Quand au moins un membre y travaille, elle ajoute une ligne « Équipe : `<n>` membres, avec chef » (ou
 « sans chef »), lue dans la liste du personnel : « chef » veut dire un membre qui n'est pas un simple salarié.
 
+### Les incidents
+
+Le service décide des incidents (quand, de quelle sorte, de combien la production ralentit, ce que la réparation
+rapporte) ; l'add-on les montre et propose le mini-jeu. Il ne calcule rien : ni ralentissement, ni gain.
+
+**Ce que la fiche d'usine dit.** `Factory.incidentKind` donne la sorte (`incendie`, `panne`, `courroie`, ou `null`). La
+tuile, la ligne de la carte et la fiche la nomment (« Début d'incendie »), avec une phrase par sorte. Une sorte que
+l'add-on ne connaît pas, ou absente, garde le mot « Incident ». Une usine en incident a un bouton « Réparer », en premier ;
+elle garde ses boutons de montée de niveau (`canBuyLevels` est lu comme pour toute usine). Une usine arrêtée faute de courant
+(`SANS_COURANT`) n'a aucun bouton de réparation : la dernière ligne de la fiche dit qu'il faut une Centrale en marche.
+
+**Le mini-jeu** (`ui/reparation.ts`). « Réparer » ouvre trois écrans à boutons, dans l'ordre : le geste de sécurité, l'outil
+ou la pièce, le geste final. Un seul bouton est juste. Un mauvais choix rejoue l'étape avec un indice d'Oooscar, sans rien
+perdre ; « Retour » quitte le jeu sans rien demander. Au dernier bon choix, `resolveIncident` (POST
+`/v1/companies/{companyId}/incidents/{incidentId}/resolve`, même corps que `restoreStep`) clôt l'incident :
+`200` montre « L'usine repart ! » avec l'état que le service rend ; un refus `409` passe par le mécanisme de refus des
+autres actions. Le mini-jeu n'est pas jugé par le service : il ne vérifie que la réparation demandée.
+
+**L'événement `INCIDENT`** (`ui/incidents.ts`). Quand un incident s'ouvre, le joueur en ligne lit dans le tchat quelle usine et
+quelle sorte ; quand il est réparé, il lit qui l'a réparé et la récompense, telle que le service la donne
+(`payload.reward`, mise en forme comme les autres nombres). Une récompense de 0 le dit, et dit si un associé avait déjà
+réparé. L'add-on relit ensuite l'état de l'entreprise, parce que l'événement ne le rend pas : sans cela la fiche ne
+montrerait le bouton « Réparer » qu'au prochain relevé.
+
 ### Les formulaires
 
 Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert (le tchat, un autre menu). Le menu
@@ -341,7 +368,7 @@ dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoir
 | Fiche, phrase d'une usine active | rien | Elle livre sa production au Silo. |
 | Fiche, phrase d'une usine en ruine | rien | Elle est en ruine. Remets-la en état. |
 | Fiche, phrase d'une usine en travaux | rien | Les travaux avancent, étape par étape. |
-| Fiche, phrase d'un incident | rien | Un incident bloque sa production. |
+| Fiche, phrase d'un incident de sorte inconnue (le service ne dit plus qu'il bloque : il ralentit) | Un incident bloque sa production. | Un incident ralentit sa production. |
 | Fiche, phrase d'un arrêt faute de courant | rien | Elle est à l'arrêt, sans courant. |
 | Fiche, info | rien | Niveau `<niveau>` |
 | Fiche, info | rien | Revenu `<revenu>` |
@@ -506,6 +533,74 @@ charte (`design/README.md`), « Exceptionnel » tient la place. La couleur du no
 | Refus `EMPLACEMENT_OCCUPE` d'une embauche ou d'une affectation (remplace Cet emplacement est occupé.) | Cet emplacement est occupé. | Plus de poste libre ici. |
 | Refus `DEJA_POSSEDE` d'une embauche, bulle fière (remplace Tu l'as déjà.) | Tu l'as déjà. | Déjà embauché. |
 
+Les incidents et leur réparation (`INCIDENT_TEXTES`, `REPARATION_TEXTES` et quatre bulles). Le service ne rend que
+l'identifiant de la sorte d'incident ; les noms et les phrases sont dans l'add-on, un jeu par sorte de
+`definitions/incidents.json`. Le mini-jeu a trois étapes par sorte, avec trois boutons chacune dont un seul est juste.
+Le nombre d'étapes, leur ordre (le geste de sécurité, l'outil ou la pièce, le geste final) et la place de la bonne
+réponse sont des choix de l'add-on, pas des chiffres du jeu : à valider par Kr, comme les phrases. Une mauvaise réponse
+rejoue l'étape avec un indice d'Oooscar et ne fait rien perdre. La récompense n'est jamais calculée dans l'add-on : elle
+vient de l'événement `INCIDENT` du service.
+
+| Où | Avant | Après |
+|---|---|---|
+| Usines et carte, nom d'une sorte d'incident (une sorte inconnue garde Incident) | rien | Début d'incendie, Machine en panne, Courroie cassée |
+| Fiche, sorte d'un incident connu (remplace INCIDENT) | INCIDENT | le nom de la sorte en capitales : DÉBUT D'INCENDIE, MACHINE EN PANNE, COURROIE CASSÉE |
+| Fiche, phrase d'un incendie | rien | Le feu a pris, la production ralentit. |
+| Fiche, phrase d'une panne | rien | Une machine est en panne, la production ralentit. |
+| Fiche, phrase d'une courroie cassée | rien | Une courroie a cassé, la production ralentit. |
+| Fiche, bouton d'un incident (premier bouton) | rien | Réparer |
+| Fiche, dernière ligne d'une usine sans courant (elle n'a aucun bouton) | rien | Il faut une Centrale en marche. |
+| Carte, usine en incident | rien | `<sorte>` · niv. `<niveau>` |
+| Carte, usine sans courant | rien | Sans courant · niv. `<niveau>` |
+| Tchat, un incident s'ouvre | rien | `<usine>` : `<sorte>`, puis Répare-la depuis le menu, dans Usines. |
+| Tchat, un incident est réparé | rien | `<usine>` : réparation faite |
+| Tchat, la récompense dite par le service | rien | Récompense `<montant>` Donar |
+| Tchat, récompense nulle, c'est le joueur qui a réparé | rien | Pas de récompense cette fois. |
+| Tchat, récompense nulle, un associé avait déjà réparé | rien | Pas de récompense, un associé avait déjà réparé. |
+| Bulle panique, un incident s'ouvre | rien | Vite, une usine a un souci. |
+| Bulle joie, après la réparation, écran du joueur | rien | L'usine repart ! |
+| Bulle joie, tchat, réparé par le joueur | rien | Bien joué, l'usine repart ! |
+| Bulle joie, tchat, réparé par un associé | rien | Un associé a tout réparé. |
+| Réparation, titre | rien | RÉPARATION |
+| Réparation, ligne d'étape | rien | Étape `<n>` sur `<total>` |
+| Réparation, bouton | rien | Retour |
+| Réparation (incendie), étape 1, consigne | rien | Le feu a pris. Choisis le premier geste. |
+| Réparation (incendie), étape 1, boutons (le bon est « Couper l'arrivée ») | rien | Jeter un seau d'eau, Couper l'arrivée, Ouvrir les fenêtres |
+| Bulle oups, mauvais choix (incendie, étape 1) | rien | Coupe d'abord ce qui l'alimente. |
+| Réparation (incendie), étape 2, consigne | rien | Le feu s'étend. Prends le bon outil. |
+| Réparation (incendie), étape 2, boutons (le bon est « L'extincteur ») | rien | Un seau d'eau, Une pelle, L'extincteur |
+| Bulle oups, mauvais choix (incendie, étape 2) | rien | Un extincteur éteint plus vite. |
+| Réparation (incendie), étape 3, consigne | rien | Vise bien avant d'appuyer. |
+| Réparation (incendie), étape 3, boutons (le bon est « La base des flammes ») | rien | La base des flammes, Le haut des flammes, La fumée |
+| Bulle oups, mauvais choix (incendie, étape 3) | rien | Vise plus bas, à la base. |
+| Réparation (panne), étape 1, consigne | rien | La machine s'est arrêtée. Choisis le premier geste. |
+| Réparation (panne), étape 1, boutons (le bon est « Couper le courant ») | rien | La relancer d'un coup, Couper le courant, Taper dessus |
+| Bulle oups, mauvais choix (panne, étape 1) | rien | Coupe le courant avant d'y toucher. |
+| Réparation (panne), étape 2, consigne | rien | Le capot est ouvert. Repère la cause. |
+| Réparation (panne), étape 2, boutons (le bon est « Un engrenage grippé ») | rien | Un engrenage grippé, Une vitre propre, Un câble tout neuf |
+| Bulle oups, mauvais choix (panne, étape 2) | rien | Cherche ce qui est bloqué. |
+| Réparation (panne), étape 3, consigne | rien | Remets la machine en route. |
+| Réparation (panne), étape 3, boutons (le bon est « Graisser, puis la relancer ») | rien | La relancer sans rien faire, La débrancher pour de bon, Graisser, puis la relancer |
+| Bulle oups, mauvais choix (panne, étape 3) | rien | Graisse avant de relancer. |
+| Réparation (courroie), étape 1, consigne | rien | La courroie a lâché. Choisis le premier geste. |
+| Réparation (courroie), étape 1, boutons (le bon est « Arrêter la machine ») | rien | Arrêter la machine, Tirer sur la courroie, Accélérer la machine |
+| Bulle oups, mauvais choix (courroie, étape 1) | rien | Arrête d'abord la machine. |
+| Réparation (courroie), étape 2, consigne | rien | Prends la bonne pièce. |
+| Réparation (courroie), étape 2, boutons (le bon est « Une courroie neuve ») | rien | Une corde à linge, Une ficelle, Une courroie neuve |
+| Bulle oups, mauvais choix (courroie, étape 2) | rien | Il faut une courroie neuve. |
+| Réparation (courroie), étape 3, consigne | rien | Pose la courroie, puis règle-la. |
+| Réparation (courroie), étape 3, boutons (le bon est « Tendue sans forcer ») | rien | Serrée à fond, Tendue sans forcer, Très lâche |
+| Bulle oups, mauvais choix (courroie, étape 3) | rien | Ni trop lâche, ni trop serrée. |
+| Réparation (générique), étape 1, consigne | rien | Une usine a un souci. Choisis le premier geste. |
+| Réparation (générique), étape 1, boutons (le bon est « Couper l'alimentation ») | rien | Courir dans tous les sens, Couper l'alimentation, Attendre que ça passe |
+| Bulle oups, mauvais choix (générique, étape 1) | rien | Mets l'usine en sécurité d'abord. |
+| Réparation (générique), étape 2, consigne | rien | L'usine ralentit. Cherche la cause. |
+| Réparation (générique), étape 2, boutons (le bon est « Inspecter la machine ») | rien | Inspecter la machine, Repeindre le mur, Compter le stock |
+| Bulle oups, mauvais choix (générique, étape 2) | rien | Cherche d'abord ce qui cloche. |
+| Réparation (générique), étape 3, consigne | rien | Remets l'usine en route. |
+| Réparation (générique), étape 3, boutons (le bon est « Réparer, puis relancer ») | rien | Tout débrancher, Relancer sans réparer, Réparer, puis relancer |
+| Bulle oups, mauvais choix (générique, étape 3) | rien | Répare avant de relancer. |
+
 La cinématique d'arrivée (`design/composants/Cinematique.md`) : quatre plans, une phrase d'Oooscar par plan, plus la
 consigne pour passer. Le nom de qui parle (« Oooscar ») est le titre du sous-titre, la phrase en est le texte. Chaque
 phrase tient en huit mots au plus et reste à l'écran trois secondes au moins.
@@ -538,8 +633,7 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Le sens exact de `restoreStep` est supposé : le dernier palier fait, la prochaine étape est la suivante.
 - `nextCost` ne donne que le prix de 1 niveau. Les prix de 10 niveaux, du palier et du max ne sont pas affichés ;
   le service refuse ou accepte, et `Refused.missing` dit la somme qui manque.
-- Pas de route pour racheter une ruine ni pour résoudre un incident : une usine en incident ou sans courant se
-  voit, mais l'écran n'a rien à proposer.
+- Pas de route pour racheter une ruine : une usine en ruine se voit, mais l'écran n'a rien à proposer.
 
 À la tranche du monde :
 
@@ -575,6 +669,21 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Rien ne donne le nom d'un membre qui n'est plus dans la liste (renvoyé par un autre associé) : l'écran qui le
   montrait revient simplement à son parent.
 
+À la tranche des incidents :
+
+- La réponse de `resolveIncident` ne dit pas si l'incident vient d'être clos ni quelle récompense a été versée : seul
+  l'événement `INCIDENT` la donne. Le contrat dit que `payload.reward` vaut 0 quand l'incident était déjà clos, mais
+  le service ne publie alors aucun événement : l'add-on ne peut pas le dire à ce joueur, il montre « L'usine
+  repart ! » avec l'état rendu.
+- L'événement `INCIDENT` ne rend pas l'état de l'entreprise : l'add-on relit `getCompany` à chaque événement reçu
+  (une lecture de plus par incident et par membre en ligne) pour que le bouton « Réparer » apparaisse à temps.
+- Le payload de l'événement `INCIDENT` n'est décrit que par du texte (`GameEvent`), sans schéma : l'add-on lit chaque
+  clé avec prudence et ne montre pas de somme illisible.
+- Un `incidentId` inconnu, d'une autre entreprise ou d'un acteur hors entreprise revient en `400` : l'add-on le range
+  parmi les erreurs du service, sans texte à lui.
+- `payload.slowdown` (le facteur du ralentissement) n'est pas montré : la fiche dit « la production ralentit » sans
+  chiffre, parce que le décider et le chiffrer revient au service.
+
 Au design system :
 
 - Pas d'icône pour Objectifs, Amis, Silo, Personnel et Agence (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
@@ -606,6 +715,14 @@ Au design system :
 - Pas de nouvelle liste de candidats contre du Donar : le game design la prévoit, mais c'est du hasard payant. Si Kr la
   veut sans tirage payant (une attente, ou un prix fixe sans hasard), le contrat n'a pas encore la route.
 
+- Incidents, choix faits sans Kr, à relire : le mini-jeu a trois étapes par sorte, dans l'ordre sécurité, outil ou
+  pièce, geste final, avec trois boutons dont un seul est juste ; la place de la bonne réponse varie d'une étape à
+  l'autre ; une mauvaise réponse rejoue l'étape avec un indice d'Oooscar, jamais une perte ; « Retour » est le dernier
+  bouton ; le message du tchat remplace une bulle à l'écran (le pack de ressources n'en a pas) ; une sorte inconnue
+  prend le mini-jeu générique ; la phrase de la fiche pour une sorte inconnue passe de « bloque » à « ralentit »,
+  parce que le service ralentit sans arrêter. Les noms d'usines changent de genre, d'où « `<usine>` : `<sorte>` » sans
+  article ni accord.
+
 ## Ce qui ne se vérifie que sur un vrai BDS
 
 - Le canal de titre : papillotement entre deux envois, durée d'affichage, effet du masquage par le pack.
@@ -633,6 +750,9 @@ Au design system :
   le DELETE n'a pas de corps, `requestId` et `actor` sont dans l'URL ; la longueur des formulaires de membre et de
   candidat (sept à neuf lignes, retours à la ligne), les tuiles de membre à deux lignes, les repères `[M]` et `[R]`, les
   codes de couleur `§7`, `§9` et `§e` du nom selon la rareté, et la relecture de l'agence à chaque ouverture.
+- Les incidents : l'événement `INCIDENT` reçu pour un joueur qui vient de se connecter (le curseur des événements
+  repart de 0), le formulaire du mini-jeu (cinq lignes, retour à la ligne de la consigne), le code de couleur de la
+  sorte, et `player.sendMessage` à trois lignes.
 - Les missions : `player.sendMessage` avec les codes `§` pour la bulle de fin, la tuile Objectifs à deux lignes, la
   lecture des missions à l'arrivée pendant la cinématique, et une `ANNONCE` reçue pour un joueur qui vient de se
   connecter (le curseur des événements repart de 0 au redémarrage de BDS).
