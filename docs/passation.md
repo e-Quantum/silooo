@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 8 h 45, `deploy/` et les écrans de l'add-on fusionnés (session de direction).
+Dernière mise à jour : 5 novembre 2026, 9 h 40, pack de ressources fusionné (session de direction).
 
 ## État
 
@@ -93,7 +93,7 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - [x] add-on : HUD en trois étages (`ui/hud.ts` ; le canal de titre est coupé par `config.ui.hud.titleChannel` tant que le pack de ressources ne masque pas les préfixes, tout passe par la barre d'action), menu à tuiles (boussole « Menu »), liste des usines paginée, fiche d'usine avec Monter de 1, de 10, au palier, au max (`buyLevels`), palier ×2 et coût affichés
 - [x] add-on : le Silo (Encaisser → `collect`, heures hors ligne affichées) et la remise en état en quatre étapes (Parler, Réparer, Livrer, Recruter → `restoreStep`) ; rejeu une fois après `CONFLIT_REESSAYER` ; une bulle d'Oooscar par code `reason`
 - [ ] add-on : cinématique d'arrivée, Oooscar en entité, première mission de la mairie (textes et visuels **à valider par Kr**)
-- [ ] `resource-pack/` : JSON UI qui masque les préfixes `silooo:hud|` et `silooo:consigne|` du canal de titre et place les monnaies et la consigne en haut à gauche, glyphes des icônes de `design/icones/`, images d'Oooscar ; `start.sh` l'installe à côté du pack de comportement ; puis `titleChannel: true`
+- [x] `resource-pack/` : manifest, `pack_icon`, textures copiées octet pour octet de `design/` (contrôle `tools/verifier_pack.mjs`), JSON UI (`ui/hud_screen.json`, `ui/silooo/hud.json`) qui masque les préfixes `silooo:hud|` et `silooo:consigne|` et place monnaies et consigne en haut à gauche, Oooscar côté client (géométrie, texture générée par `tools/generer_oooscar.mjs`, animations) ; `start.sh` l'installe dans `resource_packs/silooo` et `world_resource_packs.json`, `texturepack-required=true`. Reste `config.ui.hud.titleChannel: true`, à passer après le test sur un vrai client (**Kr**)
 - [ ] Test de bout en bout de la première heure sur le BDS de test (**après le déploiement**, donc après Kr)
 
 ## Phase 4 : la progression
@@ -121,6 +121,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Télécharger `bedrock-server-1.26.62.1.zip` dans un navigateur (minecraft.net refuse `curl`, même avec un User-Agent honnête, depuis le PC comme depuis les runners GitHub), calculer `sha256sum`, écrire la somme dans `deploy/bds/bds.sha256`, créer `/var/www/silooo/bds/` sur le VPS (`mkdir -p`, puis `chown 10001:10001` : l'uid du conteneur), y poser le zip (décision 26, `docs/deploiement.md`, « Le zip de BDS »)
 - [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
+- [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
 - [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`)
@@ -259,6 +260,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - Le nom du pack « Silooo » et sa description « Pack de comportement du jeu Silooo. » (`addon/manifest.json`),
   visibles dans la liste des packs du monde.
 - Le nom du serveur « Silooo » dans la liste des amis (`BDS_SERVER_NAME`, `deploy/exemple.env.txt`).
+- Le pack de ressources : nom « Silooo », description « Interface, HUD et Oooscar, la mascotte du jeu Silooo. »
+  (`resource-pack/texts/fr_FR.lang`), et `texturepack-required=true` dans `server.properties` (le HUD en dépend).
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -367,3 +370,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   les préfixes, Oooscar côté client, installation par `start.sh` et le Dockerfile), `claude/phase4-prestige-mission`
   (`island` renseigné, `prestigePreview`, `prestige`, `getMissions`, `definitions/missions.json`). Fichiers disjoints,
   sauf `addon/src/generated/definitions.ts` que deux tranches regénèrent : la direction le regénère à la fusion.
+- **5 novembre 2026, 9 h 40 : direction, pack de ressources fusionné.** `claude/phase3-resource-pack` en avance
+  rapide (`571b6b5` : `resource-pack/` avec 37 textures copiées, JSON UI du HUD, Oooscar côté client, installation
+  par `start.sh`, `texturepack-required=true`, contrôle du pack dans le vérificateur, CI `image-bds` qui vérifie la
+  copie et la liste du monde). Case du pack cochée, moins `titleChannel` qui attend le test client. Vérifier :
+  `git log --oneline -3 origin/main`, `node tools/verifier_pack.mjs`.

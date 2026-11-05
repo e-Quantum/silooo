@@ -17,7 +17,7 @@
 # Tag précis et somme de l'index : l'image de construction ne change pas sans qu'on le décide.
 FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS addon
 WORKDIR /src
-# Tout le contexte, réduit par Dockerfile.dockerignore à addon/, definitions/ et deploy/bds/. Contrat avec l'add-on :
+# Tout le contexte, réduit par Dockerfile.dockerignore à addon/, resource-pack/, definitions/ et deploy/bds/. Contrat avec l'add-on :
 # « npm run build » produit addon/dist/pack/manifest.json et addon/dist/pack/scripts/main.js. La disposition du dépôt
 # est gardée : addon/ à côté de definitions/.
 COPY . /contexte
@@ -67,6 +67,9 @@ RUN set -eux; \
 
 # Le pack de comportement construit à l'étape 1. start.sh le copie dans behavior_packs/silooo de BDS à chaque démarrage.
 COPY --from=addon --chown=10001:10001 /src/addon/dist/pack /opt/silooo/pack/
+# Le pack de ressources du dépôt (resource-pack/), tel quel : ce sont des fichiers, pas une construction. start.sh le copie
+# dans resource_packs/silooo de BDS à chaque démarrage et le liste dans world_resource_packs.json.
+COPY --chown=10001:10001 resource-pack /opt/silooo/resource-pack/
 COPY --chown=10001:10001 --chmod=0755 deploy/bds/start.sh /opt/silooo/start.sh
 COPY --chown=10001:10001 deploy/bds/server.properties.template deploy/bds/bds.sha256 deploy/bds/bds.md5 /opt/silooo/
 

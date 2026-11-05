@@ -78,8 +78,8 @@ lissage forcé.
   vers le centre, jamais seul au milieu d'une fenêtre.
 - Chaque code de refus de l'API ([architecture.md](architecture.md)) a une expression et une
   bulle : le tableau de correspondance s'écrit dans `addon/` et passe le filtre anti-IA.
-- En jeu, Oooscar est aussi une entité du pack de comportement, avec son modèle et ses animations ;
-  ses expressions à l'écran restent des images.
+- En jeu, Oooscar est aussi une entité : son comportement est dans le pack de comportement, son modèle, sa texture
+  et ses animations dans le pack de ressources ; ses expressions à l'écran restent des images.
 
 ## Le logo
 
@@ -97,22 +97,62 @@ redessine pas. Fond ciel, ciel clair ou transparent ; jamais de cadre ni de plaq
 
 ## Où vont les fichiers dans `resource-pack/`
 
-Le dossier n'existe pas encore ; il se crée en phase 2. Arrangement proposé, à fixer à ce moment :
+Le dossier existe depuis la phase 3. `node tools/verifier_pack.mjs`, lancé par `tools/verifier.sh`, lit tous les JSON,
+compare chaque copie à sa source octet pour octet, vérifie que les fichiers cités existent et relie l'entité d'Oooscar
+à son modèle, ses animations et son contrôleur de rendu.
 
-| Contenu | Emplacement | Source |
-| --- | --- | --- |
-| Textures 9-slice et HUD | `resource-pack/textures/ui/silooo/` | `design/textures/`, même nom |
-| Icônes | `resource-pack/textures/ui/silooo/icones/` | `design/icones/` |
-| Expressions d'Oooscar | `resource-pack/textures/ui/silooo/oooscar/` | `design/mascotte/`, PNG |
-| Modèle et texture de l'entité Oooscar | `resource-pack/models/entity/`, `resource-pack/textures/entity/` | à dessiner depuis les SVG |
-| Formulaires et HUD | `resource-pack/ui/server_form.json`, `resource-pack/ui/hud_screen.json` | [bedrock.md](bedrock.md) |
-| Polices bitmap | `resource-pack/font/` | planches de glyphes à produire depuis les trois polices de la charte |
-| Textes | `resource-pack/texts/fr_FR.lang` | les chaînes vues par les joueurs, en français seulement |
-| Logo | icône du pack (`pack_icon.png`) | `design/logo/` |
+| Contenu | Emplacement | Source | État |
+| --- | --- | --- | --- |
+| Textures 9-slice et HUD | `resource-pack/textures/ui/silooo/` | `design/textures/`, même nom, copies | fait |
+| Icônes | `resource-pack/textures/ui/silooo/icones/` | `design/icones/`, copies | fait |
+| Expressions d'Oooscar | `resource-pack/textures/ui/silooo/oooscar/` | `design/mascotte/`, PNG, copies | fait |
+| Entité Oooscar, côté client | `entity/oooscar.entity.json`, `models/entity/oooscar.geo.json`, `textures/entity/oooscar.png`, `animations/oooscar.animation.json`, `render_controllers/` | modèle et texture dessinés par `tools/generer_oooscar.mjs` depuis `design/tokens.json` | fait |
+| HUD | `resource-pack/ui/hud_screen.json`, `ui/silooo/hud.json`, `ui/_ui_defs.json` | [bedrock.md](bedrock.md) | fait |
+| Formulaires | `resource-pack/ui/server_form.json` | [bedrock.md](bedrock.md) | à faire |
+| Polices bitmap | `resource-pack/font/` | planches de glyphes à produire depuis les trois polices de la charte | à faire |
+| Textes | `resource-pack/texts/fr_FR.lang`, `languages.json` | le nom et la description du pack, en français seulement | fait, à valider par Kr |
+| Logo | `resource-pack/pack_icon.png` | `design/logo/silooo-logo-128.png`, copie | fait |
 
 Les textures restent à leur taille native dans le pack ; c'est l'interface qui agrandit ×3. Les
 fichiers de `design/` sont la source : on les copie, on ne les retouche pas dans le pack. Une
-texture nouvelle se dessine d'abord dans `design/`, puis se copie.
+texture nouvelle se dessine d'abord dans `design/`, puis se copie, et la vérification refuse une copie qui diffère ou
+qui n'a pas de source.
+
+### Le HUD : les monnaies et la consigne passent par le titre
+
+L'add-on écrit le haut du HUD par le canal de titre de Bedrock. Il envoie les monnaies dans le titre, précédées de
+`silooo:hud|`, et la consigne dans le sous-titre, précédée de `silooo:consigne|` (constantes de `addon/src/ui/hud.ts`,
+que `verifier_pack.mjs` retrouve dans les JSON du pack). Le pack s'en sert comme d'un canal de données :
+
+- `ui/hud_screen.json` masque le titre et le sous-titre d'origine, avec leurs fonds, quand le texte commence par le
+  préfixe. Le test de début de chaîne est une expression de liaison : `(('p' + (#text - 'p')) = #text)` est vraie
+  quand `#text` commence par `p` (on retire `p` puis on le remet). Un titre sans préfixe, comme ceux de la
+  cinématique, reste visible et inchangé.
+- `ui/silooo/hud.json` lit les mêmes chaînes globales (`#hud_title_text_string`, `#hud_subtitle_text_string`), retire
+  le préfixe et dessine le reste sur une puce `puce-fonte`, en haut à gauche pour les monnaies et juste dessous pour la
+  consigne. Rien ne s'affiche quand le reste est vide.
+
+Seul un vrai client Bedrock confirme le rendu : la portée des liaisons globales pour un contrôle ajouté, l'évaluation
+des expressions de chaîne, la mise en page et un éventuel éclair du titre d'origine avant son masquage. Le JSON UI
+change d'une version du jeu à l'autre ([bedrock.md](bedrock.md)) ; en cas d'écart, on corrige dans `ui/`, pas dans
+l'add-on. Tant que ce n'est pas confirmé, `config.ui.hud.titleChannel` reste à `false` dans l'add-on : le HUD passe
+alors par la barre d'action seule, et le préfixe ne s'affiche jamais.
+
+### Oooscar côté client
+
+`tools/generer_oooscar.mjs` écrit le modèle et la texture d'un seul coup, pour que chaque cube trouve ses pixels ;
+`--verifier` compare les fichiers au script. L'entité cliente s'appelle `silooo:oooscar`, comme celle du pack de
+comportement : un balancement lent en continu, et un geste d'accueil pendant les deux premières secondes de vie de
+l'entité. Pas de son. Le côté de l'échelle est la constante `X_ECHELLE` du script : à confirmer sur un client, un seul
+chiffre à changer s'il est à l'envers.
+
+### Installation sur le serveur
+
+L'image `silooo-bds` embarque `resource-pack/` dans `/opt/silooo/resource-pack`. À chaque démarrage, `start.sh` le copie
+dans `resource_packs/silooo` de BDS et inscrit son uuid et sa version (lus dans son manifeste) dans
+`world_resource_packs.json` du monde, comme pour le pack de comportement. `server.properties` fixe
+`texturepack-required=true` : le HUD en dépend, un joueur qui refuse le pack ne se connecte pas. Le pack pèse environ
+570 Ko.
 
 ## Ce qu'on vérifie avant de fusionner
 
