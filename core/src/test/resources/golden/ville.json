@@ -1,0 +1,250 @@
+{
+  "columns": {
+    "courseBudgets": {
+      "cityBudgetJustAfter": {
+        "column": "K",
+        "label": "Budget ville juste après",
+        "unit": "Lingots"
+      },
+      "course": {
+        "column": "H",
+        "label": "Course"
+      },
+      "cumulativePrestigeLingots": {
+        "column": "J",
+        "label": "Lingots de prestige cumulés",
+        "unit": "Lingots"
+      },
+      "endHour": {
+        "column": "I",
+        "label": "Fin (h)",
+        "unit": "h"
+      }
+    },
+    "zones": {
+      "affordableAtHour": {
+        "column": "E",
+        "label": "Heure de jeu (cumulée)",
+        "unit": "h"
+      },
+      "affordableInCourse": {
+        "column": "D",
+        "label": "Course où elle devient abordable"
+      },
+      "cumulativePriceLingots": {
+        "column": "C",
+        "label": "Prix cumulé",
+        "unit": "Lingots"
+      },
+      "priceLingots": {
+        "column": "B",
+        "label": "Prix (Lingots)",
+        "unit": "Lingots"
+      },
+      "realDays": {
+        "column": "F",
+        "label": "Jours réels (au rythme du joueur type)",
+        "unit": "jours"
+      },
+      "zone": {
+        "column": "A",
+        "label": "Zone"
+      }
+    }
+  },
+  "courseBudgets": [
+    {
+      "cityBudgetJustAfter": 62.3504258696638,
+      "course": 1,
+      "cumulativePrestigeLingots": 100,
+      "endHour": 14.7008517393275
+    },
+    {
+      "cityBudgetJustAfter": 123.753755419357,
+      "course": 2,
+      "cumulativePrestigeLingots": 200,
+      "endHour": 37.507510838713
+    },
+    {
+      "cityBudgetJustAfter": 196.168977824361,
+      "course": 3,
+      "cumulativePrestigeLingots": 300,
+      "endHour": 82.3379556487222
+    },
+    {
+      "cityBudgetJustAfter": 257.270841467715,
+      "course": 4,
+      "cumulativePrestigeLingots": 400,
+      "endHour": 104.541682935431
+    },
+    {
+      "cityBudgetJustAfter": 317.761324950581,
+      "course": 5,
+      "cumulativePrestigeLingots": 500,
+      "endHour": 125.522649901163
+    },
+    {
+      "cityBudgetJustAfter": 377.845389314548,
+      "course": 6,
+      "cumulativePrestigeLingots": 600,
+      "endHour": 145.690778629096
+    },
+    {
+      "cityBudgetJustAfter": 438.285559067134,
+      "course": 7,
+      "cumulativePrestigeLingots": 700,
+      "endHour": 166.571118134267
+    },
+    {
+      "cityBudgetJustAfter": 501.274061982027,
+      "course": 8,
+      "cumulativePrestigeLingots": 800,
+      "endHour": 192.548123964053
+    },
+    {
+      "cityBudgetJustAfter": 562.061805943169,
+      "course": 9,
+      "cumulativePrestigeLingots": 900,
+      "endHour": 214.123611886338
+    }
+  ],
+  "source": {
+    "file": "docs/references/silooo-equilibrage-v2.xlsx",
+    "generator": "tools/tableur/extraire.py",
+    "sha256": "553035cc854e45b506f062e633dc051068621ab1fa0178009bf107e8068e4652",
+    "sheets": [
+      "Ville"
+    ],
+    "warning": "Fichier généré par tools/tableur/extraire.py : ne pas modifier à la main."
+  },
+  "zones": [
+    {
+      "affordableAtHour": 1,
+      "affordableInCourse": 1,
+      "cumulativePriceLingots": 5,
+      "priceLingots": 5,
+      "realDays": 0.666666666666667,
+      "zone": 1
+    },
+    {
+      "affordableAtHour": 14.7008517393275,
+      "affordableInCourse": 1,
+      "cumulativePriceLingots": 15,
+      "priceLingots": 10,
+      "realDays": 9.80056782621836,
+      "zone": 2
+    },
+    {
+      "affordableAtHour": 14.7008517393275,
+      "affordableInCourse": 1,
+      "cumulativePriceLingots": 30,
+      "priceLingots": 15,
+      "realDays": 9.80056782621836,
+      "zone": 3
+    },
+    {
+      "affordableAtHour": 14.7008517393275,
+      "affordableInCourse": 1,
+      "cumulativePriceLingots": 50,
+      "priceLingots": 20,
+      "realDays": 9.80056782621836,
+      "zone": 4
+    },
+    {
+      "affordableAtHour": 37.507510838713,
+      "affordableInCourse": 2,
+      "cumulativePriceLingots": 80,
+      "priceLingots": 30,
+      "realDays": 25.0050072258087,
+      "zone": 5
+    },
+    {
+      "affordableAtHour": 37.507510838713,
+      "affordableInCourse": 2,
+      "cumulativePriceLingots": 120,
+      "priceLingots": 40,
+      "realDays": 25.0050072258087,
+      "zone": 6
+    },
+    {
+      "affordableAtHour": 82.3379556487222,
+      "affordableInCourse": 3,
+      "cumulativePriceLingots": 170,
+      "priceLingots": 50,
+      "realDays": 54.8919704324815,
+      "zone": 7
+    },
+    {
+      "affordableAtHour": 104.541682935431,
+      "affordableInCourse": 4,
+      "cumulativePriceLingots": 230,
+      "priceLingots": 60,
+      "realDays": 69.6944552902873,
+      "zone": 8
+    },
+    {
+      "affordableAtHour": 125.522649901163,
+      "affordableInCourse": 5,
+      "cumulativePriceLingots": 305,
+      "priceLingots": 75,
+      "realDays": 83.6817666007752,
+      "zone": 9
+    },
+    {
+      "affordableAtHour": 166.571118134267,
+      "affordableInCourse": 7,
+      "cumulativePriceLingots": 395,
+      "priceLingots": 90,
+      "realDays": 111.047412089511,
+      "zone": 10
+    },
+    {
+      "affordableAtHour": 200,
+      "affordableInCourse": 9,
+      "cumulativePriceLingots": 505,
+      "priceLingots": 110,
+      "realDays": 133.333333333333,
+      "zone": 11
+    },
+    {
+      "affordableAtHour": 240.011677841744,
+      "affordableInCourse": 10,
+      "cumulativePriceLingots": 635,
+      "priceLingots": 130,
+      "realDays": 160.007785227829,
+      "zone": 12
+    },
+    {
+      "affordableAtHour": 293.251409693143,
+      "affordableInCourse": 10,
+      "cumulativePriceLingots": 785,
+      "priceLingots": 150,
+      "realDays": 195.500939795428,
+      "zone": 13
+    },
+    {
+      "affordableAtHour": 357.139087914821,
+      "affordableInCourse": 10,
+      "cumulativePriceLingots": 965,
+      "priceLingots": 180,
+      "realDays": 238.092725276547,
+      "zone": 14
+    },
+    {
+      "affordableAtHour": 428.125397050019,
+      "affordableInCourse": 10,
+      "cumulativePriceLingots": 1165,
+      "priceLingots": 200,
+      "realDays": 285.416931366679,
+      "zone": 15
+    },
+    {
+      "affordableAtHour": 511.534310283876,
+      "affordableInCourse": 10,
+      "cumulativePriceLingots": 1400,
+      "priceLingots": 235,
+      "realDays": 341.022873522584,
+      "zone": 16
+    }
+  ]
+}
