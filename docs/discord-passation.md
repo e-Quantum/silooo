@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 17 h 33, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 18 h 02, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -29,12 +29,16 @@ est recopiée sous l'étape qu'elle touche.
   les unes des autres), `DiscordServer` élargi (écrire, modifier, message privé, rôles, renommer, statut, commandes),
   `jda/JdaMessages` et `jda/JdaEvents` (intentions membres, messages, contenu, réactions, vocaux ; cache des 500
   derniers membres et des membres en vocal). Le bot ne boucle que si des fonctions lui sont données et hors `a-blanc`.
-  Aucune fonction du QG n'existe encore : elles viennent case par case, avec `definitions/discord.json` pour leurs
-  chiffres et la migration V10 pour leurs tables.
+  Les fonctions du QG viennent case par case, avec `definitions/discord.json` pour leurs chiffres et la migration V10
+  pour leurs tables.
 - L'accueil guidé est écrit : la clé `accueil` du plan (deux questions, neuf réponses, chacune vers un rôle), posée en
   REST par `OnboardingApplier` et `discord/rest/DiscordRest` une fois les salons créés, avec pour salons par défaut les
   salons publics de la phase. Le Guide du serveur n'a pas d'API : `docs/discord-guide.md` dit ce que Kr pose (mode
   Communauté, mot d'accueil, tâches, trois rubriques) et le brief des trois plaques pour D1.
+- Le bonjour d'Oooscar, le tuto en message privé, les arrivées groupées, le statut et le vocal d'info « N en ligne » sont
+  écrits (`Welcome.kt`, `Status.kt`, `InfoVoice.kt`, `MemberStore.kt`) et branchés en production par `BotFeatures` dans
+  `Main.kt`, avec les joueurs en ligne de `ServerPresence`. Ils n'ont jamais été vus tourner sur un vrai serveur : aucun
+  bot de test n'a été lancé dans cette session, seuls les faux Discord des tests les ont joués.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
@@ -121,10 +125,11 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   `OnboardingPlanner`, `OnboardingSync`, `OnboardingApplier`, `discord/rest/DiscordRest` en `GET` et `PUT
   /guilds/{id}/onboarding`, dix tests, `ktor-client-mock` en test), le Guide du serveur écrit pour Kr dans
   `docs/discord-guide.md` ; ses trois cartes (plaque émaillée et icône, en pixel) passent à D1
-- [ ] Le bonjour d'Oooscar dans `#💬・discussion` (5 à 10 s après l'accueil guidé, selon la plateforme), les arrivées
+- [x] Le bonjour d'Oooscar dans `#💬・discussion` (5 à 10 s après l'accueil guidé, selon la plateforme), les arrivées
   groupées (30 s, 10 mentions au plus, puis une ligne), le tuto en message privé avec le bouton « Mon tuto » en
-  secours, les rôles de notification, le statut alterné, les trois vocaux d'info renommés deux fois par dix minutes
-  au plus
+  secours, les rôles de notification (donnés par l'accueil guidé lui-même, déjà en place), le statut alterné, le vocal
+  d'info « N en ligne » renommé deux fois par dix minutes au plus (les deux autres vocaux d'info gardent le nom du
+  plan) ; écrit avec ses tests sur le faux Discord, pas encore vu sur un vrai serveur
 - [ ] Les coulisses : `/spoil`, l'aperçu des réactions, les seuils, la publication par le seul bot, l'attente jusqu'à
   7 h, le registre en base
 - [ ] Les admissions : les cartes lues dans `site_registrations` (S4 du site), Admettre, Refuser, Plus tard ; `/annonce`
@@ -305,6 +310,20 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 10. **Le Guide du serveur à la main de Kr.** Discord n'a pas d'API pour les rubriques, les tâches et le mot d'accueil ;
     le bot pourrait activer le mode Communauté lui-même, mais ce réglage engage les conditions de Discord : il reste à
     Kr, avec le guide (`docs/discord-guide.md`).
+11. **Le tuto part au moment du bonjour.** Le tuto en message privé est envoyé quand le bonjour est prêt (5 à 10 s
+    après l'accueil guidé), pas à la fin de l'accueil guidé : un membre reparti pendant l'attente ne reçoit rien, car
+    son départ annule le bonjour en attente.
+12. **Le rang « tu es le N-ième entrepreneur ».** C'est le nombre de membres du serveur au moment du bonjour
+    (`DiscordServer.memberCount`), pas un compteur en base. Il ne se dit que dans un bonjour seul : le bonjour groupé
+    ne donne aucun rang.
+13. **Le vocal « N en ligne » est relu à intervalle fixe.** Toutes les `vocauxInfo.fenetreMinutes /
+    vocauxInfo.renommagesMax` minutes (cinq minutes avec les chiffres actuels), sans nouvelle clé dans
+    `definitions/` ; il n'est renommé que si le nombre a changé et que le quota de Discord (deux renommages par dix
+    minutes) le permet.
+14. **« Mes rappels » avant D3.** Le bouton du tuto répond, au membre seul, « Les rappels arrivent avec la bêta. Tu les
+    régleras ici, avec la commande rappels. » jusqu'à ce que les rappels privés existent (D3).
+15. **Le SQL de `JdbcMemberStore` en minuscules.** Le garde anti-IA (`tools/anti_ia.py`) lit les chaînes du paquet
+    `discord/` : le SQL y est écrit en minuscules.
 
 ## À valider par Kr
 
@@ -324,8 +343,31 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   Actus, Coulisses, Concours, Giveaways, Vote party, Concours de villes et leurs descriptions ; les emoji des réponses.
 - Le Guide du serveur (`docs/discord-guide.md`, D2) : le mot d'accueil, les trois tâches des nouveaux, les titres et
   les textes des trois rubriques, les icônes choisies (`carte`, `cadenas`, `engrenage`).
-- Le bonjour d'Oooscar et le tuto en privé, le format « Gamertag · P3 », les lignes d'Oooscar et les textes des
-  rappels : écrits à D2 et D3, listés ici au fur et à mesure.
+- Le bonjour d'Oooscar (`Welcome.kt`, D2). Dans les textes, `@membre` est la mention du membre, `#rejoindre` et
+  `#discussion` sont les mentions des salons, et le rang s'écrit « 1er », « 2e », « 1 204e ».
+  - Bonjour d'un membre seul : « Bienvenue @membre, tu es le 12e entrepreneur. » suivi, selon la plateforme, de
+    « Sur console, tout est dans #rejoindre. », « Sur téléphone, tout est dans #rejoindre. », « Sur PC, tout est dans
+    #rejoindre. » ou, sans plateforme, « Tout est dans #rejoindre. »
+  - Bonjour groupé (2 à 10 nouveaux, tous mentionnés) : « Bienvenue @a, @b et @c. Tout est dans #rejoindre. »
+  - Au-delà de 10 : « 12 nouveaux sont arrivés. Bienvenue à tous : tout est dans #rejoindre. »
+  - Le tuto en message privé : « Ton tuto Silooo, en trois étapes. », puis l'étape 1 selon la plateforme, puis
+    « 2. Inscris-toi sur silooo.com et relie ton Discord : à la bêta, ton pseudo et tes rôles suivront. » et
+    « 3. Dis bonjour dans #discussion. Les coulisses, les sondages et les giveaways sont déjà ouverts ; le jeu arrive
+    avec la bêta. » L'étape 1 :
+    - console : « Sur ta console, ajoute HubyOnMC en ami, puis rejoins sa partie depuis ta liste d'amis. »
+    - téléphone : « Dans Minecraft, onglet Serveurs, ajoute un serveur : adresse play.silooo.com, port 19142. »
+    - PC : « Dans Minecraft (Windows 10 ou 11), onglet Serveurs, ajoute un serveur : adresse play.silooo.com, port
+      19142. »
+    - sans plateforme : « Sur console, ajoute HubyOnMC en ami et rejoins sa partie. Sur téléphone et PC, l'adresse est
+      play.silooo.com, port 19142. »
+  - La réponse du bouton « Mes rappels » : « Les rappels arrivent avec la bêta. Tu les régleras ici, avec la commande
+    rappels. »
+  - Les libellés des deux boutons : « Mon tuto » (sous le bonjour, messages privés fermés) et « Mes rappels » (sous le
+    tuto).
+- Le statut d'Oooscar (`Status.kt`, D2), en alternance : « Joue à play.silooo.com » et « Regarde N entrepreneurs »
+  (« Regarde 1 entrepreneur » au singulier).
+- Le format « Gamertag · P3 », les lignes d'Oooscar et les textes des rappels : écrits à D3, listés ici au fur et à
+  mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
 - La fiche Silooo des outils de rendu (`_outils\references\marque.md`, D1) : le « ooo » en rouge clair `#e0614f` sur
   fond sombre, le gris de texte pris sur `email-creme`, le détail, l'IP et le lien Discord affichés, les polices
@@ -376,3 +418,15 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   Gradle vert (40 tests Discord, dont 10 nouveaux), outillage vert (165). Suite : `tools/verifier.sh`, fusion sur
   `main`, puis le bonjour d'Oooscar, les arrivées groupées, le tuto en privé, les rôles de notification, le statut, les
   vocaux d'info.
+- 5 novembre 2026, 17 h 41 à 18 h 02 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Le bonjour d'Oooscar, les arrivées groupées, le tuto en message privé, le statut et le vocal d'info « N en ligne » :
+  `MemberStore` (`MemberRecord`, `JdbcMemberStore` sur `discord_members`, V10), `Welcome.kt` (`WelcomeTexts`,
+  `WelcomeFeature`), `Status.kt` (`StatusFeature`), `InfoVoice.kt` (`InfoVoiceFeature`, `RenameBudget`), `BotFeatures`
+  branché dans `Main.kt` avec les joueurs en ligne de `ServerPresence`, `InMemoryMemberStore`, `WelcomeTest`,
+  `StatusAndInfoVoiceTest`, `MemberSqlTest` (MariaDB, ignoré sans Docker), `core/README.md`, et ici cinq décisions (11 à
+  15) et les textes à valider. À la demande de Kr (la session cadre et délègue, un modèle par tâche), deux agents
+  Sonnet ont fait d'un côté la compilation et les tests, de l'autre le README et cette passation ; un agent Haiku
+  relève l'API pour les coulisses. Tests Discord verts (`WelcomeTest` 8, `StatusAndInfoVoiceTest` 3, `MemberSqlTest`
+  ignoré sans Docker) après une attente de test corrigée (le second bonjour respecte la fenêtre de 30 s) et un quota
+  resserré (`RenameBudget` compte encore le renommage vieux d'une fenêtre pile) ; `tools/verifier.sh` vert à 18 h 02.
+  Rien n'a tourné sur un vrai serveur. Suite : fusion sur `main`, puis les coulisses et `/spoil`.

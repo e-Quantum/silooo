@@ -130,7 +130,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`), `OnboardingState`, `OnboardingPlanner` et `OnboardingApplier` (l'accueil guidé tiré du plan, posé après les salons), `MemberStore` et `JdbcMemberStore` (`discord_members`), `WelcomeFeature`, `StatusFeature` et `InfoVoiceFeature` (les fonctions du QG), `BotFeatures` (leur assemblage en production) ; `discord/rest/DiscordRest` parle à Discord en REST pour ce que JDA ne couvre pas (l'accueil guidé) ; `discord/jda/` est le seul paquet qui importe JDA |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -925,12 +925,27 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   échecs du compte rendu. JDA ne couvre pas l'accueil guidé : `discord/rest/DiscordRest` l'envoie en REST (`GET` et `PUT
   /guilds/{id}/onboarding`) avec le client Ktor du service, le jeton dans le seul en-tête `Authorization`, un refus rendu avec son
   code HTTP et le message de Discord. Le Guide du serveur, lui, n'a pas d'API : `docs/discord-guide.md` dit ce que Kr pose.
+- **L'arrivée.** `WelcomeFeature` attend `accueil.bonjourSecondes` secondes (selon la plateforme choisie à l'accueil guidé) après la fin
+  de l'accueil guidé, envoie le tuto en trois étapes en message privé, avec le bouton « Mes rappels », puis dit bonjour dans
+  `#discussion` ; messages privés fermés, le bouton « Mon tuto » sous le bonjour l'affiche. Les arrivées qui se bousculent partent en un
+  message toutes les `accueil.groupeSecondes` secondes, avec jusqu'à `accueil.groupeMentionsMax` mentions, puis en une seule ligne ; un
+  membre parti avant son bonjour ne reçoit rien. `MemberStore` (`JdbcMemberStore` sur `discord_members`, V10, SQL en minuscules : le
+  garde anti-IA lit les chaînes du paquet) retient l'arrivée, la plateforme, le bonjour, le tuto (envoyé ou refusé) et le départ.
+- **Le statut et les vocaux d'info.** `StatusFeature` alterne toutes les `statut.alternanceSecondes` secondes « Joue à play.silooo.com » et
+  « Regarde N entrepreneurs » (les membres du serveur). `InfoVoiceFeature` remplace le nombre du vocal « N en ligne » par les joueurs en
+  jeu (`ServerPresence`), le relit toutes les `fenetreMinutes / renommagesMax` minutes et ne le renomme que si le nombre a changé et que
+  `RenameBudget` le permet (deux renommages par dix minutes, la limite de Discord) ; les deux autres vocaux d'info gardent le nom du
+  plan. `BotFeatures` assemble les trois fonctions sur le fil du bot une fois le plan appliqué : un `discord.json` abîmé arrête le bot,
+  pas le jeu.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
   sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/OnboardingTest`
   (l'accueil guidé posé une fois, repris avec ses identifiants, à blanc, refusé, trop peu de salons ouverts, comparaison),
   `discord/rest/DiscordRestTest` (la requête telle que Discord l'attend sur un `MockEngine`, les refus sans le jeton), `discord/DiscordBotTest`
   (rien ne lève, le jeton ne s'affiche pas, les événements servis jusqu'à `close`), `discord/BotRuntimeTest` (l'ordre, l'isolement,
   la file pleine, les minuteries), `discord/DiscordDefinitionsTest` (le fichier du dépôt colle au plan, la formule des niveaux),
-  `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans `build/mesure-memoire-discord.txt`) et
-  `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
+  `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans `build/mesure-memoire-discord.txt`),
+  `discord/WelcomeTest` (le bonjour après son délai selon la plateforme, le bouton « Mon tuto », les arrivées groupées puis résumées, le
+  membre parti, les bots écartés, le salon absent), `discord/StatusAndInfoVoiceTest` (le statut qui alterne, le vocal renommé dans son
+  quota), `discord/MemberSqlTest` (MariaDB, CI, ignoré sans Docker : l'arrivée, puis le membre créé à l'accueil quand son arrivée a été
+  manquée ; les deux autres tests passent par le faux `InMemoryMemberStore`) et `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).

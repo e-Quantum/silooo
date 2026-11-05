@@ -4,6 +4,7 @@ import com.silooo.core.db.HikariDatabase
 import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
+import com.silooo.core.discord.BotFeatures
 import com.silooo.core.discord.DiscordBot
 import com.silooo.core.discord.jda.JdaConnection
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
@@ -117,7 +118,9 @@ internal fun runService(env: Map<String, String>): Int = guarded {
         // pas sur ce port (le Caddy de SileneMC ne joint que lui), et les tests de l'API n'ont pas à changer.
         val site = embeddedServer(CIO, port = config.sitePort, host = "0.0.0.0") { siteModule(dependencies) }
         // Le bot Discord Oooscar (ADR 0007) : seulement sur demande, dans son propre fil. S'il tombe, le jeu et le site continuent.
-        val bot = config.bot?.let { DiscordBot(it, JdaConnection::open) }
+        val bot = config.bot?.let {
+            DiscordBot(it, JdaConnection::open, features = BotFeatures.build(config.definitionsDir, database) { presence.onlineXuids().size })
+        }
         try {
             site.start(wait = false)
             log.info("Le site écoute sur le port {} en mode {}.", config.sitePort, config.siteMode.word)
