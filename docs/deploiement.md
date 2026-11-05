@@ -133,8 +133,8 @@ le téléchargement (2 essais de 60 secondes, avec son User-Agent honnête), pui
 et ce même mode d'emploi dans la sortie. Il contrôle la somme (65 si elle ne correspond pas : le fichier est refusé, pas
 décompressé), décompresse une seule fois dans `/data/bds/<version>/` (la marque `.silooo-extrait` dit que c'est fini),
 retire de cette copie `worlds/`, `config/`, `server.properties`, `allowlist.json` et `permissions.json` pour les
-remplacer par des liens vers les volumes `/data/worlds` et `/data/config`, copie le pack de l'image dans
-`behavior_packs/silooo` à chaque démarrage, puis lance `./bedrock_server` depuis ce dossier. Une fois la copie
+remplacer par des liens vers les volumes `/data/worlds` et `/data/config`, copie le pack de comportement de l'image
+dans `behavior_packs/silooo` et son pack de ressources dans `resource_packs/silooo` à chaque démarrage, puis lance `./bedrock_server` depuis ce dossier. Une fois la copie
 décompressée en place, le zip n'est plus relu : le supprimer libère du disque. Avec `restart: on-failure:5`, un zip
 absent ou refusé ne fait pas boucler le conteneur : après cinq essais il reste arrêté, et `docker logs` dit pourquoi.
 
@@ -173,8 +173,10 @@ test ([bedrock.md](bedrock.md), fait 2, « à relever ») :
      -c 'mkdir -p /data/worlds/silooo && cp -a /entree/. /data/worlds/silooo/ && chown -R 10001:10001 /data/worlds'
    ```
 
-Au démarrage, `start.sh` écrit `world_behavior_packs.json` dans ce dossier pour activer le pack, et garde les
-autres packs s'il y en a.
+Au démarrage, `start.sh` écrit `world_behavior_packs.json` et `world_resource_packs.json` dans ce dossier pour activer
+les deux packs, et garde les autres packs de chaque liste s'il y en a. Le pack de ressources (`resource-pack/`) est dans
+l'image, comme l'add-on : `texturepack-required=true` fait que le joueur doit l'accepter pour se connecter, parce que
+le HUD en dépend ([design.md](design.md), « Où vont les fichiers dans `resource-pack/` »).
 
 ## Envoyer les fichiers tant que le VPS n'a pas d'accès GitHub
 
@@ -221,8 +223,8 @@ de BDS »).
    conteneurs `silooo` et le noter dans [passation.md](passation.md).
 6. Nettoyage des images Docker inutiles (anciennes images de `silooo-core` et `silooo-bds`, images sans
    étiquette de Silooo) : le disque est serré. Le script ne touche qu'aux images de Silooo.
-7. Le pack de ressources et l'add-on changent avec le serveur Bedrock, jamais seuls : l'add-on est dans l'image
-   `silooo-bds`.
+7. Le pack de ressources et l'add-on changent avec le serveur Bedrock, jamais seuls : l'add-on et le pack de
+   ressources sont dans l'image `silooo-bds`.
 
 Si la base `silooo` n'existe pas encore, on ne déploie pas silooo-core, et on le note dans « À faire par Kr ».
 
