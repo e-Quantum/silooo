@@ -55,7 +55,11 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     Migrations.validate(config.database)
     val database = HikariDatabase.connect(config.database)
     try {
-        val dependencies = Dependencies(database = database, apiKey = config.apiKey)
+        val dependencies = Dependencies(
+            database = database,
+            apiKey = config.apiKey,
+            apiRequestRetention = config.apiRequestRetention,
+        )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.
         embeddedServer(CIO, port = config.port, host = "0.0.0.0") { siloooModule(dependencies) }
