@@ -79,10 +79,21 @@ services:
       # Le monde (avec « Beta APIs » activé, voir docs/deploiement.md) et le dossier config/ de BDS.
       - bds-worlds:/data/worlds
       - bds-config:/data/config
+      # Le serveur Bedrock lui-même (décision 26) : l'image ne contient pas BDS. Kr pose le zip dans ce dossier de l'hôte
+      # (SILOOO_BDS_DIR, propriété de l'uid 10001 : chown 10001:10001), start.sh le contrôle puis le décompresse
+      # dans /data/bds/<version>/. Le dossier doit exister : Compose ne le crée pas, il serait alors créé par root.
+      - type: bind
+        source: "${SILOOO_BDS_DIR:-/var/www/silooo/bds}"
+        target: /data/bds
+        bind:
+          create_host_path: false
     networks: [silooo]
     # Plan de construction : 1,5 Gio pour le serveur Bedrock.
     mem_limit: 1536m
-    restart: unless-stopped
+    # Pas « unless-stopped » : sans zip valide, start.sh sort avec un code d'erreur et un message pour Kr, et une
+    # boucle de redémarrages referait le téléchargement à chaque tour. Cinq essais couvrent un arrêt accidentel
+    # de BDS ; au-delà, le conteneur reste arrêté et « docker logs silooo-silooo-bds-1 » dit pourquoi.
+    restart: on-failure:5
     # La console de BDS lit l'entrée standard : sans elle le serveur peut s'arrêter, et « docker attach » sert à
     # lancer allowlist add.
     stdin_open: true

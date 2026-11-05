@@ -22,6 +22,10 @@ PROJET=silooo
 # Le réseau Docker de SileneMC (MariaDB et Redis). Même défaut que deploy/compose.yml : une hypothèse que Kr confirme
 # avec « docker network ls ». S'il le change dans son fichier d'environnement, il doit l'exporter aussi dans sa session.
 SILENEMC_NETWORK="${SILENEMC_NETWORK:-silenemc_default}"
+# Le dossier de l'hôte où Kr pose le zip de BDS (décision 26) : même défaut que deploy/compose.yml, qui le monte sur
+# /data/bds. S'il le change, il l'exporte aussi dans sa session (le script ne lit pas le fichier d'environnement).
+SILOOO_BDS_DIR="${SILOOO_BDS_DIR:-/var/www/silooo/bds}"
+UID_CONTENEUR_BDS=10001
 RESEAU_SILOOO=silooo
 VOLUME_MONDE=silooo-bds-worlds
 
@@ -51,6 +55,19 @@ memoire_disponible_mo() {
   valeur="$(free -m | awk '/^Mem:/ { print $7 }')"
   if ! [[ $valeur =~ ^[0-9]+$ ]]; then echec 1 "impossible de lire la mémoire disponible dans la sortie de free -m"; fi
   printf '%s\n' "$valeur"
+}
+
+# Le dossier du zip de BDS existe (deploy.sh l'a vérifié) : des avertissements sur ce que Kr peut encore corriger avant le
+# démarrage de silooo-bds, jamais un échec. Seuls le propriétaire et les noms de fichiers sont lus.
+verifier_dossier_bds() {
+  local proprietaire
+  proprietaire="$(stat -c '%u' "$SILOOO_BDS_DIR" 2>/dev/null || true)"
+  if [ -n "$proprietaire" ] && [ "$proprietaire" != "$UID_CONTENEUR_BDS" ]; then
+    alerte "$SILOOO_BDS_DIR appartient à l'uid $proprietaire, pas à $UID_CONTENEUR_BDS : le conteneur silooo-bds ne pourra pas y décompresser BDS (chown $UID_CONTENEUR_BDS:$UID_CONTENEUR_BDS $SILOOO_BDS_DIR)"
+  fi
+  if ! compgen -G "$SILOOO_BDS_DIR/bedrock-server-*.zip" >/dev/null && ! compgen -G "$SILOOO_BDS_DIR/*/.silooo-extrait" >/dev/null; then
+    alerte "aucun zip de BDS dans $SILOOO_BDS_DIR : silooo-bds tentera de le télécharger, ce que minecraft.net refuse aux scripts, et s'arrêtera avec la marche à suivre (docs/deploiement.md, « Le zip de BDS »)"
+  fi
 }
 
 # Le compose du projet silooo. Le dossier de projet est la racine (là où vit le fichier d'environnement), pas deploy/.

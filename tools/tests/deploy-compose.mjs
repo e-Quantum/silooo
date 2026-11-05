@@ -66,7 +66,7 @@ verifier(egal(noms(core.networks).sort(), ['silenemc', 'silooo']), 'silooo-core 
 verifier(String(bds.image).startsWith('ghcr.io/e-quantum/silooo-bds:${SILOOO_TAG:?'), 'silooo-bds : image de silooo-bds, tag obligatoire', bds.image);
 verifier(noms(bds.depends_on).includes('silooo-core'), 'silooo-bds dépend de silooo-core', bds.depends_on);
 verifier(bds.mem_limit === '1536m', 'silooo-bds : 1,5 Gio', bds.mem_limit);
-verifier(bds.restart === 'unless-stopped', 'silooo-bds : unless-stopped', bds.restart);
+verifier(bds.restart === 'on-failure:5', 'silooo-bds : on-failure:5 (sans zip valide start.sh sort en erreur : pas de boucle de téléchargements)', bds.restart);
 verifier(egal(noms(bds.networks), ['silooo']), 'silooo-bds : seulement le réseau silooo, pas celui de SileneMC', noms(bds.networks));
 verifier(bds.env_file === undefined, 'silooo-bds : pas d\'env_file (ni mot de passe de la base, ni autre secret que la clé listée)', bds.env_file);
 const portsBds = (bds.ports ?? []).map(String);
@@ -74,7 +74,11 @@ verifier(portsBds.length === 2, 'silooo-bds : deux publications de ports, TCP et
 verifier(portsBds.some((p) => p.endsWith('/tcp') && p.includes('${BDS_PORT:-19142}:${BDS_PORT:-19142}')), 'silooo-bds : le port TCP de signalisation (BDS_PORT) est publié', portsBds);
 verifier(portsBds.some((p) => p.endsWith('/udp') && p.includes('${BDS_UDP_PORTS_PUBLIES:-') && p.includes(':${BDS_UDP_PORTS:-')),
   'silooo-bds : la plage UDP publiée:locale vient de BDS_UDP_PORTS_PUBLIES et BDS_UDP_PORTS', portsBds);
-verifier(egal([...(bds.volumes ?? [])].sort(), ['bds-config:/data/config', 'bds-worlds:/data/worlds']), 'silooo-bds : volumes du monde et de la config', bds.volumes);
+const volumesBds = bds.volumes ?? [];
+verifier(egal(volumesBds.filter((v) => typeof v === 'string').sort(), ['bds-config:/data/config', 'bds-worlds:/data/worlds']), 'silooo-bds : volumes du monde et de la config', volumesBds);
+const montageZip = volumesBds.find((v) => typeof v === 'object' && v?.target === '/data/bds');
+verifier(volumesBds.length === 3 && montageZip?.type === 'bind' && montageZip.source === '${SILOOO_BDS_DIR:-/var/www/silooo/bds}' && montageZip.bind?.create_host_path === false,
+  'silooo-bds : /data/bds est un bind mount de SILOOO_BDS_DIR (défaut /var/www/silooo/bds), jamais créé par Docker (décision 26)', montageZip);
 verifier(String(bds.environment?.SILOOO_API_KEY).includes('${SILOOO_API_KEY:?'), 'silooo-bds : SILOOO_API_KEY obligatoire', bds.environment?.SILOOO_API_KEY);
 
 // réseaux et volumes
@@ -145,7 +149,8 @@ verifier(variablesCore.length >= 5 && oubliees.length === 0, 'chaque variable lu
 
 // start.sh : toute variable BDS_* qu'il lit est passée par le compose, et les défauts concordent partout.
 const startSh = lire('deploy/bds/start.sh');
-const internes = new Set(['BDS_DIR', 'BDS_GABARIT']); // pour les essais, pas pour le compose
+// Réglages pour les essais, ou posés par le Dockerfile (BDS_VERSION, BDS_USER_AGENT) : pas pour le compose.
+const internes = new Set(['BDS_DIR', 'BDS_GABARIT', 'BDS_RACINE', 'BDS_DONNEES', 'BDS_SOMMES_SHA256', 'BDS_SOMME_MD5', 'BDS_URL', 'BDS_VERSION', 'BDS_USER_AGENT']);
 const lues = [...new Set([...startSh.matchAll(/\$\{(BDS_[A-Z_]+|SILOOO_CORE_URL|SILOOO_API_KEY)[:}]/g)].map((m) => m[1]))].filter((n) => !internes.has(n));
 const passees = new Set(Object.keys(bds.environment ?? {}));
 const nonPassees = lues.filter((nom) => !passees.has(nom));
@@ -173,8 +178,21 @@ verifier(/^FROM node:[0-9.]+-[a-z0-9-]+@sha256:[0-9a-f]{64} AS addon$/m.test(doc
 verifier(/^FROM ubuntu:24\.04@sha256:[0-9a-f]{64}$/m.test(dockerfile), 'étape finale : ubuntu:24.04 épinglée par sa somme');
 verifier(/^USER silooo$/m.test(dockerfile) && /--uid 10001/.test(dockerfile), 'le conteneur ne tourne pas en root (uid 10001)');
 verifier(/^ENTRYPOINT \["\/opt\/silooo\/start\.sh"\]$/m.test(dockerfile), 'l\'entrée est /opt/silooo/start.sh');
-verifier(/^ENV LD_LIBRARY_PATH=\.$/m.test(dockerfile), 'LD_LIBRARY_PATH=.');
-verifier(/--user-agent/.test(dockerfile), 'le téléchargement de BDS envoie un User-Agent explicite');
+// Décision 26 : le serveur Bedrock n'est pas dans l'image. Kr pose le zip, start.sh le contrôle au démarrage.
+const instructions = dockerfile.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+verifier(!/minecraft\.net|bedrockdedicatedserver|bedrock-server-.*\.zip/.test(instructions), 'le Dockerfile ne télécharge pas BDS (décision 26)');
+verifier(!/^ENV[^\n]*LD_LIBRARY_PATH/m.test(instructions), 'pas de LD_LIBRARY_PATH dans l\'image : start.sh le pose dans le dossier de BDS');
+verifier(/apt-get install[^\n]*\bunzip\b/.test(instructions.replace(/\\\n/g, ' ')) && /\bjq\b/.test(instructions) && /libcurl4t64/.test(instructions), 'l\'image porte unzip, jq et libcurl4t64 (le décompresseur de start.sh, son jq, et la bibliothèque dont BDS a besoin)');
+const volumesDockerfile = /^VOLUME\s+\[(.*)\]\s*$/m.exec(dockerfile)?.[1].split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
+verifier(egal(volumesDockerfile, ['/data/worlds', '/data/config', '/data/bds']), 'le Dockerfile déclare les volumes /data/worlds, /data/config et /data/bds', volumesDockerfile);
+verifier(/COPY --from=addon [^\n]*\/src\/addon\/dist\/pack \/opt\/silooo\/pack\/$/m.test(dockerfile), 'le pack construit dans l\'étape addon est copié dans /opt/silooo/pack');
+verifier(/^COPY [^\n]*deploy\/bds\/bds\.sha256 deploy\/bds\/bds\.md5 \/opt\/silooo\/$/m.test(dockerfile), 'bds.sha256 et bds.md5 sont copiés à côté de start.sh');
+const uaDockerfile = /^ARG BDS_USER_AGENT="([^"]+)"$/m.exec(dockerfile)?.[1];
+verifier(uaDockerfile && uaDockerfile.includes('silooo') && !/mozilla|chrome|safari/i.test(uaDockerfile), 'le User-Agent de téléchargement dit qui il est (pas celui d\'un navigateur)', uaDockerfile);
+verifier(uaDockerfile === /\$\{BDS_USER_AGENT:-([^}]*)\}/.exec(startSh)?.[1], 'start.sh a le même User-Agent par défaut que le Dockerfile', JSON.stringify([uaDockerfile, /\$\{BDS_USER_AGENT:-([^}]*)\}/.exec(startSh)?.[1]]));
+verifier(/--max-time/.test(startSh) && /--user-agent/.test(startSh), 'start.sh télécharge avec un délai et un User-Agent explicite');
+const instructionsSurUneLigne = instructions.replace(/\s*\\\n\s*/g, ' ');
+verifier(/^ENV BDS_VERSION=\$\{BDS_VERSION\} BDS_USER_AGENT=\$\{BDS_USER_AGENT\}$/m.test(instructionsSurUneLigne), 'le Dockerfile passe BDS_VERSION et BDS_USER_AGENT à start.sh');
 
 // bds.sha256 : le nom du fichier suit ARG BDS_VERSION, la somme est du bon format.
 const version = /^ARG BDS_VERSION=(\S+)$/m.exec(dockerfile)?.[1];
@@ -182,7 +200,15 @@ const ligneSomme = lire('deploy/bds/bds.sha256').split('\n').filter((l) => l.tri
 const somme = /^([0-9a-f]{64})  (\S+)$/.exec(ligneSomme[0] ?? '');
 verifier(ligneSomme.length === 1 && somme !== null, 'bds.sha256 : une seule ligne « somme  fichier » hors commentaires', ligneSomme);
 verifier(somme && somme[2] === `bedrock-server-${version}.zip`, 'bds.sha256 : le nom du zip suit ARG BDS_VERSION du Dockerfile', JSON.stringify([somme?.[2], version]));
-verifier(lire('deploy/bds/bds.sha256').includes('4a23794a882b008d3f0a5fde8b338f55'), 'bds.sha256 note le MD5 annoncé par minecraft.net');
+// bds.md5 : le Content-MD5 de Mojang, repli de start.sh tant que la somme SHA-256 n'est pas épinglée.
+const ligneMd5 = lire('deploy/bds/bds.md5').split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
+const md5 = /^([0-9a-f]{32})  (\S+)$/.exec(ligneMd5[0] ?? '');
+verifier(ligneMd5.length === 1 && md5 !== null && md5[1] === '4a23794a882b008d3f0a5fde8b338f55', 'bds.md5 : une ligne « somme  fichier » avec le Content-MD5 annoncé par minecraft.net', ligneMd5);
+verifier(md5 && md5[2] === `bedrock-server-${version}.zip`, 'bds.md5 : le nom du zip suit ARG BDS_VERSION du Dockerfile', JSON.stringify([md5?.[2], version]));
+verifier(lire('deploy/bds/bds.sha256').includes('Kr : télécharge le zip dans un navigateur, `sha256sum`, écris la somme ici'), 'bds.sha256 dit à Kr de télécharger le zip dans un navigateur et d\'écrire la somme');
+verifier(/BDS_RACINE="\$\{BDS_RACINE:-\/data\/bds\}"/.test(startSh), 'start.sh cherche le zip dans /data/bds, le point de montage du compose');
+verifier(/SILOOO_BDS_DIR="\$\{SILOOO_BDS_DIR:-\/var\/www\/silooo\/bds\}"/.test(lire('deploy/scripts/commun.sh')), 'commun.sh (deploy.sh) a le même dossier par défaut que le compose pour SILOOO_BDS_DIR');
+verifier(commentees.get('SILOOO_BDS_DIR') === '/var/www/silooo/bds', 'exemple.env.txt : SILOOO_BDS_DIR a le même défaut que le compose', commentees.get('SILOOO_BDS_DIR'));
 
 // Le .gitignore garde le fichier d'environnement, le tag courant et les sauvegardes hors du dépôt.
 const ignore = lire('.gitignore').split('\n').map((l) => l.trim());

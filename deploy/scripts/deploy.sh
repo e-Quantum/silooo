@@ -61,6 +61,13 @@ command -v docker >/dev/null 2>&1 || echec 1 "docker est introuvable (lance le s
 [ -f "$COMPOSE_FICHIER" ] || echec 1 "compose introuvable : $COMPOSE_FICHIER (les fichiers de deploy/ ne sont pas là)"
 # Seule l'existence est testée : le contenu n'est jamais ouvert ici.
 [ -f "$FICHIER_ENV" ] || echec 1 "le fichier d'environnement manque dans $RACINE : Kr le pose, une session ne le crée pas"
+# Le dossier du zip de BDS (décision 26) : le compose le monte sur /data/bds sans le créer. Sans lui, « up » échouerait
+# après les migrations. Seul le système de fichiers est lu ici, jamais le fichier d'environnement : SILOOO_BDS_DIR vient
+# de l'environnement de la session (comme SILENEMC_NETWORK), sinon du défaut du compose.
+if [ ! -d "$SILOOO_BDS_DIR" ]; then
+  echec 1 "le dossier du zip de BDS n'existe pas : $SILOOO_BDS_DIR. Crée-le (mkdir -p, puis chown 10001:10001) et pose-y le zip de BDS : docs/deploiement.md, « Le zip de BDS »"
+fi
+verifier_dossier_bds
 docker network inspect "$SILENEMC_NETWORK" >/dev/null 2>&1 ||
   echec 1 "le réseau Docker « $SILENEMC_NETWORK » n'existe pas : vérifie avec docker network ls et exporte SILENEMC_NETWORK"
 
@@ -109,10 +116,12 @@ compose run --rm -T silooo-migrate ||
 
 # ------------------------------------------------------------------ 6. démarrage
 etape "6. Démarrage de silooo-core et silooo-bds"
+# silooo-bds s'arrête de lui-même, avec un message pour Kr, si le zip de BDS manque ou n'a pas la bonne somme : le test de
+# fumée ci-dessous ne vérifie que silooo-core, il faut lire « docker logs » de silooo-bds au premier déploiement.
 # --no-deps : les migrations viennent de tourner à l'étape 5, inutile de les rejouer. Le compose garde son
 # depends_on pour un « up » lancé à la main.
 compose up -d --no-deps silooo-core silooo-bds ||
-  echec 1 "le démarrage a échoué : regarde docker ps --filter name=silooo- et docker logs"
+  echec 1 "le démarrage a échoué : regarde docker ps --filter name=silooo- et docker logs (le dossier $SILOOO_BDS_DIR, monté sur /data/bds, doit exister)"
 
 # ------------------------------------------------------------------ 7. test de fumée
 # POST /v1/server/heartbeat avec la clé, depuis un conteneur curl sur le réseau silooo (l'image de silooo-core n'a

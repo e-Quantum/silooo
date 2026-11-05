@@ -1,23 +1,39 @@
 #!/usr/bin/env bash
-# Point d'entrée de l'image silooo-bds : prépare la configuration de BDS à partir des variables d'environnement,
-# puis lance bedrock_server à la place du script (exec). Rien d'autre ne tourne dans le conteneur.
+# Point d'entrée de l'image silooo-bds : installe BDS à partir du zip de Kr, prépare sa configuration à partir des
+# variables d'environnement, puis lance bedrock_server à la place du script (exec). Rien d'autre ne tourne dans le
+# conteneur.
 #
-#   start.sh                           écrit la configuration, puis démarre le serveur
-#   start.sh --rendre-seulement <dir>  écrit les fichiers dans <dir>, comme si <dir> était /opt/bds, puis sort
-#                                      sans lancer le binaire (tools/tests/deploy-start.sh s'en sert, sans Docker)
+#   start.sh                           installe BDS si besoin, écrit la configuration, puis démarre le serveur
+#   start.sh --rendre-seulement <dir>  écrit les fichiers dans <dir>, comme si <dir> était le dossier de BDS, puis sort
+#                                      sans installer BDS ni lancer le binaire (tools/tests/deploy-start.sh s'en sert)
 #
-# Ce que le script écrit (chemins relatifs au dossier de BDS, /opt/bds dans l'image) :
+# BDS n'est pas dans l'image (décision 26, docs/passation.md) : minecraft.net refuse les clients qui ne sont pas des
+# navigateurs et les conditions de BDS interdisent de redistribuer le zip. Au démarrage, le script :
+#   1. cherche /data/bds/bedrock-server-<version>.zip, posé par Kr dans le dossier monté (SILOOO_BDS_DIR) ; s'il manque,
+#      il tente un téléchargement avec l'identité honnête de l'image (2 essais de 60 s) et, en cas d'échec, s'arrête
+#      avec un message qui dit à Kr quoi faire (sortie 66) ;
+#   2. contrôle le zip : SHA-256 contre bds.sha256 si la somme y est épinglée, sinon MD5 contre bds.md5 (le Content-MD5
+#      de Mojang) en écrivant dans le journal la somme SHA-256 à épingler ;
+#   3. le décompresse une seule fois dans /data/bds/<version>/ (marque .silooo-extrait), enlève worlds/, config/,
+#      server.properties, allowlist.json et permissions.json du zip, et fait pointer worlds/ et config/ vers les volumes
+#      /data/worlds et /data/config, allowlist.json et permissions.json vers des fichiers de /data/config ;
+#   4. copie le pack Silooo de l'image (/opt/silooo/pack) dans behavior_packs/silooo ;
+#   5. écrit la configuration, puis cd /data/bds/<version> et exec ./bedrock_server avec LD_LIBRARY_PATH=.
+#
+# Ce que le script écrit (chemins relatifs au dossier de BDS, /data/bds/<version> dans l'image) :
 #   server.properties                           depuis server.properties.template, à chaque démarrage
 #   config/default/permissions.json             les modules de la Script API permis par défaut
 #   config/<uuid du module script>/             pour le pack Silooo : permissions.json, variables.json, secrets.json
 #   worlds/<BDS_LEVEL_NAME>/world_behavior_packs.json   le pack actif dans le monde
-#   allowlist.json et permissions.json          créés vides s'ils n'existent pas (dans l'image, des liens vers le volume)
+#   allowlist.json et permissions.json          créés vides s'ils n'existent pas (des liens vers le volume de config)
 #
 # L'uuid du module script se lit dans le manifest.json du pack, jamais ici. La clé SILOOO_API_KEY va dans
 # secrets.json (mode 600) sans passer par une ligne de commande, et le script ne l'affiche ni ne la journalise.
 # Pas de « set -x » ici, jamais.
 #
-# Codes de sortie : 64 option inconnue, 65 manifest.json inutilisable, 78 variable manquante ou invalide.
+# Codes de sortie : 64 option inconnue, 65 zip ou manifest.json inutilisable (somme fausse comprise), 66 zip de BDS
+# absent et non téléchargeable, 73 dossier de BDS non inscriptible ou fichier à la place d'un lien, 78 variable
+# manquante ou invalide.
 set -euo pipefail
 
 dire() { printf 'start.sh : %s\n' "$*"; }
@@ -31,7 +47,19 @@ echec() {
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GABARIT="${BDS_GABARIT:-$DIR_SCRIPT/server.properties.template}"
-BDS_DIR="${BDS_DIR:-/opt/bds}"
+# Les chemins de l'image. Les variables BDS_RACINE, BDS_DONNEES, BDS_SOMMES_SHA256, BDS_SOMME_MD5, BDS_URL et
+# SILOOO_PACK_DIR ne servent qu'aux essais de tools/tests/deploy-start.sh : le compose n'en passe aucune.
+BDS_RACINE="${BDS_RACINE:-/data/bds}"            # le dossier de Kr : le zip, puis BDS décompressé par version
+DONNEES="${BDS_DONNEES:-/data}"                  # les volumes du monde (worlds/) et de la config (config/)
+SOMMES_SHA256="${BDS_SOMMES_SHA256:-$DIR_SCRIPT/bds.sha256}"
+SOMME_MD5="${BDS_SOMME_MD5:-$DIR_SCRIPT/bds.md5}"
+PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack}" # le pack construit par l'image, copié dans BDS à chaque démarrage
+# Posés par le Dockerfile (ENV) : la version de BDS que l'image attend, et l'identité honnête pour le téléchargement.
+BDS_VERSION="${BDS_VERSION:-}"
+BDS_USER_AGENT="${BDS_USER_AGENT:-silooo-bds/1.0 (+https://github.com/e-Quantum/silooo)}"
+ESSAIS_TELECHARGEMENT=2                          # décision 26 : deux essais de 60 secondes au plus
+DELAI_TELECHARGEMENT=60
+BDS_DIR=""                                       # le dossier de BDS : <BDS_RACINE>/<version>, ou celui de --rendre-seulement
 RENDRE_SEULEMENT=0
 
 while [ $# -gt 0 ]; do
@@ -138,6 +166,175 @@ if [ -z "$ip_publique" ]; then
   alerte "BDS_PUBLIC_IP est vide : derrière Docker, les clients hors du VPS ne recevront pas d'adresse joignable (docs/bedrock.md, fait 5)"
 fi
 
+# ------------------------------------------------------------------ BDS : le zip de Kr, contrôlé puis décompressé
+ZEROS=0000000000000000000000000000000000000000000000000000000000000000
+ZIP_TELECHARGE=0
+SHA256_ZIP=""
+
+# Comme echec, mais retire d'abord le zip que ce script vient de télécharger (un zip posé par Kr reste en place).
+echec_zip() {
+  local zip=$1 code=$2
+  shift 2
+  if [ "$ZIP_TELECHARGE" -eq 1 ]; then rm -f "$zip"; fi
+  echec "$code" "$@"
+}
+
+# lire_somme <fichier> <longueur> : pose SOMME_LUE et NOM_LU depuis la première ligne qui n'est ni vide ni commentaire.
+lire_somme() {
+  local fichier=$1 longueur=$2 ligne
+  [ -f "$fichier" ] || echec 78 "fichier de sommes introuvable : $fichier"
+  ligne="$(tr -d '\r' <"$fichier" | grep -Ev '^[[:space:]]*(#|$)' | head -n 1 || true)"
+  [ -n "$ligne" ] || echec 78 "$fichier ne contient aucune ligne « somme  nom du fichier »"
+  if ! [[ $ligne =~ ^([0-9a-f]+)\ \ (.+)$ ]] || [ "${#BASH_REMATCH[1]}" -ne "$longueur" ]; then
+    echec 78 "$fichier : la ligne utile doit être « somme  nom du fichier » (deux espaces, somme de $longueur chiffres hexadécimaux en minuscules)"
+  fi
+  SOMME_LUE="${BASH_REMATCH[1]}"
+  NOM_LU="${BASH_REMATCH[2]}"
+}
+
+# verifier_zip <zip> : SHA-256 contre bds.sha256 si la somme y est épinglée, sinon MD5 contre bds.md5 ; refuse (65) si
+# la somme ne correspond pas. Pose SHA256_ZIP.
+verifier_zip() {
+  local zip=$1 nom_zip md5_zip
+  nom_zip="bedrock-server-$BDS_VERSION.zip"
+  command -v sha256sum >/dev/null 2>&1 || echec 78 "sha256sum est introuvable"
+  SHA256_ZIP="$(sha256sum "$zip" | cut -d' ' -f1)"
+
+  lire_somme "$SOMMES_SHA256" 64
+  [ "$NOM_LU" = "$nom_zip" ] ||
+    echec 78 "$SOMMES_SHA256 parle de « $NOM_LU » et cette image attend « $nom_zip » : la version de BDS a changé sans les sommes (voir le Dockerfile)"
+  if [ "$SOMME_LUE" != "$ZEROS" ]; then
+    if [ "$SHA256_ZIP" = "$SOMME_LUE" ]; then
+      dire "SHA-256 du zip conforme à bds.sha256 : $SHA256_ZIP"
+      return 0
+    fi
+    echec_zip "$zip" 65 "le SHA-256 de $zip est $SHA256_ZIP, bds.sha256 attend $SOMME_LUE : je ne décompresse pas ce fichier. Télécharge de nouveau le zip depuis le site de Mojang (ou, si Mojang a republié le zip, mets bds.sha256 à jour dans le dépôt)."
+  fi
+
+  # Somme SHA-256 pas encore épinglée : le MD5 annoncé par Mojang attrape au moins un fichier coupé ou une autre version.
+  command -v md5sum >/dev/null 2>&1 || echec 78 "md5sum est introuvable"
+  lire_somme "$SOMME_MD5" 32
+  [ "$NOM_LU" = "$nom_zip" ] ||
+    echec 78 "$SOMME_MD5 parle de « $NOM_LU » et cette image attend « $nom_zip » : la version de BDS a changé sans les sommes (voir le Dockerfile)"
+  md5_zip="$(md5sum "$zip" | cut -d' ' -f1)"
+  if [ "$md5_zip" != "$SOMME_LUE" ]; then
+    echec_zip "$zip" 65 "le MD5 de $zip est $md5_zip, bds.md5 (le Content-MD5 de Mojang) attend $SOMME_LUE : je ne décompresse pas ce fichier. Télécharge de nouveau le zip."
+  fi
+  dire "MD5 du zip conforme à bds.md5 (le Content-MD5 de Mojang) : $md5_zip"
+  dire "SHA-256 pas encore épinglée. Kr : écris-la dans deploy/bds/bds.sha256 du dépôt, à la place des zéros : $SHA256_ZIP  $nom_zip"
+}
+
+# telecharger_zip <zip> : tente le téléchargement (deux essais) avec l'identité honnête de l'image, sans la déguiser.
+telecharger_zip() {
+  local zip=$1 essai url partiel="$1.partiel"
+  url="${BDS_URL:-https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-$BDS_VERSION.zip}"
+  command -v curl >/dev/null 2>&1 || {
+    alerte "curl est introuvable : pas de téléchargement"
+    return 1
+  }
+  for ((essai = 1; essai <= ESSAIS_TELECHARGEMENT; essai++)); do
+    dire "téléchargement de BDS, essai $essai sur $ESSAIS_TELECHARGEMENT ($DELAI_TELECHARGEMENT s au plus) : $url"
+    rm -f "$partiel"
+    if curl --fail --silent --show-error --location --connect-timeout 30 --max-time "$DELAI_TELECHARGEMENT" \
+      --user-agent "$BDS_USER_AGENT" --output "$partiel" "$url" && [ -s "$partiel" ]; then
+      mv "$partiel" "$zip"
+      ZIP_TELECHARGE=1
+      return 0
+    fi
+    rm -f "$partiel"
+  done
+  return 1
+}
+
+# Le message pour Kr : le zip vient de lui. Sur la sortie d'erreur, une ligne par ligne, avec le préfixe du script.
+dire_a_kr() {
+  local zip=$1 ligne
+  while IFS= read -r ligne; do printf 'start.sh : %s\n' "$ligne" >&2; done <<MESSAGE
+le zip de BDS $BDS_VERSION manque et le téléchargement a échoué : je m'arrête.
+Kr, c'est à toi de le poser : minecraft.net refuse les clients qui ne sont pas des navigateurs, et les conditions de BDS
+interdisent de redistribuer le zip (décision 26, docs/passation.md).
+ 1. Dans un navigateur, ouvre https://www.minecraft.net/en-us/download/server/bedrock et télécharge la version Linux
+    $BDS_VERSION (ou le lien direct https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-$BDS_VERSION.zip).
+ 2. Pose le fichier, sous le nom $(basename "$zip"), dans le dossier de l'hôte monté sur $BDS_RACINE (SILOOO_BDS_DIR,
+    /var/www/silooo/bds par défaut). Le dossier doit appartenir à l'uid $(id -u) : chown 10001:10001 sur ce dossier.
+ 3. Calcule sa somme (sha256sum sous Linux, Get-FileHash -Algorithm SHA256 sous Windows) et écris-la dans deploy/bds/bds.sha256
+    du dépôt. Tant qu'elle n'y est pas, je contrôle le MD5 de Mojang (deploy/bds/bds.md5) et j'écris la somme à épingler dans ce journal.
+ 4. Relance silooo-bds : bash deploy/scripts/deploy.sh <tag> (le compose ne le relance pas seul après plusieurs échecs).
+MESSAGE
+}
+
+# lier <nom> <cible> : dans le dossier de BDS, un lien vers un volume. Un vrai fichier ou dossier à cet endroit n'est
+# jamais écrasé ici (le monde y serait perdu) : seule la décompression d'un zip neuf les retire.
+lier() {
+  local chemin="$BDS_DIR/$1"
+  if [ -L "$chemin" ]; then
+    ln -sfn "$2" "$chemin"
+  elif [ -e "$chemin" ]; then
+    echec 73 "$chemin existe et n'est pas un lien : je ne l'écrase pas (le monde et la config vivent dans $2)"
+  else
+    ln -s "$2" "$chemin"
+  fi
+}
+
+installer_bds() {
+  local dir_version zip partiel marque
+  [[ $BDS_VERSION =~ ^[0-9]+(\.[0-9]+){2,3}$ ]] ||
+    echec 78 "BDS_VERSION doit être un numéro de version comme 1.26.62.1 (le Dockerfile le pose)"
+  dir_version="$BDS_RACINE/$BDS_VERSION"
+  zip="$BDS_RACINE/bedrock-server-$BDS_VERSION.zip"
+  marque="$dir_version/.silooo-extrait"
+  BDS_DIR="$dir_version"
+
+  mkdir -p "$DONNEES/worlds" "$DONNEES/config" 2>/dev/null ||
+    echec 73 "impossible de créer $DONNEES/worlds et $DONNEES/config (les volumes du monde et de la config)"
+
+  if [ -f "$marque" ] && [ -x "$dir_version/bedrock_server" ]; then
+    dire "BDS $BDS_VERSION déjà décompressé dans $dir_version ($(head -n 1 "$marque"))"
+  else
+    [ -d "$BDS_RACINE" ] || echec 73 "$BDS_RACINE n'existe pas : le compose doit monter le dossier SILOOO_BDS_DIR de l'hôte dessus"
+    [ -w "$BDS_RACINE" ] ||
+      echec 73 "$BDS_RACINE n'est pas inscriptible par l'uid $(id -u) : sur l'hôte, chown 10001:10001 sur le dossier SILOOO_BDS_DIR (/var/www/silooo/bds par défaut)"
+    [ ! -e "$dir_version" ] ||
+      echec 73 "$dir_version existe sans la marque .silooo-extrait : une décompression a été coupée ou le dossier a été modifié. Supprime-le sur l'hôte, BDS sera décompressé de nouveau."
+
+    if [ ! -f "$zip" ]; then
+      if ! telecharger_zip "$zip"; then
+        dire_a_kr "$zip"
+        exit 66
+      fi
+    else
+      dire "zip de BDS trouvé : $zip"
+    fi
+    verifier_zip "$zip"
+
+    command -v unzip >/dev/null 2>&1 || echec 78 "unzip est introuvable"
+    partiel="$BDS_RACINE/$BDS_VERSION.partiel"
+    rm -rf "$partiel"
+    mkdir -p "$partiel"
+    dire "décompression de $zip dans $dir_version"
+    unzip -q "$zip" -d "$partiel" || {
+      rm -rf "$partiel"
+      echec 65 "unzip n'a pas pu décompresser $zip : le fichier est abîmé, télécharge-le de nouveau"
+    }
+    [ -f "$partiel/bedrock_server" ] || {
+      rm -rf "$partiel"
+      echec 65 "$zip ne contient pas bedrock_server : est-ce bien la version Linux de BDS $BDS_VERSION ?"
+    }
+    chmod 0755 "$partiel/bedrock_server"
+    # Ce que le zip apporte et que l'image remplace : le monde, la config et les listes vivent dans les volumes.
+    rm -rf "$partiel/worlds" "$partiel/config" "$partiel/server.properties" "$partiel/allowlist.json" "$partiel/permissions.json"
+    printf 'bedrock-server-%s.zip, sha256 %s, décompressé le %s\n' "$BDS_VERSION" "$SHA256_ZIP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$partiel/.silooo-extrait"
+    mv "$partiel" "$dir_version"
+  fi
+
+  lier worlds "$DONNEES/worlds"
+  lier config "$DONNEES/config"
+  lier allowlist.json "$DONNEES/config/allowlist.json"
+  lier permissions.json "$DONNEES/config/operateurs.json"
+}
+
+if [ "$RENDRE_SEULEMENT" -eq 0 ]; then installer_bds; fi
+
 # ------------------------------------------------------------------ server.properties
 [ -f "$GABARIT" ] || echec 78 "gabarit introuvable : $GABARIT"
 mkdir -p "$BDS_DIR"
@@ -187,11 +384,19 @@ JSON
 # ------------------------------------------------------------------ le pack de comportement Silooo
 PACK_DIR="$BDS_DIR/behavior_packs/silooo"
 MANIFESTE="$PACK_DIR/manifest.json"
+# Le pack de l'image est recopié à chaque démarrage : la version de l'add-on est celle de l'image (du tag déployé),
+# jamais celle d'un démarrage précédent. Le dossier de BDS vit sur l'hôte et survit aux images.
+if [ -f "$PACK_SOURCE/manifest.json" ]; then
+  mkdir -p "$BDS_DIR/behavior_packs"
+  rm -rf "$PACK_DIR"
+  cp -a "$PACK_SOURCE" "$PACK_DIR"
+  dire "pack Silooo copié de $PACK_SOURCE dans $PACK_DIR"
+fi
 PACK_PRESENT=0
 if [ -f "$MANIFESTE" ]; then
   PACK_PRESENT=1
 else
-  # L'image est construite sans add-on tant qu'addon/ n'existe pas : le serveur démarre quand même, sans pack.
+  # Sans pack, le serveur démarre quand même, sans configuration de scripts.
   dire "pas de pack Silooo ($MANIFESTE absent) : le serveur démarre sans pack, sans configuration de scripts"
   rmdir "$PACK_DIR" 2>/dev/null || true
 fi
@@ -289,6 +494,7 @@ if [ "$RENDRE_SEULEMENT" -eq 1 ]; then
 fi
 
 cd "$BDS_DIR"
+[ -x ./bedrock_server ] || echec 78 "$BDS_DIR/bedrock_server n'est pas exécutable"
 export LD_LIBRARY_PATH=.
 dire "démarrage de bedrock_server"
 exec ./bedrock_server

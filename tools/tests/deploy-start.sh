@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Teste deploy/bds/start.sh sans Docker : l'option --rendre-seulement écrit les fichiers dans un dossier jetable.
+# Teste deploy/bds/start.sh sans Docker : l'option --rendre-seulement écrit les fichiers dans un dossier jetable, et le
+# zip de BDS (décision 26) est cherché, contrôlé et décompressé dans un dossier jetable avec un faux zip (faire-zip.mjs)
+# et un faux curl : zip présent avec la bonne somme, mauvaise somme refusée, zip absent et téléchargement impossible.
 # Lancé par tools/tests/run.sh ; utilisable seul : bash tools/tests/deploy-start.sh
 # Besoin : bash 4+, node (pour lire le JSON) et jq (que start.sh lit aussi dans l'image). Sans jq, les cas qui lisent
 # manifest.json sont ignorés sur un poste local, mais ils échouent dans la CI, où CI=true et où jq est installé.
@@ -291,21 +293,336 @@ else
   if printf '%s\n' "$SORTIE" | grep -q "Beta APIs"; then ko "pas d'avertissement attendu quand level.dat existe"; else ok "pas d'avertissement quand level.dat existe"; fi
 fi
 
-# ------------------------------------------------------------------ lancement
-echo "start.sh : lancement du serveur"
-D="$TMP/lancement"
-mkdir -p "$D"
-cat >"$D/bedrock_server" <<'SERVEUR'
+# ------------------------------------------------------------------ le zip de BDS
+# BDS n'est pas dans l'image (décision 26) : Kr pose le zip dans le dossier monté sur /data/bds, ou start.sh tente un
+# téléchargement. Ici, un faux zip construit par le test (faire-zip.mjs), un faux curl, et des sommes écrites pour lui.
+echo "start.sh : le zip de BDS, posé par Kr ou téléchargé"
+V=9.9.9.9
+NOM_ZIP="bedrock-server-$V.zip"
+ZEROS=0000000000000000000000000000000000000000000000000000000000000000
+FAUX="$TMP/faux"
+JOURNAL="$TMP/curl.journal"
+mkdir -p "$FAUX" "$TMP/zips"
+cat >"$FAUX/curl" <<'CURL'
 #!/usr/bin/env bash
-echo "serveur lancé : LD_LIBRARY_PATH=$LD_LIBRARY_PATH dossier=$(basename "$PWD")"
-SERVEUR
-chmod +x "$D/bedrock_server"
-SORTIE="$(env BDS_DIR="$D" bash "$START" 2>&1)"
-CODE=$?
-if [ "$CODE" -eq 0 ] && printf '%s\n' "$SORTIE" | grep -q "serveur lancé : LD_LIBRARY_PATH=. dossier=lancement"; then
-  ok "sans l'option, start.sh lance ./bedrock_server dans son dossier avec LD_LIBRARY_PATH=."
+# Faux curl : note ses arguments, puis agit selon FAUX_CURL (zip : sert FAUX_ZIP ; interdit : ne devait pas être appelé ;
+# autre : échoue comme un délai dépassé).
+echo "$*" >>"${FAUX_JOURNAL:?}"
+case "${FAUX_CURL:-echec}" in
+  zip)
+    sortie=""
+    while [ $# -gt 0 ]; do
+      if [ "$1" = --output ]; then sortie=$2; fi
+      shift
+    done
+    cp "$FAUX_ZIP" "$sortie"
+    ;;
+  interdit)
+    echo "curl ne devait pas être appelé" >&2
+    exit 99
+    ;;
+  *)
+    echo "curl: (28) Operation timed out after 60001 milliseconds with 0 bytes received" >&2
+    exit 28
+    ;;
+esac
+CURL
+chmod +x "$FAUX/curl"
+
+# Sous Git Bash (Windows), « ln -s » copie ou échoue sans cette option ; elle demande le mode développeur. Les liens
+# vers les volumes sont l'objet de ces essais : sans liens symboliques, on ignore tout en local, et la CI échoue.
+export MSYS=winsymlinks:nativestrict
+LIENS=0
+if ln -s "$TMP/cible-absente" "$TMP/sonde-lien" 2>/dev/null && [ -L "$TMP/sonde-lien" ]; then LIENS=1; fi
+if [ "$LIENS" -eq 1 ] && command -v unzip >/dev/null 2>&1 && command -v sha256sum >/dev/null 2>&1 && command -v md5sum >/dev/null 2>&1; then
+  ZIP_BON="$TMP/zips/bon/$NOM_ZIP"
+  ZIP_CORROMPU="$TMP/zips/corrompu/$NOM_ZIP"
+  ZIP_SANS_SERVEUR="$TMP/zips/sans-serveur/$NOM_ZIP"
+  mkdir -p "$TMP/zips/bon" "$TMP/zips/corrompu" "$TMP/zips/sans-serveur"
+  node "$(natif "$RACINE/tools/tests/faire-zip.mjs")" "$(natif "$ZIP_BON")"
+  node "$(natif "$RACINE/tools/tests/faire-zip.mjs")" "$(natif "$ZIP_CORROMPU")" --variante corrompu
+  node "$(natif "$RACINE/tools/tests/faire-zip.mjs")" "$(natif "$ZIP_SANS_SERVEUR")" --sans-serveur
+  somme_sha() { sha256sum "$1" | cut -d' ' -f1; }
+  somme_md5() { md5sum "$1" | cut -d' ' -f1; }
+  SHA_BON="$(somme_sha "$ZIP_BON")"
+  MD5_BON="$(somme_md5 "$ZIP_BON")"
+  SHA_CORROMPU="$(somme_sha "$ZIP_CORROMPU")"
+
+  # ecrire_sommes <dossier> <sha256> <md5> [nom du fichier] : les deux fichiers de sommes, avec leurs commentaires.
+  ecrire_sommes() {
+    local nom=${4:-$NOM_ZIP}
+    mkdir -p "$1"
+    printf '# commentaire\n\n%s  %s\n' "$2" "$nom" >"$1/bds.sha256"
+    printf '# commentaire\n%s  %s\n' "$3" "$nom" >"$1/bds.md5"
+  }
+  # lancer_bds <racine> <dossier des sommes> [VAR=valeur ...] : start.sh sans l'option, avec le faux curl en tête du PATH.
+  lancer_bds() {
+    local racine=$1 sommes=$2
+    shift 2
+    : >"$JOURNAL"
+    SORTIE="$(env PATH="$FAUX:$PATH" FAUX_JOURNAL="$JOURNAL" BDS_VERSION="$V" BDS_RACINE="$racine" BDS_DONNEES="$racine.donnees" \
+      BDS_SOMMES_SHA256="$sommes/bds.sha256" BDS_SOMME_MD5="$sommes/bds.md5" "$@" bash "$START" 2>&1)"
+    CODE=$?
+  }
+  appels_curl() { wc -l <"$JOURNAL" | tr -d ' '; }
+
+  # --- A. Zip posé par Kr, SHA-256 épinglée et juste.
+  R="$TMP/a/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/a/sommes" "$SHA_BON" "00000000000000000000000000000000"
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/a/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 0 ] && printf '%s\n' "$SORTIE" | grep -q "serveur lancé : LD_LIBRARY_PATH=. dossier=$V\$"; then
+    ok "zip posé et SHA-256 épinglée juste : décompressé, puis ./bedrock_server lancé dans <version>/ avec LD_LIBRARY_PATH=."
+  else
+    ko "start.sh devait décompresser le zip puis lancer ./bedrock_server dans $V/ (code $CODE)" "$SORTIE"
+  fi
+  if printf '%s\n' "$SORTIE" | grep -q "SHA-256 du zip conforme"; then ok "dit que la SHA-256 est conforme"; else ko "devait dire que la SHA-256 est conforme" "$SORTIE"; fi
+  if [ "$(appels_curl)" -eq 0 ]; then ok "zip présent : aucun appel à curl"; else ko "curl ne devait pas être appelé quand le zip est là" "$(cat "$JOURNAL")"; fi
+  if ! printf '%s\n' "$SORTIE" | grep -qi "md5"; then ok "SHA-256 épinglée : le MD5 (faux exprès) n'est pas consulté"; else ko "le MD5 ne sert pas quand la SHA-256 est épinglée" "$SORTIE"; fi
+  VERSION_DIR="$R/$V"
+  if [ -f "$VERSION_DIR/.silooo-extrait" ] && [ -f "$VERSION_DIR/libfausse.so" ] && [ -f "$R/$NOM_ZIP" ]; then
+    ok "BDS est décompressé dans <racine>/<version>/ (marque .silooo-extrait), le zip reste en place"
+  else
+    ko "BDS devait être décompressé dans $VERSION_DIR" "$(ls -A "$VERSION_DIR" 2>&1)"
+  fi
+  if [ -x "$VERSION_DIR/bedrock_server" ]; then ok "bedrock_server est rendu exécutable"; else ko "bedrock_server devait être exécutable"; fi
+  if grep -qx "server-name=Silooo" "$VERSION_DIR/server.properties" && ! grep -q "du zip" "$VERSION_DIR/server.properties"; then
+    ok "le server.properties du zip est remplacé par celui du gabarit"
+  else
+    ko "server.properties devait venir du gabarit" "$(cat "$VERSION_DIR/server.properties" 2>&1)"
+  fi
+  if [ ! -e "$VERSION_DIR/worlds/Bedrock level" ] && [ ! -e "$VERSION_DIR/config/ancien.json" ]; then
+    ok "les worlds/ et config/ du zip sont retirés"
+  else
+    ko "worlds/ et config/ du zip devaient être retirés" "$(find "$VERSION_DIR/worlds" "$VERSION_DIR/config" 2>&1 | head -n 10)"
+  fi
+  if [ "$(cat "$R.donnees/config/allowlist.json" 2>/dev/null)" = "[]" ] && [ "$(cat "$R.donnees/config/operateurs.json" 2>/dev/null)" = "[]" ]; then
+    ok "allowlist.json et permissions.json du zip sont retirés : les listes vides sont créées dans le volume de config"
+  else
+    ko "les listes du zip ne devaient pas être gardées" "$(cat "$R.donnees/config/allowlist.json" "$R.donnees/config/operateurs.json" 2>&1)"
+  fi
+  # Les liens : worlds/ et config/ vers les volumes, allowlist.json et permissions.json vers des fichiers de config/.
+  if [ "$(readlink "$VERSION_DIR/worlds")" = "$R.donnees/worlds" ] && [ "$(readlink "$VERSION_DIR/config")" = "$R.donnees/config" ] &&
+    [ "$(readlink "$VERSION_DIR/allowlist.json")" = "$R.donnees/config/allowlist.json" ] &&
+    [ "$(readlink "$VERSION_DIR/permissions.json")" = "$R.donnees/config/operateurs.json" ]; then
+    ok "worlds/ et config/ sont des liens vers les volumes, allowlist.json et permissions.json vers config/"
+  else
+    ko "les liens vers les volumes sont faux" "$(find "$VERSION_DIR" -maxdepth 1 -type l -printf '%p -> %l\n' 2>&1)"
+  fi
+
+  # Deuxième démarrage : rien n'est décompressé de nouveau, et le zip n'est plus nécessaire.
+  : >"$VERSION_DIR/temoin"
+  rm -f "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/a/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 0 ] && [ -e "$VERSION_DIR/temoin" ] && printf '%s\n' "$SORTIE" | grep -q "déjà décompressé" &&
+    printf '%s\n' "$SORTIE" | grep -q "serveur lancé" && [ "$(appels_curl)" -eq 0 ]; then
+    ok "deuxième démarrage, zip supprimé : BDS n'est pas décompressé de nouveau, curl n'est pas appelé"
+  else
+    ko "le deuxième démarrage devait sauter la décompression (code $CODE)" "$SORTIE"
+  fi
+
+  # --- B. SHA-256 épinglée mais fausse : refus, rien décompressé, le zip de Kr reste.
+  R="$TMP/b/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/b/sommes" "$SHA_CORROMPU" "$MD5_BON"
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/b/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 65 ] && printf '%s\n' "$SORTIE" | grep -qF "$SHA_BON" && printf '%s\n' "$SORTIE" | grep -qF "$SHA_CORROMPU" &&
+    [ ! -e "$R/$V" ] && [ ! -e "$R/$V.partiel" ] && [ -f "$R/$NOM_ZIP" ] && ! printf '%s\n' "$SORTIE" | grep -q "serveur lancé"; then
+    ok "SHA-256 fausse : code 65, les deux sommes sont dans le message, rien n'est décompressé ni lancé, le zip posé reste"
+  else
+    ko "une SHA-256 fausse devait être refusée (code $CODE)" "$SORTIE"
+  fi
+
+  # --- C. SHA-256 pas épinglée (des zéros) : MD5 de Mojang, et la somme à épingler dans le journal.
+  R="$TMP/c/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/c/sommes" "$ZEROS" "$MD5_BON"
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/c/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 0 ] && printf '%s\n' "$SORTIE" | grep -q "MD5 du zip conforme" && printf '%s\n' "$SORTIE" | grep -qF "$SHA_BON  $NOM_ZIP" &&
+    printf '%s\n' "$SORTIE" | grep -q "serveur lancé"; then
+    ok "SHA-256 non épinglée : MD5 conforme, la somme SHA-256 à épingler est écrite dans le journal, le serveur démarre"
+  else
+    ko "sans SHA-256 épinglée, le MD5 devait suffire et la SHA-256 devait être journalisée (code $CODE)" "$SORTIE"
+  fi
+  R="$TMP/c2/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/c2/sommes" "$ZEROS" "$(somme_md5 "$ZIP_CORROMPU")"
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/c2/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 65 ] && printf '%s\n' "$SORTIE" | grep -q "MD5" && [ ! -e "$R/$V" ] && ! printf '%s\n' "$SORTIE" | grep -q "serveur lancé"; then
+    ok "SHA-256 non épinglée et MD5 faux : code 65, rien n'est décompressé"
+  else
+    ko "un MD5 faux devait être refusé (code $CODE)" "$SORTIE"
+  fi
+
+  # Les vrais fichiers du dépôt : bds.sha256 (encore des zéros) et bds.md5 sont lus par start.sh, au nom de la bonne version.
+  VRAIE_VERSION="$(sed -n 's/^ARG BDS_VERSION=//p' "$RACINE/deploy/bds/Dockerfile")"
+  R="$TMP/vrai/racine"
+  mkdir -p "$R"
+  cp "$ZIP_BON" "$R/bedrock-server-$VRAIE_VERSION.zip"
+  : >"$JOURNAL"
+  SORTIE="$(env PATH="$FAUX:$PATH" FAUX_JOURNAL="$JOURNAL" FAUX_CURL=interdit BDS_VERSION="$VRAIE_VERSION" BDS_RACINE="$R" BDS_DONNEES="$R.donnees" bash "$START" 2>&1)"
+  CODE=$?
+  if grep -qE '^0{64}  ' "$RACINE/deploy/bds/bds.sha256"; then
+    if [ "$CODE" -eq 65 ] && printf '%s\n' "$SORTIE" | grep -q "MD5" && printf '%s\n' "$SORTIE" | grep -q "4a23794a882b008d3f0a5fde8b338f55"; then
+      ok "les vrais bds.sha256 et bds.md5 sont lus (version $VRAIE_VERSION) : un autre zip est refusé sur le MD5 de Mojang"
+    else
+      ko "les vrais fichiers de sommes devaient refuser un faux zip sur le MD5 (code $CODE)" "$SORTIE"
+    fi
+  else
+    if [ "$CODE" -eq 65 ] && printf '%s\n' "$SORTIE" | grep -q "SHA-256"; then
+      ok "le vrai bds.sha256 est épinglé : un autre zip est refusé sur la SHA-256"
+    else
+      ko "la SHA-256 épinglée devait refuser un faux zip (code $CODE)" "$SORTIE"
+    fi
+  fi
+
+  # --- D. Zip absent et téléchargement impossible : deux essais de 60 s, identité honnête, message pour Kr, sortie non nulle.
+  R="$TMP/d/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/d/sommes" "$ZEROS" "$MD5_BON"
+  lancer_bds "$R" "$TMP/d/sommes" FAUX_CURL=echec
+  if [ "$CODE" -eq 66 ] && [ "$(appels_curl)" -eq 2 ]; then ok "zip absent, téléchargement impossible : deux essais de curl, puis code 66"; else ko "devait faire 2 essais puis sortir en 66 (code $CODE, $(appels_curl) appel(s))" "$SORTIE"; fi
+  if [ "$(grep -c -- '--max-time 60' "$JOURNAL")" -eq 2 ] && [ "$(grep -c -- '--user-agent silooo-bds/1.0 (+https://github.com/e-Quantum/silooo)' "$JOURNAL")" -eq 2 ] &&
+    [ "$(grep -c "https://www.minecraft.net/bedrockdedicatedserver/bin-linux/$NOM_ZIP" "$JOURNAL")" -eq 2 ]; then
+    ok "chaque essai dure 60 s au plus, avec le User-Agent honnête de l'image, sur l'adresse officielle"
+  else
+    ko "les essais devaient avoir --max-time 60 et le User-Agent de l'image" "$(cat "$JOURNAL")"
+  fi
+  if printf '%s\n' "$SORTIE" | grep -q "navigateur" && printf '%s\n' "$SORTIE" | grep -qF "$NOM_ZIP" && printf '%s\n' "$SORTIE" | grep -q "SILOOO_BDS_DIR" &&
+    printf '%s\n' "$SORTIE" | grep -q "bds.sha256" && printf '%s\n' "$SORTIE" | grep -q "chown 10001:10001"; then
+    ok "le message dit à Kr de télécharger dans un navigateur, où poser le zip, et où écrire la somme"
+  else
+    ko "le message pour Kr est incomplet" "$SORTIE"
+  fi
+  if [ -z "$(ls -A "$R")" ] && ! printf '%s\n' "$SORTIE" | grep -q "serveur lancé"; then ok "rien n'est créé ni lancé quand le zip manque"; else ko "rien ne devait être créé dans $R" "$(ls -A "$R")"; fi
+
+  # --- E. Zip absent, téléchargement possible (le jour où Mojang accepte l'identité honnête) : contrôlé comme le reste.
+  R="$TMP/e/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/e/sommes" "$SHA_BON" "$MD5_BON"
+  lancer_bds "$R" "$TMP/e/sommes" FAUX_CURL=zip FAUX_ZIP="$ZIP_BON"
+  if [ "$CODE" -eq 0 ] && [ "$(appels_curl)" -eq 1 ] && [ -f "$R/$NOM_ZIP" ] && printf '%s\n' "$SORTIE" | grep -q "serveur lancé" && [ ! -e "$R/$NOM_ZIP.partiel" ]; then
+    ok "zip téléchargé, SHA-256 conforme : BDS décompressé et lancé, sans fichier partiel"
+  else
+    ko "le téléchargement réussi devait mener au démarrage (code $CODE)" "$SORTIE"
+  fi
+  R="$TMP/e2/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/e2/sommes" "$SHA_BON" "$MD5_BON"
+  lancer_bds "$R" "$TMP/e2/sommes" FAUX_CURL=zip FAUX_ZIP="$ZIP_CORROMPU"
+  if [ "$CODE" -eq 65 ] && [ ! -e "$R/$NOM_ZIP" ] && [ ! -e "$R/$V" ]; then
+    ok "zip téléchargé mais faux : code 65, le fichier téléchargé est retiré, rien n'est décompressé"
+  else
+    ko "un zip téléchargé et faux devait être refusé et retiré (code $CODE)" "$SORTIE$(ls -A "$R")"
+  fi
+
+  # --- F. Dossier absent ou fermé, dossier de version incomplet, vrai dossier à la place d'un lien, zip sans serveur.
+  lancer_bds "$TMP/f/inexistant" "$TMP/a/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 73 ] && printf '%s\n' "$SORTIE" | grep -q "SILOOO_BDS_DIR"; then ok "dossier de BDS absent : code 73 et le nom de SILOOO_BDS_DIR"; else ko "dossier absent : code 73 attendu (code $CODE)" "$SORTIE"; fi
+
+  R="$TMP/f2/racine"
+  mkdir -p "$R"
+  chmod 555 "$R"
+  if [ ! -w "$R" ]; then
+    lancer_bds "$R" "$TMP/a/sommes" FAUX_CURL=interdit
+    if [ "$CODE" -eq 73 ] && printf '%s\n' "$SORTIE" | grep -q "chown 10001:10001"; then ok "dossier non inscriptible : code 73 et la commande chown pour l'uid 10001"; else ko "dossier non inscriptible : code 73 attendu (code $CODE)" "$SORTIE"; fi
+  else
+    ignore "ce système de fichiers (ou ce compte) ignore chmod 555 : dossier non inscriptible non vérifié ici"
+  fi
+  chmod 755 "$R"
+
+  R="$TMP/f3/racine"
+  mkdir -p "$R/$V"
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/a/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 73 ] && printf '%s\n' "$SORTIE" | grep -q "sans la marque" && [ -d "$R/$V" ]; then ok "dossier de version sans marque : code 73, il n'est pas écrasé"; else ko "dossier de version sans marque : code 73 attendu (code $CODE)" "$SORTIE"; fi
+
+  R="$TMP/f4/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/f4/sommes" "$SHA_BON" "$MD5_BON"
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/f4/sommes" FAUX_CURL=interdit
+  rm -f "$R/$V/worlds"
+  mkdir -p "$R/$V/worlds/monde-precieux"
+  : >"$R/$V/worlds/monde-precieux/level.dat"
+  lancer_bds "$R" "$TMP/f4/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 73 ] && [ -f "$R/$V/worlds/monde-precieux/level.dat" ]; then ok "un vrai dossier worlds/ à la place du lien : code 73, le monde n'est pas touché"; else ko "un vrai dossier worlds/ ne devait pas être écrasé (code $CODE)" "$SORTIE"; fi
+
+  R="$TMP/f5/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/f5/sommes" "$(somme_sha "$ZIP_SANS_SERVEUR")" "$(somme_md5 "$ZIP_SANS_SERVEUR")"
+  cp "$ZIP_SANS_SERVEUR" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/f5/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 65 ] && printf '%s\n' "$SORTIE" | grep -q "bedrock_server" && [ ! -e "$R/$V" ] && [ ! -e "$R/$V.partiel" ]; then
+    ok "zip sans bedrock_server : code 65, rien n'est gardé"
+  else
+    ko "un zip sans bedrock_server devait être refusé (code $CODE)" "$SORTIE"
+  fi
+
+  # --- G. Les sommes parlent d'une autre version que l'image : refus net.
+  R="$TMP/g/racine"
+  mkdir -p "$R"
+  ecrire_sommes "$TMP/g/sommes" "$SHA_BON" "$MD5_BON" bedrock-server-1.0.0.0.zip
+  cp "$ZIP_BON" "$R/$NOM_ZIP"
+  lancer_bds "$R" "$TMP/g/sommes" FAUX_CURL=interdit
+  if [ "$CODE" -eq 78 ] && printf '%s\n' "$SORTIE" | grep -q "la version de BDS a changé" && [ ! -e "$R/$V" ]; then
+    ok "bds.sha256 au nom d'une autre version : code 78, rien n'est décompressé"
+  else
+    ko "des sommes d'une autre version devaient être refusées (code $CODE)" "$SORTIE"
+  fi
+  lancer_bds "$TMP/g/racine" "$TMP/g/sommes" FAUX_CURL=interdit BDS_VERSION=abc
+  if [ "$CODE" -eq 78 ]; then ok "BDS_VERSION qui n'est pas un numéro : code 78"; else ko "BDS_VERSION=abc devait être refusée (code $CODE)" "$SORTIE"; fi
+
+  # --- H. --rendre-seulement n'installe rien et ne télécharge rien.
+  : >"$JOURNAL"
+  SORTIE="$(env PATH="$FAUX:$PATH" FAUX_JOURNAL="$JOURNAL" FAUX_CURL=interdit BDS_VERSION="$V" BDS_RACINE="$TMP/h/absent" bash "$START" --rendre-seulement "$TMP/h/rendu" 2>&1)"
+  CODE=$?
+  if [ "$CODE" -eq 0 ] && [ "$(appels_curl)" -eq 0 ] && [ ! -e "$TMP/h/absent" ] && [ -f "$TMP/h/rendu/server.properties" ]; then
+    ok "--rendre-seulement ne touche ni au zip ni au réseau"
+  else
+    ko "--rendre-seulement ne devait rien installer (code $CODE)" "$SORTIE"
+  fi
+
+  # --- I. Le pack de l'image est recopié dans behavior_packs/silooo à chaque démarrage (jq lit le manifeste).
+  if command -v jq >/dev/null 2>&1; then
+    poser_pack "$TMP/i/source"
+    PACK_IMAGE="$TMP/i/source/behavior_packs/silooo"
+    R="$TMP/i/racine"
+    mkdir -p "$R"
+    ecrire_sommes "$TMP/i/sommes" "$SHA_BON" "$MD5_BON"
+    cp "$ZIP_BON" "$R/$NOM_ZIP"
+    lancer_bds "$R" "$TMP/i/sommes" FAUX_CURL=interdit SILOOO_PACK_DIR="$PACK_IMAGE" SILOOO_API_KEY=cle-de-test
+    if [ "$CODE" -eq 0 ] && [ -f "$R/$V/behavior_packs/silooo/manifest.json" ] && [ -f "$R/$V/behavior_packs/silooo/scripts/main.js" ] &&
+      [ -f "$R/$V/behavior_packs/vanilla/manifest.json" ]; then
+      ok "le pack de l'image est copié dans behavior_packs/silooo"
+    else
+      ko "le pack de l'image devait être copié (code $CODE)" "$SORTIE"
+    fi
+    if [ "$(lire_json "$R.donnees/worlds/silooo/world_behavior_packs.json" 'd[0].pack_id')" = "$UUID_PACK" ]; then
+      ok "le monde (dans le volume) liste le pack copié"
+    else
+      ko "world_behavior_packs.json devait lister le pack" "$(cat "$R.donnees/worlds/silooo/world_behavior_packs.json" 2>&1)"
+    fi
+    : >"$R/$V/behavior_packs/silooo/ancien-fichier.js"
+    lancer_bds "$R" "$TMP/i/sommes" FAUX_CURL=interdit SILOOO_PACK_DIR="$PACK_IMAGE" SILOOO_API_KEY=cle-de-test
+    if [ "$CODE" -eq 0 ] && [ ! -e "$R/$V/behavior_packs/silooo/ancien-fichier.js" ] && [ -f "$R/$V/behavior_packs/silooo/manifest.json" ]; then
+      ok "au démarrage suivant, le pack est remplacé par celui de l'image (pas de fichier d'une ancienne version)"
+    else
+      ko "le pack devait être remplacé à chaque démarrage (code $CODE)" "$SORTIE"
+    fi
+  else
+    if [ "${CI:-}" = true ]; then ko "jq est introuvable dans la CI : la copie du pack ne peut pas être testée"; else ignore "jq absent de ce poste : copie du pack ignorée (la CI la lance)"; fi
+  fi
 else
-  ko "start.sh devait lancer ./bedrock_server" "$SORTIE"
+  if [ "${CI:-}" = true ]; then
+    ko "unzip, sha256sum, md5sum ou les liens symboliques manquent dans la CI : les cas du zip de BDS ne peuvent pas tourner"
+  else
+    ignore "unzip, sha256sum, md5sum ou les liens symboliques manquent sur ce poste : cas du zip de BDS ignorés (la CI les lance)"
+  fi
 fi
 
 echo

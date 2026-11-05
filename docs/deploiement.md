@@ -59,9 +59,10 @@ Le détail et la procédure pas à pas sont dans [deploy/README.md](../deploy/RE
 | --- | --- |
 | `deploy/compose.yml` | Le projet `silooo` : les trois services, les réseaux, les volumes du monde et de la config |
 | `deploy/exemple.env.txt` | Le modèle du fichier d'environnement (valeurs fausses) ; Kr le copie à la racine du projet |
-| `deploy/bds/Dockerfile` | L'image `silooo-bds` : BDS officiel (version et somme épinglées) et l'add-on construit |
-| `deploy/bds/bds.sha256` | La somme SHA-256 du zip de BDS, contrôlée à la construction |
-| `deploy/bds/start.sh` | L'entrée du conteneur : écrit `server.properties`, les permissions, `variables.json` et `secrets.json`, puis lance BDS |
+| `deploy/bds/Dockerfile` | L'image `silooo-bds` : l'add-on construit, `start.sh` et les outils (`unzip`, `jq`, `curl`). Pas de BDS dedans (décision 26) |
+| `deploy/bds/bds.sha256` | La somme SHA-256 du zip de BDS que Kr pose, à écrire par Kr ; `start.sh` la contrôle au démarrage |
+| `deploy/bds/bds.md5` | Le Content-MD5 annoncé par Mojang pour ce zip, contrôlé tant que la somme SHA-256 n'est pas épinglée |
+| `deploy/bds/start.sh` | L'entrée du conteneur : trouve et contrôle le zip de BDS, le décompresse une fois, écrit `server.properties`, les permissions, `variables.json` et `secrets.json`, puis lance BDS |
 | `deploy/bds/server.properties.template` | Le gabarit de `server.properties` |
 | `deploy/scripts/deploy.sh` | Le déploiement d'un tag, avec test de fumée et retour arrière |
 | `deploy/scripts/sauvegarde.sh` | La sauvegarde de la base et du monde, lancée par `deploy.sh` |
@@ -90,11 +91,61 @@ chiffres du jeu : le jeu reste dans `definitions/`. Le modèle est `deploy/exemp
 | `BDS_ALLOW_LIST` | `silooo-bds` | `true` | liste blanche tant que le serveur n'est pas ouvert (phase 6) |
 | `BDS_SERVER_NAME` | `silooo-bds` | `Silooo` | texte vu par les joueurs : à valider par Kr |
 | `SILOOO_CORE_URL` | `silooo-bds` | `http://silooo-core:8080/` | adresse de silooo-core sur le réseau `silooo` |
+| `SILOOO_BDS_DIR` | Compose et `deploy.sh` | `/var/www/silooo/bds` | dossier de l'hôte monté sur `/data/bds`, où Kr pose le zip de BDS ; propriété de l'uid 10001. Facultatif ; s'il change, l'exporter aussi dans la session avant `deploy.sh` |
 | `SILENEMC_NETWORK` | Compose et les scripts | `silenemc_default` | nom du réseau de SileneMC : une hypothèse, Kr la confirme avec `docker network ls` |
 | `SILOOO_TAG` | Compose | aucun | posé par `deploy.sh` à chaque appel, jamais dans le fichier d'environnement |
 
 Pas de guillemets autour des valeurs : Compose les retire, mais `docker run --env-file` (utilisé par
 `deploy.sh` et `sauvegarde.sh`) les garde.
+
+### Le zip de BDS
+
+Décision 26 ([passation.md](passation.md)) : l'image `silooo-bds` ne contient pas le serveur Bedrock. Depuis un script,
+minecraft.net ne répond pas : 0 octet puis un délai dépassé, vu depuis le PC de Kr et depuis la CI GitHub, avec un
+User-Agent qui dit ce qu'il est. On ne le déguise pas en navigateur, et on n'héberge pas le zip : les conditions
+d'utilisation de BDS interdisent de le redistribuer. Kr télécharge donc le zip dans un navigateur et le pose sur le VPS ;
+`start.sh` le contrôle et le décompresse au démarrage du conteneur.
+
+La procédure de Kr, une fois, puis à chaque nouvelle version de BDS :
+
+1. Dans un navigateur, ouvrir <https://www.minecraft.net/en-us/download/server/bedrock> et télécharger la version
+   Linux : `bedrock-server-1.26.62.1.zip` (le nom suit `ARG BDS_VERSION` de `deploy/bds/Dockerfile`).
+2. Le poser sur le VPS, dans le dossier `SILOOO_BDS_DIR` (`/var/www/silooo/bds` par défaut), propriété de l'uid 10001
+   qui est celui du conteneur (sans cela `start.sh` s'arrête avec le code 73) :
+
+   ```bash
+   scp bedrock-server-1.26.62.1.zip ubuntu@silenemc.eu:/tmp/
+   ssh ubuntu@silenemc.eu "sudo install -d -o 10001 -g 10001 /var/www/silooo/bds && \
+     sudo install -o 10001 -g 10001 -m 644 /tmp/bedrock-server-1.26.62.1.zip /var/www/silooo/bds/ && \
+     rm /tmp/bedrock-server-1.26.62.1.zip"
+   ```
+
+3. Calculer la somme SHA-256 du fichier (`sha256sum bedrock-server-1.26.62.1.zip`, ou sous PowerShell
+   `(Get-FileHash -Algorithm SHA256 .\bedrock-server-1.26.62.1.zip).Hash.ToLower()`) et l'écrire à la place des zéros
+   dans la dernière ligne de `deploy/bds/bds.sha256`, puis committer : la CI refait l'image et le tag suivant porte la
+   somme. Tant que ce n'est pas fait, `start.sh` contrôle le MD5 de `deploy/bds/bds.md5` (celui que Mojang annonce) et
+   écrit dans le journal du conteneur la ligne à épingler : `docker logs silooo-silooo-bds-1`.
+4. Déployer : `bash deploy/scripts/deploy.sh <tag>`. Le script refuse si le dossier n'existe pas, et avertit s'il ne
+   contient pas de zip.
+
+Ce que fait `start.sh`, dans l'ordre : il cherche `/data/bds/bedrock-server-<version>.zip` ; s'il manque, il tente
+le téléchargement (2 essais de 60 secondes, avec son User-Agent honnête), puis, en cas d'échec, s'arrête avec le code 66
+et ce même mode d'emploi dans la sortie. Il contrôle la somme (65 si elle ne correspond pas : le fichier est refusé, pas
+décompressé), décompresse une seule fois dans `/data/bds/<version>/` (la marque `.silooo-extrait` dit que c'est fini),
+retire de cette copie `worlds/`, `config/`, `server.properties`, `allowlist.json` et `permissions.json` pour les
+remplacer par des liens vers les volumes `/data/worlds` et `/data/config`, copie le pack de l'image dans
+`behavior_packs/silooo` à chaque démarrage, puis lance `./bedrock_server` depuis ce dossier. Une fois la copie
+décompressée en place, le zip n'est plus relu : le supprimer libère du disque. Avec `restart: on-failure:5`, un zip
+absent ou refusé ne fait pas boucler le conteneur : après cinq essais il reste arrêté, et `docker logs` dit pourquoi.
+
+Pour changer de version de BDS ([bedrock.md](bedrock.md), « La procédure de mise à jour ») : `ARG BDS_VERSION` du
+Dockerfile, le nom et les sommes de `bds.sha256` et de `bds.md5`, dans le même commit ; le nouveau zip dans
+`SILOOO_BDS_DIR`. Le dossier de l'ancienne version peut se supprimer à la main une fois la nouvelle en service.
+
+Les essais de `start.sh` sans Docker construisent un faux zip (`tools/tests/faire-zip.mjs`) et un faux `curl` :
+zip présent avec la bonne somme, mauvaise somme refusée, zip absent et téléchargement impossible. La CI vérifie que
+BDS n'est pas dans l'image, que `start.sh` sort en 66 sans zip, et essaie de démarrer BDS si la sonde de téléchargement
+a pu récupérer le zip. Sinon cet essai est sauté et se fait au premier déploiement.
 
 ### Ports : TCP et UDP
 
@@ -142,7 +193,8 @@ dépôt lui-même et cette section changera.
 
 Prérequis, posés par Kr une fois : le fichier d'environnement à la racine de `/var/www/silooo` (modèle :
 `deploy/exemple.env.txt`), `docker login ghcr.io` avec une clé de lecture sur les paquets du dépôt, le réseau
-de SileneMC, la base `silooo` et son compte, les ports ouverts.
+de SileneMC, la base `silooo` et son compte, les ports ouverts, le zip de BDS dans `SILOOO_BDS_DIR` (section « Le zip
+de BDS »).
 
 1. Kr donne son accord et choisit le tag. Les images sont construites par la CI sur `main` et
    taguées par commit, sur le registre privé de GitHub.
@@ -154,12 +206,14 @@ de SileneMC, la base `silooo` et son compte, les ports ouverts.
 
    Si le compte n'est pas dans le groupe `docker`, `sudo` devant `bash`. Sans tag, le script refuse (code 64) et ne
    touche à rien. Il enchaîne : `free -m` et `df -h /` (refus sous 800 Mo
-   disponibles), sauvegarde de la base et du monde, tirage des images, `silooo-migrate`, puis démarrage de
+   disponibles, ou si le dossier `SILOOO_BDS_DIR` n'existe pas ; avertissement s'il ne contient pas de zip), sauvegarde de la base et du monde, tirage des images, `silooo-migrate`, puis démarrage de
    `silooo-core` et `silooo-bds` seuls (`--no-deps`).
 3. Test de fumée : `POST /v1/server/heartbeat` sur silooo-core, depuis un conteneur sur le réseau `silooo`,
    avec la clé d'API lue par le conteneur (elle ne passe sur aucune ligne de commande de l'hôte). Il doit
    répondre `204` dans les 60 secondes. Il ne vérifie pas encore une session de joueur (une session de test
-   écrirait dans la base) : ce contrôle viendra avec le premier scénario de jeu.
+   écrirait dans la base) : ce contrôle viendra avec le premier scénario de jeu. Il ne regarde pas non plus
+   `silooo-bds` : au premier déploiement, lire son journal (`docker logs silooo-silooo-bds-1`) pour voir que le zip a été
+   accepté et que BDS a démarré.
 4. Si le test échoue, le script remet le tag précédent (sans rejouer la migration) et sort en erreur : code 1 si
    le retour arrière a réussi, code 2 s'il n'est pas confirmé. Sans tag précédent (premier déploiement), il
    laisse les conteneurs en l'état pour lire leurs journaux et sort avec le code 1.
@@ -200,6 +254,8 @@ Si la base `silooo` n'existe pas encore, on ne déploie pas silooo-core, et on l
 - Une restauration complète est essayée une fois par mois sur une base de test. La première a lieu
   pendant la bêta fermée.
 - Avant chaque déploiement et chaque mise à jour de Bedrock : une sauvegarde de plus.
+- Le dossier du zip de BDS (`SILOOO_BDS_DIR`) n'est pas sauvegardé : il se refait en retéléchargeant le zip. Seuls
+  la base et le volume du monde comptent.
 
 ## Mémoire et disque
 
@@ -233,5 +289,7 @@ branche `main`, branchement restic. La liste à jour est dans [passation.md](pas
 - l'ouverture du port TCP `BDS_PORT` et de la plage UDP `BDS_UDP_PORTS_PUBLIES` dans le pare-feu du VPS, après
   avoir vérifié que cette plage est libre ;
 - l'adresse IPv4 publique du VPS (`BDS_PUBLIC_IP`) et le DNS ;
+- le zip de BDS : le télécharger dans un navigateur, le poser dans `SILOOO_BDS_DIR` (propriété de l'uid 10001), écrire
+  sa somme SHA-256 dans `deploy/bds/bds.sha256` (section « Le zip de BDS », décision 26) ;
 - le monde de départ créé avec « Beta APIs » (section « Le monde et Beta APIs ») ;
 - la validation du nom du serveur (`BDS_SERVER_NAME`, « Silooo » par défaut) et du choix de la liste blanche.

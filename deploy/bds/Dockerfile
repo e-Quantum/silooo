@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
 
-# Image de silooo-bds : le serveur Bedrock officiel (BDS) avec l'add-on TypeScript de Silooo. Le contexte de
-# construction est la racine du dépôt, comme pour core/Dockerfile :
+# Image de silooo-bds : l'add-on TypeScript de Silooo et le script qui lance le serveur Bedrock officiel (BDS).
+# L'image ne contient PAS BDS (décision 26, docs/passation.md) : minecraft.net refuse les clients qui ne sont pas des
+# navigateurs et les conditions de BDS interdisent de redistribuer le zip. Kr pose le zip dans le dossier monté sur
+# /data/bds ; start.sh le contrôle (SHA-256 de bds.sha256, ou MD5 de bds.md5), le décompresse une fois dans
+# /data/bds/<version>/ puis lance bedrock_server (docs/deploiement.md, « Le zip de BDS »). La CI construit donc cette
+# image sans rien télécharger sur minecraft.net.
+#
+# Le contexte de construction est la racine du dépôt, comme pour core/Dockerfile :
 #   docker build -f deploy/bds/Dockerfile -t silooo-bds .
 # Ce qui n'entre pas dans le contexte est dans deploy/bds/Dockerfile.dockerignore (à côté de ce fichier).
 # La CI la construit à chaque poussée et, sur main, la pousse sur ghcr.io/e-quantum/silooo-bds (job image-bds).
@@ -11,87 +17,64 @@
 # Tag précis et somme de l'index : l'image de construction ne change pas sans qu'on le décide.
 FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS addon
 WORKDIR /src
-# Tout le contexte, réduit par Dockerfile.dockerignore à addon/, definitions/ et deploy/bds/ : un « COPY addon/ »
-# direct échouerait tant que le dossier n'existe pas (phase 2, avant l'add-on).
+# Tout le contexte, réduit par Dockerfile.dockerignore à addon/, definitions/ et deploy/bds/. Contrat avec l'add-on :
+# « npm run build » produit addon/dist/pack/manifest.json et addon/dist/pack/scripts/main.js. La disposition du dépôt
+# est gardée : addon/ à côté de definitions/.
 COPY . /contexte
-# Contrat avec la session de l'add-on : « npm run build » produit addon/dist/pack/manifest.json et
-# addon/dist/pack/scripts/main.js. Sans addon/package.json, l'étape produit un pack vide et l'image démarre sans
-# pack (start.sh le dit). La disposition du dépôt est gardée : addon/ à côté de definitions/.
 RUN set -eu; \
-    if [ -f /contexte/addon/package.json ]; then \
-      echo "addon/ présent : npm ci, puis npm run build"; \
-      cp -R /contexte/addon /src/addon; \
-      if [ -d /contexte/definitions ]; then cp -R /contexte/definitions /src/definitions; fi; \
-      cd /src/addon; \
-      npm ci --no-audit --no-fund; \
-      npm run build; \
-      test -f dist/pack/manifest.json; \
-      test -f dist/pack/scripts/main.js; \
-    else \
-      echo "addon/ absent : pack vide, l'image démarrera sans pack"; \
-    fi; \
-    mkdir -p /src/addon/dist/pack
+    test -f /contexte/addon/package.json; \
+    cp -R /contexte/addon /src/addon; \
+    if [ -d /contexte/definitions ]; then cp -R /contexte/definitions /src/definitions; fi; \
+    cd /src/addon; \
+    npm ci --no-audit --no-fund; \
+    npm run build; \
+    test -f dist/pack/manifest.json; \
+    test -f dist/pack/scripts/main.js
 
-# --- Étape 2 : le serveur, sur Ubuntu (la seule distribution Linux prise en charge par BDS) -------------------
+# --- Étape 2 : l'image d'exécution, sur Ubuntu (la seule distribution Linux prise en charge par BDS) ---------------
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 LABEL org.opencontainers.image.source="https://github.com/e-Quantum/silooo" \
       org.opencontainers.image.title="silooo-bds" \
-      org.opencontainers.image.description="Serveur Bedrock (BDS) de Silooo avec son add-on"
+      org.opencontainers.image.description="Lanceur du serveur Bedrock (BDS) de Silooo, avec son add-on ; le zip de BDS vient de Kr"
 
-# La version de BDS. deploy/bds/bds.sha256 porte la somme du zip de CETTE version : changer l'une sans l'autre
-# fait échouer la construction (docs/bedrock.md, « La procédure de mise à jour »).
+# La version de BDS que start.sh cherche : /data/bds/bedrock-server-<version>.zip. deploy/bds/bds.sha256 et
+# deploy/bds/bds.md5 portent les sommes du zip de CETTE version : changer l'une sans l'autre fait refuser le
+# démarrage (docs/bedrock.md, « La procédure de mise à jour »).
 ARG BDS_VERSION=1.26.62.1
-# minecraft.net ne répond pas au User-Agent par défaut de curl (docs/bedrock.md, fait 4) : le nôtre dit qui télécharge.
-ARG BDS_USER_AGENT="silooo-bds-build/1.0 (+https://github.com/e-Quantum/silooo)"
+# Si le zip manque, start.sh tente un téléchargement, deux fois, avec cette identité honnête : minecraft.net la
+# refuse aujourd'hui (aucune réponse), le message de start.sh dit alors à Kr quoi faire. On ne la déguise pas.
+ARG BDS_USER_AGENT="silooo-bds/1.0 (+https://github.com/e-Quantum/silooo)"
+ENV BDS_VERSION=${BDS_VERSION} \
+    BDS_USER_AGENT=${BDS_USER_AGENT}
 
 # Jamais root, même uid et même gid que silooo-core.
 RUN groupadd --system --gid 10001 silooo \
-    && useradd --system --uid 10001 --gid silooo --home-dir /opt/bds --no-create-home --shell /usr/sbin/nologin silooo
+    && useradd --system --uid 10001 --gid silooo --home-dir /opt/silooo --no-create-home --shell /usr/sbin/nologin silooo
 
-COPY deploy/bds/bds.sha256 /tmp/bds.sha256
-
-# Tout dans une seule couche, chown compris : un chown dans une couche suivante doublerait la taille de BDS.
-#  - ca-certificates : BDS s'authentifie auprès de Xbox Live ; libcurl4t64 : bibliothèque dont BDS dépend ;
-#    jq : start.sh lit manifest.json ; curl reste pour diagnostiquer le lien avec silooo-core depuis le conteneur.
-#  - la somme SHA-256 est écrite dans le journal, puis contrôlée contre bds.sha256.
-#  - worlds/ et config/ sont des liens vers les volumes /data/worlds et /data/config ; allowlist.json et
-#    permissions.json (les opérateurs) sont des liens vers le volume de config/, pour survivre aux redéploiements.
+# Tout dans une seule couche.
+#  - ca-certificates : BDS s'authentifie auprès de Xbox Live, et curl vérifie minecraft.net ;
+#  - curl et unzip : start.sh télécharge (en dernier recours) puis décompresse le zip ;
+#  - libcurl4t64 : bibliothèque dont BDS dépend ; jq : start.sh lit manifest.json.
+#  - /data/worlds et /data/config sont les volumes nommés du monde et de la config ; /data/bds est le dossier de Kr
+#    (le zip) et l'endroit où BDS est décompressé.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates curl unzip jq libcurl4t64; \
-    curl --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-delay 5 \
-      --connect-timeout 30 --max-time 300 --user-agent "${BDS_USER_AGENT}" \
-      --output "/tmp/bedrock-server-${BDS_VERSION}.zip" \
-      "https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-${BDS_VERSION}.zip"; \
-    ls -l "/tmp/bedrock-server-${BDS_VERSION}.zip"; \
-    md5sum "/tmp/bedrock-server-${BDS_VERSION}.zip"; \
-    sha256sum "/tmp/bedrock-server-${BDS_VERSION}.zip"; \
-    grep -v '^[[:space:]]*#' /tmp/bds.sha256 | (cd /tmp && sha256sum --check --strict -); \
-    mkdir -p /opt/bds; \
-    unzip -q "/tmp/bedrock-server-${BDS_VERSION}.zip" -d /opt/bds; \
-    rm -f /tmp/bedrock-server-*.zip /tmp/bds.sha256; \
-    chmod 0755 /opt/bds/bedrock_server; \
-    rm -rf /opt/bds/worlds /opt/bds/config /opt/bds/server.properties /opt/bds/allowlist.json /opt/bds/permissions.json; \
-    mkdir -p /data/worlds /data/config /opt/bds/behavior_packs/silooo /opt/silooo; \
-    ln -s /data/worlds /opt/bds/worlds; \
-    ln -s /data/config /opt/bds/config; \
-    ln -s /data/config/allowlist.json /opt/bds/allowlist.json; \
-    ln -s /data/config/operateurs.json /opt/bds/permissions.json; \
-    chown -R silooo:silooo /opt/bds /data; \
-    apt-get purge -y --auto-remove unzip; \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /data/worlds /data/config /data/bds /opt/silooo; \
+    chown -R silooo:silooo /data /opt/silooo
 
-# Le pack de comportement construit à l'étape 1 (vide tant que l'add-on n'existe pas).
-COPY --from=addon --chown=10001:10001 /src/addon/dist/pack /opt/bds/behavior_packs/silooo/
+# Le pack de comportement construit à l'étape 1. start.sh le copie dans behavior_packs/silooo de BDS à chaque démarrage.
+COPY --from=addon --chown=10001:10001 /src/addon/dist/pack /opt/silooo/pack/
 COPY --chown=10001:10001 --chmod=0755 deploy/bds/start.sh /opt/silooo/start.sh
-COPY --chown=10001:10001 deploy/bds/server.properties.template /opt/silooo/server.properties.template
+COPY --chown=10001:10001 deploy/bds/server.properties.template deploy/bds/bds.sha256 deploy/bds/bds.md5 /opt/silooo/
 
 USER silooo
-WORKDIR /opt/bds
-# Le monde et la config de BDS vivent dans des volumes nommés (deploy/compose.yml).
-VOLUME ["/data/worlds", "/data/config"]
+WORKDIR /opt/silooo
+# Le monde et la config de BDS vivent dans des volumes nommés (deploy/compose.yml) ; /data/bds est un dossier de
+# l'hôte, monté par le compose (SILOOO_BDS_DIR), où Kr pose le zip.
+VOLUME ["/data/worlds", "/data/config", "/data/bds"]
 # 19142 en TCP : signalisation NetherNet (ADR 0004). La plage UDP est celle de BDS_UDP_PORTS (start.sh).
 EXPOSE 19142/tcp 19143-19174/udp
-ENV LD_LIBRARY_PATH=.
 ENTRYPOINT ["/opt/silooo/start.sh"]

@@ -142,6 +142,9 @@ nouveau_projet() { # pose PROJET (copie de deploy/ et fichier d'environnement av
   cp -R "$RACINE/deploy" "$PROJET/deploy"
   rm -f "$PROJET/deploy/.tag-courant"
   printf 'SILOOO_API_KEY=%s\nSILOOO_DB_PASSWORD=%s\n' "$CANARI" "$CANARI" >"$PROJET/.env"
+  # Le dossier du zip de BDS (décision 26), avec un zip : deploy.sh le veut présent, et avertit s'il est vide.
+  mkdir -p "$PROJET/bds"
+  : >"$PROJET/bds/bedrock-server-1.26.62.1.zip"
   : >"$ETAT/appels.log"
 }
 tag_courant() { printf '%s\n' "$1" >"$PROJET/deploy/.tag-courant"; }
@@ -154,7 +157,7 @@ lancer_deploy() {
     shift
   done
   shift
-  SORTIE="$(env PATH="$FAUX_BIN:$PATH" FAUX_ETAT="$ETAT" DEPLOY_DELAI_FUMEE=0 DEPLOY_PAUSE_FUMEE=0 "${reglages[@]}" \
+  SORTIE="$(env PATH="$FAUX_BIN:$PATH" FAUX_ETAT="$ETAT" DEPLOY_DELAI_FUMEE=0 DEPLOY_PAUSE_FUMEE=0 SILOOO_BDS_DIR="$PROJET/bds" "${reglages[@]}" \
     bash "$PROJET/deploy/scripts/deploy.sh" "$@" 2>&1)"
   CODE=$?
 }
@@ -257,6 +260,38 @@ else
   ko "image prune devait être limité au label de Silooo" "$(journal | grep 'image prune')"
 fi
 interdits_respectes "déploiement réussi"
+if ! printf '%s\n' "$SORTIE" | grep -q "aucun zip de BDS"; then ok "avec un zip dans le dossier de BDS : aucun avertissement sur le zip"; else ko "aucun avertissement sur le zip attendu quand il est là" "$SORTIE"; fi
+
+# ------------------------------------------------------------------ le dossier du zip de BDS (décision 26)
+echo "deploy.sh : dossier du zip de BDS"
+nouveau_projet
+rm -rf "$PROJET/bds"
+lancer_deploy FAUX_BON_TAG='*' -- nouveau123
+if [ "$CODE" -eq 1 ] && ! journal | grep -q '^docker' && printf '%s\n' "$SORTIE" | grep -q "n'existe pas" && printf '%s\n' "$SORTIE" | grep -q "Le zip de BDS"; then
+  ok "dossier du zip de BDS absent : refus avant tout appel à docker, message qui renvoie à la procédure"
+else
+  ko "refus attendu quand le dossier du zip de BDS n'existe pas (code $CODE)" "$SORTIE"
+fi
+
+nouveau_projet
+rm -f "$PROJET/bds/"*.zip
+lancer_deploy FAUX_BON_TAG='*' -- nouveau123
+if [ "$CODE" -eq 0 ] && printf '%s\n' "$SORTIE" | grep -q "aucun zip de BDS"; then
+  ok "dossier du zip de BDS vide : avertissement, le déploiement continue (silooo-bds s'arrêtera avec sa marche à suivre)"
+else
+  ko "un dossier vide devait donner un avertissement sans bloquer (code $CODE)" "$SORTIE"
+fi
+
+nouveau_projet
+rm -f "$PROJET/bds/"*.zip
+mkdir -p "$PROJET/bds/1.26.62.1"
+: >"$PROJET/bds/1.26.62.1/.silooo-extrait"
+lancer_deploy FAUX_BON_TAG='*' -- nouveau123
+if [ "$CODE" -eq 0 ] && ! printf '%s\n' "$SORTIE" | grep -q "aucun zip de BDS"; then
+  ok "BDS déjà décompressé (marque .silooo-extrait) : pas d'avertissement sur le zip"
+else
+  ko "un BDS déjà décompressé ne devait pas donner d'avertissement (code $CODE)" "$SORTIE"
+fi
 
 # ------------------------------------------------------------------ test de fumée qui échoue, retour arrière
 echo "deploy.sh : test de fumée en échec"
