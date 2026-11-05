@@ -12,9 +12,11 @@ import com.silooo.core.api.respondError
 import com.silooo.core.api.respondRefusal
 import com.silooo.core.db.Database
 import com.silooo.core.definitions.Definitions
+import com.silooo.core.economy.CompanyStore
 import com.silooo.core.economy.DefinitionsBootstrap
 import com.silooo.core.economy.EconomyEngine
 import com.silooo.core.economy.EngineFigures
+import com.silooo.core.economy.JdbcCompanyStore
 import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.EventStore
 import com.silooo.core.events.JdbcEventStore
@@ -65,6 +67,8 @@ class Dependencies(
     /** Ce que la création d'une entreprise tire de `definitions/` : usines de départ, plafond hors ligne, grille des îles. */
     val companyBootstrap: CompanyBootstrap = DefinitionsBootstrap(economy, definitions),
     val eventStore: EventStore = JdbcEventStore(),
+    /** Les accès SQL des routes d'économie (existence d'une entreprise, écriture d'une usine, événements). */
+    val companyStore: CompanyStore = JdbcCompanyStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
     val apiRequestRetention: Duration? = null,
 )

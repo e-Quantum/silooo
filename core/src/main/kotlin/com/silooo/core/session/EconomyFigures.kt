@@ -18,11 +18,28 @@ class CompanyFigures(
 }
 
 /**
+ * La production qu'une entreprise a gagnée depuis son dernier calcul, telle que le moteur la verse
+ * ([EconomyFigures.pendingProduction]).
+ */
+data class Production(
+    /** Le Donar à verser. 0 quand rien n'est dû. */
+    val earned: Double,
+    /** Les heures comptées, plafond hors ligne appliqué : `offlineHours` de la réponse de `collect`. */
+    val countedHours: Double,
+    /**
+     * Le nouveau `companies.last_collect_at` : maintenant (à la milliseconde, la précision de la base), ou
+     * l'ancienne valeur quand l'horloge du service est en retard sur la base, pour que la date ne recule jamais.
+     */
+    val at: Instant,
+)
+
+/**
  * Tout ce que `join` doit afficher et que le MOTEUR D'ÉCONOMIE calcule : le revenu par heure, le
  * multiplicateur, le seuil de prestige, le prix du prochain niveau et le prochain palier de chaque usine, et
  * le Donar gagné pendant l'absence. Ces chiffres viennent de `definitions/` et des formules de
  * `docs/economie.md` ; ils ne vivent pas dans les routes de session (un chiffre du jeu vit dans
- * `definitions/` et nulle part ailleurs).
+ * `definitions/` et nulle part ailleurs). Les routes d'économie (`collect`, `buyLevels`, `restoreStep`) y
+ * prennent aussi la production à verser ([pendingProduction]).
  *
  * L'implémentation du service est `com.silooo.core.economy.EngineFigures` ; les tests de routes passent leurs
  * faux à `Dependencies(economyFigures = ...)`. Il n'existe pas d'implémentation « tout à zéro » : un état sans
@@ -47,4 +64,13 @@ interface EconomyFigures {
      * service compte l'absence depuis `company.lastCollectAt` seul (voir `EngineFigures.settleOffline`).
      */
     fun settleOffline(connection: Connection, company: CompanyRecord, playerLastSeenAt: Instant?): Double
+
+    /**
+     * La production de [company] depuis `company.lastCollectAt` jusqu'à maintenant, avec la même règle que
+     * [settleOffline] (revenu d'aujourd'hui, plafond de l'entreprise, efficacité hors ligne), SANS rien écrire : la
+     * route (`collect`, `buyLevels`, `restoreStep`) verse [Production.earned] elle-même, dans la même
+     * écriture que le reste de son action, pour que la version de l'entreprise ne change qu'une fois.
+     * [factories] sont les usines de l'entreprise telles que la base les garde, avant l'action.
+     */
+    fun pendingProduction(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): Production
 }

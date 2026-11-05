@@ -52,6 +52,17 @@ class EconomyEngine(private val definitions: Definitions) {
         mapOf(prestigeRules.courseStart.factoryId to prestigeRules.courseStart.level)
 
     /**
+     * Le niveau d'une usine à la fin de sa remise en état : le niveau de départ de `prestige.departDeCourse`,
+     * sans jamais reculer si l'usine en a déjà un. `definitions/` ne donne pas de niveau de remise en état
+     * propre ; c'est le seul niveau de départ qu'il fixe, donc le plus petit qui fasse produire une usine.
+     * **À valider par Kr** (docs/economie.md, section Remise en état).
+     */
+    fun restoredLevel(currentLevel: Int): Int {
+        require(currentLevel >= 0) { "Un niveau n'est pas négatif : $currentLevel" }
+        return maxOf(currentLevel, prestigeRules.courseStart.level)
+    }
+
+    /**
      * Le prix en Donar pour monter `factoryId` de `levels` niveaux à partir du niveau `fromLevel` :
      * `prixNiveau1 × g^fromLevel × (g^levels - 1) / (g - 1)`, la somme géométrique des prix de chaque
      * niveau (le niveau `n + 1` coûte `prixNiveau1 × g^n`). Zéro pour zéro niveau.

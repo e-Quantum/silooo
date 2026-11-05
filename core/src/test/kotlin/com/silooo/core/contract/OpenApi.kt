@@ -107,6 +107,11 @@ class OpenApi private constructor(private val root: Map<String, Any?>) {
     fun responseSchema(name: String): Map<String, Any?> =
         jsonSchemaOf(resolve(mapOf("\$ref" to "#/components/responses/$name")) as Map<String, Any?>)!!
 
+    /** Le schéma de la propriété [property] de [schema] (`allOf` fusionnés, références suivies). */
+    @Suppress("UNCHECKED_CAST")
+    fun propertyOf(schema: Map<String, Any?>, property: String): Map<String, Any?> =
+        resolve(flatten(schema).properties.getValue(property)) as Map<String, Any?>
+
     /** Les valeurs de `enum` de la propriété [property] du schéma [schema]. */
     @Suppress("UNCHECKED_CAST")
     fun enumOf(schema: Map<String, Any?>, property: String): Set<String> {

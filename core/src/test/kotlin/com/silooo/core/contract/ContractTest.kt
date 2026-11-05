@@ -2,6 +2,7 @@ package com.silooo.core.contract
 
 import com.silooo.core.Dependencies
 import com.silooo.core.TestDefinitions
+import com.silooo.core.api.Balances
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.GameEvent
@@ -11,13 +12,21 @@ import com.silooo.core.api.Role
 import com.silooo.core.api.SERVER_KEY_HEADER
 import com.silooo.core.api.SiloooJson
 import com.silooo.core.db.InMemoryApiRequestStore
-import com.silooo.core.db.PassThroughDatabase
+import com.silooo.core.db.RecordingConnection
+import com.silooo.core.db.RecordingDatabase
+import com.silooo.core.db.Xuid
+import com.silooo.core.economy.BuyAmount
+import com.silooo.core.economy.CompanyService
+import com.silooo.core.economy.EconomyEngine
+import com.silooo.core.economy.InMemoryCompanyStore
 import com.silooo.core.events.EVENTS_DEFAULT_LIMIT
 import com.silooo.core.events.EVENTS_MAX_LIMIT
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.events.InMemoryEventStore
+import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.GAMERTAG_MAX_LENGTH
 import com.silooo.core.session.InMemorySessionStore
+import com.silooo.core.session.Production
 import com.silooo.core.session.TestBootstrap
 import com.silooo.core.session.TestEconomy
 import com.silooo.core.siloooModule
@@ -83,24 +92,61 @@ class ContractTest {
         GameEvent(2, null, GameEventKind.ANNONCE.name, buildJsonObject { put("texte", "maintenance") }),
     )
 
-    /** Le seul endroit où brancher les faux d'une route nouvellement écrite. */
-    private fun contractDependencies(): Dependencies {
-        val database = PassThroughDatabase()
+    /**
+     * Le seul endroit où brancher les faux d'une route nouvellement écrite. La base est une [RecordingDatabase] : les
+     * routes d'économie écrivent l'entreprise par `updateCompany`, qu'une connexion qui note les écritures suffit à
+     * satisfaire ; `join` et `pollEvents` n'y touchent jamais.
+     */
+    private fun contractDependencies(sessions: InMemorySessionStore, economy: TestEconomy): Dependencies {
+        val database = RecordingDatabase()
         return Dependencies(
             database = database,
             definitions = TestDefinitions.loaded,
             apiKey = KEY,
             idempotency = Idempotency(database, InMemoryApiRequestStore()),
-            economyFigures = TestEconomy(),
+            economyFigures = economy,
             companyBootstrap = TestBootstrap,
-            sessionStore = InMemorySessionStore(),
+            sessionStore = sessions,
             eventStore = InMemoryEventStore(events),
+            companyStore = InMemoryCompanyStore(sessions),
         )
     }
 
-    private fun withService(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
-        application { siloooModule(contractDependencies()) }
+    /**
+     * Monte le service. [operationId] pose l'état de départ dont la requête minimale de cette opération a besoin pour
+     * réussir (voir [seedFor]) ; sans lui, la base de faux est vide.
+     */
+    private fun withService(operationId: String? = null, block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
+        val sessions = InMemorySessionStore()
+        val economy = TestEconomy()
+        if (operationId != null) seedFor(operationId, sessions, economy)
+        application { siloooModule(contractDependencies(sessions, economy)) }
         block()
+    }
+
+    /**
+     * L'état qui fait réussir la requête minimale des routes d'économie : l'entreprise 1 (le `companyId` d'exemple du
+     * contrat), son PDG [krXuid], et l'usine `factoryId` d'exemple du contrat, dans l'état que chaque opération veut
+     * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
+     */
+    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy) {
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep")
+        if (!onCompany) return
+        val owner = Xuid.parse(krXuid)!!
+        val connection = RecordingConnection().connection
+        val companyId = sessions.createCompany(connection, owner, "Entreprise de test", TestBootstrap).companyId
+        sessions.balances[owner] = Balances(0, 0, 0, 0)
+
+        val factoryId = text(contract.example(operations.single { it.id == "buyLevels" }.pathParameters.single { it.name == "factoryId" }.schema))
+        when (operationId) {
+            "collect" -> economy.pending = Production(earned = 1.0, countedHours = 1.0, at = sessions.now.plusSeconds(60))
+            "buyLevels" -> {
+                sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
+                val price = EconomyEngine(TestDefinitions.loaded).levelsCost(factoryId, 1, 1)
+                sessions.companies[companyId] = sessions.companies.getValue(companyId).copy(donar = price)
+            }
+            "restoreStep" -> sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.EN_RUINE, 0, 0, null))
+        }
     }
 
     private suspend fun ApplicationTestBuilder.send(method: String, url: String, body: String? = null, key: String? = KEY): HttpResponse =
@@ -197,6 +243,12 @@ class ContractTest {
         @Suppress("UNCHECKED_CAST")
         val properties = operations.single { it.id == "join" }.body!!["properties"] as Map<String, Map<String, Any?>>
         assertEquals(GAMERTAG_MAX_LENGTH, (properties.getValue("gamertag")["maxLength"] as Number).toInt())
+
+        val restore = operations.single { it.id == "restoreStep" }.body!!
+        assertEquals(1, (contract.propertyOf(restore, "step")["minimum"] as Number).toInt(), "restoreStep : la première étape")
+        assertEquals(CompanyService.LAST_RESTORE_STEP, (contract.propertyOf(restore, "step")["maximum"] as Number).toInt(), "restoreStep : la dernière étape")
+        val levels = operations.single { it.id == "buyLevels" }.body!!
+        assertEquals(contract.enumOf(levels, "amount"), BuyAmount.entries.map { it.wire }.toSet(), "buyLevels : les valeurs de amount")
     }
 
     @Test
@@ -279,7 +331,7 @@ class ContractTest {
             // La requête fabriquée doit elle-même être conforme au contrat, sinon le test ne prouve rien.
             op.body?.let { assertConforms(it, bodyFor(op)!!, "la requête fabriquée pour $op") }
 
-            withService {
+            withService(op.id) {
                 val response = send(op.method, urlFor(op), bodyFor(op))
                 val status = response.status.value
                 val body = response.bodyAsText()
@@ -318,13 +370,29 @@ class ContractTest {
                 """{"xuid":"$krXuid","gamertag":"${"x".repeat(GAMERTAG_MAX_LENGTH + 1)}"}""", """{"xuid":12,"gamertag":"Kr"}""",
             ),
             "leave" to listOf("{}", "pas du json", """{"xuid":"abc"}""", """{"xuid":"123456789012345678901"}"""),
+            "collect" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+            ),
+            "buyLevels" to listOf(
+                "{}", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","amount":"2"}""",
+                """{"requestId":"$ID","actor":"$krXuid","amount":1}""", """{"requestId":"abc","actor":"$krXuid","amount":"1"}""",
+            ),
+            "restoreStep" to listOf(
+                "{}", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","step":0}""",
+                """{"requestId":"$ID","actor":"$krXuid","step":5}""", """{"requestId":"$ID","actor":"$krXuid","step":"un"}""",
+            ),
         )
+        // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
+        val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body) }
             }
+        } + badCompanyUrls.map { url ->
+            dynamicTest("getCompany : $url") { assertBadRequest(operations.single { it.id == "getCompany" }, url, null) }
         } + queries.map { query ->
             dynamicTest("pollEvents : $query") { assertBadRequest(operations.single { it.id == "pollEvents" }, "/v1/events$query", null) }
         }
@@ -407,8 +475,14 @@ class ContractTest {
     private companion object {
         const val KEY = "cle-de-test"
 
+        /** Un `requestId` bien formé, pour les corps dont c'est un autre champ qui est faux. */
+        const val ID = "6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e90"
+
         /** Les routes écrites et le succès qu'une requête minimale valide leur fait rendre. */
-        val WRITTEN = mapOf("heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200)
+        val WRITTEN = mapOf(
+            "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
+            "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
+        )
 
         /**
          * Les opérations qui peuvent répondre 409 CONFLIT_REESSAYER sans le déclarer dans le contrat. Vide : les six

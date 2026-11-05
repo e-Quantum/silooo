@@ -8,12 +8,13 @@ import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryFigures
 import com.silooo.core.session.FactoryRecord
+import com.silooo.core.session.Production
 import com.silooo.core.session.SessionStore
 import java.sql.Connection
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 import org.slf4j.LoggerFactory
 
@@ -66,25 +67,38 @@ class EngineFigures(
      * quand le gain est nul ou que l'horloge est en retard sur la base.
      */
     override fun settleOffline(connection: Connection, company: CompanyRecord, playerLastSeenAt: Instant?): Double {
-        // La base garde la milliseconde (DATETIME(3)) : on écrit et on compte avec elle.
-        val now = clock.instant().truncatedTo(ChronoUnit.MILLIS)
-        val awayMillis = Duration.between(company.lastCollectAt, now).toMillis()
-        if (awayMillis <= 0L) return 0.0
-
-        val factories = withoutUnknown(company, store.loadFactories(connection, company.id))
-        val ratePerHour = engine.ratePerHour(producingLevels(factories), multiplierOf(connection, company))
-        val earned = engine.offlineEarnings(ratePerHour, awayMillis.toDouble() / MILLIS_PER_HOUR, company.offlineCapHours)
-        if (!(earned > 0.0)) return 0.0
+        val production = pendingProduction(connection, company, store.loadFactories(connection, company.id))
+        if (!(production.earned > 0.0)) return 0.0
 
         updateCompany(
             connection,
             company.id,
             company.version,
-            CompanyColumn.DONAR to company.donar + earned,
-            CompanyColumn.DONAR_EARNED to company.donarEarned + earned,
-            CompanyColumn.LAST_COLLECT_AT to now,
+            CompanyColumn.DONAR to company.donar + production.earned,
+            CompanyColumn.DONAR_EARNED to company.donarEarned + production.earned,
+            CompanyColumn.LAST_COLLECT_AT to production.at,
         )
-        return earned
+        return production.earned
+    }
+
+    /**
+     * La même règle que [settleOffline], sans l'écriture : le temps écoulé depuis `company.lastCollectAt`, plafonné
+     * par `company.offlineCapHours`, au revenu d'aujourd'hui et à l'efficacité hors ligne. `collect`, `buyLevels` et
+     * `restoreStep` appellent ceci pour verser la production dans leur propre écriture.
+     */
+    override fun pendingProduction(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): Production {
+        // La base garde la milliseconde (DATETIME(3)) : on écrit et on compte avec elle.
+        val now = clock.instant().truncatedTo(ChronoUnit.MILLIS)
+        val awayMillis = Duration.between(company.lastCollectAt, now).toMillis()
+        if (awayMillis <= 0L) return Production(earned = 0.0, countedHours = 0.0, at = company.lastCollectAt)
+
+        val awayHours = awayMillis.toDouble() / MILLIS_PER_HOUR
+        val ratePerHour = engine.ratePerHour(producingLevels(withoutUnknown(company, factories)), multiplierOf(connection, company))
+        return Production(
+            earned = engine.offlineEarnings(ratePerHour, awayHours, company.offlineCapHours),
+            countedHours = engine.offlineHours(awayHours, company.offlineCapHours),
+            at = now,
+        )
     }
 
     /** Le multiplicateur global : la moyenne des Lingots détenus par les membres, et les étoiles de l'entreprise. */

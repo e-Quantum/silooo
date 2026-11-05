@@ -72,6 +72,10 @@ data class JoinResponse(
     val offlineCollected: Double,
 )
 
+/** Réponse `CompanyUpdated` de l'OpenAPI : l'état de l'entreprise après l'action, et les soldes de celui qui agit. */
+@Serializable
+data class CompanyUpdated(val state: CompanyState, val balances: Balances)
+
 /** Schéma `GameEvent`. `kind` reste une chaîne : un type écrit par une version plus récente ne doit pas casser la lecture. */
 @Serializable
 data class GameEvent(val id: Long, val xuid: String?, val kind: String, val payload: JsonObject)

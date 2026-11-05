@@ -101,7 +101,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
 | `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde) : classes typées et `DefinitionsLoader` |
-| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`) et ses deux branchements sur `join` : `EngineFigures` (implémente `EconomyFigures`) et `DefinitionsBootstrap` (implémente `CompanyBootstrap`) |
+| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock |
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
@@ -166,11 +166,40 @@ en paramètre pour qu'un test avance le temps sans attendre.
 Le nom d'entreprise donné au premier passage est provisoire : « Entreprise de <gamertag> », avec un numéro si le
 nom est pris. À valider par Kr (texte vu par les joueurs).
 
+## Les routes d'économie
+
+`GET /v1/companies/{companyId}` (`getCompany`), `POST .../collect`, `POST .../factories/{factoryId}/levels`
+(`buyLevels`) et `POST .../factories/{factoryId}/restore` (`restoreStep`) sont écrites. `CompanyRoutes` valide
+l'entrée et répond ; `CompanyService` lit, décide et écrit, sans HTTP et sans aucun chiffre du jeu (prix, production
+et plafond viennent de `EconomyEngine` et d'`EconomyFigures`) ; `CompanyStore` porte le SQL qui reste (l'usine,
+l'événement, l'existence de l'entreprise). Le Donar de l'entreprise s'écrit par `updateCompany` (verrou optimiste,
+409 `CONFLIT_REESSAYER` si un autre associé a écrit), jamais par `creditBalance`, qui est pour les monnaies
+personnelles.
+
+- **Une action d'écriture** : l'acteur doit être membre de l'entreprise ; les refus du jeu tombent avant la première
+  écriture ; la production en attente est versée d'abord (même règle que le hors ligne de `join`), puis `updateCompany`,
+  l'usine, l'événement, le tout dans la transaction de `call.idempotent`. L'état rendu est bâti sur ce qui vient
+  d'être écrit.
+- **Les cas que le contrat ne nomme pas** : l'OpenAPI ne déclare ni 403 ni 404 sur ces quatre routes. Une entreprise
+  inconnue, un acteur qui n'en est pas membre, une usine inconnue de `usines.json`, un `amount` ou un `step` hors des
+  valeurs donnent 400 `REQUETE_INVALIDE`. Une usine que l'entreprise n'a pas, ou qui ne produit pas, donne
+  `USINE_VERROUILLEE` pour `buyLevels`.
+- **Les événements** : l'OpenAPI n'a pas de type propre à ces actions. Elles publient un `ANNONCE` adressé à l'acteur,
+  dont `payload.action` vaut `collect`, `buyLevels` ou `restoreStep` ; ajouter un type d'événement commence par
+  l'OpenAPI.
+- **Règles à valider par Kr** : la production en ligne entre deux `collect`, le comportement de `max`, la remise en
+  état sans coût ([economie.md](../docs/economie.md), sections Hors ligne, Le prix des niveaux, La remise en état).
+- **Les tests** : `economy/CompanyRoutesTest` (sans base, 25 tests), `contract/ContractTest` (les quatre opérations
+  sont dans `WRITTEN`) et `economy/CompanySqlTest` (MariaDB réelle, ignoré sans Docker : ce qui s'écrit dans `companies`,
+  `company_factories` et `game_events`, la transaction unique, et des achats simultanés).
+
 ## Ce qui vient après, en phase 1
 
 Chaque route suit la recette [`silooo-route`](../.claude/skills/silooo-route/SKILL.md) : contrat,
 test de contrat, puis code.
 
-- Les routes d'économie (`companies/{companyId}` : `getCompany`, `collect`, `buyLevels`, `restoreStep` et les
-  suivantes), qui se servent du moteur et des quatre aides ci-dessus.
+- Les routes d'économie qui suivent `restoreStep` (usines à découvrir et à racheter, agence et personnel, prestige,
+  associés, ville, marché, boutique) : elles se servent du moteur et de `CompanyService` comme les quatre premières.
+- La production en ligne au revenu plein, qui demande que le service connaisse les heures de présence.
+- Un coût de remise en état dans `definitions/`, et des types d'événement propres dans l'OpenAPI.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).

@@ -32,7 +32,10 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
   ```
 
 - L'opération `buyLevels` accepte `1`, `10`, `palier` (jusqu'au prochain ×2) et `max` (tout ce que
-  le solde permet). C'est le service qui calcule, jamais l'add-on.
+  le solde permet). C'est le service qui calcule, jamais l'add-on. `1`, `10` et `palier` se paient en entier
+  ou pas du tout (409 `PAS_ASSEZ_DE_DONAR`, avec la somme qui manque). `max` achète tout ce que le solde paie
+  et ne refuse que s'il ne paie pas même un niveau, auquel cas il manque le prix du prochain niveau moins le
+  solde. **À valider par Kr.**
 - La croissance du prix est le réglage le plus sensible du jeu : une variation au centième rallonge
   le premier prestige de plusieurs heures.
 
@@ -65,8 +68,34 @@ L'inflation est voulue dans la première couche et impossible dans la seconde. L
   multiplicateur de maintenant compris. **À valider par Kr.**
 - L'opération `collect` applique le plafond et renvoie `offlineHours`, les heures retenues. À
   l'arrivée, `JoinResponse.offlineCollected` donne ce qui a été encaissé pendant l'absence.
+- **La production en ligne entre deux `collect`** n'a pas de règle écrite. Le service prend la plus simple, celle
+  de `join` : `collect`, `buyLevels` et `restoreStep` versent chacune la production depuis `last_collect_at` par la
+  formule du hors ligne (revenu d'aujourd'hui, heures plafonnées par la colonne de l'entreprise, efficacité
+  `horsLigne.efficacite`), puis remettent `last_collect_at` à maintenant, dans la même écriture que le reste de
+  l'action. `buyLevels` paie donc l'achat avec ce solde et l'usine ne produit à son nouveau niveau que depuis
+  maintenant. Un `collect` sans temps écoulé ne change rien. Conséquence : un joueur connecté est payé à
+  l'efficacité hors ligne, pas au revenu plein. L'autre lecture, le revenu plein pour le temps passé en ligne,
+  demande que le service connaisse les heures de présence (`join`, `heartbeat`, `leave`) : elle reste ouverte.
+  **À valider par Kr.**
 - Sans chef d'équipe, une usine s'arrête quand son stock est plein. Jamais de grève ni d'incident
   pendant une absence.
+
+## La remise en état
+
+Les quatre étapes sont celles de [game-design.md](game-design.md) (dialogue, tâches, livraison, recrutement) ;
+l'opération `restoreStep` en avance une à la fois. Rien dans `definitions/` ne chiffre cette remise en état, donc
+le service tranche ainsi, **à valider par Kr** :
+
+- Les étapes se font dans l'ordre, une fois chacune. `EN_RUINE` n'accepte que l'étape 1 ; `REMISE_EN_ETAT` à
+  l'étape *s* n'accepte que l'étape *s* + 1. Une étape trop loin donne `USINE_VERROUILLEE`, une étape déjà faite
+  ou une usine déjà `ACTIVE` donne `DEJA_POSSEDE`, et rien n'est écrit.
+- Aucune étape ne coûte de Donar : ni `usines.json` ni `economie.json` n'a de prix de remise en état. Le jour où
+  il y en aura un, il va dans `definitions/` et le service le lit ; le chiffre n'entre jamais dans le code.
+- La dernière étape passe l'usine `ACTIVE` au niveau le plus haut entre son niveau (0 en ruine) et
+  `prestige.departDeCourse.niveau`, le niveau où la Carrière démarre chaque course. Une usine remise en état
+  produit donc dès l'étape 4.
+- Chaque étape verse d'abord la production en attente (règle de la section précédente) : l'usine remise en état ne
+  produit que depuis maintenant.
 
 ## Le prestige et les Lingots
 

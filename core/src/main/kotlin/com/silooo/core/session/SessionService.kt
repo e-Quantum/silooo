@@ -1,7 +1,5 @@
 package com.silooo.core.session
 
-import com.silooo.core.api.CompanyState
-import com.silooo.core.api.Factory
 import com.silooo.core.api.JoinResponse
 import com.silooo.core.db.Database
 import com.silooo.core.db.VersionConflict
@@ -96,34 +94,7 @@ class SessionService(
             rank = profile.rank,
             pilierUntil = profile.pilierUntil?.let(::isoUtc),
             balances = store.loadBalances(connection, xuid),
-            state = CompanyState(
-                companyId = company.id,
-                name = company.name,
-                era = company.era,
-                stars = company.stars,
-                courseNumber = company.courseNumber,
-                donar = company.donar,
-                donarEarned = company.donarEarned,
-                ratePerHour = figures.ratePerHour,
-                multiplier = figures.multiplier,
-                threshold = figures.threshold,
-                factories = factories.map { factory ->
-                    val numbers = figures.forFactory(factory.factoryId)
-                    Factory(
-                        factoryId = factory.factoryId,
-                        state = factory.state,
-                        restoreStep = factory.restoreStep,
-                        level = factory.level,
-                        ratePerHour = numbers.ratePerHour,
-                        nextCost = numbers.nextCost,
-                        nextMilestone = numbers.nextMilestone,
-                        incidentId = factory.openIncidentId,
-                        stoppedNoPower = numbers.stoppedNoPower,
-                    )
-                },
-                zonesOwned = store.loadZones(connection, company.id),
-                version = company.version,
-            ),
+            state = buildCompanyState(company, factories, figures, store.loadZones(connection, company.id)),
             offlineCollected = offlineCollected,
         )
     }

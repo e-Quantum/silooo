@@ -117,4 +117,10 @@ class TestEconomy : EconomyFigures {
         settled += company.id to playerLastSeenAt
         return offline
     }
+
+    /** La production en attente que les routes d'économie verront ; `null` : rien n'est dû, la date de dernier calcul ne bouge pas. */
+    var pending: Production? = null
+
+    override fun pendingProduction(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): Production =
+        pending ?: Production(earned = 0.0, countedHours = 0.0, at = company.lastCollectAt)
 }
