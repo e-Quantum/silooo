@@ -1,4 +1,4 @@
-"""Lecteurs de tools/anti_ia.py : extraient d'un fichier JSON ou TypeScript les seuls morceaux que
+"""Lecteurs de tools/anti_ia.py : extraient d'un fichier JSON, TypeScript ou Kotlin les seuls morceaux que
 les joueurs lisent (valeurs de chaînes, littéraux), avec leur numéro de ligne."""
 
 from __future__ import annotations
@@ -108,6 +108,94 @@ def litteraux_ts(texte: str) -> list[tuple[int, str]]:
             sortie.append((ligne, _decoder_echappements("".join(morceau))))
             ligne += texte.count("\n", i, min(j, n))
             i = j + 1
+        else:
+            i += 1
+    return sortie
+
+
+def _fin_de_modele_kt(texte: str, debut: int) -> int:
+    """Position après l'accolade qui ferme un `${...}` ouvert en `debut` (juste après le `{`).
+
+    Le contenu d'un modèle est du code, pas du texte : on le saute, chaînes imbriquées comprises.
+    """
+    n, i, profondeur = len(texte), debut, 1
+    while i < n and profondeur:
+        c = texte[i]
+        if c == "{":
+            profondeur += 1
+        elif c == "}":
+            profondeur -= 1
+        elif c == '"':
+            i = _fin_de_chaine_kt(texte, i)
+            continue
+        i += 1
+    return i
+
+
+def _fin_de_chaine_kt(texte: str, debut: int) -> int:
+    """Position après la chaîne entre guillemets doubles qui s'ouvre en `debut` (`"` ou `\"\"\"`)."""
+    n = len(texte)
+    if texte.startswith('"""', debut):
+        fin = texte.find('"""', debut + 3)
+        if fin < 0:
+            return n
+        while fin + 3 < n and texte[fin + 3] == '"':  # `""""` : le dernier guillemet appartient à la chaîne
+            fin += 1
+        return fin + 3
+    i = debut + 1
+    while i < n and texte[i] not in ('"', "\n"):
+        if texte[i] == "\\":
+            i += 2
+        elif texte.startswith("${", i):
+            i = _fin_de_modele_kt(texte, i + 2)
+        else:
+            i += 1
+    return i + 1
+
+
+def litteraux_kt(texte: str) -> list[tuple[int, str]]:
+    """Le contenu des chaînes "..." et des chaînes brutes \"\"\"...\"\"\" d'un fichier Kotlin.
+
+    Sont écartés : les commentaires (`//`, `/* */` imbriquables, KDoc compris), les caractères `'c'` (un `Char`
+    n'est pas une phrase, et `'"'` ne doit pas ouvrir une chaîne), les identifiants entre accents graves, et le
+    contenu des modèles `${...}` (du code). Le numéro de ligne est celui où la chaîne s'ouvre.
+    """
+    sortie: list[tuple[int, str]] = []
+    n, i, ligne = len(texte), 0, 1
+    while i < n:
+        c = texte[i]
+        if c == "\n":
+            ligne += 1
+            i += 1
+        elif texte.startswith("//", i):
+            fin = texte.find("\n", i)
+            i = n if fin < 0 else fin
+        elif texte.startswith("/*", i):
+            profondeur, j = 1, i + 2
+            while j < n and profondeur:
+                if texte.startswith("/*", j):
+                    profondeur, j = profondeur + 1, j + 2
+                elif texte.startswith("*/", j):
+                    profondeur, j = profondeur - 1, j + 2
+                else:
+                    j += 1
+            ligne += texte.count("\n", i, j)
+            i = j
+        elif c == "'":
+            # 'a', '\n', '\'', '"', '\u00e9' : un caractère ; une apostrophe seule se saute.
+            m = re.match(r"'(?:[^'\\\n]|\\u[0-9a-fA-F]{4}|\\.)'", texte[i:i + 12])
+            i += m.end() if m else 1
+        elif c == "`":
+            fin = texte.find("`", i + 1)
+            i = n if fin < 0 else fin + 1
+        elif c == '"':
+            fin = _fin_de_chaine_kt(texte, i)
+            brute = texte.startswith('"""', i)
+            corps = texte[i + (3 if brute else 1):fin - (3 if brute else 1)]
+            corps = re.sub(r"\$\{(?:[^{}]|\{[^{}]*\})*\}", "", corps)  # le code des modèles n'est pas du texte
+            sortie.append((ligne, corps if brute else _decoder_echappements(corps)))
+            ligne += texte.count("\n", i, min(fin, n))
+            i = fin
         else:
             i += 1
     return sortie

@@ -1,6 +1,7 @@
 package com.silooo.core
 
 import com.silooo.core.definitions.DefinitionsLoader
+import com.silooo.core.site.SiteMode
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -27,9 +28,18 @@ data class ServiceConfig(
     val database: DatabaseConfig,
     val definitionsDir: Path,
     val apiRequestRetention: Duration = Duration.ofHours(Config.DEFAULT_API_REQUESTS_RETENTION_HOURS),
+    /** Le port du site public (`SILOOO_SITE_PORT`), distinct de [port]. */
+    val sitePort: Int = Config.DEFAULT_SITE_PORT,
+    /** Le mode du site public (`SILOOO_SITE_MODE`). */
+    val siteMode: SiteMode = SiteMode.ATTENTE,
+    /** L'adresse publique du site (`SILOOO_SITE_URL`). */
+    val siteUrl: String = Config.DEFAULT_SITE_URL,
+    /** Le lien Discord du site (`SILOOO_SITE_URL_DISCORD`) ; `null` tant qu'il n'est pas posé. */
+    val discordUrl: String? = null,
 ) {
     override fun toString() =
-        "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention)"
+        "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
+            "sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl)"
 }
 
 /**
@@ -44,6 +54,10 @@ object Config {
     const val DB_PASSWORD = "SILOOO_DB_PASSWORD"
     const val API_KEY = "SILOOO_API_KEY"
     const val DEFINITIONS_DIR = "SILOOO_DEFINITIONS_DIR"
+    const val SITE_PORT = "SILOOO_SITE_PORT"
+    const val SITE_MODE = "SILOOO_SITE_MODE"
+    const val SITE_URL = "SILOOO_SITE_URL"
+    const val SITE_URL_DISCORD = "SILOOO_SITE_URL_DISCORD"
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -64,6 +78,12 @@ object Config {
 
     /** Port d'écoute quand `SILOOO_PORT` n'est pas posé : celui de l'OpenAPI (`http://silooo-core:8080`). */
     const val DEFAULT_PORT = 8080
+
+    /** Port du site public quand `SILOOO_SITE_PORT` n'est pas posé : le Caddy de SileneMC y joint `silooo-core`. */
+    const val DEFAULT_SITE_PORT = 8081
+
+    /** Adresse publique du site quand `SILOOO_SITE_URL` n'est pas posée. */
+    const val DEFAULT_SITE_URL = "https://silooo.com"
 
     /**
      * Seulement la base : c'est tout ce que le mode `migrate` demande. Le service `silooo-migrate`
@@ -88,9 +108,14 @@ object Config {
         val port = reader.port()
         val definitionsDir = reader.definitionsDir(workingDir)
         val retention = reader.apiRequestRetention()
+        val sitePort = reader.sitePort(port)
+        val siteMode = reader.siteMode()
+        val siteUrl = reader.siteUrl(SITE_URL, DEFAULT_SITE_URL)
+        val discordUrl = reader.siteUrl(SITE_URL_DISCORD, null)
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
+            sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
         )
     }
 
@@ -170,6 +195,44 @@ object Config {
                 return null
             }
             return Duration.ofHours(hours)
+        }
+
+        /** Le port du site : un port valide, et jamais celui de l'API (deux serveurs ne partagent pas un port). */
+        fun sitePort(apiPort: Int?): Int? {
+            val raw = env[SITE_PORT]
+            val port = if (raw.isNullOrBlank()) DEFAULT_SITE_PORT else raw.trim().toIntOrNull()
+            if (port == null || port !in 1..65535) {
+                problems += "$SITE_PORT doit être un numéro de port entre 1 et 65535"
+                return null
+            }
+            if (port == apiPort) {
+                problems += "$SITE_PORT ($port) doit être différent de $PORT : le site et l'API écoutent sur deux ports"
+                return null
+            }
+            return port
+        }
+
+        /** Le mode du site : `attente` quand la variable n'est pas posée, jamais `ouvert` par défaut. */
+        fun siteMode(): SiteMode? {
+            val raw = env[SITE_MODE]
+            if (raw.isNullOrBlank()) return SiteMode.ATTENTE
+            val mode = SiteMode.parse(raw)
+            if (mode == null) {
+                problems += "$SITE_MODE doit valoir ${SiteMode.entries.joinToString(" ou ") { it.word }}"
+            }
+            return mode
+        }
+
+        /** Une adresse http(s) facultative : [default] quand la variable n'est pas posée (peut être `null`). */
+        fun siteUrl(name: String, default: String?): String? {
+            val raw = env[name]
+            if (raw.isNullOrBlank()) return default
+            val url = raw.trim()
+            if (!url.startsWith("http")) {
+                problems += "$name doit commencer par http"
+                return default
+            }
+            return url.trimEnd('/')
         }
 
         fun finish() {
