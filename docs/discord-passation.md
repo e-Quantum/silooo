@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 16 h 05, D0 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 16 h 30, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -22,8 +22,15 @@ est recopiée sous l'étape qu'elle touche.
   attend l'application et le jeton de Kr (« À faire par Kr »).
 - `CLAUDE.md` ne contient pas l'exception Discord du plan : la session n'agit sur Discord que par le bot de test, et
   tout réglage que l'API ne permet pas va dans « À faire par Kr » avec sa marche à suivre.
-- Étape en cours : **D0**, presque finie ; il reste le serveur de test (après Kr) et la mesure mémoire connectée.
-  La session enchaîne sur D2 sans attendre.
+- D0 est sur `main` ; il en reste le serveur de test (après Kr) et la mesure mémoire connectée.
+- Étape en cours : **D2**. Son socle est écrit (branche `claude/discord-d2`) : les événements Discord sans JDA
+  (`DiscordEvent`, `Reply`), les messages du bot (`BotMessage` : texte, image, boutons, menu, carte à barre ciel,
+  formulaires, commandes), la boucle à un fil (`BotRuntime` : file bornée, minuteries, fonctions `Feature` isolées
+  les unes des autres), `DiscordServer` élargi (écrire, modifier, message privé, rôles, renommer, statut, commandes),
+  `jda/JdaMessages` et `jda/JdaEvents` (intentions membres, messages, contenu, réactions, vocaux ; cache des 500
+  derniers membres et des membres en vocal). Le bot ne boucle que si des fonctions lui sont données et hors `a-blanc`.
+  Aucune fonction du QG n'existe encore : elles viennent case par case, avec `definitions/discord.json` pour leurs
+  chiffres et la migration V8 pour leurs tables.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V8** reste
   réservée pour la première table du bot (D2 ou D3, rien en D0).
 
@@ -70,8 +77,10 @@ Critère de fin : Kr a validé l'avatar, l'icône, les stickers, les emojis et l
 manière de Silooo Atelier, les images en pixel 2D tirées de `design/` sans lissage. La version sans boost d'abord
 (point 10). Kr est prévenu avant chaque prise de son PC pour un rendu, avec la durée.
 
-- [ ] La marque `silooo` dans les outils de rendu (`marque.md`, `brand_overlay`), sans toucher aux deux autres marques ;
-  un rendu de contrôle SileneMC refait après, signalé à Kr
+- [x] La marque `silooo` dans les outils de rendu (`marque.md`, `brand_overlay`), sans toucher aux deux autres marques
+  (sous-agent du 5 novembre, vérifié par la session : fiche Silooo dans `references/marque.md`, entrée `silooo` dans
+  `MARQUES`, logo et polices lus dans le dépôt silooo, rien copié, scripts compilés ; voir « À valider par Kr »)
+- [ ] Un rendu de contrôle SileneMC refait après, signalé à Kr (le PC de Kr : prévenu d'abord, voir « À faire par Kr »)
 - [ ] Oooscar en 3D dans Blockbench (`.bbmodel`, cinq visages, trois animations : se balancer, cligner, toit qui
   glisse), proposé à la direction du jeu pour le pack de ressources (la session ne l'y met pas)
 - [ ] L'avatar d'Oooscar (512 × 512 PNG, et le GIF où il se balance) : brief, contrôle, critique, relecture à froid,
@@ -91,6 +100,8 @@ critique : le QG ouvre avec une douzaine de salons, les autres viennent avec la 
 membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune annonce ne réclame de boost
 (point 10) ; le rapport du lundi (point 13).
 
+- [x] Le socle des fonctions : les événements, les messages, la boucle, les minuteries, la traduction JDA, les faux
+  pour les tests (`FakeConnection`, `FakeReply`, `FakeTimer`), 11 tests de plus, vérificateur vert
 - [ ] Les salons et les rôles de la phase `attente` dans le plan, l'accueil guidé (deux questions, rôles de plateforme
   et de mention), le Guide du serveur et ses trois cartes (plaque émaillée et icône, en pixel)
 - [ ] Le bonjour d'Oooscar dans `#💬・discussion` (5 à 10 s après l'accueil guidé, selon la plateforme), les arrivées
@@ -230,6 +241,9 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   restent ici avec leur marche à suivre
 - [ ] Connecter le dossier `Documents\minecraft` à la session pour les rendus (D1) ; prévenir si le PC n'est pas
   disponible
+- [ ] D1 : dire quand la session peut lancer le rendu de contrôle SileneMC (la marque `silooo` est dans
+  `Documents\minecraft\contenu-reseaux\_outils`), et si Pillow lit les polices woff2 du dépôt ; sinon, des TTF dans
+  `_outils\assets\fonts\`
 - [ ] Choisir les paliers de prestige qui donnent un rôle, et trancher les rôles liés de Discord (option, ou rien)
 - [ ] Retirer les récompenses par invitation de SileneMC (`#🎁・inviter`), interdites par Discord (critique, point 14)
 - [ ] Plus tard, aux boosts : le badge SILO à 3 boosts, la bannière en arrière-plan d'invitation à 2, en haut des
@@ -270,6 +284,9 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 - Le bonjour d'Oooscar et le tuto en privé, le format « Gamertag · P3 », les lignes d'Oooscar et les textes des
   rappels : écrits à D2 et D3, listés ici au fur et à mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
+- La fiche Silooo des outils de rendu (`_outils\references\marque.md`, D1) : le « ooo » en rouge clair `#e0614f` sur
+  fond sombre, le gris de texte pris sur `email-creme`, le détail, l'IP et le lien Discord affichés, les polices
+  bitmap lissées à toute taille alors que la règle dit « sans lissage ».
 - Les lots des concours, le règlement des giveaways, les paliers du parrainage (D5).
 - Le plan de promotion par Hubyy, à travailler avec Kr.
 
@@ -289,3 +306,11 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   arrivés : conflits dans `Config.kt` et `core/README.md`, les deux côtés gardés, les votes d'abord), `tools/verifier.sh`
   vert, les quatre variables ajoutées au tableau de `docs/deploiement.md` comme la direction du jeu le demande
   (`docs/passation.md`, 15 h 43), second rebase sur les commits du site, fusion en avance rapide sur `main`. Suite : D2.
+- 5 novembre 2026, 16 h 05 à 16 h 30 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  D2, le socle : `DiscordEvent` et `Reply`, `BotMessage` et ses composants, `BotRuntime` (file bornée,
+  `CoroutineTimer`, fonctions isolées), `DiscordServer` élargi, `PlanReport.ids`, `jda/JdaMessages`, `jda/JdaEvents`,
+  `JdaConnection` avec les intentions et le cache des membres, `FakeConnection`, `FakeReply`, `FakeTimer`,
+  `BotRuntimeTest`, `DiscordBotTest` refait. JDA 6 range `Modal` dans `net.dv8tion.jda.api.modals`. Gradle vert
+  (30 tests Discord), anti-IA vert, `tools/verifier.sh` vert. En parallèle, un sous-agent a ajouté la marque `silooo`
+  aux outils de rendu (`Documents\minecraft\contenu-reseaux\_outils`) : vérifié, rien rendu, le rendu de contrôle
+  attend Kr. Suite : fusion sur `main`, puis `definitions/discord.json`, la migration V8 et l'accueil.
