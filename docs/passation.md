@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 10 h 23, le personnel fusionné (session de direction).
+Dernière mise à jour : 5 novembre 2026, 10 h 37, l'écran de prestige et la carte des îles fusionnés (session de direction).
 
 ## État
 
@@ -31,9 +31,9 @@ Dernière mise à jour : 5 novembre 2026, 10 h 23, le personnel fusionné (sessi
   la mairie (tuile Objectifs, 631 tests) ; le pack de ressources.
 - Phase en cours : **4** (la progression). `island`, `prestigePreview`, `prestige` et les missions sont sur `main`
   et le simulateur des treize cibles les rejoue en CI (toutes dans leur fourchette) ; le personnel aussi (agence
-  du jour, embauche, affectation, renvoi, salaires retenus sur le revenu). En cours : l'écran de prestige et la
-  carte des îles (`claude/phase4-addon-prestige-carte`), les commandes du jour et le Carnet
-  (`claude/phase4-commandes`).
+  du jour, embauche, affectation, renvoi, salaires retenus sur le revenu) ; côté add-on, l'écran de prestige
+  (avant, après) et la carte des îles avec la téléportation (757 tests). En cours : les commandes du jour et le
+  Carnet (`claude/phase4-commandes`), les incidents et l'électricité (`claude/phase4-incidents`).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -118,7 +118,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] silooo-core : ville (`buyZone`, `placeBuilding`, `upgradeBuilding`) : prix fixes en Lingots de `ville.zonesPrixLingots`, niveau de mairie, bonus des bâtiments seulement une fois chiffrés dans `definitions/`
 - [ ] silooo-core : entreprise partagée (`invite`, `setShares`) : PDG et associés, parts qui font 100, Lingots partagés au prestige
 - [ ] silooo-core : commandes du jour (`todayOrder`, `deliverOrder`) et Carnet de trouvailles, Lingots hors prestige de `lingotsHorsPrestige`
-- [ ] add-on : carte et îles (formulaire natif, une icône par île, « ????? » pour les usines à découvrir, téléportation), écran de prestige avant / après, écrans du personnel, de la ville et de l'entreprise partagée (textes **à valider par Kr**), et l'île principale posée zone par zone quand la mairie les débloque (verrouillée au départ, `docs/game-design.md` : la phase 3 ne la construit pas)
+- [x] add-on : carte et îles (`ui/menu.ts` écran CARTE, formulaire natif sur deux pages, une icône par île, « ????? » pour les usines à découvrir, île principale verrouillée ; `monde/voyage.ts` : téléportation sur l'île choisie, attente de sa pose 10 s au plus) et écran de prestige avant / après (`prestigePreview` relu à chaque ouverture, bouton seulement si le service l'autorise, parts dès deux membres « Ta part » / « Un associé », bulle « Prestige accompli, patron ! » ; textes `PRESTIGE_TEXTES`, `CARTE_TEXTES` et noms d'époque **à valider par Kr**)
+- [ ] add-on : écrans du personnel, de la ville et de l'entreprise partagée (textes **à valider par Kr**), et l'île principale posée zone par zone quand la mairie les débloque (verrouillée au départ, `docs/game-design.md` : la phase 3 ne la construit pas)
 - [ ] `definitions/` : les chiffres que la phase 4 révèle manquants (bonus des bâtiments, coût de la remise en état, salaires), ajoutés avec leurs schémas et le tableur, jamais dans le code
 
 ## À faire par Kr
@@ -129,9 +130,9 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] `docker login ghcr.io` sur le VPS (les images `silooo-core` et `silooo-bds` sont publiées par la CI depuis `main`), et confirmer le nom du réseau Docker de SileneMC (`SILENEMC_NETWORK`, `silenemc_default` par hypothèse)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
-- [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions
+- [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions ; et pour le prestige et la carte : la téléportation vers une zone déchargée, le rendu des formulaires Carte (deux pages) et Prestige, les repères `[P]` et `[C]`
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
-- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques
+- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques ; l'add-on ne branche aucun événement de prestige (le service n'en publie qu'un `ANNONCE` par membre, `payload` non décrit)
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`). **Le simulateur montre que ce trou compte** : avec une remise en état gratuite, la Scierie et la Mine profonde tombent à 0,08 h, le prestige 2 à 20,9 h, le prestige 3 à 48,5 h, la première étoile à 17,5 h, tous hors cible ; le tableur suppose un rachat payant. Deux cibles ont peu de marge (première amélioration : 13 s ; Mine profonde : 1 min)
 - [ ] La clé `decouverte` de `usines.json` (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`) n'est pas lue par le service : rien ne révèle une usine, rien ne la rachète (pas de route). `EconomyEngine.isDiscovered` la lit maintenant (`apres-<usine>` = usine remise en état, à valider) ; la route de découverte et de rachat reste à écrire une fois le coût fixé
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
@@ -317,6 +318,13 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - Les règles du personnel de la décision 33 (`core/README.md` et `docs/economie.md`, « Le personnel ») et les noms
   et apparences des candidats de `definitions/personnel.json` (vingt-quatre prénoms, six apparences de salarié,
   quatre de chef) : provisoires, l'add-on les affichera tels quels.
+- Les textes de l'écran de prestige et de la carte (`PRESTIGE_TEXTES`, `CARTE_TEXTES` dans `addon/src/ui/textes.ts`,
+  tableau dans `addon/README.md`) : « Tu revends tes usines et tu reçois des Lingots. », « REPART À ZÉRO », « RESTE »,
+  « Prestige ! » (prescrit par `design/README.md`), « Prestige accompli, patron ! », « Choisis une île pour t'y
+  rendre. », « ????? » pour une usine à découvrir, « Entière · niv. N », « En ruine », « En travaux n/t », les noms
+  d'époque Artisanale, Vapeur, Moderne, Futuriste (ceux de `docs/game-design.md`), la tuile Carte « n îles » et la
+  tuile Prestige « Course n ». Choix d'écran : Prestige est la sixième tuile du menu ; Oooscar ne suit pas le
+  joueur d'une île à l'autre.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -468,3 +476,10 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   salaires). Relu : tirage figé par l'entreprise et la date (pas de hasard payant), filet 501 du test de contrat
   déplacé vers `resolveIncident`, tests du simulateur adaptés sans perte. Décision 33. Vérifier :
   `git log --oneline -3 origin/main`, `cd core && ./gradlew test --tests '*Staff*'`.
+- **5 novembre 2026, 10 h 37 : direction, l'écran de prestige et la carte des îles fusionnés ; incidents lancés.**
+  `claude/phase4-addon-prestige-carte` en avance rapide (`4606e79` : `prestigePreview` et `prestige` dans `api.ts`,
+  écrans PRESTIGE et CARTE de `ui/menu.ts`, `monde/voyage.ts`, 757 tests). Relu : aucun calcul dans l'add-on,
+  aucune ligne de test retirée, `voyage.ts` seul nouveau fichier qui touche Bedrock. Lancée dans la foulée du
+  personnel : les incidents et l'électricité côté service (`claude/phase4-incidents`, paquet `incident/`,
+  `definitions/incidents.json`, pas de migration attendue ; V2 reste libre, le personnel n'en a pas eu besoin, V3
+  réservée aux commandes). Vérifier : `git log --oneline -3 origin/main`, `cd addon && npm test`.
