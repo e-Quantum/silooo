@@ -205,4 +205,27 @@ class IdempotencyTest {
         val body = SiloooJson.encodeToJsonElement(RefusedBody.serializer(), RefusedBody(RefusalCodes.NOT_THE_CEO))
         assertEquals(setOf("reason"), (body as JsonObject).keys)
     }
+
+    @Test
+    @DisplayName("MariaDB 12 : une ligne changée depuis la lecture (erreur 1020) rend 409 CONFLIT_REESSAYER sans garder la réponse")
+    fun snapshotConflictIsATransientConflict() = runBlocking {
+        val stored = idempotency.run(id, "collect") {
+            throw java.sql.SQLException("Record has changed since last read in table 'companies'", "HY000", 1020)
+        }
+
+        assertEquals(409, stored.status)
+        assertEquals(RefusalCodes.CONFLICT_RETRY, stored.body!!.jsonObject["reason"]!!.jsonPrimitive.content)
+        assertEquals(false, store.has(id), "le marqueur est retiré : le nouvel essai peut s'exécuter")
+
+        assertEquals(200, idempotency.run(id, "collect") { answer(1) }.status)
+    }
+
+    @Test
+    @DisplayName("Une erreur SQL qui n'est pas un conflit (clé étrangère, par exemple) reste une panne : le marqueur part et l'erreur remonte")
+    fun otherSqlErrorsAreFailures() = runBlocking {
+        assertThrows<java.sql.SQLException> {
+            runBlocking { idempotency.run(id, "collect") { throw java.sql.SQLException("Cannot add or update a child row", "23000", 1452) } }
+        }
+        assertEquals(false, store.has(id))
+    }
 }

@@ -6,8 +6,9 @@ import com.silooo.core.api.JoinResponse
 import com.silooo.core.db.Database
 import com.silooo.core.db.VersionConflict
 import com.silooo.core.db.Xuid
+import com.silooo.core.db.isTransientConflict
 import java.sql.Connection
-import java.sql.SQLTransactionRollbackException
+import java.sql.SQLException
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import kotlin.random.Random
@@ -45,16 +46,18 @@ class SessionService(
                 return database.transaction { joinIn(it, xuid, gamertag) }
             } catch (_: VersionConflict) {
                 // un autre associé a écrit entre la lecture et l'écriture : on relit
-            } catch (_: SQLTransactionRollbackException) {
-                // blocage détecté par la base : elle a annulé notre transaction, on recommence
+            } catch (e: SQLException) {
+                // blocage détecté par la base, ou ligne changée depuis notre lecture : la transaction est annulée, on recommence
+                if (!e.isTransientConflict()) throw e
             }
             // Une courte pause au hasard, de plus en plus longue : deux appels qui se bloquent ne repartent pas au même instant.
             delay(Random.nextLong(5L, 20L) * (attempt + 1))
         }
         try {
             return database.transaction { joinIn(it, xuid, gamertag) }
-        } catch (_: SQLTransactionRollbackException) {
-            throw VersionConflict()
+        } catch (e: SQLException) {
+            if (e.isTransientConflict()) throw VersionConflict()
+            throw e
         }
     }
 
