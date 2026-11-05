@@ -2,7 +2,7 @@ package com.silooo.core.db
 
 import com.silooo.core.DatabaseConfig
 import java.sql.DriverManager
-import org.flywaydb.core.api.exception.FlywayValidateException
+import org.flywaydb.core.api.FlywayException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.DisplayName
@@ -32,7 +32,7 @@ class MigrationTest {
     @Test
     @DisplayName("Le démarrage normal refuse une base sans migration, puis l'accepte une fois migrée")
     fun validateFailsUntilMigrated() = withMariaDb { config ->
-        assertThrows<FlywayValidateException>("base vide : V1 manque") { Migrations.validate(config) }
+        assertThrows<FlywayException>("base vide : V1 manque") { Migrations.validate(config) }
         Migrations.migrate(config)
         assertDoesNotThrow { Migrations.validate(config) }
         assertEquals(0, Migrations.migrate(config), "rejouer migrate n'applique rien de plus")
