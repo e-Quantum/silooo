@@ -189,8 +189,40 @@ class CompanyService(
                 put("level", restored.level)
             },
         )
+        if (finished) announceNoPower(connection, company, factories, restored, actor)
         return updated(connection, actor, after, factories.replacing(restored))
     }
+
+    /**
+     * Le courant qui manque (`docs/game-design.md`, « L'électricité, ressource obligatoire »). Le service ne garde aucun état « sans
+     * courant » : il se déduit des usines ([EconomyEngine.stoppedNoPower]). La seule action qui fait passer une usine moderne à
+     * l'arrêt est la fin de sa remise en état : l'époque ne change qu'au prestige, qui remet toutes les usines en ruine, et la
+     * Centrale ne s'éteint que de la même façon. Ici donc, avant et après cette étape, on compare : l'entreprise n'avait aucune
+     * usine arrêtée faute de courant et [restored] l'est maintenant. Un seul événement par passage à cet état (une deuxième usine
+     * moderne remise en état pendant que la première attend déjà la Centrale n'en publie pas un autre), adressé à celui qui agit :
+     * `ANNONCE`, `payload.action = "sansCourant"`, avec `factoryId`, `factoryName` et `playerName`. Le suiveur Discord le reprend si
+     * le joueur est connecté ; l'add-on ne le lit pas encore.
+     */
+    private fun announceNoPower(connection: Connection, company: CompanyRecord, before: List<FactoryRecord>, restored: FactoryRecord, actor: Xuid) {
+        if (engine.stoppedNoPower(company.era, producingLevels(before)).isNotEmpty()) return
+        val after = before.replacing(restored)
+        if (restored.factoryId !in engine.stoppedNoPower(company.era, producingLevels(after))) return
+        val playerName = sessions.loadMembers(connection, company.id).firstOrNull { it.xuid == actor }?.name
+        companies.publish(
+            connection,
+            EVENT_KIND,
+            actor,
+            event(ACTION_NO_POWER, company.id) {
+                put("factoryId", restored.factoryId)
+                put("factoryName", engine.factory(restored.factoryId).name)
+                if (playerName != null) put("playerName", playerName)
+            },
+        )
+    }
+
+    /** Le niveau de chaque usine qui produit (`ACTIVE`), comme le moteur le demande. */
+    private fun producingLevels(factories: List<FactoryRecord>): Map<String, Int> =
+        factories.filter { it.state == FactoryState.ACTIVE }.associate { it.factoryId to it.level }
 
     /**
      * Ce que rapporterait un prestige maintenant, ou null si l'entreprise n'existe pas. Rien n'est écrit. Le calcul
@@ -224,7 +256,8 @@ class CompanyService(
      *     `course_started_at` et `last_collect_at` à maintenant, en UNE écriture `updateCompany`.
      *  3. Les usines repartent ([CompanyStore.restartFactories]), les Lingots se partagent ([splitLingots]) et se
      *     créditent un membre à la fois (`player_balances` et `currency_ledger`), la ligne de `prestige_history` s'écrit.
-     *  4. Chaque membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part.
+     *  4. Chaque membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part, et tout le serveur un
+     *     `PRESTIGE_ENTREPRISE` (`companyId`, `companyName`, `lingots` : le total avant partage, `prestigeCount` : la course finie).
      *
      * Refus : `PAS_LE_PDG` (403) pour un associé ; `SEUIL_NON_ATTEINT` avec les Donar qui manquent. Un acteur qui n'est pas
      * membre : [RequestRejected]. Rien n'est écrit avant un refus.
@@ -293,6 +326,19 @@ class CompanyService(
                 },
             )
         }
+        // Une annonce pour tout le serveur (xuid nul), en plus des événements de chaque membre : le total avant partage et le numéro
+        // de la course qui se termine. Le suiveur Discord l'annonce ; elle n'a rien à faire des parts, qui restent dans l'`ANNONCE` du membre.
+        companies.publish(
+            connection,
+            GameEventKind.PRESTIGE_ENTREPRISE,
+            null,
+            buildJsonObject {
+                put("companyId", companyId)
+                put("companyName", company.name)
+                put("lingots", total)
+                put("prestigeCount", course)
+            },
+        )
 
         val after = company.copy(
             era = nextEra,
@@ -355,6 +401,7 @@ class CompanyService(
         const val ACTION_BUY_LEVELS = "buyLevels"
         const val ACTION_RESTORE_STEP = "restoreStep"
         const val ACTION_PRESTIGE = "prestige"
+        const val ACTION_NO_POWER = "sansCourant"
 
         /** `currency_ledger.reason` des Lingots du prestige. */
         const val REASON_PRESTIGE = "prestige"

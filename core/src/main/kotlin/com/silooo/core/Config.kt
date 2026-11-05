@@ -1,6 +1,7 @@
 package com.silooo.core
 
 import com.silooo.core.definitions.DefinitionsLoader
+import com.silooo.core.discord.WebhookAddress
 import com.silooo.core.registration.DiscordConfig
 import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.site.SiteMode
@@ -51,11 +52,16 @@ data class ServiceConfig(
     val discord: DiscordConfig? = null,
     /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For`. */
     val siteTrustedProxy: Boolean = false,
+    /** L'adresse du webhook du salon Discord du serveur (`SILOOO_DISCORD_WEBHOOK`) ; `null` : les messages du serveur sont éteints. Un secret. */
+    val discordWebhook: WebhookAddress? = null,
+    /** L'intervalle du suiveur d'événements pour Discord (`SILOOO_DISCORD_POLL_SECONDS`). */
+    val discordPoll: Duration = Duration.ofSeconds(Config.DEFAULT_DISCORD_POLL_SECONDS),
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy)"
+            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, " +
+            "discordWebhook=${if (discordWebhook == null) "absente" else "***"}, discordPoll=$discordPoll)"
 }
 
 /**
@@ -113,6 +119,25 @@ object Config {
     /** Garde-fou : une faute de frappe ne doit pas laisser les paiements une journée sans livraison (une heure au plus). */
     const val MAX_DELIVERY_POLL_SECONDS = 3600L
 
+    /**
+     * L'adresse du webhook du salon Discord où le service annonce ce qui regarde tout le serveur (prestige d'une entreprise, boost
+     * collectif, Vote party, courant qui manque). Un secret : elle ne s'écrit ni dans le dépôt ni dans les journaux. Absente, les
+     * messages Discord du serveur sont éteints (une ligne de journal au démarrage, rien d'autre). Présente, elle doit commencer par `https://`.
+     */
+    const val DISCORD_WEBHOOK = "SILOOO_DISCORD_WEBHOOK"
+
+    /**
+     * Toutes les combien de secondes le suiveur relit `game_events` pour Discord. Un réglage technique, pas un chiffre du jeu : plus
+     * court, l'annonce suit de près l'événement ; plus long, la base est moins sollicitée.
+     */
+    const val DISCORD_POLL_SECONDS = "SILOOO_DISCORD_POLL_SECONDS"
+
+    /** 15 secondes quand la variable n'est pas posée : une annonce de salon n'a pas besoin d'être plus vive. */
+    const val DEFAULT_DISCORD_POLL_SECONDS = 15L
+
+    /** Garde-fou : une faute de frappe ne doit pas retarder les annonces d'une journée (une heure au plus). */
+    const val MAX_DISCORD_POLL_SECONDS = 3600L
+
     /** Port d'écoute quand `SILOOO_PORT` n'est pas posé : celui de l'OpenAPI (`http://silooo-core:8080`). */
     const val DEFAULT_PORT = 8080
 
@@ -164,6 +189,8 @@ object Config {
         val siteAdmission = reader.siteAdmission()
         val discord = reader.discord()
         val trustedProxy = reader.trustedProxy()
+        val discordWebhook = reader.discordWebhook()
+        val discordPoll = reader.discordPoll()
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
@@ -171,6 +198,7 @@ object Config {
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
             siteSettings = checkNotNull(siteSettings),
             siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
+            discordWebhook = discordWebhook, discordPoll = checkNotNull(discordPoll),
         )
     }
 
@@ -258,6 +286,26 @@ object Config {
             val seconds = raw.trim().toLongOrNull()
             if (seconds == null || seconds !in 1..MAX_DELIVERY_POLL_SECONDS) {
                 problems += "$DELIVERY_POLL_SECONDS doit être un nombre entier de secondes entre 1 et $MAX_DELIVERY_POLL_SECONDS"
+                return null
+            }
+            return Duration.ofSeconds(seconds)
+        }
+
+        /** L'adresse du webhook : `null` quand la variable n'est pas posée ; une valeur qui n'est pas une adresse `https://` arrête le démarrage, sans être reprise dans le message. */
+        fun discordWebhook(): WebhookAddress? {
+            val raw = env[DISCORD_WEBHOOK]
+            if (raw.isNullOrBlank()) return null
+            val address = WebhookAddress.parse(raw)
+            if (address == null) problems += "$DISCORD_WEBHOOK doit être une adresse qui commence par https:// (sa valeur n'est pas reprise ici, c'est un secret)"
+            return address
+        }
+
+        fun discordPoll(): Duration? {
+            val raw = env[DISCORD_POLL_SECONDS]
+            if (raw.isNullOrBlank()) return Duration.ofSeconds(DEFAULT_DISCORD_POLL_SECONDS)
+            val seconds = raw.trim().toLongOrNull()
+            if (seconds == null || seconds !in 1..MAX_DISCORD_POLL_SECONDS) {
+                problems += "$DISCORD_POLL_SECONDS doit être un nombre entier de secondes entre 1 et $MAX_DISCORD_POLL_SECONDS"
                 return null
             }
             return Duration.ofSeconds(seconds)

@@ -82,6 +82,8 @@ chiffres du jeu : le jeu reste dans `definitions/`. Le modèle est `deploy/exemp
 | --- | --- | --- | --- |
 | `SILOOO_DB_URL`, `SILOOO_DB_USER`, `SILOOO_DB_PASSWORD` | `silooo-migrate`, `silooo-core` | aucun, obligatoires | [core/README.md](../core/README.md), base partagée ([ADR 0003](adr/0003-base-partagee.md)) |
 | `SILOOO_API_KEY` | `silooo-core` ; `silooo-bds` la range dans `secrets.json` | aucun, obligatoire | en-tête `X-Silooo-Key` du contrat |
+| `SILOOO_DISCORD_WEBHOOK` | `silooo-core` | vide : messages éteints | adresse du webhook du salon Discord des annonces du serveur. **Un secret** : jamais dans le dépôt, ni dans un journal, ni dans une session ; elle commence par `https://`. Facultatif ([core/README.md](../core/README.md), « Discord côté service ») |
+| `SILOOO_DISCORD_POLL_SECONDS` | `silooo-core` | `15` | intervalle du suivi des événements pour Discord, de 1 à 3600 secondes. Facultatif |
 | `BDS_PORT` | `silooo-bds` | `19142` | port TCP de signalisation NetherNet ([ADR 0004](adr/0004-port-bedrock.md)) |
 | `BDS_UDP_PORTS` | `silooo-bds` | `19143-19174` | plage UDP du jeu dans le conteneur (`server-udp-ports`) : 32 ports pour 20 joueurs, à confirmer libre par Kr |
 | `BDS_UDP_PORTS_PUBLIES` | `silooo-bds` | `19143-19174` | plage UDP publiée sur le VPS, de la même taille |
@@ -291,6 +293,10 @@ branche `main`, branchement restic. La liste à jour est dans [passation.md](pas
 - l'ouverture du port TCP `BDS_PORT` et de la plage UDP `BDS_UDP_PORTS_PUBLIES` dans le pare-feu du VPS, après
   avoir vérifié que cette plage est libre ;
 - l'adresse IPv4 publique du VPS (`BDS_PUBLIC_IP`) et le DNS ;
+- le webhook Discord des annonces du serveur : créer le webhook dans les réglages du salon (Intégrations, Webhooks), poser son
+  adresse dans `SILOOO_DISCORD_WEBHOOK` du fichier d'environnement (un secret : seul Kr la voit), relancer `silooo-core`.
+  Sans elle, aucun message ne part et une ligne du journal au démarrage le dit. Les textes des messages sont à valider
+  (`core/README.md`, « Discord côté service ») ;
 - le zip de BDS : le télécharger dans un navigateur, le poser dans `SILOOO_BDS_DIR` (propriété de l'uid 10001), écrire
   sa somme SHA-256 dans `deploy/bds/bds.sha256` (section « Le zip de BDS », décision 26) ;
 - le monde de départ créé avec « Beta APIs » (section « Le monde et Beta APIs ») ;

@@ -99,6 +99,15 @@ Si une des trois écritures échoue, aucune ne reste et la ligne attend le passa
 même si deux passages, ou un passage et un `join`, tournent en même temps : le second ne touche aucune ligne. Aucune migration n'a été
 nécessaire, V1 suffit.
 
+## Le curseur du suiveur Discord (V8)
+
+`discord_cursor` garde, pour les messages Discord du serveur, jusqu'où `game_events` a été lu : une seule ligne (`id` = 1, imposé par
+un `CHECK`), `last_event_id` (le dernier `game_events.id` lu) et `updated_at`. La ligne n'existe pas avant le premier passage du
+suiveur (`discord/DiscordFollower`) ; ce premier passage la pose sur le dernier événement existant et n'envoie rien, pour qu'un
+service qui démarre ne rejoue jamais l'ancien. Ensuite le suiveur l'avance après chaque message envoyé et à la fin de chaque lecture,
+par `INSERT … ON DUPLICATE KEY UPDATE` : un redémarrage de `silooo-core` reprend où le suivi s'était arrêté. Sans adresse de webhook
+(`SILOOO_DISCORD_WEBHOOK`), le suiveur ne tourne pas et ne touche pas à la table. Elle ne contient ni adresse ni texte de message.
+
 ## La règle des migrations
 
 - Une migration appliquée ne se modifie jamais. Une table change par une nouvelle migration.

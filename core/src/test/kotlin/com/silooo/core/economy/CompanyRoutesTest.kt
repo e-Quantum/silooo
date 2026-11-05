@@ -1,11 +1,13 @@
 package com.silooo.core.economy
 
 import com.silooo.core.Dependencies
+import com.silooo.core.TestDefinitions
 import com.silooo.core.api.CompanyState
 import com.silooo.core.api.CompanyUpdated
 import com.silooo.core.api.ErrorBody
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
+import com.silooo.core.api.GameEvent
 import com.silooo.core.api.Idempotency
 import com.silooo.core.api.Island
 import com.silooo.core.api.PrestigePreview
@@ -17,6 +19,9 @@ import com.silooo.core.api.SiloooJson
 import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
+import com.silooo.core.discord.DiscordMessages
+import com.silooo.core.discord.DiscordPick
+import com.silooo.core.discord.DiscordTexts
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.findings.InMemoryFindingStore
 import com.silooo.core.mission.InMemoryMissionStore
@@ -790,6 +795,113 @@ class CompanyRoutesTest {
         assertEquals(0, app.companies.published.size)
     }
 
+    // --- restoreStep : le courant qui manque (événement sansCourant, repris par le suiveur Discord)
+
+    private val electricity get() = TestDefinitions.loaded.incidents.electricity
+
+    /** Les usines qui dépendent de l'électricité, dans l'ordre d'usines.json. */
+    private fun Harness.electricIds(): List<String> = fixture.definitions.factories.factories.filter { it.needsElectricity }.map { it.id }
+
+    /** Une entreprise de l'époque [era] (par défaut celle où l'électricité devient obligatoire), dont le PDG s'appelle « Kr ». */
+    private fun Harness.modernCompany(era: Int = electricity.fromEra): CompanyRecord {
+        fixture.store.enterPlayer(fixture.connection, kr, "Kr")
+        return fixture.update(company().copy(era = era, courseNumber = era))
+    }
+
+    private fun Harness.putRuin(companyId: Long, factoryId: String) =
+        fixture.putFactory(companyId, FactoryRecord(factoryId, FactoryState.EN_RUINE, 0, 0, null))
+
+    private fun Harness.noPowerEvents() =
+        companies.published.filter { it.kind == GameEventKind.ANNONCE && it.payload["action"]?.jsonPrimitive?.content == "sansCourant" }
+
+    /** Les quatre étapes de remise en état de [factoryId] ; [firstRequest] numérote les requêtes pour qu'aucune ne soit un rejeu. */
+    private suspend fun ApplicationTestBuilder.restoreAll(companyId: Long, factoryId: String, firstRequest: Int): CompanyUpdated {
+        var last: CompanyUpdated? = null
+        for (step in 1..4) last = updated(restore(companyId, factoryId, step, n = firstRequest + step))
+        return checkNotNull(last)
+    }
+
+    @Test
+    @DisplayName("restoreStep : l'usine électrique qui finit sa remise en état sans Centrale s'arrête, et un événement sansCourant est publié à celui qui agit")
+    fun noPowerIsAnnouncedWhenTheLastStepLeavesNoPower() = withApp { app ->
+        val electric = app.electricIds().first()
+        val company = app.modernCompany()
+        app.putRuin(company.id, electric)
+
+        for (step in 1..3) updated(restore(company.id, electric, step, n = step))
+        assertEquals(0, app.noPowerEvents().size, "tant que la remise en état n'est pas finie, l'usine ne manque de rien")
+        val last = updated(restore(company.id, electric, 4, n = 4))
+
+        assertTrue(last.state.factories.single { it.factoryId == electric }.stoppedNoPower)
+        val event = app.noPowerEvents().single()
+        assertEquals(kr, event.xuid, "adressé à celui qui agit")
+        assertEquals(electric, event.payload.getValue("factoryId").jsonPrimitive.content)
+        assertEquals(app.engine.factory(electric).name, event.payload.getValue("factoryName").jsonPrimitive.content)
+        assertEquals("Kr", event.payload.getValue("playerName").jsonPrimitive.content)
+        assertEquals(company.id.toString(), event.payload.getValue("companyId").jsonPrimitive.content)
+        assertEquals(5, app.companies.published.size, "les quatre étapes, et l'alerte une fois")
+    }
+
+    @Test
+    @DisplayName("restoreStep : avec une Centrale qui tourne, la fin de la remise en état d'une usine électrique ne publie aucune alerte")
+    fun noPowerIsNotAnnouncedWithAPowerPlant() = withApp { app ->
+        val electric = app.electricIds().first()
+        val company = app.modernCompany()
+        app.fixture.putFactory(company.id, FactoryRecord(electricity.powerPlantId, FactoryState.ACTIVE, 0, 1, null))
+        app.putRuin(company.id, electric)
+
+        val last = restoreAll(company.id, electric, 0)
+
+        assertFalse(last.state.factories.single { it.factoryId == electric }.stoppedNoPower)
+        assertEquals(0, app.noPowerEvents().size)
+    }
+
+    @Test
+    @DisplayName("restoreStep : avant l'époque de l'électricité, aucune usine ne s'arrête, donc aucune alerte")
+    fun noPowerIsNotAnnouncedBeforeTheElectricityEra() = withApp { app ->
+        val electric = app.electricIds().first()
+        assertTrue(electricity.fromEra > 1, "le test suppose une époque avant celle de l'électricité")
+        val company = app.modernCompany(era = electricity.fromEra - 1)
+        app.putRuin(company.id, electric)
+
+        val last = restoreAll(company.id, electric, 0)
+
+        assertFalse(last.state.factories.single { it.factoryId == electric }.stoppedNoPower)
+        assertEquals(0, app.noPowerEvents().size)
+    }
+
+    @Test
+    @DisplayName("restoreStep : l'alerte part une fois par passage à l'état sans courant ; une deuxième usine électrique remise en état pendant l'attente n'en publie pas")
+    fun noPowerIsAnnouncedOncePerPassage() = withApp { app ->
+        val (first, second) = app.electricIds().take(2)
+        val company = app.modernCompany()
+        app.putRuin(company.id, first)
+        app.putRuin(company.id, second)
+
+        restoreAll(company.id, first, 0)
+        assertEquals(1, app.noPowerEvents().size)
+        val last = restoreAll(company.id, second, 10)
+
+        assertTrue(last.state.factories.single { it.factoryId == second }.stoppedNoPower)
+        assertEquals(1, app.noPowerEvents().size, "l'entreprise manquait déjà de courant")
+        assertEquals(first, app.noPowerEvents().single().payload.getValue("factoryId").jsonPrimitive.content)
+    }
+
+    @Test
+    @DisplayName("restoreStep : remettre en état la Centrale ou une usine qui n'a pas besoin d'électricité ne publie aucune alerte")
+    fun noPowerIsNotAnnouncedForTheOthers() = withApp { app ->
+        val plain = app.fixture.definitions.factories.factories
+            .first { !it.needsElectricity && it.id != app.starterId && it.id != electricity.powerPlantId }.id
+        val company = app.modernCompany()
+        app.putRuin(company.id, electricity.powerPlantId)
+        app.putRuin(company.id, plain)
+
+        restoreAll(company.id, electricity.powerPlantId, 0)
+        restoreAll(company.id, plain, 10)
+
+        assertEquals(0, app.noPowerEvents().size)
+    }
+
     // --- prestigePreview
 
     @Test
@@ -921,7 +1033,8 @@ class CompanyRoutesTest {
             listOf(PrestigeRecord(company.id, 1, company.era, state.stars, threshold, earned, total, BigDecimal("0.00"), kr)),
             app.companies.prestiges,
         )
-        val event = app.companies.published.single()
+        assertEquals(2, app.companies.published.size, "l'annonce du PDG, et celle de tout le serveur")
+        val event = app.companies.published.single { it.kind == GameEventKind.ANNONCE }
         assertEquals(GameEventKind.ANNONCE, event.kind)
         assertEquals(kr, event.xuid)
         assertEquals("prestige", event.payload.getValue("action").jsonPrimitive.content)
@@ -1005,12 +1118,48 @@ class CompanyRoutesTest {
             app.engine.globalMultiplier(app.engine.averageHeldLingots(listOf(2 + total - partnerShare, 6 + partnerShare)), result.state.stars),
             result.state.multiplier,
         )
-        assertEquals(listOf(kr, other), app.companies.published.map { it.xuid })
+        val announcements = app.companies.published.filter { it.kind == GameEventKind.ANNONCE }
+        assertEquals(listOf(kr, other), announcements.map { it.xuid })
         assertEquals(
             listOf(total - partnerShare, partnerShare),
-            app.companies.published.map { it.payload.getValue("lingots").jsonPrimitive.content.toLong() },
+            announcements.map { it.payload.getValue("lingots").jsonPrimitive.content.toLong() },
         )
-        assertTrue(app.companies.published.all { it.payload.getValue("lingotsTotal").jsonPrimitive.content.toLong() == total })
+        assertTrue(announcements.all { it.payload.getValue("lingotsTotal").jsonPrimitive.content.toLong() == total })
+        val everyone = app.companies.published.single { it.kind == GameEventKind.PRESTIGE_ENTREPRISE }
+        assertEquals(null, everyone.xuid, "pour tout le serveur")
+        assertEquals(total.toString(), everyone.payload.getValue("lingots").jsonPrimitive.content, "le total avant partage, pas la part du PDG")
+    }
+
+    @Test
+    @DisplayName("prestige : publie PRESTIGE_ENTREPRISE pour tout le serveur (nom, Lingots du total, course finie) ; le message Discord en sort, sans base")
+    fun prestigePublishesTheServerWideEvent() = withApp { app ->
+        val earned = app.engine.prestigeThreshold(2) * 3
+        val company = app.prestigeCompany(course = 2, earned = earned)
+        val total = app.engine.prestigeLingots(2, earned)
+        assertTrue(total > 0, "le test n'a de sens que si le prestige rapporte")
+
+        updated(prestige(company.id))
+
+        val published = app.companies.published.single { it.kind == GameEventKind.PRESTIGE_ENTREPRISE }
+        assertEquals(null, published.xuid, "un événement pour tout le serveur n'a pas d'adresse")
+        assertEquals(company.id.toString(), published.payload.getValue("companyId").jsonPrimitive.content)
+        assertEquals(app.fixture.store.loadCompany(app.fixture.connection, company.id).name, published.payload.getValue("companyName").jsonPrimitive.content)
+        assertEquals(total.toString(), published.payload.getValue("lingots").jsonPrimitive.content)
+        assertEquals("2", published.payload.getValue("prestigeCount").jsonPrimitive.content, "la course qui vient de finir")
+
+        val pick = DiscordMessages.pick(GameEvent(1, published.xuid?.text, published.kind.name, published.payload)) { false }
+        val name = published.payload.getValue("companyName").jsonPrimitive.content
+        assertEquals(DiscordPick.Say(DiscordTexts.prestige(name, total, 2)), pick)
+    }
+
+    @Test
+    @DisplayName("prestige : un prestige refusé ne publie aucun PRESTIGE_ENTREPRISE")
+    fun aRefusedPrestigePublishesNothingForTheServer() = withApp { app ->
+        val company = app.prestigeCompany(earned = app.engine.prestigeThreshold(1) / 4)
+
+        assertRefused(prestige(company.id), RefusalCodes.THRESHOLD_NOT_REACHED)
+
+        assertEquals(0, app.companies.published.count { it.kind == GameEventKind.PRESTIGE_ENTREPRISE })
     }
 
     @Test
@@ -1072,7 +1221,7 @@ class CompanyRoutesTest {
         assertEquals(1, app.companyUpdates().size)
         assertEquals(1, app.companies.credits.size)
         assertEquals(1, app.companies.prestiges.size)
-        assertEquals(2, app.companies.published.size, "un événement par membre, une seule fois")
+        assertEquals(3, app.companies.published.size, "un événement par membre et un pour tout le serveur, une seule fois")
 
         assertEquals(HttpStatusCode.Forbidden, prestige(company.id, n = 8, actor = other.text).status)
         assertEquals(HttpStatusCode.Forbidden, prestige(company.id, n = 8, actor = other.text).status)

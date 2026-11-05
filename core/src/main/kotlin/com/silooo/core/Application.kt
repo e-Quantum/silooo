@@ -17,6 +17,8 @@ import com.silooo.core.city.JdbcCityStore
 import com.silooo.core.city.cityRoutes
 import com.silooo.core.db.Database
 import com.silooo.core.definitions.Definitions
+import com.silooo.core.discord.DiscordFollower
+import com.silooo.core.discord.launchDiscordFollower
 import com.silooo.core.economy.CompanyStore
 import com.silooo.core.economy.DefinitionsBootstrap
 import com.silooo.core.economy.EconomyEngine
@@ -157,6 +159,14 @@ class Dependencies(
     val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
     /** Le fournisseur de « Relier Discord » ; `null` : l'application Discord n'est pas configurée, le bouton n'est pas proposé. */
     val discordIdentity: DiscordIdentity? = null,
+    /**
+     * Le suiveur des événements pour le salon Discord du serveur (`discord/`) : il relit `game_events` à intervalle ([discordPoll]) et
+     * annonce prestige, boost collectif, Vote party et courant qui manque. Sans adresse de webhook il est éteint (une ligne de journal).
+     * `null` : pas de suiveur du tout (les tests).
+     */
+    val discord: DiscordFollower? = null,
+    /** Intervalle du suiveur Discord ; `null` : pas de tâche de fond. */
+    val discordPoll: Duration? = null,
     /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose). */
     val siteTrustedProxy: Boolean = false,
     /** Signe les cookies et les jetons du site. Tiré au démarrage : il change à chaque redémarrage, une inscription en cours recommence. */
@@ -185,6 +195,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
 
     dependencies.apiRequestRetention?.let { launchApiRequestPurge(dependencies.idempotency, it) }
     dependencies.deliveries?.let { relief -> dependencies.deliveryPoll?.let { every -> launchDeliveryPoll(relief, every) } }
+    dependencies.discord?.let { follower -> dependencies.discordPoll?.let { every -> launchDiscordFollower(follower, every) } }
     dependencies.incidentTick?.let { every ->
         val ticker = IncidentTicker(dependencies.database, dependencies.sessionStore, incidentService(dependencies)) {
             dependencies.serverPresence.onlineXuids()

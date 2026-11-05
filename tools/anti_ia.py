@@ -46,9 +46,10 @@ TEXTES_JOUEURS = [
     "addon/src/**/*.ts",
     "world/**/*.json",
     # Le site public (docs/site.md) : les contenus en Markdown (texte entier) et les pages en Kotlin (littéraux).
-    # Seul le paquet « site » compte : le reste de core/ est du code, pas du texte de joueur.
+    # Seuls le paquet « site » et DiscordTexts.kt comptent : le reste de core/ est du code, pas du texte de joueur.
     "core/src/main/resources/site/**/*.md",
     "core/src/main/kotlin/com/silooo/core/site/**/*.kt",
+    "core/src/main/kotlin/com/silooo/core/discord/DiscordTexts.kt",
 ]
 
 # Dossiers qu'on ne parcourt jamais en mode --tout (code généré, dépendances). « generated » : les types

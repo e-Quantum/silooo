@@ -49,6 +49,8 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json, missions.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
 | `SILOOO_DELIVERY_POLL_SECONDS` | Intervalle du relevé des commandes de Gemmes du site (`shop_deliveries`), de 1 à 3600 secondes | non, 30 par défaut |
+| `SILOOO_DISCORD_WEBHOOK` | L'adresse du webhook du salon Discord des annonces du serveur, qui commence par `https://`. Un secret : elle ne s'affiche nulle part ([Discord côté service](#discord-côté-service)) | non, sans elle les messages du serveur sont éteints |
+| `SILOOO_DISCORD_POLL_SECONDS` | Intervalle du suivi des événements pour Discord, de 1 à 3600 secondes | non, 15 par défaut |
 | `SILOOO_SITE_PORT` | Port du site public, différent de `SILOOO_PORT` | non, 8081 par défaut |
 | `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
 | `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
@@ -239,8 +241,9 @@ et départ de course sortent d'`EconomyEngine`, qui les lit dans `economie.json`
   clos. La mairie, le silo, le plafond hors ligne et le personnel ne sont pas remis à zéro : ils ne sont pas encore
   modélisés.
 - **Les événements** : `ANNONCE` adressé à chaque membre, `payload.action = "prestige"`, avec `companyId`, `course`,
-  `era`, `stars`, `lingotsTotal` et la part du membre (`lingots`). `PRESTIGE_ENTREPRISE`, qui existe dans l'OpenAPI,
-  n'est pas utilisé : un seul événement adressé à toute l'entreprise ne dit pas la part de chacun.
+  `era`, `stars`, `lingotsTotal` et la part du membre (`lingots`). Un `PRESTIGE_ENTREPRISE` s'y ajoute pour tout le serveur
+  (`xuid` nul) : `companyId`, `companyName`, `lingots` (le total avant partage) et `prestigeCount` (la course qui vient de
+  finir). Il ne dit pas la part de chacun ; c'est le message Discord du serveur qui le lit ([Discord côté service](#discord-côté-service)).
 - **Règles à valider par Kr** : la production en attente compte avant le test du seuil ; le reste du partage va au
   PDG ; les usines autres que la Carrière repartent en ruine ; un événement par membre
   ([economie.md](../docs/economie.md), section Le prestige et les Lingots).
@@ -479,6 +482,65 @@ niveau 1 au moins. La règle est dans `EconomyEngine.stoppedNoPower` ; `EngineFi
   ne s'arrête pas (elle ne compte déjà pas). Une Centrale en ruine, en remise en état ou au niveau 0 ne compte pas.
 - **Les tests** : `economy/EngineIncidentTest` (qui s'arrête), `economy/EngineFiguresIncidentTest` (revenu nul, salaire
   absent, deux régimes) et `incident/IncidentServiceTest` (le tirage laisse les usines arrêtées tranquilles).
+- **L'alerte** : la dernière étape de `restoreStep` publie un `ANNONCE` `sansCourant` quand elle fait passer l'entreprise à
+  l'état sans courant ([Discord côté service](#discord-côté-service)).
+
+## Discord côté service
+
+Le service dit quelques faits au salon Discord du serveur, par un webhook. Le code est dans `com.silooo.core.discord` ; tous les
+textes sont dans un seul fichier, `DiscordTexts.kt`. Le service décide, Discord affiche : chaque chiffre d'un message sort de
+l'événement qui le déclenche, jamais du code.
+
+- **Éteint par défaut.** Sans `SILOOO_DISCORD_WEBHOOK`, rien ne tourne et le démarrage écrit une ligne de journal qui le dit.
+  L'adresse est un secret (qui la connaît écrit dans le salon) : elle ne figure ni dans les journaux, ni dans `Config.toString`, ni
+  dans un message d'erreur de configuration (une adresse qui ne commence pas par `https://` arrête le service avec le code 78, sans
+  citer sa valeur). Kr la pose dans le fichier d'environnement ([deploiement.md](../docs/deploiement.md)).
+- **Le suiveur** (`DiscordFollower`, lancé par `siloooModule` comme le relevé des livraisons) lit `game_events` après son curseur
+  toutes les `SILOOO_DISCORD_POLL_SECONDS` secondes (15 par défaut). Le curseur vit en base : table `discord_cursor`, une ligne,
+  migration V8 ([base-de-donnees.md](../docs/base-de-donnees.md)). Au tout premier passage il se pose sur le dernier événement
+  existant et n'envoie rien : on ne rejoue jamais l'ancien. Il est écrit après chaque message et à la fin de chaque lecture, donc un
+  redémarrage reprend sans doublon (un plantage entre l'envoi et l'écriture renvoie au pire un message).
+- **Les événements lus** sont ces quatre, et seulement eux ; un autre événement est lu et passé :
+
+  | Événement | Ce qu'il porte | Message (à valider par Kr) |
+  | --- | --- | --- |
+  | `PRESTIGE_ENTREPRISE` (tout le serveur) | `companyName`, `lingots` (le total avant partage), `prestigeCount` | « Les Forges a fait son 1er prestige et gagne 340 Lingots. » ; « 2e », « 1 Lingot » ; sans Lingot : « Les Forges a fait son 3e prestige. » |
+  | `BOOST_COLLECTIF` | `percent`, `minutes`, `buyerName` (facultatif : absent pour un boost gagné) | « Zoé offre un boost collectif : production +25 % pour tout le monde pendant une heure. » ; sans acheteur : « Boost collectif : production +25 % pour tout le monde pendant une heure. » |
+  | `ANNONCE`, `payload.action = "voteParty"` | `votes`, `lingots` (facultatif : la récompense de chaque joueur présent) | « Vote party : le serveur a atteint 500 votes, chaque joueur présent reçoit 5 Lingots. » ; sans `lingots` : « Vote party : le serveur a atteint 500 votes. » |
+  | `ANNONCE`, `payload.action = "sansCourant"`, adressée à un joueur | `playerName`, `factoryName` | « L'usine Verrerie de Zoé est à l'arrêt faute de courant. » (seulement si le joueur est connecté quand le suiveur lit l'événement) |
+
+  Un champ absent ou faux (un nombre en texte, un pourcentage nul, un nom vide) rend l'événement « cassé » : il est noté dans le
+  journal (« n'a pas de message ») et sauté, jamais envoyé avec un chiffre inventé. Les noms de joueur et d'entreprise passent par
+  `DiscordTexts.name` (une seule ligne, 48 caractères au plus), et l'envoi coupe toutes les mentions (`allowed_mentions.parse` vide) :
+  un `@everyone` dans un nom s'affiche, il ne prévient personne. `PRESTIGE_ENTREPRISE` est publié par `CompanyService.prestige`. **Rien ne
+  publie encore `BOOST_COLLECTIF` ni la Vote party** : la boutique en jeu et la session des votes devront écrire ces événements avec les
+  champs du tableau, dans la transaction de leur action (contrat décrit dans `GameEvent` de l'OpenAPI).
+- **L'envoi** (`DiscordWebhook`) : un `POST` JSON `{"content": "…", "allowed_mentions": {"parse": []}}` sur le webhook, avec le
+  `HttpClient` du JDK (aucune dépendance de plus), 5 secondes pour se connecter et 10 pour la requête. Un texte de plus de 2000
+  caractères part en plusieurs messages, coupé à un saut de ligne, sinon à une espace. Un échec qui peut passer (réseau, délai, 429,
+  5xx) est retenté une fois, après 2 secondes ou l'attente que Discord demande (`Retry-After`, entre 0,2 et 10 secondes) ; un refus
+  qui ne passera pas (400, 401, 404 : webhook supprimé) ne l'est pas. Un message qui ne part pas est noté (le code HTTP ou le nom de
+  l'exception, ni l'adresse ni le texte), perdu, et le curseur avance : un webhook cassé ne bloque pas le suivi et ne fait pas revenir
+  un flot de messages périmés. Au plus 20 messages par passage ; le reste attend le passage suivant.
+- **Le courant qui manque** (`docs/game-design.md`, « L'électricité, ressource obligatoire »). Le service n'a aucun état « sans
+  courant » : il se déduit des usines (`EconomyEngine.stoppedNoPower`). La seule action qui fait passer une usine moderne à l'arrêt
+  est la fin de sa remise en état (l'époque ne change qu'au prestige, qui ruine toutes les usines, et la Centrale ne s'éteint que de
+  la même façon). Le service compare donc, dans `restoreStep`, l'état d'avant et d'après la quatrième étape : si l'entreprise
+  n'avait aucune usine arrêtée faute de courant et que celle-ci l'est maintenant, il publie un `ANNONCE` `sansCourant` à celui qui
+  agit, une fois par passage à cet état (une deuxième usine électrique remise en état pendant l'attente de la Centrale n'en publie
+  pas une autre). **Écart connu** : un webhook de salon ne peut pas écrire en message privé. L'alerte part donc dans le salon, avec le
+  nom du joueur et de l'usine, et seulement si le joueur est connecté à ce moment-là ; un joueur absent ne la reçoit pas, elle n'est
+  pas gardée pour son retour. L'add-on ne lit pas encore cet événement : une alerte en jeu reste à faire, elle ne demande aucun
+  changement du service.
+- **Textes à valider par Kr** : les quatre messages du tableau et leurs variantes (1er puis 2e, 1 Lingot puis 2 Lingots, les milliers
+  séparés par une espace insécable, la durée du boost en toutes lettres : « 15 minutes », « une heure », « 1 h 30 », la virgule du
+  français dans le pourcentage). Ils sont tous dans `DiscordTexts.kt`, que `tools/anti_ia.py` contrôle comme les autres textes de
+  joueurs. Ils peuvent être commités ; rien ne les présente comme définitifs.
+- **Les tests** : `discord/DiscordWebhookTest` (corps JSON, coupure à 2000, nouvelle tentative, aucune adresse dans les journaux, le
+  transport JDK contre un faux serveur de la boucle locale), `DiscordTextsTest`, `DiscordMessagesTest` (quels événements, quels
+  champs), `DiscordFollowerTest` (faux magasin d'événements et faux curseur : filtre des sortes, curseur, éteint sans adresse, premier
+  passage sans rejeu, pannes, plafond, tâche de fond), `ConfigDiscordTest`, les cas `PRESTIGE_ENTREPRISE` et `sansCourant` de
+  `CompanyRoutesTest`, et `DiscordCursorSqlTest` (MariaDB, CI) ; la migration V8 est jouée par `MigrationTest` avec les autres.
 
 ## L'entreprise partagée
 

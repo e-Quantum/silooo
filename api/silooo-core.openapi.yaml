@@ -188,6 +188,13 @@ paths:
   /v1/companies/{companyId}/factories/{factoryId}/restore:
     post:
       summary: Avance la remise en état d'une usine (dialogue, tâches, livraison, recrutement)
+      description: |
+        Chaque étape publie un événement `ANNONCE` dont `payload.action` vaut `restoreStep`. La quatrième étape, qui
+        remet l'usine en marche, publie en plus un événement `ANNONCE` dont `payload.action` vaut `sansCourant` quand
+        cette usine dépend de l'électricité et qu'elle s'arrête faute de Centrale (`definitions/incidents.json`,
+        `electricite`) alors que l'entreprise n'avait encore aucune usine arrêtée de ce fait : une seule fois par
+        passage à l'état sans courant. Il est adressé à celui qui agit (`xuid`) et porte `companyId`, `factoryId`,
+        `factoryName` et `playerName`. Le service Discord du serveur le reprend quand ce joueur est connecté.
       operationId: restoreStep
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -368,6 +375,11 @@ paths:
   /v1/companies/{companyId}/prestige:
     post:
       summary: Lance le prestige (le PDG seulement) ; remet le Donar et les usines à zéro, partage les Lingots
+      description: |
+        Chaque membre reçoit un événement `ANNONCE` dont `payload.action` vaut `prestige` (sa part de Lingots, `lingots`,
+        et le total, `lingotsTotal`). Tout le serveur reçoit en plus un événement `PRESTIGE_ENTREPRISE` (sans `xuid`) dont
+        le `payload` porte `companyId`, `companyName`, `lingots` (le total gagné, avant partage) et `prestigeCount` (le
+        numéro de la course qui vient de se terminer). Le service Discord du serveur en tire un message.
       operationId: prestige
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       requestBody: { $ref: '#/components/requestBodies/Action' }
@@ -1193,6 +1205,13 @@ components:
         `opened` ajoute `payload.slowdown` (le facteur sur la production de l'usine, entre 0 et 1) ; `resolved` ajoute
         `payload.reward` (le Donar versé, 0 quand l'incident était déjà clos) et `payload.resolvedBy` (le XUID de
         celui qui a réparé). Un incident ne s'ouvre jamais pendant que tous les membres sont hors ligne.
+
+        Les messages Discord du serveur (variable `SILOOO_DISCORD_WEBHOOK`, service `silooo-core`) se lisent dans ces
+        événements, et seulement ceux-là : `PRESTIGE_ENTREPRISE` (`companyName`, `lingots`, `prestigeCount`),
+        `BOOST_COLLECTIF` (`percent`, `minutes`, et `buyerName` quand un joueur l'a offert), `ANNONCE` dont `payload.action`
+        vaut `voteParty` (`votes`, et `lingots` : la récompense de chaque joueur présent, si elle existe) et `ANNONCE` dont
+        `payload.action` vaut `sansCourant` (`playerName`, `factoryName`), pour un joueur connecté. Un événement qui
+        manque d'un de ces champs est sauté et noté dans le journal du service.
       type: object
       required: [id, kind, payload]
       properties:

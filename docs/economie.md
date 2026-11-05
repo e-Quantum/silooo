@@ -161,8 +161,9 @@ par Kr** (`prestigePreview` montre le résultat sans rien écrire, `prestige` l'
 - Le total de Lingots se partage selon `company_members.share_percent`. Chaque part est arrondie vers le bas, et le
   reste va au PDG, pour que la somme versée soit exactement le total.
 - Chaque Lingot versé passe par `currency_ledger` (motif `prestige`, référence « entreprise-*n*-course-*k* »), et chaque
-  membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part. Le type `PRESTIGE_ENTREPRISE` de
-  l'OpenAPI n'est pas utilisé : un événement unique ne dit pas la part de chacun.
+  membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part. Un `PRESTIGE_ENTREPRISE` s'y
+  ajoute pour tout le serveur, sans part individuelle (`companyName`, `lingots`, `prestigeCount`) : le suiveur Discord
+  en fait un message (core/README.md, « Discord côté service »). Il est publié dans la même transaction que le reste.
 
 ## Les missions
 

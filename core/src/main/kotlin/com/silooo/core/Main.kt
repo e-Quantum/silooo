@@ -3,9 +3,16 @@ package com.silooo.core
 import com.silooo.core.db.HikariDatabase
 import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
+import com.silooo.core.discord.DiscordFollower
+import com.silooo.core.discord.DiscordOff
+import com.silooo.core.discord.DiscordWebhook
+import com.silooo.core.discord.HttpDiscordTransport
+import com.silooo.core.discord.JdbcDiscordCursorStore
+import com.silooo.core.events.JdbcEventStore
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
 import com.silooo.core.registration.HttpDiscordIdentity
+import com.silooo.core.server.ServerPresence
 import com.silooo.core.shop.DeliveryRelief
 import com.silooo.core.shop.JdbcShopStore
 import com.silooo.core.site.siteModule
@@ -66,8 +73,12 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     val database = HikariDatabase.connect(config.database)
     try {
         val shopStore = JdbcShopStore()
+        val serverPresence = ServerPresence()
+        // Sans SILOOO_DISCORD_WEBHOOK l'envoyeur est éteint : le suiveur ne lit rien et le module le dit en une ligne de journal.
+        val discordSender = config.discordWebhook?.let { DiscordWebhook(HttpDiscordTransport(it)) } ?: DiscordOff
         val dependencies = Dependencies(
             database = database,
+            serverPresence = serverPresence,
             apiKey = config.apiKey,
             definitions = definitions,
             shopStore = shopStore,
@@ -82,6 +93,8 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteAdmission = config.siteAdmission,
             discordIdentity = config.discord?.let { HttpDiscordIdentity(it) },
             siteTrustedProxy = config.siteTrustedProxy,
+            discord = DiscordFollower(database, JdbcEventStore(), JdbcDiscordCursorStore(), discordSender) { serverPresence.onlineXuids() },
+            discordPoll = config.discordPoll,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.
