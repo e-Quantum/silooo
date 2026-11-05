@@ -201,9 +201,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 29 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
-    fun twentyNineOperations() {
-        assertEquals(29, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+    @DisplayName("Le contrat compte 30 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    fun thirtyOperations() {
+        assertEquals(30, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {

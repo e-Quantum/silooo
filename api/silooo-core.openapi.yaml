@@ -670,6 +670,29 @@ paths:
         '200': { description: palier réclamé }
         '409': { $ref: '#/components/responses/Refused' }
 
+  /v1/players/{xuid}/missions:
+    get:
+      summary: La mission en cours du joueur et celles qu'il a terminées
+      description: |
+        Les missions se suivent dans l'ordre du catalogue (`definitions/missions.json`) : `current` est la première
+        que le joueur n'a pas terminée, `null` quand il les a toutes faites. Le service fait avancer la mission
+        d'après les actions du joueur (la première, « bienvenue-mairie », compte un `collect` qui rapporte du Donar),
+        la termine de lui-même et verse les Lingots : il n'y a pas de route pour la réclamer. À la fin d'une mission,
+        le joueur reçoit un événement `ANNONCE` dont `payload.action` vaut `mission`, avec `missionId` et `rewardLingots`.
+        Un joueur inconnu du service donne 400.
+      operationId: getMissions
+      parameters: [ { $ref: '#/components/parameters/XuidPath' } ]
+      responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '200':
+          description: missions du joueur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MissionState' }
+
 components:
   securitySchemes:
     cleServeur:
@@ -680,6 +703,7 @@ components:
   parameters:
     CompanyId: { name: companyId, in: path, required: true, schema: { type: integer, format: int64 } }
     FactoryId: { name: factoryId, in: path, required: true, schema: { type: string, example: scierie } }
+    XuidPath: { name: xuid, in: path, required: true, schema: { $ref: '#/components/schemas/Xuid' }, description: le joueur concerné }
     ActorXuid: { name: actor, in: query, required: true, schema: { type: string, pattern: '^[0-9]{1,20}$' }, description: le joueur qui agit }
     RequestId: { name: requestId, in: query, required: true, schema: { type: string, format: uuid } }
 
@@ -833,6 +857,20 @@ components:
               xuid: { $ref: '#/components/schemas/Xuid' }
               lingots: { type: integer, format: int64 }
         next: { type: string, enum: [EPOQUE_2, EPOQUE_3, EPOQUE_4, ETOILE] }
+    Mission:
+      type: object
+      required: [id, progress, target, rewardLingots]
+      properties:
+        id: { type: string, example: bienvenue-mairie, description: 'identifiant du catalogue des missions ; l''add-on en tire le texte' }
+        progress: { type: integer, minimum: 0, description: actions faites }
+        target: { type: integer, minimum: 1, description: actions à faire }
+        rewardLingots: { type: integer, format: int64, minimum: 0, description: Lingots versés quand la mission est terminée }
+    MissionState:
+      type: object
+      required: [current, completed]
+      properties:
+        current: { allOf: [ { $ref: '#/components/schemas/Mission' } ], nullable: true, description: la première mission pas terminée ; null quand toutes le sont }
+        completed: { type: array, items: { type: string }, description: 'les missions terminées, dans l''ordre du catalogue' }
     WorldOrder:
       type: object
       required: [day, resourceId, target, delivered, rewardLingots]
