@@ -387,12 +387,12 @@ class SitePublicPagesTest {
     }
 
     @Test
-    @DisplayName("La navigation du mode ouvert montre les pages dans l'ordre, sans Ce qui se vend, Wiki ni Classements")
+    @DisplayName("La navigation du mode ouvert montre les pages dans l'ordre, sans Ce qui se vend ni Classements")
     fun navigation() = withSite { client ->
         val html = client.get("/").bodyAsText()
         val labels = Regex("""<a href="[^"]*" class="sa-bouton sa-bouton--fonte sa-bouton--nav"[^>]*>([^<]+)</a>""")
             .findAll(html).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("Accueil", "Rejoindre", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
+        assertEquals(listOf("Accueil", "Rejoindre", "Wiki", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
     }
 
     @Test

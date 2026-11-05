@@ -1,6 +1,6 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 14 h 25, S2 fusionnée, bilan de deux heures (direction du site, cloud).
+Dernière mise à jour : 5 novembre 2026, 14 h 50, S3 fusionnée (direction du site, cloud).
 
 Ce fichier est tenu par la session de direction du site ([site-direction.md](site-direction.md)). Il ne remplace pas
 [passation.md](passation.md), qui reste à la direction du jeu : ici, seulement le site `silooo.com`, décrit dans
@@ -8,6 +8,10 @@ Ce fichier est tenu par la session de direction du site ([site-direction.md](sit
 
 ## État
 
+- **S3 est sur `main`** : le wiki, treize pages sous `/wiki/` en mode `ouvert` (index, première heure, usines, Silo et
+  hors ligne, personnel, monnaies, prestige, incidents et électricité, commande du jour et Carnet, entreprise
+  partagée, ville, mots du jeu, règles à écrire par Kr), les tableaux et les chiffres rendus depuis les définitions
+  par des blocs `{{nom}}`, un test qui refuse tout chiffre tapé dans un contenu ; 1196 tests Gradle dont 169 ignorés.
 - **S2 est sur `main`** : en mode `ouvert`, l'accueil (adresse et port sur des tickets, emplacement des joueurs en
   ligne pour S5, Discord), Rejoindre (PC, téléphone, tablette ; la console attend Kr), Ce qui se vend (packs, grades,
   abonnements rendus depuis `definitions/boutique.json`, la liste de ce qui ne se vend jamais), Boutique, Vote (sites
@@ -144,13 +148,13 @@ absentes en `attente` (404) ; aucun chiffre tapé ; textes marqués à valider ;
 Critère de fin : les pages du wiki rendues en mode `ouvert`, dans l'ordre où le joueur rencontre les systèmes ;
 les listes (usines, raretés, sortes d'incidents) tirées des définitions chargées ; `tools/verifier.sh` vert.
 
-- [ ] `contenu/wiki/` : la première heure ; les usines et les paliers ; le Silo et les gains hors ligne ; le personnel
+- [x] `contenu/wiki/` : la première heure ; les usines et les paliers ; le Silo et les gains hors ligne ; le personnel
   et l'agence ; les trois monnaies ; le prestige et les étoiles ; les incidents et l'électricité ; la commande du jour
   et le Carnet ; l'entreprise partagée ; la ville (en construction, dit comme tel) ; les mots du jeu (glossaire pour
   les joueurs, écrit à la main) ; les règles du serveur (page avec un trou marqué : **à écrire par Kr**)
-- [ ] Les tableaux générés depuis `Definitions` : usines (nom, produit, entrées, époque), raretés et postes du
+- [x] Les tableaux générés depuis `Definitions` : usines (nom, produit, entrées, époque), raretés et postes du
   personnel, sortes d'incidents, packs ; jamais un chiffre tapé ; un test compare chaque usine aux pages
-- [ ] Pas de commande à taper ; phrases courtes ; mots du glossaire ; textes **à valider par Kr** ; une page d'index du
+- [x] Pas de commande à taper ; phrases courtes ; mots du glossaire ; textes **à valider par Kr** ; une page d'index du
   wiki et sa place dans la navigation ; `docs/site.md` : la liste des pages du wiki
 
 ### S4 : les pionniers, Relier Discord, l'admission
@@ -222,6 +226,13 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    `join` reçoit le gamertag : pas besoin de l'empreinte. Le numéro de migration se prend à la fusion de S4 (V7 si
    personne ne l'a pris : la ville a pris V6). Le titre et l'objet du pionnier restent au jeu : le site pose seulement `pioneer`.
 5. **Rien à vous demander pour S0 à S3** : contenus, style et wiki ne touchent ni `api/`, ni `addon/`, ni `deploy/`.
+7. **Un nom affiché pour les raretés du personnel.** `definitions/personnel.json` et le code n'ont que les
+   identifiants `COMMUN`, `RARE`, `EPIQUE` ; le wiki affiche donc les identifiants en minuscules, dont le troisième
+   est un mot que la charte bannit (`docs/glossaire.md` le note déjà : « le nom affiché est à confirmer par Kr »).
+   Un `nom` par rareté dans `personnel.json` réglerait le wiki et l'add-on d'un coup.
+8. **L'agence : `game-design.md` et `economie.md` se contredisent.** Le game design parle d'une nouvelle liste de
+   candidats achetée en Donar ; le service (décision 33) et `economie.md` disent « rien à acheter ». Le wiki suit le
+   service. À trancher par Kr, et le game design à mettre d'accord.
 6. **Un nom lisible pour les abonnements dans `definitions/boutique.json`.** Les grades ont un `nom`, les
    abonnements (`pilier`, `perso`) n'ont qu'un `id` : le site écrit « Pilier » et « Préfixe perso » dans son code
    (`site/pages/Offres.kt`), ce qui contredit « une seule source par donnée ». Si la tranche de la boutique ajoute
@@ -283,6 +294,12 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
    pas des tableaux (lisibles à 360 px) ; les packs ne sont que sur « Ce qui se vend », la Boutique montre les grades et
    les abonnements ; la date d'une mise à jour doit être celle de son nom de fichier ; le texte des consoles n'est pas
    inventé : la page dit qu'il arrive ; les liens internes du Markdown perdent le `rel="nofollow"` que commonmark pose.
+9. **S3, tranché par la session et gardé à la fusion** : les pages du wiki ont leur propre liste de contenus livrés
+   (`WikiContent`) avec une clé `ordre` unique ; les tableaux sont de vrais `table`, en fiches sous 600 px ; le
+   nombre d'époques se lit sur la plus haute époque des usines ; les suffixes des grands nombres sont écrits en mots ;
+   les raretés s'affichent par leur identifiant faute de nom. À la fusion, la direction a corrigé deux phrases : le
+   nom de l'entreprise n'est pas encore choisi par le joueur (« arrive plus tard »), et la remise en état n'est
+   gratuite que « pour l'instant » (le coût attend Kr, `passation.md`).
 
 ## À valider par Kr
 
@@ -335,6 +352,10 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
   grade X », « N jours », et les noms « Pilier » et « Préfixe perso » écrits dans le code (voir « Pour la direction du
   jeu », point 6) ; `pages/Joueurs.kt` : « Adresse », « Port », « N joueurs en ligne » ; `pages/Accueil.kt` :
   « Rejoindre ».
+- S3, tout `core/src/main/resources/site/contenu/wiki/` (treize fichiers, en entier) et les libellés de
+  `pages/WikiBlocs.kt` (légendes, en-têtes de colonnes, phrases des blocs : « L'agence propose N candidats par
+  jour », « Le plafond de départ est de N heures », « Une entreprise compte N membres au plus », « Le courant est
+  demandé à partir de l'époque N. Il vient de la Centrale. ») ; `regles.md` est **à écrire par Kr**.
 
 ## Journal
 
@@ -382,3 +403,9 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
     « À valider par Kr » de S0, S1 et S2.
   - Pour la direction du jeu : les six points de la section, dont les variables du site à poser dans
     `deploy/exemple.env.txt` et le nom des abonnements dans `boutique.json`.
+- 5 novembre 2026, 14 h 25 à 14 h 50 (direction du site, cloud). `main` poussé avec S2 et le bilan (`75256e9`).
+  Session S3 (Sonnet, worktree, partie de `main`) lancée à 14 h 27, revenue à 14 h 40 avec trois commits. Relu : les
+  treize textes en entier (justes contre `economie.md` et `core/README.md`, sans slop, en mots du jeu), les blocs
+  rendus (aucun chiffre hors des définitions), la capture de la page des usines à 360 px (tableau en fiches). Deux
+  phrases corrigées à la fusion (décision 9). Deux points ouverts remontés au jeu (noms des raretés, agence payante
+  ou non). Suite : S4.

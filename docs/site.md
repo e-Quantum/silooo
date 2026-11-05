@@ -25,7 +25,7 @@ ou que Kr fera le relevé depuis son PC.
 | Accueil (`contenu/accueil.md` + `pages/Accueil.kt`) | Le jeu en une phrase, l'adresse `play.silooo.com` et son port, les joueurs en ligne, une vidéo de vingt secondes en jeu, une capture du menu, le lien Discord. En mode `attente`, seule la phrase, le logo et les mentions | « Travailler la réticence des joueurs Hubyy » |
 | Rejoindre (`contenu/rejoindre.md`, adresse et port par `pages/Joueurs.kt`) | L'adresse et le port, la marche à suivre par plate-forme (PC, téléphone et tablette, console) | « Interface et onboarding console », ADR 0004 |
 | Ce qui se vend (`contenu/ce-qui-se-vend.md`, tableaux par `pages/Offres.kt`) | La phrase « tout ce qui s'achète se gagne aussi en jouant », puis la liste exacte de ce qui se vend, avec les prix, visible avant la connexion | Obligations de la boutique |
-| Wiki et guides | Les systèmes du jeu, dans l'ordre où le joueur les rencontre ; les règles du serveur, qui ne sont pas en jeu à l'arrivée | « Interface et onboarding console » |
+| Wiki et guides (`contenu/wiki/`, `pages/Wiki.kt` et `pages/WikiBlocs.kt`) | Les systèmes du jeu, dans l'ordre où le joueur les rencontre ; les règles du serveur, qui ne sont pas en jeu à l'arrivée | « Interface et onboarding console » |
 | Classements | Hebdomadaires, en Lingots gagnés dans la semaine, jamais en richesse totale ; les villes les mieux votées | « Économie sur le long terme » |
 | Fiche publique d'entreprise | Nom, logo, couleurs, slogan, membres, époque, étoiles, ville | « Identité d'entreprise » |
 | Boutique (`contenu/boutique.md`, `pages/Boutique.kt`) | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
@@ -196,6 +196,20 @@ Section tenue par la direction du site, étape par étape ([site-passation.md](s
   `contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (en-tête `titre`, `description`, `date`), listés dans `UpdateEntries.BUNDLED`
   (un test compare la liste au dossier), la plus récente en tête, une par tag déployé ; un nom mal formé ou une entrée sans
   date arrête le démarrage. Aucune entrée n'existe tant que rien n'est déployé.
+- S3 : le wiki, treize contenus de `contenu/wiki/` (liste `WikiContent.BUNDLED`, un test la compare au dossier), rendus en
+  `ouvert` seulement. L'en-tête est celui des autres contenus plus une clé `ordre` (entier, unique : deux pages de même
+  ordre arrêtent le démarrage). Les pages, dans l'ordre où le joueur rencontre les systèmes : `/wiki/` (l'index, un lien et
+  une phrase par page), `premiere-heure`, `usines`, `silo-et-hors-ligne`, `personnel`, `monnaies`, `prestige`,
+  `incidents-et-electricite`, `commande-du-jour-et-carnet`, `entreprise-partagee`, `ville` (dite en construction),
+  `mots-du-jeu` (glossaire des joueurs, écrit à la main) et `regles` (une phrase, **à écrire par Kr**).
+  - **Les tableaux** viennent des définitions par des blocs `{{nom}}` (mécanique de S2) rendus par `pages/WikiBlocs.kt` :
+    usines (triées par époque puis par ordre du fichier, entrées nommées d'après l'usine qui les produit), raretés du
+    personnel, sortes d'incident, plus de courtes listes (agence, postes, hors ligne, époques, électricité, entreprise).
+    Un tableau est un vrai `table` ; sous 600 px, le CSS en fait une liste de fiches.
+  - **Jamais un chiffre tapé.** Un test refuse dans le Markdown du wiki un nombre suivi de Donar, Lingots, Gemmes, %,
+    heures, h, €, joueurs ou associés. Une règle dont le chiffre n'est pas lisible dans les définitions s'écrit en mots.
+  - Les textes sont **à valider par Kr**. Le nom de la troisième rareté n'est pas écrit : le tableau affiche l'identifiant
+    des définitions en minuscules.
 
 ## Ce qui est tranché, provisoirement
 

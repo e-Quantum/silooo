@@ -650,6 +650,11 @@ ne le publie jamais.
   (`Dependencies.definitions.shop`) ou la configuration (`SiteSettings`). **Jamais un chiffre tapé** : prix, bonus, jours,
   Gemmes viennent du JSON, l'adresse et le port de la configuration, et un test le vérifie. Les entrées de mises à jour sont
   `site/contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (`titre`, `description`, `date`), listées dans `UpdateEntries.BUNDLED`.
+- **Le wiki** (S3) : `site/contenu/wiki/<sujet>.md` (en-tête des contenus plus `ordre`, entier unique), listés dans
+  `WikiContent.BUNDLED` (un test les compare au dossier), rendus par `pages/Wiki.kt` ; les tableaux sont des blocs `{{nom}}`
+  de `pages/WikiBlocs.kt`, tirés de `Dependencies.definitions`. Ajouter une page : créer le `.md` (url `/wiki/<sujet>/`, `modes:
+  [ouvert]`, un `ordre` libre), l'ajouter à `BUNDLED` et, si elle porte un bloc, à `wikiBlocks`. Le test des chiffres refuse dans
+  ces Markdown un nombre suivi de : Donar, Lingots, Gemmes, %, heures, h, €, joueurs, associés (les dates et « époque 1 » passent).
 - **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
   copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir

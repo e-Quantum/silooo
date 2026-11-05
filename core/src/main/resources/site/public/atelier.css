@@ -352,3 +352,29 @@ main { margin-bottom: var(--pas-6); }
   .sa-panneau { padding: var(--pas-6); }
   .lecture { padding: var(--pas-6) var(--pas-8); }
 }
+
+/* ---------- S3 : le wiki */
+/* L'index : la liste des pages dans l'ordre où on les rencontre, un lien et une phrase par page. */
+.sommaire { margin: 0 0 var(--pas-4); padding-left: var(--pas-8); }
+.sommaire__page { margin: 0 0 var(--pas-4); padding-left: var(--pas-1); }
+.sommaire__lien { font-weight: 600; }
+.lecture .sommaire__description { margin: 0; }
+
+/* Les tableaux tirés des définitions. Sous 600 px, chaque ligne devient une fiche : l'étiquette de la colonne
+   (data-label) passe devant la valeur, et rien ne dépasse l'écran. */
+.tableau { width: 100%; margin: 0 0 var(--pas-4); border-collapse: collapse; }
+.tableau caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tableau thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tableau tr { display: block; padding: var(--pas-2) 0; border-bottom: 3px solid var(--fonte-900); }
+.tableau tr:last-child { border-bottom: 0; }
+.tableau th, .tableau td { display: block; padding: 0; text-align: left; font-weight: 400; overflow-wrap: anywhere; }
+.tableau th[scope="row"] { font-weight: 600; }
+.tableau td::before { content: attr(data-label) " : "; font-weight: 600; }
+
+@media (min-width: 600px) {
+  .tableau thead { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .tableau tr { display: table-row; padding: 0; border-bottom: 0; }
+  .tableau th, .tableau td { display: table-cell; padding: var(--pas-2) var(--pas-4) var(--pas-2) 0; border-bottom: 3px solid var(--fonte-900); vertical-align: top; }
+  .tableau thead th { font-family: var(--font-etiquette); font-size: 16px; line-height: 24px; letter-spacing: 1px; font-weight: 400; }
+  .tableau td::before { content: none; }
+}
