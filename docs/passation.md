@@ -70,6 +70,23 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
 - [ ] Déploiement sur le VPS, test depuis une console : un joueur rejoint `play.silooo.com` et apparaît sur son île (**À faire par Kr** : base, port, DNS, puis le test)
 - [ ] Mesure de la mémoire réelle des conteneurs sur le VPS (**après le déploiement**, donc après Kr)
 
+## Phase 3 : la première heure
+
+Condition de sortie (plan) : la première heure du storyboard se joue de bout en bout. Le test de bout en bout
+demande un BDS déployé (phase 2, « À faire par Kr ») ; tout le reste avance sans Kr. Ouverte le 5 novembre 2026
+pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (décision 24).
+
+- [ ] silooo-core : `getCompany` (l'état `CompanyState` d'après le moteur : revenu, multiplicateur, seuil, usines avec prix du niveau suivant et prochain palier)
+- [ ] silooo-core : `collect` (production depuis `last_collect_at`, plafond hors ligne, Donar crédité à l'entreprise, événement publié)
+- [ ] silooo-core : `buyLevels` (`1`, `10`, `palier`, `max` par `BuyAmount`, prix du moteur, refus quand le Donar manque, paliers ×2, événement publié)
+- [ ] silooo-core : `restoreStep` (les quatre étapes de remise en état d'une usine `EN_RUINE` puis `REMISE_EN_ETAT` jusqu'à `ACTIVE`, événement publié)
+- [ ] silooo-core : tests SQL sur MariaDB pour ces quatre routes, `WRITTEN` du test de contrat étendu, idempotence et verrou optimiste sur chacune
+- [ ] add-on : les usines de l'époque 1 posées sur l'île du joueur, compteur de Donar qui défile entre deux réponses du service (affichage seul, le service reste la vérité à chaque `collect`)
+- [ ] add-on : HUD en trois étages (`docs/design.md`), menu à tuiles et fiches d'usine (`server-ui`), achat de niveaux et paliers ×2 affichés
+- [ ] add-on : le Silo (collecte et plafond hors ligne) et la remise en état d'une usine en quatre étapes
+- [ ] add-on et pack de ressources : cinématique d'arrivée, Oooscar en entité, première mission de la mairie (textes et visuels **à valider par Kr**)
+- [ ] Test de bout en bout de la première heure sur le BDS de test (**après le déploiement**, donc après Kr)
+
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
@@ -162,6 +179,10 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
 23. **NetherNet seul.** BDS 26.60 refuse RakNet ; le compose publie le port TCP de signalisation et une plage
     UDP, dimensionnée sur `max-players`, sous la forme « IP publique:port ». ADR 0004 mis à jour (toujours
     « Proposée »).
+24. **Phase 3 ouverte côté service pendant la phase 2.** Les routes d'économie de silooo-core (`getCompany`,
+    `collect`, `buyLevels`, `restoreStep`) ne dépendent ni de `deploy/` ni de `addon/`, et la phase 2 ne peut
+    pas se fermer sans Kr (base, port, DNS). Même règle que la décision 20 : trois sessions au plus, chacune
+    dans son dossier (`core/` pour celle-ci). Le côté add-on de la phase 3 attend la fusion de `addon/`.
 
 ## À valider par Kr
 
@@ -227,3 +248,6 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
   sur MariaDB). `tools/verifier.sh` vert sur le PC, CI verte sur la branche avant fusion. Dernière case de la
   phase 1 cochée ; `docs/README.md` cite `monde.json`. Vérifier : `git log --oneline -3 origin/main`,
   `gh run list --branch main --limit 2`.
+- **5 novembre 2026, 7 h 00 : direction, phase 3 ouverte côté service.** Liste de la phase 3 écrite d'après le
+  plan ; troisième sous-agent lancé sur les routes d'économie (`claude/phase3-economie-routes`, `core/` seul),
+  à côté des deux de la phase 2. Décision 24.
