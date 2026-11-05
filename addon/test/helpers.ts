@@ -3,7 +3,7 @@
 
 import type { ApiResult, Header, HttpMethod, Transport, TransportResponse } from "../src/http";
 import type { Logger, Scheduler } from "../src/runtime";
-import type { Balances, CompanyState, EventsPage, Factory, GameEvent, JoinResponse } from "../src/protocol";
+import type { Balances, CompanyState, EventsPage, Factory, GameEvent, JoinResponse, Mission, MissionState } from "../src/protocol";
 
 export interface RecordingLogger extends Logger {
   readonly infos: string[];
@@ -138,4 +138,20 @@ export function companyState(overrides: Partial<CompanyState> = {}): CompanyStat
 
 export function balances(overrides: Partial<Balances> = {}): Balances {
   return { lingots: 0, gemmes: 0, jetons: 0, cles: 0, ...overrides };
+}
+
+/** La mission de bienvenue de la mairie, au début : rien encaissé, une action à faire, dix Lingots à la clé. */
+export function mission(overrides: Partial<Mission> = {}): Mission {
+  return { id: "bienvenue-mairie", progress: 0, target: 1, rewardLingots: 10, ...overrides };
+}
+
+export function missionState(overrides: Partial<MissionState> = {}): MissionState {
+  return { current: mission(), completed: [], ...overrides };
+}
+
+/** L'événement `ANNONCE` d'une mission terminée, tel que le service le publie (api/silooo-core.openapi.yaml, getMissions). */
+export function missionAnnouncement(id: number, xuid: string | null, missionId = "bienvenue-mairie", rewardLingots: number | null = 10): GameEvent {
+  const payload: Record<string, unknown> = { action: "mission", missionId };
+  if (rewardLingots !== null) payload["rewardLingots"] = rewardLingots;
+  return { id, xuid, kind: "ANNONCE", payload };
 }

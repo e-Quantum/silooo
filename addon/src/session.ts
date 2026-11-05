@@ -9,7 +9,7 @@ import type { CoreApi } from "./api";
 import { describeFailure } from "./http";
 import { leavingXuid, playerXuid } from "./identity";
 import type { JoinResponse, Xuid } from "./protocol";
-import { guard, type Logger } from "./runtime";
+import { describeError, guard, type Logger } from "./runtime";
 import type { PlayerStore } from "./state";
 
 /** Ce que le code sait d'un joueur : de quoi calculer son identifiant et le nommer dans le journal. */
@@ -55,6 +55,34 @@ export interface SessionHooks<P> {
   joinFailed?(player: P): void;
   /** Le joueur est parti. */
   left?(event: LeaveEventLike): void;
+}
+
+/**
+ * Plusieurs jeux de crochets en un : chacun est appelé dans l'ordre, et la défaillance de l'un (exception ou promesse
+ * rejetée) est journalisée sans empêcher les autres. `joined` rend une promesse qui se résout quand tous ont fini.
+ */
+export function combineHooks<P>(log: Logger, ...parts: ReadonlyArray<SessionHooks<P>>): SessionHooks<P> {
+  function each(label: string, run: (hooks: SessionHooks<P>) => void | Promise<void>): void | Promise<void> {
+    const pending: Array<Promise<void>> = [];
+    for (const part of parts) {
+      try {
+        const result = run(part);
+        if (result instanceof Promise) {
+          pending.push(result.catch((error: unknown) => log.error(`crochet ${label} : ${describeError(error)}`)));
+        }
+      } catch (error) {
+        log.error(`crochet ${label} : ${describeError(error)}`);
+      }
+    }
+    if (pending.length > 0) return Promise.all(pending).then(() => undefined);
+    return undefined;
+  }
+  return {
+    arriving: (player) => void each("arriving", (hooks) => hooks.arriving?.(player)),
+    joined: (player, join) => each("joined", (hooks) => hooks.joined?.(player, join)),
+    joinFailed: (player) => void each("joinFailed", (hooks) => hooks.joinFailed?.(player)),
+    left: (event) => void each("left", (hooks) => hooks.left?.(event)),
+  };
 }
 
 export interface SessionDeps<P extends PlayerLike = PlayerLike> {

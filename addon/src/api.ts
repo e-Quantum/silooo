@@ -14,11 +14,13 @@ import {
   joinBody,
   leaveBody,
   levelsPath,
+  missionsPath,
   parseCollectResponse,
   parseCompanyState,
   parseCompanyUpdated,
   parseEventsPage,
   parseJoinResponse,
+  parseMissionState,
   PATHS,
   restorePath,
   restoreStepBody,
@@ -29,6 +31,7 @@ import {
   type CompanyUpdated,
   type EventsPage,
   type JoinResponse,
+  type MissionState,
   type Parsed,
   type Xuid,
 } from "./protocol";
@@ -50,6 +53,8 @@ export interface CoreApi {
   buyLevels(companyId: number, factoryId: string, action: ActionBase, amount: BuyAmount): Promise<ApiResult<CompanyUpdated>>;
   /** POST /v1/companies/{companyId}/factories/{factoryId}/restore (restoreStep), 200 CompanyUpdated ou 409 Refused. */
   restoreStep(companyId: number, factoryId: string, action: ActionBase, step: number): Promise<ApiResult<CompanyUpdated>>;
+  /** GET /v1/players/{xuid}/missions (getMissions), 200 MissionState. */
+  getMissions(xuid: Xuid): Promise<ApiResult<MissionState>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -115,6 +120,11 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => restorePath(companyId, factoryId));
       if ("failure" in target) return target.failure;
       return readBody(await client.post(target.path, restoreStepBody(action, step)), parseCompanyUpdated);
+    },
+    async getMissions(xuid) {
+      const target = pathOrError(() => missionsPath(xuid));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parseMissionState);
     },
   };
 }

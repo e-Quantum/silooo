@@ -12,11 +12,17 @@ import {
   FICHE_TEXTES,
   HUD_TEXTES,
   MENU_TEXTES,
+  MISSION_TEXTES,
+  MISSION_TEXTES_IDS,
+  OBJECTIFS_TEXTES,
   REFUSAL_BUBBLE_REASONS,
   SILO_TEXTES,
   USINES_TEXTES,
   factoryName,
   failureBubble,
+  missionEndBubble,
+  missionTexts,
+  missionTitle,
   refusalBubble,
   renderBubble,
   type Bubble,
@@ -37,6 +43,7 @@ function toutesLesBulles(): Array<{ nom: string; bulle: Bubble }> {
       liste.push({ nom: `${failure} ${reason}`, bulle: failureBubble(failure, reason) });
     }
   }
+  for (const [id, textes] of Object.entries(MISSION_TEXTES)) liste.push({ nom: `fin de ${id}`, bulle: textes.fin });
   return liste;
 }
 
@@ -150,6 +157,11 @@ const TOUS = [
   ...feuilles(USINES_TEXTES, "USINES_TEXTES"),
   ...feuilles(FICHE_TEXTES, "FICHE_TEXTES"),
   ...feuilles(SILO_TEXTES, "SILO_TEXTES"),
+  ...feuilles(OBJECTIFS_TEXTES, "OBJECTIFS_TEXTES"),
+  ...Object.entries(MISSION_TEXTES).flatMap(([id, t]) => [
+    { chemin: `MISSION_TEXTES.${id}.titre`, texte: t.titre },
+    { chemin: `MISSION_TEXTES.${id}.consigne`, texte: t.consigne },
+  ]),
   ...feuilles(CINEMATIQUE_TEXTES, "CINEMATIQUE_TEXTES"),
   ...toutesLesBulles().map(({ nom, bulle }) => ({ chemin: `bulle ${nom}`, texte: bulle.text })),
 ];
@@ -266,5 +278,88 @@ describe("addon/README.md, section « Textes à valider »", () => {
   it("dit où sont les noms d'usines et les repères provisoires, qui ne sont pas des textes de ui/textes.ts", () => {
     assert.match(section, /definitions\/usines\.json/);
     assert.match(section, /ui\/apparence\.ts/);
+  });
+});
+
+// ---------------------------------------------------------------- les missions
+
+describe("textes des missions", () => {
+  const donnees = JSON.parse(readFileSync(resolve("..", "definitions", "missions.json"), "utf8")) as {
+    missions: Array<{ id: string }>;
+  };
+  const idsDuJeu = donnees.missions.map((mission) => mission.id);
+
+  it("le contrôle trouve les missions du jeu", () => {
+    assert.ok(idsDuJeu.length >= 1);
+    assert.ok(idsDuJeu.includes("bienvenue-mairie"));
+  });
+
+  it("chaque identifiant de definitions/missions.json a ses textes : titre, consigne et bulle de fin", () => {
+    for (const id of idsDuJeu) {
+      const textes = missionTexts(id);
+      assert.notEqual(textes, undefined, `la mission « ${id} » n'a pas de textes dans ui/textes.ts`);
+      assert.ok((textes?.titre ?? "") !== "", `${id} : titre vide`);
+      assert.ok((textes?.consigne ?? "") !== "", `${id} : consigne vide`);
+      assert.ok((textes?.fin.text ?? "") !== "", `${id} : bulle de fin vide`);
+    }
+  });
+
+  it("aucun texte ne vise un identifiant que definitions/missions.json ne connaît pas", () => {
+    const inconnus = MISSION_TEXTES_IDS.filter((id) => !idsDuJeu.includes(id));
+    assert.deepEqual(inconnus, [], "ces textes de mission n'ont pas de mission dans definitions/missions.json");
+    assert.deepEqual([...MISSION_TEXTES_IDS].sort(), [...idsDuJeu].sort());
+  });
+
+  it("bienvenue-mairie : le joueur doit encaisser une fois", () => {
+    const textes = missionTexts("bienvenue-mairie");
+    assert.equal(textes?.titre, "Bienvenue à la mairie");
+    assert.equal(textes?.consigne, "Encaisse au Silo");
+    assert.equal(textes?.fin.expression, "joie");
+    assert.match(textes?.fin.text ?? "", /encaissement/);
+  });
+
+  it("le titre tient en cinq mots, la consigne en six, sans point final : ce sont des étiquettes", () => {
+    for (const [id, textes] of Object.entries(MISSION_TEXTES)) {
+      assert.ok(mots(textes.titre).length >= 1 && mots(textes.titre).length <= 5, `${id} : ${textes.titre}`);
+      assert.ok(mots(textes.consigne).length >= 1 && mots(textes.consigne).length <= 6, `${id} : ${textes.consigne}`);
+      assert.doesNotMatch(textes.titre, /[.!?]$/, id);
+      assert.doesNotMatch(textes.consigne, /[.!?]$/, id);
+      assert.doesNotMatch(`${textes.titre}${textes.consigne}`, /\n/, id);
+    }
+  });
+
+  it("la bulle de fin est dite par Oooscar : six mots au plus, une des cinq expressions", () => {
+    for (const [id, textes] of Object.entries(MISSION_TEXTES)) {
+      assert.ok(mots(textes.fin.text).length <= 6, `${id} : ${textes.fin.text}`);
+      assert.ok(EXPRESSIONS.includes(textes.fin.expression), id);
+    }
+    assert.ok(mots(BULLES.missionInconnue.text).length <= 6);
+  });
+
+  it("une mission que l'add-on ne connaît pas : pas de textes inventés, un titre lisible, une bulle de repli", () => {
+    assert.equal(missionTexts("mission-neuve"), undefined);
+    assert.equal(missionTexts("constructor"), undefined);
+    assert.equal(missionTexts("toString"), undefined);
+    assert.equal(missionTitle("mission-neuve"), "Mission neuve");
+    assert.equal(missionTitle("bienvenue-mairie"), "Bienvenue à la mairie");
+    assert.equal(missionTitle(""), "");
+    assert.equal(missionTitle("-"), "-");
+    assert.deepEqual(missionEndBubble("mission-neuve"), BULLES.missionInconnue);
+    assert.deepEqual(missionEndBubble("bienvenue-mairie"), MISSION_TEXTES["bienvenue-mairie"].fin);
+  });
+
+  it("la consigne du HUD joint la consigne et l'avancement du service, tels quels", () => {
+    assert.equal(HUD_TEXTES.mission("Encaisse au Silo", "0", "1"), "Encaisse au Silo : 0/1");
+    assert.equal(HUD_TEXTES.mission("Encaisse au Silo", "12", "20"), "Encaisse au Silo : 12/20");
+  });
+
+  it("les textes de l'écran des objectifs : titre en capitales, boutons sans ponctuation finale", () => {
+    assert.match(OBJECTIFS_TEXTES.titre, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
+    assert.match(OBJECTIFS_TEXTES.enCours, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
+    assert.match(OBJECTIFS_TEXTES.terminees, /^[A-ZÉ]+( [A-ZÉ]+)?$/);
+    assert.doesNotMatch(OBJECTIFS_TEXTES.retour, /[.!?]$/);
+    assert.equal(OBJECTIFS_TEXTES.avancement("2", "5"), "Avancement 2/5");
+    assert.equal(OBJECTIFS_TEXTES.recompense("10"), "Récompense 10 Lingots");
+    assert.equal(OBJECTIFS_TEXTES.tuile.enCours("2", "5"), "Mission 2/5");
   });
 });

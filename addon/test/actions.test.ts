@@ -259,3 +259,115 @@ describe("garde-fous", () => {
     assert.doesNotMatch(JSON.stringify(api.calls), new RegExp(GAMERTAG));
   });
 });
+
+describe("après un encaissement (les missions sont relues)", () => {
+  function withAfter(script: Script, afterCollect: (xuid: string) => Promise<void>) {
+    const clock = fakeClock(0);
+    const store = storeWith({ ...BASE, factories: [...BASE.factories] });
+    const views = createViewStore({ players: store, clock });
+    const api = fakeCompany(script);
+    const log = recordingLogger();
+    const actions = createActions({ api, views, newRequestId: sequentialIds(), log, afterCollect });
+    return { actions, api, views, log };
+  }
+  const collected = (version = 2) => ok({ collected: 250, offlineHours: 0, state: companyState({ version, donar: 350 }) });
+
+  it("est appelé avec le joueur, une fois l'état du service rangé", async () => {
+    const seen: Array<{ xuid: string; donar: number | undefined }> = [];
+    const { actions, views } = withAfter({ collect: [collected()] }, async (xuid) => {
+      seen.push({ xuid, donar: views.get(xuid)?.state.donar });
+    });
+    assert.deepEqual(await actions.collect(XUID), { kind: "collected", collected: 250, offlineHours: 0 });
+    assert.deepEqual(seen, [{ xuid: XUID, donar: 350 }]);
+  });
+
+  it("est attendu : l'encaissement ne rend la main qu'une fois la relecture finie", async () => {
+    let released = false;
+    let release: () => void = () => undefined;
+    const { actions } = withAfter({ collect: [collected()] }, () => new Promise<void>((resolve) => {
+      release = () => {
+        released = true;
+        resolve();
+      };
+    }));
+    let done = false;
+    const pending = actions.collect(XUID).then((outcome) => {
+      done = true;
+      return outcome;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(done, false);
+    release();
+    assert.equal((await pending).kind, "collected");
+    assert.equal(released, true);
+  });
+
+  it("n'est appelé ni pour un refus, ni pour une panne, ni pour un joueur inconnu", async () => {
+    const calls: string[] = [];
+    const afterCollect = async (xuid: string) => void calls.push(xuid);
+    const refus = withAfter({ collect: [refused("PAS_FAIT")] }, afterCollect);
+    assert.equal((await refus.actions.collect(XUID)).kind, "refused");
+    const panne = withAfter({ collect: [unreachable()] }, afterCollect);
+    assert.equal((await panne.actions.collect(XUID)).kind, "failed");
+    const erreur = withAfter({ collect: [failure(501, "PAS_FAIT")] }, afterCollect);
+    assert.equal((await erreur.actions.collect(XUID)).kind, "failed");
+    const inconnu = withAfter({}, afterCollect);
+    assert.equal((await inconnu.actions.collect("999")).kind, "failed");
+    assert.deepEqual(calls, []);
+  });
+
+  it("n'est pas appelé pour une montée de niveau ni une remise en état", async () => {
+    const calls: string[] = [];
+    const { actions } = withAfter({ buyLevels: [ok(updated(2, 4))], restoreStep: [ok(updated(3, 4))] }, async (xuid) => void calls.push(xuid));
+    await actions.buyLevels(XUID, "carriere", "1");
+    await actions.restoreStep(XUID, "carriere", 1);
+    assert.deepEqual(calls, []);
+  });
+
+  it("après un conflit rejoué avec succès, il est appelé une seule fois", async () => {
+    const calls: string[] = [];
+    const { actions, api } = withAfter(
+      {
+        collect: [refused("CONFLIT_REESSAYER"), collected(6)],
+        getCompany: [ok(companyState({ version: 5, factories: [factory({ level: 3 })] }))],
+      },
+      async (xuid) => void calls.push(xuid),
+    );
+    assert.equal((await actions.collect(XUID)).kind, "collected");
+    assert.deepEqual(calls, [XUID]);
+    assert.deepEqual(api.calls.map((call) => call.op), ["collect", "getCompany", "collect"]);
+  });
+
+  it("une exception de la relecture est journalisée et ne change rien au résultat de l'encaissement", async () => {
+    const { actions, views, log } = withAfter({ collect: [collected()] }, () => Promise.reject(new Error("coupure des missions")));
+    assert.deepEqual(await actions.collect(XUID), { kind: "collected", collected: 250, offlineHours: 0 });
+    assert.equal(views.get(XUID)?.state.donar, 350);
+    assert.equal(log.warns.length, 1);
+    assert.match(log.warns[0] ?? "", /^après collect : .*coupure des missions/);
+  });
+
+  it("le verrou du joueur est déjà tombé quand la relecture commence", async () => {
+    let second: string | undefined;
+    const holder: { actions?: ReturnType<typeof createActions> } = {};
+    const clock = fakeClock(0);
+    const store = storeWith({ ...BASE, factories: [...BASE.factories] });
+    const views = createViewStore({ players: store, clock });
+    const api = fakeCompany({ collect: [collected(2), collected(3)] });
+    holder.actions = createActions({
+      api,
+      views,
+      newRequestId: sequentialIds(),
+      log: recordingLogger(),
+      afterCollect: async (xuid) => {
+        if (second === undefined) second = (await holder.actions?.collect(xuid))?.kind;
+      },
+    });
+    assert.equal((await holder.actions.collect(XUID)).kind, "collected");
+    assert.equal(second, "collected");
+  });
+
+  it("sans afterCollect, rien ne change", async () => {
+    const { actions } = setup({ collect: [collected()] });
+    assert.deepEqual(await actions.collect(XUID), { kind: "collected", collected: 250, offlineHours: 0 });
+  });
+});

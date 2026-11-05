@@ -2,7 +2,9 @@
 //
 // - en haut : les monnaies (Donar, Lingots, Gemmes), puis une consigne. Deux textes du canal de titre de Bedrock :
 //   le titre porte les monnaies, le sous-titre la consigne. Chacun commence par un préfixe que le pack de ressources
-//   masque et lit pour placer le texte (hud_screen.json, étape suivante) ;
+//   masque et lit pour placer le texte (hud_screen.json, étape suivante). La consigne est celle de la mission en
+//   cours, avec son avancement tel que le service le donne ; sans mission en cours (toutes terminées, ou pas encore
+//   lues, ou inconnues de cet add-on), c'est le seuil de prestige ;
 // - juste au-dessus de la barre d'inventaire : le gain par seconde, par la barre d'action (`setActionBar`) ;
 // - en dessous : rien pour l'instant (île, membres connectés et ping n'ont pas de champ dans le contrat).
 //
@@ -15,9 +17,11 @@ import { describeError, secondsToTicks, type Clock, type Scheduler, type StatusL
 import { playerXuid } from "../identity";
 import { COLOR, colored, ICON } from "./apparence";
 import { counterValue } from "./compteur";
+import type { MissionState } from "../protocol";
 import type { CompanyView, LinkState, LinkStatus, ViewStore } from "./etat";
+import type { Missions } from "./missions";
 import { formatAmount, formatCount, formatRate } from "./nombres";
-import { HUD_TEXTES } from "./textes";
+import { HUD_TEXTES, missionTexts } from "./textes";
 
 /** Début du titre : les monnaies. Le pack masque ce préfixe et lit ce qui suit. */
 export const HUD_TITLE_PREFIX = "silooo:hud|";
@@ -35,6 +39,8 @@ export interface HudFrame {
 export interface HudInput {
   /** La vue du joueur, ou undefined si le service n'a encore rien dit de lui. */
   readonly view: CompanyView | undefined;
+  /** Les missions du joueur d'après la dernière lecture du service, ou undefined si rien n'a pu être lu. */
+  readonly missions?: MissionState | undefined;
   readonly link: LinkStatus;
   readonly nowMs: number;
   /** Faux : pas de canal de titre, tout passe par la barre d'action. */
@@ -56,13 +62,26 @@ function gainLine(view: CompanyView): string {
   return colored(COLOR.paper, `+${formatRate(view.state.ratePerHour)}`);
 }
 
+/**
+ * La consigne : la mission en cours (sa consigne, puis `progress`/`target` du service), sinon le seuil de prestige.
+ * Une mission dont cet add-on n'a pas les textes laisse la place au prestige : il n'invente pas de mots pour elle.
+ */
+function consigneLine(view: CompanyView, missions: MissionState | undefined): string {
+  const current = missions?.current ?? null;
+  const texts = current === null ? undefined : missionTexts(current.id);
+  if (current !== null && texts !== undefined) {
+    return HUD_TEXTES.mission(texts.consigne, formatCount(current.progress), formatCount(current.target));
+  }
+  return HUD_TEXTES.consigne(formatAmount(view.state.threshold));
+}
+
 function offlineLine(): string {
   return colored(COLOR.blocked, `${ICON.flamme} ${HUD_TEXTES.horsLigne}`);
 }
 
 /** Compose le HUD d'un joueur. Pure : mêmes entrées, mêmes textes. */
 export function renderHud(input: HudInput): HudFrame {
-  const { view, link, nowMs, titleChannel } = input;
+  const { view, missions, link, nowMs, titleChannel } = input;
   const offline = link === "down" || view === undefined;
 
   if (!titleChannel) {
@@ -74,7 +93,7 @@ export function renderHud(input: HudInput): HudFrame {
   }
   return {
     title: `${HUD_TITLE_PREFIX}${currencyLine(view, nowMs)}`,
-    subtitle: `${HUD_SUBTITLE_PREFIX}${colored(COLOR.muted, HUD_TEXTES.consigne(formatAmount(view.state.threshold)))}`,
+    subtitle: `${HUD_SUBTITLE_PREFIX}${colored(COLOR.muted, consigneLine(view, missions))}`,
     actionBar: gainLine(view),
   };
 }
@@ -103,6 +122,8 @@ export interface HudPlayerLike {
 export interface HudDeps<P extends HudPlayerLike = HudPlayerLike> {
   readonly players: () => readonly P[];
   readonly views: Pick<ViewStore, "get">;
+  /** Les missions des joueurs. Sans lui, la consigne est toujours le seuil de prestige. */
+  readonly missions?: Pick<Missions, "get">;
   readonly link: Pick<LinkState, "status">;
   readonly clock: Clock;
   /** Un échec d'envoi à un joueur (il vient de partir) est noté une fois, pas toutes les secondes. */
@@ -126,8 +147,10 @@ export function createHud<P extends HudPlayerLike = HudPlayerLike>(deps: HudDeps
       for (const player of deps.players()) {
         try {
           if (deps.silenced?.(player) === true) continue;
+          const xuid = playerXuid(player);
           const frame = renderHud({
-            view: deps.views.get(playerXuid(player)),
+            view: deps.views.get(xuid),
+            missions: deps.missions?.get(xuid),
             link: deps.link.status(),
             nowMs: deps.clock.now(),
             titleChannel,

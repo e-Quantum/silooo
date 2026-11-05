@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { config } from "../src/config";
+import type { MissionState } from "../src/protocol";
 import { createStatusLog, secondsToTicks } from "../src/runtime";
 import { COLOR } from "../src/ui/apparence";
 import { anchorOf, counterValue } from "../src/ui/compteur";
@@ -16,8 +17,8 @@ import {
 } from "../src/ui/hud";
 import { formatAmount, formatCount, formatRate } from "../src/ui/nombres";
 import { HUD_TEXTES } from "../src/ui/textes";
-import { balances, companyState, fakeScheduler, recordingLogger } from "./helpers";
-import { GAMERTAG, bare, fakeClock, storeWith } from "./ui-helpers";
+import { balances, companyState, fakeScheduler, mission, missionState, recordingLogger } from "./helpers";
+import { GAMERTAG, XUID, bare, fakeClock, storeWith } from "./ui-helpers";
 
 const state = companyState({ donar: 1_500, ratePerHour: 7_200, threshold: 1_000_000, version: 3 });
 const view: CompanyView = {
@@ -285,5 +286,128 @@ describe("startHud", () => {
     assert.ok(config.ui.hud.refreshSeconds >= 1);
     scheduler.intervals[0]?.run();
     assert.equal(appels, 1);
+  });
+});
+
+// ---------------------------------------------------------------- la consigne de la mission
+
+describe("renderHud, la consigne de la mission", () => {
+  const render = (missions: MissionState | undefined, titleChannel = true, link: "ok" | "down" = "ok") =>
+    renderHud({ view, missions, link, nowMs: 0, titleChannel });
+  const consigne = (frame: { subtitle: string }): string => bare(frame.subtitle);
+
+  it("montre la consigne de la mission en cours et son avancement tel que le service le donne", () => {
+    assert.equal(
+      consigne(render(missionState())),
+      `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.mission("Encaisse au Silo", "0", "1")}`,
+    );
+    assert.equal(consigne(render(missionState())), `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 0/1`);
+  });
+
+  it("met en forme les nombres du service, sans rien calculer : un avancement qui dépasse la cible reste tel quel", () => {
+    assert.equal(
+      consigne(render(missionState({ current: mission({ progress: 1_250, target: 20_000 }) }))),
+      `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : ${formatCount(1_250)}/${formatCount(20_000)}`,
+    );
+    assert.equal(
+      consigne(render(missionState({ current: mission({ progress: 5, target: 3 }) }))),
+      `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 5/3`,
+    );
+  });
+
+  it("la consigne est en gris, comme celle du prestige", () => {
+    assert.ok(render(missionState()).subtitle.includes(`${COLOR.muted}Encaisse au Silo : 0/1`));
+  });
+
+  it("sans lecture des missions, ou sans mission en cours, la consigne reste le seuil de prestige", () => {
+    const prestige = `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.consigne(formatAmount(1_000_000))}`;
+    assert.equal(consigne(render(undefined)), prestige);
+    assert.equal(consigne(render({ current: null, completed: ["bienvenue-mairie"] })), prestige);
+    assert.equal(consigne(renderHud({ view, link: "ok", nowMs: 0, titleChannel: true })), prestige);
+  });
+
+  it("une mission que cet add-on ne connaît pas laisse la place au prestige : pas de mots inventés", () => {
+    const frame = render(missionState({ current: mission({ id: "mission-du-futur", progress: 2, target: 9 }) }));
+    assert.equal(consigne(frame), `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.consigne(formatAmount(1_000_000))}`);
+    assert.doesNotMatch(frame.subtitle, /2\/9/);
+  });
+
+  it("les monnaies et le gain ne changent pas", () => {
+    const sans = render(undefined);
+    const avec = render(missionState());
+    assert.equal(avec.title, sans.title);
+    assert.equal(avec.actionBar, sans.actionBar);
+  });
+
+  it("sans canal de titre, la barre d'action reste la même avec ou sans mission", () => {
+    const sans = render(undefined, false);
+    const avec = render(missionState(), false);
+    assert.deepEqual(avec, sans);
+    assert.doesNotMatch(avec.actionBar, /Encaisse/);
+  });
+
+  it("service injoignable : « hors ligne » seulement, aucune consigne", () => {
+    const frame = render(missionState(), true, "down");
+    assert.doesNotMatch(bare(frame.subtitle), /Encaisse|\d\/\d/);
+    assert.doesNotMatch(bare(frame.title), /Encaisse|\d\/\d/);
+  });
+});
+
+describe("createHud, les missions", () => {
+  function hudWithMissions(missions: (xuid: string) => MissionState | undefined, withDep = true) {
+    const clock = fakeClock(0);
+    const views = createViewStore({ players: storeWith({ donar: 10, ratePerHour: 3_600, threshold: 1_000_000 }), clock });
+    const asked: string[] = [];
+    const { player, sent } = fakePlayer(GAMERTAG);
+    const hud = createHud({
+      players: () => [player],
+      views,
+      ...(withDep
+        ? {
+            missions: {
+              get: (xuid: string) => {
+                asked.push(xuid);
+                return missions(xuid);
+              },
+            },
+          }
+        : {}),
+      link: { status: () => "ok" as const },
+      clock,
+      status: createStatusLog(recordingLogger(), "HUD"),
+      titleChannel: true,
+      titleStaySeconds: 4,
+    });
+    return { hud, sent, asked };
+  }
+
+  it("lit les missions du joueur à chaque envoi : le sous-titre suit la lecture du service", () => {
+    let courant: MissionState | undefined = undefined;
+    const { hud, sent, asked } = hudWithMissions(() => courant);
+    hud.refresh();
+    assert.equal(
+      bare(sent.title?.options?.subtitle ?? ""),
+      `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.consigne(formatAmount(1_000_000))}`,
+    );
+    courant = missionState({ current: mission({ progress: 0, target: 1 }) });
+    hud.refresh();
+    assert.equal(bare(sent.title?.options?.subtitle ?? ""), `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 0/1`);
+    courant = { current: null, completed: ["bienvenue-mairie"] };
+    hud.refresh();
+    assert.equal(
+      bare(sent.title?.options?.subtitle ?? ""),
+      `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.consigne(formatAmount(1_000_000))}`,
+    );
+    assert.deepEqual(asked, [XUID, XUID, XUID]);
+  });
+
+  it("sans lecteur de missions, la consigne est le seuil de prestige", () => {
+    const { hud, sent, asked } = hudWithMissions(() => missionState(), false);
+    hud.refresh();
+    assert.equal(
+      bare(sent.title?.options?.subtitle ?? ""),
+      `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.consigne(formatAmount(1_000_000))}`,
+    );
+    assert.deepEqual(asked, []);
   });
 });

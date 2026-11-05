@@ -8,7 +8,7 @@
 //
 // tools/anti_ia.py lit les chaînes de ce fichier comme celles de tout addon/src/**/*.ts.
 
-import type { FactoryId } from "../generated/definitions";
+import type { FactoryId, MissionId } from "../generated/definitions";
 import type { BuyAmount, RefusalReason } from "../protocol";
 import { COLOR, EXPRESSION_MARK, type Expression } from "./apparence";
 import { formatAmount } from "./nombres";
@@ -82,6 +82,8 @@ export const BULLES = {
   collecteHorsLigne: say("dodo", "Gagné pendant ton absence."),
   montee: say("joie", "Usine améliorée !"),
   etape: say("joie", "Étape terminée !"),
+  /** La fin d'une mission dont cet add-on n'a pas les textes. */
+  missionInconnue: say("joie", "Bien joué, patron !"),
 } as const satisfies Record<string, Bubble>;
 
 function missing(what: string, amount: number | undefined, fallback: string): Bubble {
@@ -128,9 +130,60 @@ export function failureBubble(failure: "network" | "error" | "unavailable", reas
 export const HUD_TEXTES = {
   /** La seule ligne du HUD quand le service ne répond pas. */
   horsLigne: "Service hors ligne",
-  /** La consigne du haut : le seuil de prestige que donne le service. */
+  /** La consigne du haut quand aucune mission n'est en cours : le seuil de prestige que donne le service. */
   consigne: (seuil: string): string => `Prestige à ${seuil} Donar`,
+  /** La consigne du haut pendant une mission : sa consigne, puis l'avancement tel que le service le donne. */
+  mission: (consigne: string, progress: string, target: string): string => `${consigne} : ${progress}/${target}`,
 } as const;
+
+// ---------------------------------------------------------------- les missions
+
+/** Ce que les joueurs lisent d'une mission : son titre, sa consigne (celle du HUD) et la bulle d'Oooscar à sa fin. */
+export interface MissionTexts {
+  readonly titre: string;
+  readonly consigne: string;
+  readonly fin: Bubble;
+}
+
+/**
+ * Les textes de chaque mission de definitions/missions.json, par identifiant. Le service ne rend que l'identifiant,
+ * l'avancement et les Lingots (api/silooo-core.openapi.yaml, getMissions) : les mots sont ici. TypeScript refuse un
+ * identifiant sans textes ou des textes sans identifiant, et un test les compare au fichier de données.
+ *
+ * Bienvenue à la mairie : le joueur encaisse une première fois (le service compte un collect qui rapporte du Donar).
+ */
+export const MISSION_TEXTES: Readonly<Record<MissionId, MissionTexts>> = {
+  "bienvenue-mairie": {
+    titre: "Bienvenue à la mairie",
+    consigne: "Encaisse au Silo",
+    fin: say("joie", "Premier encaissement, bien joué !"),
+  },
+};
+
+function hasMissionTexts(id: string): id is MissionId {
+  return Object.prototype.hasOwnProperty.call(MISSION_TEXTES, id);
+}
+
+/** Les identifiants qui ont des textes : pour le test qui les compare à definitions/missions.json. */
+export const MISSION_TEXTES_IDS: readonly string[] = Object.keys(MISSION_TEXTES);
+
+/** Les textes d'une mission, ou undefined si le service en connaît une que cet add-on ne connaît pas encore. */
+export function missionTexts(id: string): MissionTexts | undefined {
+  return hasMissionTexts(id) ? MISSION_TEXTES[id] : undefined;
+}
+
+/** Le titre d'une mission. Un identifiant sans textes devient un titre lisible : « mission-neuve » → « Mission neuve ». */
+export function missionTitle(id: string): string {
+  const known = missionTexts(id);
+  if (known !== undefined) return known.titre;
+  const spaced = id.replaceAll("-", " ").trim();
+  return spaced === "" ? id : `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`;
+}
+
+/** Ce que dit Oooscar quand une mission se termine. Une mission sans textes a une bulle de repli. */
+export function missionEndBubble(id: string): Bubble {
+  return missionTexts(id)?.fin ?? BULLES.missionInconnue;
+}
 
 // ---------------------------------------------------------------- l'objet qui ouvre le menu
 
@@ -209,6 +262,25 @@ export const FICHE_TEXTES = {
     { nom: "Livraison", bouton: "Livrer" },
     { nom: "Recrutement", bouton: "Recruter" },
   ],
+  retour: "Retour",
+} as const;
+
+export const OBJECTIFS_TEXTES = {
+  titre: "OBJECTIFS",
+  /** Au-dessus de la mission en cours, en capitales (design/composants/Fiche.md). */
+  enCours: "EN COURS",
+  terminees: "TERMINÉES",
+  /** L'avancement tel que le service le donne : actions faites, actions à faire. */
+  avancement: (progress: string, target: string): string => `Avancement ${progress}/${target}`,
+  recompense: (lingots: string): string => `Récompense ${lingots} Lingots`,
+  /** Quand le service dit qu'il n'y a plus de mission en cours. */
+  plusDeMission: "Plus de mission pour l'instant.",
+  aucuneTerminee: "Aucune mission terminée.",
+  /** La ligne d'info de la tuile du menu. */
+  tuile: {
+    enCours: (progress: string, target: string): string => `Mission ${progress}/${target}`,
+    plusDeMission: "Plus de mission",
+  },
   retour: "Retour",
 } as const;
 

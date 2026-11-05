@@ -16,7 +16,7 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, objectifs, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
 | `src/monde/` | Le monde : îles des usines, arrivée, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
@@ -70,15 +70,16 @@ Appels bêta, tous dans `src/beta.ts` :
 
 ## Les écrans
 
-Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine. L'add-on n'y calcule rien. Chaque valeur
-affichée est un champ d'une réponse du service ; seul le compteur de Donar avance entre deux réponses (revenu par
-heure × temps écoulé, jamais sous le solde du service).
+Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
+la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
+de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service).
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
                   ├─ Usines ─── tuile ─── fiche ─┬─ Monter de 1, de 10, au palier, au max ... buyLevels
                   │                              └─ Parler, Réparer, Livrer, Recruter ....... restoreStep
-                  └─ Carte, Objectifs, Amis : tuiles verrouillées, avec le mot « Bientôt »
+                  ├─ Objectifs ─ la mission en cours, les missions terminées ................ getMissions
+                  └─ Carte, Amis : tuiles verrouillées, avec le mot « Bientôt »
 ```
 
 La boussole (`minecraft:compass`, réglable dans `config.ui.menuItem`) est donnée à la première arrivée si le joueur
@@ -92,10 +93,11 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
 | `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne est ignorée) et l'état de la liaison avec le service. |
-| `actions.ts` | Les trois actions : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. |
+| `actions.ts` | Les trois actions : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). |
+| `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
-| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, et le parcours entre eux. |
+| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, et le parcours entre eux. |
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
 
@@ -107,12 +109,15 @@ Trois étages (`design/composants/Hud.md`). Les réglages sont dans `config.ui.h
 dans `config.ts`.
 
 - En haut, le canal de titre de Bedrock : le titre porte les monnaies et commence par `silooo:hud|`, le sous-titre
-  porte la consigne et commence par `silooo:consigne|`.
+  porte la consigne et commence par `silooo:consigne|`. La consigne est celle de la mission en cours, suivie de son
+  avancement tel que le service le donne (`progress` sur `target`, jamais recalculés) ; sans mission en cours (toutes
+  terminées, pas encore lues, ou inconnue de cet add-on), c'est le seuil de prestige.
 - Au-dessus de la barre d'inventaire, la barre d'action : le gain par seconde, `+<revenu>/s`.
 - En dessous : rien, le contrat n'a ni île, ni membres connectés, ni ping.
 
 `config.ui.hud.titleChannel` est à `false` : tant que `resource-pack/` ne masque pas ces deux préfixes, le canal de
-titre afficherait le préfixe au milieu de l'écran. Tout le HUD passe alors par la barre d'action. Quand le service ne
+titre afficherait le préfixe au milieu de l'écran. Tout le HUD passe alors par la barre d'action, qui ne porte pas la
+consigne : tant que `titleChannel` est à `false`, la mission se lit dans le menu, à Objectifs. Quand le service ne
 répond pas, le HUD se réduit à « Service hors ligne ».
 
 Ce que `resource-pack/` doit apporter, et qui n'y est pas encore :
@@ -122,6 +127,30 @@ Ce que `resource-pack/` doit apporter, et qui n'y est pas encore :
 3. Les glyphes des icônes de `design/icones/` et les images d'Oooscar, pour remplacer les repères provisoires.
 
 Le jour où ces trois points sont faits : `titleChannel: true`, et `ui/apparence.ts` change.
+
+### Les objectifs
+
+La tuile Objectifs du menu ouvre l'écran des objectifs : la mission en cours (titre, consigne, avancement, récompense
+en Lingots), puis la liste des missions terminées. La ligne d'info de la tuile donne l'avancement de la mission en
+cours. Chaque chiffre (avancement, cible, Lingots) est celui de `getMissions`, mis en forme et jamais recalculé :
+l'add-on ne dit jamais « mission faite ». Le service compte l'action (un `collect` qui rapporte du Donar), termine la
+mission et verse les Lingots.
+
+L'add-on ne garde que les mots, par identifiant de `definitions/missions.json` (`MISSION_TEXTES` dans
+`ui/textes.ts`) : un titre, la consigne du HUD et la bulle d'Oooscar de la fin. Un test vérifie que chaque
+identifiant du fichier a ses textes et qu'aucun texte ne vise un identifiant que le fichier ne connaît pas. Une
+mission que cet add-on ne connaît pas encore se montre avec un titre tiré de l'identifiant, sans consigne.
+
+`ui/missions.ts` lit les missions à trois moments : à l'arrivée du joueur (le crochet `joined` de la session,
+combiné à celui du monde par `combineHooks`), après chaque encaissement réussi (`afterCollect` de `actions.ts`), et sur
+un événement `ANNONCE` dont `payload.action` vaut `mission`. L'écran des objectifs relit aussi à chaque ouverture. Les
+lectures d'un même joueur se suivent, une réponse qui arrive après le départ du joueur est jetée, et en cas d'échec la
+lecture précédente reste.
+
+L'annonce d'une mission terminée (`ANNONCE`, `missionId`, `rewardLingots`) : Oooscar la dit dans le tchat du joueur,
+la bulle de fin de la mission puis les Lingots que le payload donne, et les missions sont relues. Le curseur des
+événements repart de 0 quand BDS redémarre : l'add-on retient les missions déjà terminées à l'arrivée du joueur et ne
+redit pas une annonce déjà dite pendant sa visite.
 
 ### Les formulaires
 
@@ -174,7 +203,7 @@ Choix faits ici, à relire :
 
 Tous les textes de joueurs de cette tranche sont à valider par Kr. Ils sont commités, jamais présentés comme
 définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun figure dans ce tableau. L'avant est
-« rien » : ces écrans n'existaient pas.
+« rien » : ces écrans n'existaient pas, sauf là où la colonne dit autre chose.
 
 Les noms des usines ne sont pas dans ce tableau : ils viennent de `definitions/usines.json` (clé « nom »), recopiés
 dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoires (`[D] [L] [G] [U] [T] [!] [E] [X]
@@ -240,6 +269,22 @@ dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoir
 | Silo, bouton | rien | Retour |
 | Silo, après la collecte | rien | Encaissé `<montant>` Donar |
 | Silo, après la collecte | rien | Hors ligne `<durée>` |
+| HUD, consigne d'une mission en cours (remplace le seuil de prestige) | Prestige à `<seuil>` Donar | `<consigne>` : `<fait>`/`<cible>`, par exemple Encaisse au Silo : 0/1 |
+| Menu, tuile Objectifs, ligne d'info | Bientôt (tuile verrouillée) | Mission `<fait>`/`<cible>` |
+| Menu, tuile Objectifs, ligne d'info quand le service n'a plus de mission | Bientôt (tuile verrouillée) | Plus de mission |
+| Objectifs, titre | rien | OBJECTIFS |
+| Objectifs, au-dessus de la mission en cours | rien | EN COURS |
+| Objectifs, avancement | rien | Avancement `<fait>`/`<cible>` |
+| Objectifs, récompense (et ligne de l'annonce de fin) | rien | Récompense `<lingots>` Lingots |
+| Objectifs, au-dessus des missions terminées | rien | TERMINÉES |
+| Objectifs, quand le service n'a plus de mission en cours | rien | Plus de mission pour l'instant. |
+| Objectifs, liste des terminées vide | rien | Aucune mission terminée. |
+| Objectifs, bouton | rien | Retour |
+| Mission `bienvenue-mairie`, titre | rien | Bienvenue à la mairie |
+| Mission `bienvenue-mairie`, consigne (celle du HUD) | rien | Encaisse au Silo |
+
+Le titre d'une mission que `ui/textes.ts` ne connaît pas encore est l'identifiant du service mis en lettres
+(`mission-du-futur` donne Mission du futur) : ce n'est pas un texte écrit, mais il s'affiche tant que le texte manque.
 
 Les bulles d'Oooscar. Une bulle tient en six mots au plus, avec une des cinq expressions (joie, fier, oups, panique,
 dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phrase.
@@ -266,6 +311,8 @@ dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phr
 | Refus `DEJA_POSSEDE`, la seule bulle fière | rien | Tu l'as déjà. |
 | Refus `GRADE_PRECEDENT_REQUIS` | rien | Il faut d'abord le grade précédent. |
 | Refus `CONFLIT_REESSAYER`, si le second essai échoue aussi | rien | Ça a bougé. Réessaie. |
+| Bulle joie, fin de la mission `bienvenue-mairie` (dite dans le tchat, avant la ligne Récompense) | rien | Premier encaissement, bien joué ! |
+| Bulle joie, fin d'une mission dont l'add-on n'a pas les textes | rien | Bien joué, patron ! |
 
 La cinématique d'arrivée (`design/composants/Cinematique.md`) : quatre plans, une phrase d'Oooscar par plan, plus la
 consigne pour passer. Le nom de qui parle (« Oooscar ») est le titre du sous-titre, la phrase en est le texte. Chaque
@@ -289,7 +336,11 @@ Au contrat (`api/`, non modifié par cette tranche) :
 
 - Pas de champ pour le contenu du Silo (la production en attente), ni de plafond hors ligne : l'écran du Silo ne
   montre que le Donar, le revenu et le multiplicateur, et le résultat de la dernière collecte.
-- Pas d'objectif en cours : le HUD n'a que le seuil de prestige comme consigne.
+- Le payload de l'événement `ANNONCE` d'une mission n'a pas de schéma : `action`, `missionId` et `rewardLingots` ne
+  sont décrits que dans le texte de `getMissions`. L'add-on lit chaque clé avec prudence et ne montre pas une somme
+  illisible.
+- `getMissions` ne rend que l'identifiant des missions terminées, sans titre : l'add-on en a les textes pour celles
+  de `definitions/missions.json` (une seule pour l'instant), et pour une autre il compose un titre avec l'identifiant.
 - Pas d'heure de dernière collecte (`asOf`, `lastCollectAt`), ni d'ère par usine.
 - Les noms d'usines ne sont pas dans les types générés, seulement les identifiants.
 - Le sens exact de `restoreStep` est supposé : le dernier palier fait, la prochaine étape est la suivante.
@@ -310,12 +361,16 @@ Au contrat (`api/`, non modifié par cette tranche) :
 
 Au design system :
 
-- Pas d'icône pour Objectifs, Amis et Silo, ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
+- Pas d'icône pour Objectifs, Amis et Silo (Objectifs est actif mais garde son repère `[O]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
 - Pas d'image d'Oooscar utilisable en jeu : les bulles portent un repère entre crochets.
 - Pas de glyphes dans le pack de ressources pour les icônes qui existent dans `design/icones/`.
 
 ## Ce qui reste à décider
 
+- Où Oooscar dit la fin d'une mission : pour l'instant dans le tchat du joueur (`player.sendMessage`), faute d'un autre
+  endroit qui ne soit pas réécrit chaque seconde par le HUD. Une vraie bulle à l'écran dépend du pack de ressources.
+- La consigne du HUD n'est visible qu'avec `titleChannel` à `true` (le sous-titre) ; à `false` elle manque, et la
+  mission se lit à Objectifs. Le réglage reste à `false` tant que le pack ne masque pas les préfixes.
 - « Une action en deux clics » : le Silo y est (Silo, Encaisser), pas la montée d'une usine (Usines, la tuile, le
   bouton). Un accès direct depuis le menu principal à l'usine la plus rentable serait possible, mais il demande un
   choix de jeu (laquelle ?) qui n'est pas pris ici.
@@ -337,6 +392,9 @@ Au design system :
 - Le blocage des déplacements pendant la cinématique et la lecture de l'accroupissement (le même geste doit faire passer).
 - La téléportation vers une zone encore non chargée, et la remise du joueur à la fin de la cinématique.
 - L'entité `silooo:oooscar` : validité du JSON au format `1.21.0`, absence de dégâts et de butin, disparition au départ.
+- Les missions : `player.sendMessage` avec les codes `§` pour la bulle de fin, la tuile Objectifs à deux lignes, la
+  lecture des missions à l'arrivée pendant la cinématique, et une `ANNONCE` reçue pour un joueur qui vient de se
+  connecter (le curseur des événements repart de 0 au redémarrage de BDS).
 
 ## Points ouverts
 
