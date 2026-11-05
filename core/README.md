@@ -100,12 +100,13 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
-| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions) : classes typées et `DefinitionsLoader` |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions, personnel) : classes typées et `DefinitionsLoader` |
 | `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne, découverte des usines ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`, `prestigePreview`, `prestige`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock (`ServerPresence`, la source de présence de `join`) |
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 | `mission/` | `GET /v1/players/{xuid}/missions` : `MissionRoutes`, `MissionService` (la chaîne de missions, l'avancement, la fin), `MissionStore` et `JdbcMissionStore` (`player_missions`, versement des Lingots, événement) ; `CompanyService.collect` l'appelle |
+| `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -196,7 +197,7 @@ personnelles.
   `USINE_VERROUILLEE` pour `buyLevels`. `leave`, qui verse maintenant la production, peut se heurter à un autre associé : après ses essais il rend
   409 `CONFLIT_REESSAYER`, que l'OpenAPI ne déclare pas pour lui (`KNOWN_409_GAPS` de `ContractTest`).
 - **Les événements** : l'OpenAPI n'a pas de type propre à ces actions. Elles publient un `ANNONCE` adressé à l'acteur,
-  dont `payload.action` vaut `collect`, `buyLevels`, `restoreStep`, `prestige` ou `mission` ; ajouter un type
+  dont `payload.action` vaut `collect`, `buyLevels`, `restoreStep`, `prestige`, `mission`, ou `hire`, `assignStaff` et `fireStaff` (section suivante) ; ajouter un type
   d'événement commence par l'OpenAPI.
 - **Règles à valider par Kr** : les deux régimes de production (revenu plein en ligne, plafond et efficacité hors ligne), le comportement de `max`, la remise en
   état sans coût ([economie.md](../docs/economie.md), sections Hors ligne, Le prix des niveaux, La remise en état).
@@ -262,12 +263,67 @@ sont ceux de l'add-on : le service ne rend que l'identifiant, l'avancement et le
   CI) : la ligne, le solde, le journal et l'événement écrits ensemble, l'annulation d'ensemble, des `collect`
   simultanés qui ne terminent la mission qu'une fois.
 
+## Le personnel
+
+`GET /v1/companies/{companyId}/agency` (`getCandidates`), `POST .../agency/{slot}/hire` (`hire`), `PATCH .../staff/{staffId}`
+(`assignStaff`) et `DELETE .../staff/{staffId}?requestId=&actor=` (`fireStaff`). `StaffRoutes` valide l'entrée et répond ;
+`StaffService` lit, décide et écrit, sans HTTP et sans aucun chiffre du jeu ; `JdbcStaffStore` porte le SQL de `staff` et de
+`agency_candidates`. Aucune migration : les deux tables de V1 suffisent. Tous les chiffres sont dans
+`definitions/personnel.json` (schéma `definitions/schemas/personnel.schema.json`, branché sur `tools/verifier_definitions.mjs`,
+sur `tools/generer_types.mjs` et sur le chargeur) : la liste du jour, les parts de rareté, le bonus, le salaire et le prix
+d'embauche de chaque rareté, les facteurs de rôle, les postes et le plafond hors ligne du chef. Le moteur en tire
+`staffBonusPercent`, `staffSalaryPercent`, `crewNetPercent`, `salaryPerHour`, `hireCost`, `staffPosts` et `leaderCapHours`.
+
+- **La liste du jour** : `AgencyDraw` la tire de l'entreprise et du jour UTC seulement (SplitMix64 sur
+  `companyId * 0x9E3779B97F4A7C15 + jour`), donc la même toute la journée, à chaque lecture et sur toutes les machines.
+  Le rôle de chaque place vient de `agence.rolesParPlace`, la rareté d'un tirage cumulé sur
+  `raretes.*.repartitionPourcent` (75, 20 et 5 % au départ), le nom de `agence.noms` (jamais deux fois le même dans une
+  liste) et l'apparence de `agence.apparences` pour le rôle. Elle n'est jamais gardée en base. Aucune entrée ne la
+  change, donc aucun moyen de payer pour une autre : le contrat n'a ni relance ni tirage payant, et `StaffRoutesTest` le
+  vérifie (les opérations d'agence sont `getCandidates` et `hire`, rien d'autre).
+- **`agency_candidates`** ne garde que les places embauchées du jour, avec le candidat tel qu'il a été proposé et le
+  `hired_staff_id`. Une place embauchée reste dans la liste avec son `staffId` et son usine, sans prix ; renvoyée, sa
+  ligne disparaît et le candidat est de nouveau embauchable aujourd'hui, au prix du moment.
+- **`hire`** : le prix est `hireCost` = les heures de revenu de la rareté fois le facteur du rôle, fois le revenu net de
+  l'entreprise maintenant. La production en attente est versée d'abord (régime `ONLINE`), puis le prix est débité en UNE
+  écriture `updateCompany` : si un autre associé a écrit entre-temps, 409 `CONFLIT_REESSAYER`, et rien n'est écrit. Les
+  refus sont `DEJA_POSSEDE` (place déjà embauchée), `PAS_ASSEZ_DE_DONAR` (avec la somme qui manque), `USINE_VERROUILLEE`
+  (usine qui n'est pas à l'entreprise ou pas `ACTIVE`) et `EMPLACEMENT_OCCUPE` (plus de poste libre pour le rôle dans
+  cette usine). L'usine est facultative : un membre sans usine ne rapporte ni ne coûte rien.
+- **Les postes** : `postes.salariesBase` salarié par usine, plus un tous les `postes.niveauxParPoste` niveaux, et
+  `postes.chefsParUsine` chef. Les postes ne limitent que les embauches et les affectations : une usine qui en perd
+  (prestige) garde son équipe.
+- **`assignStaff`** change l'usine du membre, sans frais. L'affecter là où il est déjà ne change rien : ni écriture, ni
+  événement, la même réponse d'état.
+- **`fireStaff`** supprime le membre, sans remboursement. Seul le PDG renvoie : un associé reçoit 403 `PAS_LE_PDG`.
+- **Dans l'économie** : un membre dans une usine `ACTIVE` change sa production du net `bonus - salaire`, en pourcent de la
+  production de l'usine sans équipe. Les bonus de plusieurs membres s'additionnent. Le salaire est une sortie d'argent
+  comptée dans le revenu net (`CompanyState.ratePerHour`, `Factory.ratePerHour`), donc dans les deux régimes : en ligne
+  au revenu plein, hors ligne par le plafond et l'efficacité comme le reste. Un chef d'équipe relève de
+  `chefEquipe.plafondHorsLigneBonusHeures` le plafond hors ligne de son usine seulement (`offlineEarningsWithLeaders`).
+  Sans personnel, tous les chiffres d'avant sont inchangés, bit pour bit.
+- **Les cas que le contrat ne nomme pas** : un acteur qui n'est pas membre, une place hors de 1 à 5, une usine inconnue de
+  `usines.json`, un membre inconnu ou d'une autre entreprise, un `requestId` mal formé donnent 400 `REQUETE_INVALIDE`
+  (l'OpenAPI ne déclare pas de 404). Le 403 `PAS_LE_PDG` de `fireStaff` a été ajouté à l'OpenAPI, ainsi que
+  `salaryPercent`, `salaryPerHour` et `hireCost` dans `Staff` ; le rôle `DIRECTEUR` de `Staff.role` n'est pas encore
+  modélisé (aucune ligne n'en porte, `find` et `loadStaff` l'écartent).
+- **Les événements** : `ANNONCE` adressé à l'acteur, `payload.action` = `hire` (avec `staffId`, `slot`, `role`, `rarity`,
+  `cost`, et `factoryId` s'il y en a une), `assignStaff` ou `fireStaff`. Le contrat n'a pas de type propre.
+- **Règles tranchées au plus simple, à valider par Kr** : tout membre de l'entreprise embauche et affecte, seul le PDG
+  renvoie ; le prix suit le revenu net du moment ; les bonus s'additionnent ; les postes ne limitent que l'entrée ; le
+  chef ne relève que le plafond de son usine ; les noms, les apparences et les parts de rareté de `personnel.json` sont des
+  valeurs de départ ([economie.md](../docs/economie.md), section Le personnel).
+- **Les tests** : `staff/AgencyDrawTest` (le tirage, ses parts de rareté), `economy/EngineStaffTest` et
+  `economy/EngineFiguresStaffTest` (les formules et les deux régimes), `staff/StaffRoutesTest` (les quatre routes sans base),
+  `contract/ContractTest` (les quatre opérations sont dans `WRITTEN`), `DefinitionsLoaderTest` pour `personnel.json`, et
+  `staff/StaffSqlTest` (MariaDB, CI) : les lignes écrites ensemble, l'annulation d'ensemble, des embauches simultanées.
+
 ## Ce qui vient après, en phase 1
 
 Chaque route suit la recette [`silooo-route`](../.claude/skills/silooo-route/SKILL.md) : contrat,
 test de contrat, puis code.
 
-- Les routes d'économie qui suivent `restoreStep` (usines à découvrir et à racheter, agence et personnel,
+- Les routes d'économie qui suivent `restoreStep` (usines à découvrir et à racheter,
   associés, ville, marché, boutique) : elles se servent du moteur et de `CompanyService` comme les quatre premières.
 - Un coût de remise en état dans `definitions/`, et des types d'événement propres dans l'OpenAPI.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).
@@ -282,7 +338,7 @@ le jour), `OrderService` (lire, livrer, payer), `OrderStore` et `JdbcOrderStore`
 `lingotsHorsPrestige.commandeDuJour`, et `usines.json` donne les ressources (`Definitions.resources` : les produits des
 usines, une fois chacun, dans l'ordre du fichier).
 
-- **La commande du jour** : le jour est la date UTC de l'horloge du service (`Dependencies.ordersClock`). La ressource
+- **La commande du jour** : le jour est la date UTC de l'horloge du service (`Dependencies.clock`). La ressource
   est la `(jours depuis 1970 mod nombre de ressources)`-ième : la même pour tout le serveur, sans tirage au sort, et
   tout le monde parcourt les ressources dans le même ordre. Tant que personne n'a livré, la commande n'est écrite
   nulle part : `todayOrder` la rend d'après le plan et n'écrit rien. Avec `?xuid=`, `mine` est la part déjà livrée par

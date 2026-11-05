@@ -38,7 +38,7 @@ fun Route.orderRoutes(dependencies: Dependencies) {
         sessions = dependencies.sessionStore,
         orders = dependencies.orderStore,
         figures = dependencies.economyFigures,
-        clock = dependencies.ordersClock,
+        clock = dependencies.clock,
     )
 
     get("/orders/today") {

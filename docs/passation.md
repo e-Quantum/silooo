@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 9 h 40, le simulateur des treize cibles fusionné (session de direction).
+Dernière mise à jour : 5 novembre 2026, 10 h 23, le personnel fusionné (session de direction).
 
 ## État
 
@@ -10,8 +10,8 @@ Dernière mise à jour : 5 novembre 2026, 9 h 40, le simulateur des treize cible
   `X-Silooo-Key`, heartbeat, filet 501, Dockerfile) avec les données dorées du tableur
   (`core/src/test/resources/golden/`), les routes de session (`join`, `leave`, `GET /v1/events`,
   idempotence, verrou optimiste, journal des monnaies, tests de contrat sur les 30 opérations) et le moteur
-  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Six
-  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`, `iles`, `missions`.
+  d'économie avec ses tests dorés, branché sur `join` (`EngineFigures`, `DefinitionsBootstrap`). Sept
+  fichiers de définitions : `usines`, `economie`, `boutique`, `monde`, `iles`, `missions`, `personnel`.
 - `main` est vert : `tools/verifier.sh` passe sur le PC (tests Gradle compris, tests Docker ignorés) et
   la CI passe (jobs `verifier` avec les deux tests Testcontainers, `migration`, `image`).
 - Sur le VPS : `/var/www/silooo` existe avec un fichier d'environnement posé par Kr. La base `silooo`
@@ -30,9 +30,10 @@ Dernière mise à jour : 5 novembre 2026, 9 h 40, le simulateur des treize cible
   le menu, la fiche d'usine, le Silo, les mini-îles des usines, l'arrivée, la cinématique, Oooscar et la mission de
   la mairie (tuile Objectifs, 631 tests) ; le pack de ressources.
 - Phase en cours : **4** (la progression). `island`, `prestigePreview`, `prestige` et les missions sont sur `main`
-  et le simulateur des treize cibles les rejoue en CI (toutes dans leur fourchette). En cours : le personnel
-  (`claude/phase4-personnel`), l'écran de prestige et la carte des îles (`claude/phase4-addon-prestige-carte`),
-  les commandes du jour et le Carnet (`claude/phase4-commandes`).
+  et le simulateur des treize cibles les rejoue en CI (toutes dans leur fourchette) ; le personnel aussi (agence
+  du jour, embauche, affectation, renvoi, salaires retenus sur le revenu). En cours : l'écran de prestige et la
+  carte des îles (`claude/phase4-addon-prestige-carte`), les commandes du jour et le Carnet
+  (`claude/phase4-commandes`).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -112,7 +113,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 
 - [x] silooo-core : `prestigePreview` et `prestige` (PDG seul, 403 `PAS_LE_PDG` ; 409 `SEUIL_NON_ATTEINT` avec les Donar qui manquent ; seuil, Lingots, rendement décroissant et départ de course lus par `EconomyEngine` dans `economie.json` ; partage selon `share_percent`, reste au PDG ; `prestige_history` ; course suivante : époque, étoiles ; Carrière au niveau de départ, autres usines en ruine ; un événement par membre ; règles **à valider par Kr**, `core/README.md` « Le prestige », décision 31)
 - [x] silooo-core : simulateur Kotlin (`core/src/test/.../simulation/`, `GameSimulator`, barrière `ThirteenTargetsTest`) qui rejoue les treize cibles du tableur avec la stratégie du tableur (l'achat qui minimise prix / revenu + prix / gain, attente du prix exact, prestige au seuil) ; cibles et fourchettes dans `golden/simulation.json` ; treize temps dans leur fourchette, égaux au tableur ; `docs/economie.md` « Le simulateur » ; décision 32
-- [ ] silooo-core : personnel (`getCandidates`, `hire`, `assignStaff`, `fireStaff`) : candidats du jour, raretés sans tirage payant, salaires comme sortie d'argent, chef d'équipe et plafond hors ligne
+- [x] silooo-core : personnel (`getCandidates`, `hire`, `assignStaff`, `fireStaff` ; `staff/`, `AgencyDraw`, `StaffService`, `StaffRoutes`, `JdbcStaffStore`, sans migration) : cinq candidats du jour tirés d'une suite figée par l'entreprise et la date (pas de tirage payant), raretés `COMMUN`, `RARE`, `EPIQUE` lues dans `definitions/personnel.json` ; prix d'embauche en heures de revenu net du moment ; salaire en pourcent du revenu de l'usine, retenu dans `ratePerHour` (net des salaires, bonus compris) ; postes par niveau d'usine, un chef par usine ; le chef relève le plafond hors ligne de son usine ; seul le PDG renvoie (403 `PAS_LE_PDG`) ; 19 tests SQL ; `core/README.md` et `docs/economie.md` « Le personnel » ; règles, noms et apparences des candidats **à valider par Kr** ; décision 33
 - [ ] silooo-core : incidents (`resolveIncident`) et énergie (`stoppedNoPower`), avec leurs événements
 - [ ] silooo-core : ville (`buyZone`, `placeBuilding`, `upgradeBuilding`) : prix fixes en Lingots de `ville.zonesPrixLingots`, niveau de mairie, bonus des bâtiments seulement une fois chiffrés dans `definitions/`
 - [ ] silooo-core : entreprise partagée (`invite`, `setShares`) : PDG et associés, parts qui font 100, Lingots partagés au prestige
@@ -130,7 +131,7 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Au premier test sur un vrai client : vérifier que le pack de ressources masque bien les titres préfixés (`silooo:hud|`, `silooo:consigne|`) et affiche les monnaies en haut à gauche, qu'Oooscar a la bonne orientation (échelle à droite) ; alors passer `titleChannel` à `true` dans `addon/src/config.ts`
 - [ ] Au même test, le monde : les mini-îles (délai de la ticking area, pose par lots sans à-coup, orientation du panneau), la cinématique (cadrage des plans, glissé de caméra, fondus, HUD masqué, déplacements bloqués, accroupi pour passer), la téléportation vers une zone non chargée, l'entité `silooo:oooscar` (format 1.21.0, visible avec le pack). `addon/README.md`, « Le monde », liste ce que seul un vrai BDS dira ; et pour la mission : le rendu de la bulle de fin dans le tchat, la tuile Objectifs sur deux lignes, l'ordre arrivée, cinématique, lecture des missions
 - [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
-- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle
+- [ ] Trous de contrat relevés par les routes d'économie : pas de 403 ni de 404 sur `/v1/companies/...` (une entreprise inconnue, un acteur qui n'est pas membre ou une usine inconnue rendent 400 `REQUETE_INVALIDE`) ; pas de type d'événement dédié (`collect`, `buyLevels`, `restoreStep` publient `ANNONCE` avec `payload.action`) ; pas d'opération pour racheter une usine en ruine ni pour découvrir une usine ; `CompanyState.island`, `PrestigePreview.lingotsIfDoubled` et `shares` facultatifs dans l'OpenAPI mais toujours envoyés (à rendre obligatoires ?) ; le type d'événement `PRESTIGE_ENTREPRISE` n'est pas utilisé (un `ANNONCE` par membre, avec sa part) ; `getMissions` rend 400 pour un joueur inconnu, pas 404 ; le `payload` des événements `ANNONCE` (`action`, `missionId`, `rewardLingots`, `collected`, …) n'a pas de schéma dans l'OpenAPI, l'add-on le lit à l'aveugle ; le rôle `DIRECTEUR` du plan n'est pas modélisé (deux rôles, `SALARIE` et `CHEF`) ; `ratePerHour` et `factories[].ratePerHour` sont nets des salaires du personnel (dit dans la description du contrat, sans champ brut à côté) ; les routes du personnel publient elles aussi des `ANNONCE` génériques
 - [ ] Trous de `definitions/` : ni coût ni niveau de départ pour la remise en état d'une usine (le service prend les étapes gratuites et le niveau `prestige.departDeCourse.niveau`, `docs/economie.md`). **Le simulateur montre que ce trou compte** : avec une remise en état gratuite, la Scierie et la Mine profonde tombent à 0,08 h, le prestige 2 à 20,9 h, le prestige 3 à 48,5 h, la première étoile à 17,5 h, tous hors cible ; le tableur suppose un rachat payant. Deux cibles ont peu de marge (première amélioration : 13 s ; Mine profonde : 1 min)
 - [ ] La clé `decouverte` de `usines.json` (`depart`, `niveau-entreprise-N`, `epoque-N`, `apres-<usine>`) n'est pas lue par le service : rien ne révèle une usine, rien ne la rachète (pas de route). `EconomyEngine.isDiscovered` la lit maintenant (`apres-<usine>` = usine remise en état, à valider) ; la route de découverte et de rachat reste à écrire une fois le coût fixé
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
@@ -279,6 +280,14 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     Il lit `apres-<usine>` comme « usine remise en état » et suppose la remise en état instantanée, comme le
     tableur. `EconomyEngine` gagne `companyLevel` et `isDiscovered` (purs, testés), sans changer un calcul existant.
     À relire par Kr.
+33. **Le personnel sans tirage payant ni migration.** Tranché par la tranche de service avec la recommandation du
+    plan, détaillé dans `core/README.md` et `docs/economie.md` (« Le personnel ») : l'agence propose cinq candidats
+    par jour et par entreprise, tirés d'une suite figée par l'entreprise et la date (rejouable, rien à acheter) ;
+    tout membre embauche et affecte, seul le PDG renvoie, sans remboursement ; le prix d'embauche se lit sur le
+    revenu net du moment ; les bonus de production s'additionnent et les salaires se retiennent sur le revenu de
+    l'usine, donc `ratePerHour` est net ; les postes limitent l'entrée dans l'usine, pas la production ; le chef
+    d'équipe relève le plafond hors ligne de sa seule usine. Les tables de V1 suffisent : pas de migration.
+    À relire par Kr.
 
 ## À valider par Kr
 
@@ -305,6 +314,9 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   « Mission 0/1 » ou « Plus de mission ». Deux choix d'écran aussi : la bulle de fin passe par le tchat (la barre
   d'action est réécrite chaque seconde par le HUD) ; tant que `titleChannel` est à `false`, la consigne du HUD ne
   s'affiche pas et la mission se lit à Objectifs.
+- Les règles du personnel de la décision 33 (`core/README.md` et `docs/economie.md`, « Le personnel ») et les noms
+  et apparences des candidats de `definitions/personnel.json` (vingt-quatre prénoms, six apparences de salarié,
+  quatre de chef) : provisoires, l'add-on les affichera tels quels.
 - Tous les textes des écrans de l'add-on (`addon/src/ui/textes.ts`) : HUD, boussole « Menu », menu, liste des
   usines, fiche, Silo, et les bulles d'Oooscar (une par code `reason`). La liste avant / après est dans
   `addon/README.md`, section « Textes à valider » ; un test la compare au code. Deux choix d'écran à valider
@@ -451,3 +463,8 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   suppose un rachat payant), et `decouverte` n'est pas lue par le service. Décision 32. Lancées : l'écran de prestige
   et la carte des îles (`claude/phase4-addon-prestige-carte`), les commandes du jour et le Carnet
   (`claude/phase4-commandes`). Vérifier : `git log --oneline -3 origin/main`, `cd core && ./gradlew test --tests '*ThirteenTargets*'`.
+- **5 novembre 2026, 10 h 23 : direction, le personnel fusionné.** `claude/phase4-personnel` en avance rapide
+  (`5efe78f` : `staff/`, `definitions/personnel.json` et son schéma, 19 tests SQL en CI, `ratePerHour` net des
+  salaires). Relu : tirage figé par l'entreprise et la date (pas de hasard payant), filet 501 du test de contrat
+  déplacé vers `resolveIncident`, tests du simulateur adaptés sans perte. Décision 33. Vérifier :
+  `git log --oneline -3 origin/main`, `cd core && ./gradlew test --tests '*Staff*'`.

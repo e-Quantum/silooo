@@ -37,6 +37,9 @@ import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionStore
 import com.silooo.core.session.sessionRoutes
+import com.silooo.core.staff.JdbcStaffStore
+import com.silooo.core.staff.StaffStore
+import com.silooo.core.staff.staffRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -72,8 +75,10 @@ class Dependencies(
     val idempotency: Idempotency = Idempotency(database),
     /** Les accès SQL de `join` et `leave` ; déclaré avant [economyFigures], qui y lit les Lingots des membres. */
     val sessionStore: SessionStore = JdbcSessionStore(),
+    /** L'horloge du service : le jour de l'agence d'emploi et le calcul de la production s'y lisent. Un test la remplace pour avancer le temps. */
+    val clock: Clock = Clock.systemUTC(),
     /** Les chiffres de `join` (revenu, multiplicateur, seuil, hors ligne) : le moteur d'économie, sur [definitions]. */
-    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore),
+    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore, clock),
     /** Ce que la création d'une entreprise tire de `definitions/` : usines de départ, plafond hors ligne, grille des îles. */
     val companyBootstrap: CompanyBootstrap = DefinitionsBootstrap(economy, definitions),
     val eventStore: EventStore = JdbcEventStore(),
@@ -83,10 +88,10 @@ class Dependencies(
     val missionStore: MissionStore = JdbcMissionStore(),
     /** Les accès SQL de la commande mondiale du jour (`world_orders`, `world_order_contributions`), de sa prime et de ses événements. */
     val orderStore: OrderStore = JdbcOrderStore(),
-    /** L'horloge qui donne le jour de la commande mondiale (date UTC) ; les tests la remplacent par une horloge qu'ils avancent. */
-    val ordersClock: Clock = Clock.systemUTC(),
     /** Les accès SQL du Carnet de trouvailles (`player_findings`), de leur prime en Lingots et de leur événement. */
     val findingStore: FindingStore = JdbcFindingStore(),
+    /** Les accès SQL du personnel et de l'agence d'emploi (`staff`, `agency_candidates`). */
+    val staffStore: StaffStore = JdbcStaffStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
     val apiRequestRetention: Duration? = null,
 )
@@ -126,6 +131,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             missionRoutes(dependencies)
             orderRoutes(dependencies)
             findingRoutes(dependencies)
+            staffRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }

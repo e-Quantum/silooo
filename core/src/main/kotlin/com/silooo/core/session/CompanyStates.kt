@@ -43,6 +43,7 @@ fun buildCompanyState(
         )
     },
     zonesOwned = zonesOwned,
+    staff = figures.staff,
     island = Island(company.island.x, company.island.z),
     version = company.version,
 )

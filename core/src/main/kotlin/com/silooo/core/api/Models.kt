@@ -1,5 +1,9 @@
 package com.silooo.core.api
 
+import com.silooo.core.definitions.StaffRarity
+import com.silooo.core.definitions.StaffRole
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -39,6 +43,34 @@ data class Factory(
     val stoppedNoPower: Boolean = false,
 )
 
+/**
+ * Schéma `Staff` : un candidat du jour (`getCandidates`) ou un membre du personnel embauché (`CompanyState.staff`).
+ * Les champs que le schéma ne déclare pas nullables ne s'écrivent pas quand ils n'ont pas de valeur ; `factoryId`
+ * est nullable dans le contrat et s'écrit `null`. Tous les chiffres viennent du service : l'add-on les affiche.
+ */
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class Staff(
+    /** N'existe qu'une fois embauché. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val staffId: Long? = null,
+    /** N'existe que pour un candidat du jour (1 à 5). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val slot: Int? = null,
+    val name: String,
+    val skinId: String,
+    val role: StaffRole,
+    val rarity: StaffRarity,
+    /** Gain de production de la rareté, en pourcent de la production de l'usine où le membre travaille. */
+    val bonusPercent: Double,
+    /** Salaire du membre (rareté et rôle), en pourcent de la production de l'usine où il travaille. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val salaryPercent: Double? = null,
+    /** Ce que le salaire coûte à l'entreprise par heure de jeu, maintenant ; zéro sans usine active. Membre embauché seulement. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val salaryPerHour: Double? = null,
+    /** Le prix d'embauche, en Donar, d'un candidat encore libre. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val hireCost: Double? = null,
+    /** L'usine où le membre est affecté ; nul tant qu'il n'en a pas. */
+    val factoryId: String? = null,
+)
+
 /** Schéma `CompanyState.island` : l'origine de l'archipel de l'entreprise, en blocs (`archipelago_slots`). */
 @Serializable
 data class Island(val x: Int, val z: Int)
@@ -58,6 +90,7 @@ data class CompanyState(
     val threshold: Double,
     val factories: List<Factory>,
     val zonesOwned: List<Int>,
+    val staff: List<Staff> = emptyList(),
     val island: Island,
     val version: Int,
 )

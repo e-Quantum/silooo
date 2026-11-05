@@ -32,6 +32,7 @@ class DefinitionsLoaderTest {
     private val shopText = TestDefinitions.text(DefinitionsLoader.SHOP_FILE)
     private val worldText = TestDefinitions.text(DefinitionsLoader.WORLD_FILE)
     private val missionsText = TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE)
+    private val personnelText = TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
@@ -41,10 +42,11 @@ class DefinitionsLoaderTest {
         shop: String = shopText,
         world: String = worldText,
         missions: String = missionsText,
-    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions)
+        personnel: String = personnelText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world, missions, personnel)
 
     @Test
-    @DisplayName("Les cinq fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les six fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
@@ -53,6 +55,7 @@ class DefinitionsLoaderTest {
         assertEquals(fromText.shop, fromDirectory.shop)
         assertEquals(fromText.world, fromDirectory.world)
         assertEquals(fromText.missions, fromDirectory.missions)
+        assertEquals(fromText.personnel, fromDirectory.personnel)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -177,6 +180,66 @@ class DefinitionsLoaderTest {
         val none = JsonObject(root + ("missions" to JsonArray(emptyList()))).toString()
         val empty = assertThrows<DefinitionsException> { load(missions = none) }.message!!
         assertTrue(empty.contains("missions.json"), empty)
+    }
+
+    @Test
+    @DisplayName("Retirer n'importe quelle clé de personnel.json fait échouer le chargement")
+    fun everyPersonnelKeyIsRequired() {
+        val root = parseJson(personnelText)
+        val paths = root.keyPaths()
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("personnel.json sans ${path.joinToString(".")}") { load(personnel = damaged) }
+            assertTrue(error.message!!.contains("personnel.json"), error.message)
+        }
+    }
+
+    /** personnel.json avec la valeur au chemin [path] remplacée par [value]. */
+    private fun personnelWith(path: List<String>, value: JsonElement): String {
+        fun replace(node: JsonObject, rest: List<String>): JsonObject =
+            JsonObject(node + (rest.first() to if (rest.size == 1) value else replace(node.getValue(rest.first()).jsonObject, rest.drop(1))))
+        return replace(parseJson(personnelText), path).toString()
+    }
+
+    private fun strings(vararg values: String) = JsonArray(values.map { JsonPrimitive(it) })
+
+    @Test
+    @DisplayName("Un personnel qui n'a pas de sens est refusé : parts qui ne font pas 100, salaire au-dessus du bonus, places sans rôle, trop peu de noms, apparence mal écrite")
+    fun personnelMustMakeSense() {
+        fun refused(path: List<String>, value: JsonElement, expected: String) {
+            val message = assertThrows<DefinitionsException>("${path.joinToString(".")} = $value") { load(personnel = personnelWith(path, value)) }.message!!
+            assertTrue(message.contains("personnel.json") && message.contains(expected), message)
+        }
+
+        refused(listOf("raretes", "COMMUN", "repartitionPourcent"), JsonPrimitive(74), "doivent faire 100")
+        refused(listOf("raretes", "COMMUN", "salairePourcent"), JsonPrimitive(10), "salaire")
+        refused(listOf("raretes", "RARE", "coutHeuresDeRevenu"), JsonPrimitive(0), "coutHeuresDeRevenu")
+        refused(listOf("agence", "candidatsParJour"), JsonPrimitive(6), "candidatsParJour")
+        refused(listOf("agence", "rolesParPlace"), strings("SALARIE", "CHEF"), "rolesParPlace")
+        refused(listOf("agence", "noms"), strings("Adèle", "Basile"), "agence.noms")
+        refused(listOf("agence", "noms"), strings("A", "A", "B", "C", "D", "E"), "agence.noms")
+        refused(listOf("agence", "apparences", "CHEF"), strings("Chef Veste"), "agence.apparences.CHEF")
+        refused(listOf("agence", "apparences", "SALARIE"), strings(), "agence.apparences.SALARIE")
+        refused(listOf("postes", "niveauxParPoste"), JsonPrimitive(0), "niveauxParPoste")
+        refused(listOf("chefEquipe", "plafondHorsLigneBonusHeures"), JsonPrimitive(-1), "plafondHorsLigneBonusHeures")
+        // Un rôle ou une rareté que le service ne connaît pas est refusé dès la lecture.
+        val unknown = JsonObject(parseJson(personnelText).getValue("roles").jsonObject + ("DIRECTEUR" to parseJson(personnelText).getValue("roles").jsonObject.getValue("CHEF")))
+        refused(listOf("roles"), unknown, "personnel.json")
+    }
+
+    @Test
+    @DisplayName("Les trois raretés, les deux rôles et leurs chiffres sont lus comme ils sont écrits")
+    fun personnelIsReadAsWritten() {
+        val loaded = load().personnel
+        assertEquals(setOf(StaffRarity.COMMUN, StaffRarity.RARE, StaffRarity.EPIQUE), loaded.rarities.keys)
+        assertEquals(setOf(StaffRole.SALARIE, StaffRole.CHEF), loaded.roles.keys)
+        assertEquals(loaded.agency.candidatesPerDay, loaded.agency.rolesPerSlot.size)
+        val root = parseJson(personnelText)
+        assertEquals(
+            root.getValue("raretes").jsonObject.getValue("RARE").jsonObject.getValue("bonusProductionPourcent").toString().toDouble(),
+            loaded.rarity(StaffRarity.RARE).productionBonusPercent,
+        )
     }
 
     @Test
@@ -362,6 +425,10 @@ class DefinitionsLoaderTest {
         assertTrue(noMissions.message!!.contains(DefinitionsLoader.MISSIONS_FILE), noMissions.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.MISSIONS_FILE), missionsText)
+        val noPersonnel = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noPersonnel.message!!.contains(DefinitionsLoader.PERSONNEL_FILE), noPersonnel.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.PERSONNEL_FILE), personnelText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
     }
 }

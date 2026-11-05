@@ -20,7 +20,6 @@ import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.Membership
-import com.silooo.core.session.Production
 import com.silooo.core.session.Regime
 import com.silooo.core.session.SessionStore
 import com.silooo.core.session.buildCompanyState
@@ -92,7 +91,7 @@ class CompanyService(
         if (production.at == company.lastCollectAt) {
             return Collected(0.0, 0.0, stateOf(connection, company, factories))
         }
-        val after = write(connection, company, production, spent = 0.0)
+        val after = writeProduction(connection, company, production, spent = 0.0)
         companies.publish(
             connection,
             EVENT_KIND,
@@ -135,7 +134,7 @@ class CompanyService(
             refuse(RefusalCodes.NOT_ENOUGH_DONAR, missing = (needed - balance).finiteOrMax())
         }
 
-        val after = write(connection, company, production, spent = quote.cost)
+        val after = writeProduction(connection, company, production, spent = quote.cost)
         val bought = factory.copy(level = quote.newLevel)
         companies.saveFactory(connection, companyId, factoryId, bought.state, bought.restoreStep, bought.level)
         companies.publish(
@@ -171,7 +170,7 @@ class CompanyService(
         if (step > factory.restoreStep + 1) refuse(RefusalCodes.FACTORY_LOCKED)
 
         val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
-        val after = write(connection, company, production, spent = 0.0)
+        val after = writeProduction(connection, company, production, spent = 0.0)
         val finished = step == LAST_RESTORE_STEP
         val restored = factory.copy(
             state = if (finished) FactoryState.ACTIVE else FactoryState.REMISE_EN_ETAT,
@@ -319,41 +318,12 @@ class CompanyService(
     }
 
     /** L'appartenance de l'acteur à l'entreprise, avec son rôle. Sinon [RequestRejected]. */
-    private fun membershipOf(connection: Connection, companyId: Long, actor: Xuid): Membership {
-        val membership = sessions.membershipOf(connection, actor)
-        if (membership == null || membership.companyId != companyId) {
-            throw RequestRejected("L'acteur $actor n'est pas membre de l'entreprise $companyId")
-        }
-        return membership
-    }
+    private fun membershipOf(connection: Connection, companyId: Long, actor: Xuid): Membership =
+        sessions.requireMembership(connection, companyId, actor)
 
     /** L'entreprise et ses usines, pour un acteur qui en est membre. Sinon [RequestRejected]. */
-    private fun loadForActor(connection: Connection, companyId: Long, actor: Xuid): Pair<CompanyRecord, List<FactoryRecord>> {
-        membershipOf(connection, companyId, actor)
-        return sessions.loadCompany(connection, companyId) to sessions.loadFactories(connection, companyId)
-    }
-
-    /**
-     * Verse [production] sur l'entreprise, retire [spent] du Donar et remet `last_collect_at` : UNE écriture, un seul
-     * changement de version. Rend la ligne telle qu'elle est maintenant, sans la relire.
-     *
-     * Le solde est calculé comme dans le devis de `buyLevels` (`donar + production`) avant le retrait : un achat jugé
-     * payable ne laisse jamais un Donar négatif, même à l'arrondi près.
-     */
-    private fun write(connection: Connection, company: CompanyRecord, production: Production, spent: Double): CompanyRecord {
-        val balance = company.donar + production.earned
-        val donar = balance - spent
-        val earned = company.donarEarned + production.earned
-        val version = updateCompany(
-            connection,
-            company.id,
-            company.version,
-            CompanyColumn.DONAR to donar,
-            CompanyColumn.DONAR_EARNED to earned,
-            CompanyColumn.LAST_COLLECT_AT to production.at,
-        )
-        return company.copy(donar = donar, donarEarned = earned, lastCollectAt = production.at, version = version)
-    }
+    private fun loadForActor(connection: Connection, companyId: Long, actor: Xuid): Pair<CompanyRecord, List<FactoryRecord>> =
+        sessions.loadForActor(connection, companyId, actor)
 
     private fun stateOf(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyState =
         buildCompanyState(company, factories, figures.forCompany(connection, company, factories), sessions.loadZones(connection, company.id))
@@ -364,15 +334,7 @@ class CompanyService(
     private fun List<FactoryRecord>.replacing(factory: FactoryRecord): List<FactoryRecord> =
         map { if (it.factoryId == factory.factoryId) factory else it }
 
-    /** Un montant manquant doit rester un nombre JSON : un prix qui sortirait des doubles vaut [Double.MAX_VALUE]. */
-    private fun Double.finiteOrMax(): Double = if (isFinite()) this else Double.MAX_VALUE
-
-    private fun event(action: String, companyId: Long, fill: JsonObjectBuilder.() -> Unit): JsonObject =
-        buildJsonObject {
-            put("action", action)
-            put("companyId", companyId)
-            fill()
-        }
+    private fun event(action: String, companyId: Long, fill: JsonObjectBuilder.() -> Unit): JsonObject = companyEvent(action, companyId, fill)
 
     companion object {
         /**

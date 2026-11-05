@@ -88,7 +88,7 @@ class OrderSqlTest {
         economyFigures = EngineFigures(engine, store, clock),
         companyBootstrap = DefinitionsBootstrap(engine, definitions),
         orderStore = orderStore,
-        ordersClock = clock,
+        clock = clock,
     )
 
     private fun join(xuid: Xuid): Long = runBlocking {

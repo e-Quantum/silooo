@@ -148,26 +148,26 @@ fun Route.companyRoutes(dependencies: Dependencies) {
 }
 
 /** `companyId` du chemin : un entier strictement positif (les identifiants de `companies` partent de 1). */
-private fun ApplicationCall.companyId(): Long? = parameters["companyId"]?.toLongOrNull()?.takeIf { it > 0 }
+internal fun ApplicationCall.companyId(): Long? = parameters["companyId"]?.toLongOrNull()?.takeIf { it > 0 }
 
 /** `factoryId` du chemin : non vide, et pas plus long que la colonne qui le garde. Que `usines.json` le connaisse, c'est au service de le dire. */
-private fun ApplicationCall.factoryId(): String? = parameters["factoryId"]?.takeIf { it.isNotBlank() && it.length <= FACTORY_ID_MAX_LENGTH }
+internal fun ApplicationCall.factoryId(): String? = parameters["factoryId"]?.takeIf { it.isNotBlank() && it.length <= FACTORY_ID_MAX_LENGTH }
 
-private fun companyUpdated(updated: CompanyUpdated): ActionResult =
+internal fun companyUpdated(updated: CompanyUpdated): ActionResult =
     ActionResult.ok(SiloooJson.encodeToJsonElement(CompanyUpdated.serializer(), updated))
 
 /**
  * Une [RequestRejected] devient la réponse 400 `REQUETE_INVALIDE`, rendue comme n'importe quelle réponse de l'action :
  * elle est gardée dans `api_requests` et rejouée. Rien n'a été écrit avant elle (le service vérifie d'abord).
  */
-private inline fun rejectable(action: () -> ActionResult): ActionResult =
+internal inline fun rejectable(action: () -> ActionResult): ActionResult =
     try {
         action()
     } catch (_: RequestRejected) {
         BAD_REQUEST
     }
 
-private val BAD_REQUEST = ActionResult(
+internal val BAD_REQUEST = ActionResult(
     HttpStatusCode.BadRequest,
     SiloooJson.encodeToJsonElement(ErrorBody.serializer(), ErrorBody(ErrorCodes.BAD_REQUEST)),
 )

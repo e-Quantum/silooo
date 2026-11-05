@@ -122,7 +122,7 @@ class OrderRoutesTest {
                     economyFigures = fixture.figures,
                     companyBootstrap = fixture.bootstrap,
                     orderStore = orders,
-                    ordersClock = fixture.clock,
+                    clock = fixture.clock,
                 ),
             )
         }
