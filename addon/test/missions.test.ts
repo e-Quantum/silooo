@@ -300,7 +300,7 @@ describe("missions : l'annonce d'une mission terminée", () => {
     assert.equal(api.calls.length, 3, "chaque annonce relit quand même : l'état du service fait foi");
   });
 
-  it("une mission déjà terminée à l'arrivée du joueur ne se redit pas (le curseur des événements repart de 0 au redémarrage)", async () => {
+  it("une mission déjà terminée à l'arrivée du joueur ne se redit pas (un curseur revenu à 0, sans magasin)", async () => {
     const { missions, said } = setup([ok({ current: null, completed: ["bienvenue-mairie"] })]);
     await missions.arrive(XUID);
     await missions.onAnnonce(missionAnnouncement(1, XUID));

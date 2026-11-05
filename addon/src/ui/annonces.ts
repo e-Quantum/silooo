@@ -6,9 +6,9 @@
 //     lue dans `endsAt` (et `startsAt` quand le boost attend le précédent), arrondie à la minute ;
 //   - `ANNONCE` `pionnier` : une bulle de bienvenue, une fois, et le titre est retenu pour l'en-tête du menu ;
 //   - `ANNONCE` `sansCourant` : une bulle d'Oooscar au joueur qui a remis l'usine en état, avec le nom de l'usine.
-// Le service garde les événements et l'add-on les relit depuis le début quand le serveur redémarre : les annonces d'un autre
-// temps sont donc reconnues quand elles portent une date (un boost fini ne se dit pas) ; une livraison de Gemmes rejouée se
-// redit, et son solde cède la place au suivant, qui arrive dans la même relecture.
+// Le service garde les événements et l'add-on les relit depuis le début quand son curseur gardé est perdu (monde neuf, magasin
+// illisible) : les annonces d'un autre temps sont donc reconnues quand elles portent une date (un boost fini ne se dit pas) ;
+// une livraison de Gemmes rejouée se redit, et son solde cède la place au suivant, qui arrive dans la même relecture.
 
 import type { Balances, GameEvent, Xuid } from "../protocol";
 import { PIONEER_COSMETIC_ID } from "../protocol";

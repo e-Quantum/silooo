@@ -27,7 +27,7 @@ export interface Missions {
   get(xuid: Xuid): MissionState | undefined;
   /**
    * À l'arrivée du joueur : lit ses missions et retient celles qu'il avait déjà terminées. Une annonce de l'une
-   * d'elles qui revient plus tard (le curseur des événements repart de 0 quand le serveur redémarre) ne dit rien.
+   * d'elles qui revient plus tard (événement relu parce que le curseur gardé a été perdu) ne dit rien.
    * Ne lève pas.
    */
   arrive(xuid: Xuid): Promise<void>;

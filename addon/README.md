@@ -14,12 +14,12 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/http.ts` | Client de silooo-core : résultats typés ok, refusé, erreur, réseau ; un seul nouvel essai, pour les GET (POST, PUT, PATCH et DELETE sont des écritures, jamais rejouées). |
 | `src/protocol.ts`, `src/api.ts` | Chemins, corps et lecture des réponses, conformes à `api/silooo-core.openapi.yaml`. |
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
-| `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
+| `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements, avec un curseur gardé entre deux démarrages. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
 | `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, réparation, associés, ville, boutique, pass, votes, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
 | `src/monde/` | Le monde : îles des usines, île principale (la ville), arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
-| `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
+| `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation, curseur des événements). Seul `main.ts` l'importe. |
 | `pack/entities/oooscar.json` | L'entité `silooo:oooscar`, copiée telle quelle dans `dist/pack/` par le build. Le côté client est dans `resource-pack/`. |
 | `src/generated/definitions.ts` | Types tirés de `definitions/`. Généré, ne pas éditer. |
 | `test/` | Tests de la logique, sans Bedrock. |
@@ -182,9 +182,9 @@ lectures d'un même joueur se suivent, une réponse qui arrive après le départ
 lecture précédente reste.
 
 L'annonce d'une mission terminée (`ANNONCE`, `missionId`, `rewardLingots`) : Oooscar la dit dans le tchat du joueur,
-la bulle de fin de la mission puis les Lingots que le payload donne, et les missions sont relues. Le curseur des
-événements repart de 0 quand BDS redémarre : l'add-on retient les missions déjà terminées à l'arrivée du joueur et ne
-redit pas une annonce déjà dite pendant sa visite.
+la bulle de fin de la mission puis les Lingots que le payload donne, et les missions sont relues. Si le curseur
+des événements est perdu, les événements sont relus depuis le début : l'add-on retient les missions déjà terminées à
+l'arrivée du joueur et ne redit pas une annonce déjà dite pendant sa visite.
 
 ### La carte et le prestige
 
@@ -463,8 +463,9 @@ une fois, quand son `day` est le jour (UTC) d'aujourd'hui.
   ou quand l'annonce l'a appris. L'objet « Pionnier » n'existe pas côté service : l'add-on ne le donne pas.
 - `ANNONCE` `sansCourant` : une bulle d'Oooscar, puis le nom de l'usine arrêtée faute de courant, au joueur que l'événement vise.
 
-Le service garde les événements, et le curseur de l'add-on repart de 0 quand le script se recharge : les livraisons de Gemmes,
-les votes et le titre de pionnier, qui n'ont pas de date, se redisent alors. Le boost fini et la Vote party d'un autre jour
+Le service garde les événements, et le curseur de l'add-on est gardé dans la propriété dynamique `silooo:events-cursor` du
+monde : un redémarrage de BDS ne rejoue rien. Si ce curseur est perdu (monde neuf, propriété illisible), les livraisons de
+Gemmes, les votes et le titre de pionnier, qui n'ont pas de date, se redisent. Le boost fini et la Vote party d'un autre jour
 sont reconnus par leurs dates et se taisent. Le solde de Gemmes d'une livraison rejouée cède la place au suivant, qui arrive
 dans la même relecture.
 
@@ -1102,8 +1103,8 @@ Au contrat (`api/`, non modifié par cette tranche) :
 
 - Pas de route pour quitter une entreprise, ni pour retirer un associé, ni pour lister les invitations en attente : une
   invitation n'arrive que par l'événement `INVITATION`. Une invitation reçue pendant que le service était arrêté, ou avant
-  le dernier redémarrage de l'add-on, n'est vue que si l'événement est relu (le curseur repart de 0 au redémarrage du
-  service) ou si elle est encore dans la mémoire de l'add-on.
+  le dernier redémarrage de l'add-on, n'est vue que si elle est encore dans la mémoire de l'add-on ou si l'événement est relu
+  (le curseur survit au redémarrage : seulement s'il est perdu).
 - Les `ANNONCE` d'un `setShares` ou d'un `acceptInvite` ne vont qu'à celui qui a agi : les autres membres ne sont pas
   prévenus du changement de parts. Ils voient la liste à jour à la prochaine ouverture de l'écran ASSOCIÉS.
 - L'identifiant (XUID) d'un joueur est encore provisoire (`identity.ts`, un hachage du nom) : l'invitation ne vise le bon
@@ -1152,9 +1153,9 @@ Au contrat (`api/`, non modifié par cette tranche) :
   écrits dans `BOUTIQUE_TEXTES.rayons`.
 - La boutique du site, où l'on achète les Gemmes, n'a pas d'adresse dans le contrat ni dans `definitions/` : l'écran dit « sur la
   boutique du site » sans lien.
-- Le curseur des événements repart de 0 quand le script se recharge : les livraisons de Gemmes, les votes et le titre de
-  pionnier, qui n'ont pas de date, se redisent. Un solde de Gemmes rejoué cède la place au suivant, qui arrive dans la même
-  relecture.
+- Le curseur des événements est gardé dans le monde ; s'il est perdu (monde neuf, propriété illisible), les livraisons de
+  Gemmes, les votes et le titre de pionnier, qui n'ont pas de date, se redisent. Un solde de Gemmes rejoué cède la place au
+  suivant, qui arrive dans la même relecture.
 
 Au design system :
 
@@ -1227,6 +1228,8 @@ Au design system :
 - Le don de l'objet au tout premier tick : le délai de `config.ui.menuItemDelaySeconds` est une hypothèse.
 - Un formulaire envoyé à un joueur qui vient de partir.
 - Les signes `§` dans les boutons des formulaires.
+- Le curseur des événements : la propriété dynamique `silooo:events-cursor` du monde se lit à la première lecture (le script se
+  charge avant que le monde soit lisible), s'écrit à chaque page qui avance, et un redémarrage de BDS ne rejoue aucune annonce.
 - Les îles : le délai de chargement d'une ticking area, la pose par lots sans à-coup, l'orientation du panneau mural
   d'après `facing_direction`, le sort de l'île quand la zone est déchargée.
 - La caméra : le cadrage de chaque plan, le glissé (`easeOptions`), les fondus qui cachent les coupes, le masquage du
@@ -1244,12 +1247,12 @@ Au design system :
   le DELETE n'a pas de corps, `requestId` et `actor` sont dans l'URL ; la longueur des formulaires de membre et de
   candidat (sept à neuf lignes, retours à la ligne), les tuiles de membre à deux lignes, les repères `[M]` et `[R]`, les
   codes de couleur `§7`, `§9` et `§e` du nom selon la rareté, et la relecture de l'agence à chaque ouverture.
-- Les incidents : l'événement `INCIDENT` reçu pour un joueur qui vient de se connecter (le curseur des événements
-  repart de 0), le formulaire du mini-jeu (cinq lignes, retour à la ligne de la consigne), le code de couleur de la
+- Les incidents : l'événement `INCIDENT` reçu pour un joueur qui vient de se connecter (publié à ce moment-là), le
+  formulaire du mini-jeu (cinq lignes, retour à la ligne de la consigne), le code de couleur de la
   sorte, et `player.sendMessage` à trois lignes.
 - Les missions : `player.sendMessage` avec les codes `§` pour la bulle de fin, la tuile Objectifs à deux lignes, la
   lecture des missions à l'arrivée pendant la cinématique, et une `ANNONCE` reçue pour un joueur qui vient de se
-  connecter (le curseur des événements repart de 0 au redémarrage de BDS).
+  connecter (publiée à ce moment-là).
 - La ville : la position du joueur (`locate`) et sa conversion en parcelle ; les marques de la ville en deux propriétés
   dynamiques du monde (celle des îles et celle de la ville) ; le panneau mural de l'enseigne (`facing_direction`, texte
   à trois lignes, orientation selon la rotation) ; le chargement des bandes d'une plateforme de 128 blocs et la pose à
@@ -1258,7 +1261,7 @@ Au design system :
 
 - La boutique et le pass : la longueur des formulaires (huit tuiles à deux lignes, la fiche d'un article, la fiche d'un palier
   de sept lignes), les repères `[B]`, `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]`, une bulle de `GEMMES_RECUES` reçue par un joueur qui
-  vient de se connecter (le curseur des événements repart de 0), la ligne de tchat du boost collectif envoyée à tous, et le
+  vient de se connecter (publiée à ce moment-là), la ligne de tchat du boost collectif envoyée à tous, et le
   rappel du vote à l'arrivée pendant la cinématique.
 
 ## Points ouverts

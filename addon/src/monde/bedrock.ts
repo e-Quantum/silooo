@@ -1,7 +1,7 @@
 // Le monde réel : tout ce que la partie « monde » de l'add-on touche de @minecraft/server passe par ce fichier, et
 // seul main.ts l'importe. Chaque enveloppe est mince : elle traduit un port du code testable (BlockWriter, MarkStore,
-// OooscarWorld, CinematicStage, ArrivalWorld) en appels de la Script API, sans rien décider. Ce fichier ne se teste
-// pas hors d'un vrai serveur Bedrock ; la liste de ce qu'il faut y vérifier est dans addon/README.md.
+// OooscarWorld, CinematicStage, ArrivalWorld, CursorStore) en appels de la Script API, sans rien décider. Ce fichier ne
+// se teste pas hors d'un vrai serveur Bedrock ; la liste de ce qu'il faut y vérifier est dans addon/README.md.
 
 import {
   BlockPermutation,
@@ -17,6 +17,7 @@ import {
   type Vector3,
 } from "@minecraft/server";
 import { config } from "../config";
+import type { CursorStore } from "../events";
 import { secondsToTicks } from "../runtime";
 import type { ArrivalWorld } from "./arrivee";
 import type { CinematicStage } from "./cinematique";
@@ -114,6 +115,23 @@ export function createMarkStore(): MarkStore {
       for (const [key, mark] of Object.entries(marks)) (key.startsWith(CITY_KEY_PREFIX) ? city : islands)[key] = mark;
       world.setDynamicProperty(`${MARK_PREFIX}${companyId}`, JSON.stringify(islands));
       world.setDynamicProperty(`${CITY_MARK_PREFIX}${companyId}`, JSON.stringify(city));
+    },
+  };
+}
+
+// ---------------------------------------------------------------- curseur des événements
+
+/** Le curseur de la lecture des événements : un nombre, dans une propriété dynamique du monde, pour survivre au redémarrage. */
+const EVENTS_CURSOR_PROPERTY = "silooo:events-cursor";
+
+export function createEventsCursorStore(): CursorStore {
+  return {
+    load() {
+      const raw = world.getDynamicProperty(EVENTS_CURSOR_PROPERTY);
+      return typeof raw === "number" ? raw : 0;
+    },
+    save(cursor) {
+      world.setDynamicProperty(EVENTS_CURSOR_PROPERTY, cursor);
     },
   };
 }
