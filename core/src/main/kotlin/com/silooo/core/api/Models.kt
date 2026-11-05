@@ -105,3 +105,11 @@ data class GameEvent(val id: Long, val xuid: String?, val kind: String, val payl
 /** La réponse 200 de `pollEvents`. */
 @Serializable
 data class EventsPage(val cursor: Long, val events: List<GameEvent>)
+
+/** Schéma `Mission` : la mission en cours du joueur. Les textes sont ceux de l'add-on, retrouvés par [id]. */
+@Serializable
+data class Mission(val id: String, val progress: Int, val target: Int, val rewardLingots: Long)
+
+/** Schéma `MissionState` : [current] est la première mission pas terminée (`null` quand toutes le sont), [completed] les terminées. */
+@Serializable
+data class MissionState(val current: Mission?, val completed: List<String>)

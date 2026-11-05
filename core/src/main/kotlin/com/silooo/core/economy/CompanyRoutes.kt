@@ -10,6 +10,7 @@ import com.silooo.core.api.SiloooJson
 import com.silooo.core.api.idempotent
 import com.silooo.core.api.respondError
 import com.silooo.core.api.respondJson
+import com.silooo.core.mission.MissionService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -66,6 +67,7 @@ fun Route.companyRoutes(dependencies: Dependencies) {
         companies = dependencies.companyStore,
         engine = dependencies.economy,
         figures = dependencies.economyFigures,
+        missions = MissionService(dependencies.definitions, dependencies.missionStore),
     )
 
     get("/companies/{companyId}") {

@@ -23,6 +23,7 @@ import com.silooo.core.events.EVENTS_DEFAULT_LIMIT
 import com.silooo.core.events.EVENTS_MAX_LIMIT
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.events.InMemoryEventStore
+import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.GAMERTAG_MAX_LENGTH
 import com.silooo.core.session.InMemorySessionStore
@@ -98,7 +99,7 @@ class ContractTest {
      * routes d'économie écrivent l'entreprise par `updateCompany`, qu'une connexion qui note les écritures suffit à
      * satisfaire ; `join` et `pollEvents` n'y touchent jamais.
      */
-    private fun contractDependencies(sessions: InMemorySessionStore, economy: TestEconomy): Dependencies {
+    private fun contractDependencies(sessions: InMemorySessionStore, economy: TestEconomy, missions: InMemoryMissionStore): Dependencies {
         val database = RecordingDatabase()
         return Dependencies(
             database = database,
@@ -110,6 +111,7 @@ class ContractTest {
             sessionStore = sessions,
             eventStore = InMemoryEventStore(events),
             companyStore = InMemoryCompanyStore(sessions),
+            missionStore = missions,
         )
     }
 
@@ -120,13 +122,16 @@ class ContractTest {
     private fun withService(
         operationId: String? = null,
         extraSeed: (InMemorySessionStore) -> Unit = {},
+        inspect: (InMemorySessionStore, InMemoryMissionStore) -> Unit = { _, _ -> },
         block: suspend ApplicationTestBuilder.() -> Unit,
     ) = testApplication {
         val sessions = InMemorySessionStore()
         val economy = TestEconomy()
         if (operationId != null) seedFor(operationId, sessions, economy)
         extraSeed(sessions)
-        application { siloooModule(contractDependencies(sessions, economy)) }
+        val missions = InMemoryMissionStore(sessions)
+        inspect(sessions, missions)
+        application { siloooModule(contractDependencies(sessions, economy, missions)) }
         block()
     }
 
@@ -136,6 +141,11 @@ class ContractTest {
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
     private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy) {
+        if (operationId == "getMissions") {
+            // Un joueur déjà inscrit, sans entreprise : les missions ne dépendent que de lui.
+            sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
+            return
+        }
         val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
@@ -399,6 +409,8 @@ class ContractTest {
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
+        // Un XUID mal formé, trop long, ou d'un joueur que le service ne connaît pas.
+        val badMissionUrls = listOf("/v1/players/abc/missions", "/v1/players/-1/missions", "/v1/players/123456789012345678901/missions", "/v1/players/$krXuid/missions")
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         return operations.filter { it.id in bad }.flatMap { op ->
@@ -409,6 +421,8 @@ class ContractTest {
             dynamicTest("getCompany : $url") { assertBadRequest(operations.single { it.id == "getCompany" }, url, null) }
         } + badCompanyUrls.map { url ->
             dynamicTest("prestigePreview : $url") { assertBadRequest(operations.single { it.id == "prestigePreview" }, "$url/prestige/preview", null) }
+        } + badMissionUrls.map { url ->
+            dynamicTest("getMissions : $url") { assertBadRequest(operations.single { it.id == "getMissions" }, url, null) }
         } + queries.map { query ->
             dynamicTest("pollEvents : $query") { assertBadRequest(operations.single { it.id == "pollEvents" }, "/v1/events$query", null) }
         }
@@ -528,6 +542,63 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("getMissions : le corps suit MissionState ; au départ la mission de bienvenue à zéro, avec la cible et la récompense de definitions/")
+    fun missions() = withService("getMissions") {
+        val first = TestDefinitions.loaded.missions.missions.first()
+        val reward = TestDefinitions.loaded.missionRewards.getValue(first.id)
+
+        val response = send("GET", "/v1/players/$krXuid/missions")
+        val body = response.bodyAsText()
+        assertEquals(200, response.status.value, body)
+        assertConforms(contract.schema("MissionState"), body, "getMissions")
+        val json = parse(body).jsonObject
+        val current = json.getValue("current").jsonObject
+        assertEquals(first.id, current.getValue("id").jsonPrimitive.content)
+        assertEquals("0", current.getValue("progress").jsonPrimitive.content)
+        assertEquals(first.target.toString(), current.getValue("target").jsonPrimitive.content)
+        assertEquals(reward.toString(), current.getValue("rewardLingots").jsonPrimitive.content)
+        assertEquals(0, json.getValue("completed").jsonArray.size)
+        assertEquals(body, send("GET", "/v1/players/$krXuid/missions").bodyAsText(), "lue deux fois : la même réponse, rien n'est écrit")
+    }
+
+    @Test
+    @DisplayName("collect : un encaissement qui rapporte termine la mission de bienvenue, verse ses Lingots une seule fois et publie un événement")
+    fun collectFinishesTheWelcomeMission() {
+        val first = TestDefinitions.loaded.missions.missions.first()
+        val reward = TestDefinitions.loaded.missionRewards.getValue(first.id)
+        val owner = Xuid.parse(krXuid)!!
+        lateinit var sessions: InMemorySessionStore
+        lateinit var missions: InMemoryMissionStore
+        withService("collect", inspect = { s, m -> sessions = s; missions = m }) {
+            val url = "/v1/companies/1/collect"
+            val collected = send("POST", url, """{"requestId":"$ID","actor":"$krXuid"}""")
+            assertEquals(200, collected.status.value, collected.bodyAsText())
+
+            val state = send("GET", "/v1/players/$krXuid/missions")
+            val body = state.bodyAsText()
+            assertConforms(contract.schema("MissionState"), body, "getMissions après collect")
+            val json = parse(body).jsonObject
+            val next = json.getValue("current").let { if (it is JsonObject) it.getValue("id").jsonPrimitive.content else null }
+            assertEquals(TestDefinitions.loaded.missions.missions.getOrNull(1)?.id, next, "la mission en cours est la suivante du catalogue, ou aucune")
+            assertEquals(listOf(first.id), json.getValue("completed").jsonArray.map { it.jsonPrimitive.content })
+
+            assertEquals(reward, sessions.balances.getValue(owner).lingots)
+            assertEquals(listOf(InMemoryMissionStore.Credit(owner, reward, "mission", first.id)), missions.credits)
+            val event = missions.published.single()
+            assertEquals(owner, event.xuid)
+            assertEquals("mission", event.payload.getValue("action").jsonPrimitive.content)
+            assertEquals(first.id, event.payload.getValue("missionId").jsonPrimitive.content)
+            assertEquals(reward.toString(), event.payload.getValue("rewardLingots").jsonPrimitive.content)
+
+            // Rejoué avec le même requestId, puis un second encaissement qui rapporte : une mission terminée ne se rejoue pas.
+            assertEquals(200, send("POST", url, """{"requestId":"$ID","actor":"$krXuid"}""").status.value)
+            assertEquals(200, send("POST", url, """{"requestId":"6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e91","actor":"$krXuid"}""").status.value)
+            assertEquals(1, missions.credits.count { it.refId == first.id })
+            assertEquals(1, missions.published.count { it.payload.getValue("missionId").jsonPrimitive.content == first.id })
+        }
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -546,7 +617,7 @@ class ContractTest {
         val WRITTEN = mapOf(
             "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
-            "prestigePreview" to 200, "prestige" to 200,
+            "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
         )
 
         /**

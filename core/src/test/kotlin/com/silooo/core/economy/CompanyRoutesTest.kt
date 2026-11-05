@@ -18,6 +18,7 @@ import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.FactoryRecord
@@ -62,6 +63,8 @@ class CompanyRoutesTest {
         val fixture: EngineFixture,
         val database: RecordingDatabase,
         val companies: InMemoryCompanyStore,
+        /** Les missions des joueurs, en mémoire : un encaissement qui rapporte avance la mission en cours. */
+        val missions: InMemoryMissionStore,
         /** La présence que `join` interroge, sur l'horloge du test : un signal de vie se périme quand le test avance le temps. */
         val presence: ServerPresence,
     ) {
@@ -118,6 +121,7 @@ class CompanyRoutesTest {
         val fixture = EngineFixture()
         val database = RecordingDatabase(fixture.recording)
         val companies = InMemoryCompanyStore(fixture.store)
+        val missions = InMemoryMissionStore(fixture.store)
         val presence = ServerPresence(clock = fixture.clock)
         application {
             siloooModule(
@@ -131,11 +135,12 @@ class CompanyRoutesTest {
                     economyFigures = fixture.figures,
                     companyBootstrap = fixture.bootstrap,
                     companyStore = companies,
+                    missionStore = missions,
                     serverPresence = presence,
                 ),
             )
         }
-        block(Harness(fixture, database, companies, presence))
+        block(Harness(fixture, database, companies, missions, presence))
     }
 
     // --- outils

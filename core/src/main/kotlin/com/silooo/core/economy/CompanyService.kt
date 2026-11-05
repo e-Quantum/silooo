@@ -12,7 +12,9 @@ import com.silooo.core.api.refuse
 import com.silooo.core.db.CompanyColumn
 import com.silooo.core.db.Xuid
 import com.silooo.core.db.updateCompany
+import com.silooo.core.definitions.MissionEvent
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.MissionService
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryRecord
@@ -67,6 +69,7 @@ class CompanyService(
     private val companies: CompanyStore,
     private val engine: EconomyEngine,
     private val figures: EconomyFigures,
+    private val missions: MissionService,
 ) {
     private val knownFactories: Set<String> = engine.factoryIds().toSet()
 
@@ -97,6 +100,8 @@ class CompanyService(
                 put("offlineHours", production.countedHours)
             },
         )
+        // Un encaissement qui rapporte du Donar compte pour la mission en cours ; la même transaction l'écrit ou l'annule.
+        if (production.earned > 0.0) missions.record(connection, actor, MissionEvent.COLLECT)
         return Collected(production.earned, production.countedHours, stateOf(connection, after, factories))
     }
 

@@ -21,6 +21,9 @@ import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.EventStore
 import com.silooo.core.events.JdbcEventStore
 import com.silooo.core.events.eventsRoutes
+import com.silooo.core.mission.JdbcMissionStore
+import com.silooo.core.mission.MissionStore
+import com.silooo.core.mission.missionRoutes
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.server.serverRoutes
 import com.silooo.core.session.CompanyBootstrap
@@ -69,6 +72,8 @@ class Dependencies(
     val eventStore: EventStore = JdbcEventStore(),
     /** Les accès SQL des routes d'économie (existence d'une entreprise, écriture d'une usine, événements). */
     val companyStore: CompanyStore = JdbcCompanyStore(),
+    /** Les accès SQL des missions (`player_missions`), de leur récompense en Lingots et de leur événement. */
+    val missionStore: MissionStore = JdbcMissionStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
     val apiRequestRetention: Duration? = null,
 )
@@ -105,6 +110,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             sessionRoutes(dependencies)
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
+            missionRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }
