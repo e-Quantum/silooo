@@ -2,7 +2,7 @@
 // montré (`Screen`), et les petites pièces qui les fabriquent. Aucun écran ici : menu.ts et personnel.ts les
 // dessinent, createMenu les enchaîne. Ce fichier ne calcule rien et n'importe rien de Bedrock.
 
-import { RESTORE_STEP_MAX, type BuyAmount, type Factory } from "../protocol";
+import { RESTORE_STEP_MAX, type BuyAmount, type Factory, type Xuid } from "../protocol";
 import { COLOR, colored, ICON } from "./apparence";
 import type { ActionFormSpec } from "./formulaires";
 import { formatCount, formatRate } from "./nombres";
@@ -35,7 +35,13 @@ export type Route =
   | { readonly screen: "agence" }
   | { readonly screen: "candidat"; readonly slot: number }
   /** Le choix de l'usine d'un candidat qu'on embauche. */
-  | { readonly screen: "embauche"; readonly slot: number; readonly page: number };
+  | { readonly screen: "embauche"; readonly slot: number; readonly page: number }
+  /** Les associés de l'entreprise, les invitations reçues, et ce que le PDG peut faire (associes.ts). */
+  | { readonly screen: "associes" }
+  /** Le choix du joueur à inviter, parmi les joueurs connectés. */
+  | { readonly screen: "inviter"; readonly page: number }
+  /** Une invitation reçue, avec Accepter et Plus tard. */
+  | { readonly screen: "invitation"; readonly companyId: number };
 
 /** Ce que fait un bouton. */
 export type Target =
@@ -55,6 +61,12 @@ export type Target =
   | { readonly kind: "assign"; readonly staffId: number; readonly factoryId: string }
   /** Renvoie un membre. Le bouton n'existe que sur l'écran de confirmation. */
   | { readonly kind: "fire"; readonly staffId: number }
+  /** Invite un joueur dans l'entreprise du joueur. */
+  | { readonly kind: "invite"; readonly targetXuid: Xuid }
+  /** Ouvre le formulaire des parts : un champ par membre. */
+  | { readonly kind: "parts" }
+  /** Accepte l'invitation de l'entreprise `companyId`. */
+  | { readonly kind: "accept"; readonly companyId: number }
   /** Ferme le menu. */
   | { readonly kind: "end" };
 

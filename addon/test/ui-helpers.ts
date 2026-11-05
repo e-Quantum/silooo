@@ -16,12 +16,13 @@ import type {
   JoinResponse,
   MissionState,
   PrestigePreview,
+  ShareInput,
   Xuid,
 } from "../src/protocol";
 import type { Clock } from "../src/runtime";
 import { createPlayerStore, type PlayerStore } from "../src/state";
 import { createViewStore, type ViewStore } from "../src/ui/etat";
-import type { ActionFormSpec, FormAnswer, FormPresenter } from "../src/ui/formulaires";
+import type { ActionFormSpec, FormAnswer, FormPresenter, ModalAnswer, ModalFormSpec } from "../src/ui/formulaires";
 import { balances, companyState, joinResponse, missionState, ok } from "./helpers";
 
 export interface FakeClock extends Clock {
@@ -69,7 +70,19 @@ export function joinOf(store: PlayerStore): JoinResponse {
 
 export type Company = Pick<
   CoreApi,
-  "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview" | "getCandidates" | "hire" | "assignStaff" | "fireStaff"
+  | "getCompany"
+  | "collect"
+  | "buyLevels"
+  | "restoreStep"
+  | "prestige"
+  | "prestigePreview"
+  | "getCandidates"
+  | "hire"
+  | "assignStaff"
+  | "fireStaff"
+  | "invite"
+  | "setShares"
+  | "acceptInvite"
 >;
 
 export type Call =
@@ -82,7 +95,10 @@ export type Call =
   | { readonly op: "getCandidates"; readonly companyId: number }
   | { readonly op: "hire"; readonly companyId: number; readonly slot: number; readonly action: ActionBase; readonly factoryId: string | undefined }
   | { readonly op: "assignStaff"; readonly companyId: number; readonly staffId: number; readonly action: ActionBase; readonly factoryId: string }
-  | { readonly op: "fireStaff"; readonly companyId: number; readonly staffId: number; readonly action: ActionBase };
+  | { readonly op: "fireStaff"; readonly companyId: number; readonly staffId: number; readonly action: ActionBase }
+  | { readonly op: "invite"; readonly companyId: number; readonly action: ActionBase; readonly targetXuid: Xuid }
+  | { readonly op: "setShares"; readonly companyId: number; readonly action: ActionBase; readonly shares: readonly ShareInput[] }
+  | { readonly op: "acceptInvite"; readonly companyId: number; readonly action: ActionBase };
 
 export interface Script {
   getCompany?: Array<ApiResult<CompanyState>>;
@@ -95,6 +111,9 @@ export interface Script {
   hire?: Array<ApiResult<CompanyUpdated>>;
   assignStaff?: Array<ApiResult<CompanyUpdated>>;
   fireStaff?: Array<ApiResult<CompanyUpdated>>;
+  invite?: Array<ApiResult<CompanyUpdated>>;
+  setShares?: Array<ApiResult<CompanyUpdated>>;
+  acceptInvite?: Array<ApiResult<CompanyUpdated>>;
 }
 
 export interface FakeCompany extends Company {
@@ -150,6 +169,18 @@ export function fakeCompany(script: Script = {}): FakeCompany {
     fireStaff(companyId, staffId, action) {
       calls.push({ op: "fireStaff", companyId, staffId, action });
       return next("fireStaff", script.fireStaff);
+    },
+    invite(companyId, action, targetXuid) {
+      calls.push({ op: "invite", companyId, action, targetXuid });
+      return next("invite", script.invite);
+    },
+    setShares(companyId, action, shares) {
+      calls.push({ op: "setShares", companyId, action, shares });
+      return next("setShares", script.setShares);
+    },
+    acceptInvite(companyId, action) {
+      calls.push({ op: "acceptInvite", companyId, action });
+      return next("acceptInvite", script.acceptInvite);
     },
   };
 }
@@ -212,22 +243,45 @@ export function press(text: string): Reply {
 export const close: Reply = () => ({ kind: "closed" });
 export const busy: Reply = () => ({ kind: "busy" });
 
+/** La réponse du joueur à un formulaire de champs de texte. */
+export type FormReply = (spec: ModalFormSpec) => ModalAnswer | Promise<ModalAnswer>;
+
+/** Envoie le formulaire avec ces valeurs, une par champ. */
+export function submit(...values: string[]): FormReply {
+  return () => ({ kind: "submitted", values });
+}
+
+export const closeForm: FormReply = () => ({ kind: "closed" });
+export const busyForm: FormReply = () => ({ kind: "busy" });
+
 export interface FakePresenter extends FormPresenter<{ readonly name: string }> {
   /** Chaque écran montré, dans l'ordre. */
   readonly shown: ActionFormSpec[];
+  /** Chaque formulaire de champs montré, dans l'ordre. */
+  readonly asked: ModalFormSpec[];
 }
 
-/** Répond aux écrans dans l'ordre prévu ; un écran de trop est une erreur du test. */
-export function fakePresenter(replies: readonly Reply[]): FakePresenter {
+/** Répond aux écrans dans l'ordre prévu, et aux formulaires dans l'ordre de `forms` ; un écran de trop est une erreur du test. */
+export function fakePresenter(replies: readonly Reply[], forms: readonly FormReply[] = []): FakePresenter {
   const shown: ActionFormSpec[] = [];
+  const asked: ModalFormSpec[] = [];
   let index = 0;
+  let formIndex = 0;
   return {
     shown,
+    asked,
     async show(_player, spec) {
       shown.push(spec);
       const reply = replies[index];
       index += 1;
       if (reply === undefined) throw new Error(`écran imprévu : ${spec.title}`);
+      return reply(spec);
+    },
+    async ask(_player, spec) {
+      asked.push(spec);
+      const reply = forms[formIndex];
+      formIndex += 1;
+      if (reply === undefined) throw new Error(`formulaire imprévu : ${spec.title}`);
       return reply(spec);
     },
   };

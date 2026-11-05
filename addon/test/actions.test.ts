@@ -20,12 +20,15 @@ import {
 
 const BASE = { version: 1, donar: 100, ratePerHour: 3_600, factories: [factory({ level: 3 })] } as const;
 
-/** Les routes du personnel, que les faux de ces tests n'attendent pas. */
+/** Les routes du personnel et de l'entreprise partagée, que les faux de ces tests n'attendent pas. */
 const INUTILES = {
   getCandidates: () => Promise.reject(new Error("inutile")),
   hire: () => Promise.reject(new Error("inutile")),
   assignStaff: () => Promise.reject(new Error("inutile")),
   fireStaff: () => Promise.reject(new Error("inutile")),
+  invite: () => Promise.reject(new Error("inutile")),
+  setShares: () => Promise.reject(new Error("inutile")),
+  acceptInvite: () => Promise.reject(new Error("inutile")),
 };
 
 function setup(script: Script, state = BASE) {
@@ -675,6 +678,9 @@ describe("renvoyer un membre", () => {
       getCandidates: () => Promise.resolve(ok([candidate()])),
       assignStaff: () => Promise.reject(new Error("inutile")),
       fireStaff: () => Promise.reject(new Error("inutile")),
+      invite: () => Promise.reject(new Error("inutile")),
+      setShares: () => Promise.reject(new Error("inutile")),
+      acceptInvite: () => Promise.reject(new Error("inutile")),
       hire: () =>
         new Promise<ApiResult<CompanyUpdated>>((resolve) => {
           envois += 1;

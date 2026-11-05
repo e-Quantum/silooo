@@ -13,10 +13,16 @@
 //
 // Après un encaissement réussi, `afterCollect` est appelé : c'est le moment où le service a pu faire avancer la
 // mission en cours (ui/missions.ts relit alors les missions). Ce qu'il rend ne change rien au résultat de l'action.
+//
+// L'entreprise partagée : inviter et fixer les parts passent par l'entreprise du joueur, comme les autres actions.
+// Accepter une invitation s'adresse à l'entreprise qui invite, pas à celle du joueur : la réponse est l'état de la
+// nouvelle entreprise, et la vue du joueur la prend sans comparer les versions (ViewStore.switchCompany). Sur un
+// conflit, il n'y a pas d'état à recharger (celui de l'entreprise du joueur n'y est pour rien) : l'action est
+// rejouée une fois, avec le même `requestId`.
 
 import type { CoreApi } from "../api";
 import { describeFailure, type ApiResult } from "../http";
-import type { ActionBase, BuyAmount, Candidate, PrestigePreview, Xuid } from "../protocol";
+import type { ActionBase, BuyAmount, Candidate, PrestigePreview, ShareInput, Xuid } from "../protocol";
 import { describeError, type Logger } from "../runtime";
 import type { ViewStore, ViewUpdate } from "./etat";
 
@@ -33,6 +39,12 @@ export type ActionOutcome =
   | { readonly kind: "hired" }
   | { readonly kind: "assigned" }
   | { readonly kind: "fired" }
+  /** L'invitation est partie : la liste des associés ne change qu'à l'acceptation. */
+  | { readonly kind: "invited" }
+  /** Les parts sont fixées : la vue du joueur a la liste des associés du service. */
+  | { readonly kind: "sharesSet" }
+  /** L'invitation est acceptée : la vue du joueur est celle de la nouvelle entreprise. */
+  | { readonly kind: "joined" }
   | { readonly kind: "refused"; readonly reason: string; readonly missing?: number }
   | { readonly kind: "failed"; readonly failure: "network" | "error" | "unavailable"; readonly reason: string }
   /** Une action du même joueur est encore en cours : celle-ci est ignorée. */
@@ -45,6 +57,9 @@ export type PreviewOutcome = { readonly kind: "preview"; readonly preview: Prest
 
 /** Ce que rend la lecture des candidats du jour : la liste du service, ou l'échec technique. */
 export type CandidatesOutcome = { readonly kind: "candidates"; readonly candidates: readonly Candidate[] } | FailedOutcome;
+
+/** Ce que rend la relecture de l'entreprise : la vue du joueur est à jour, ou l'échec technique. */
+export type RefreshOutcome = { readonly kind: "refreshed" } | FailedOutcome;
 
 export interface Actions {
   collect(xuid: Xuid): Promise<ActionOutcome>;
@@ -62,12 +77,32 @@ export interface Actions {
   fireStaff(xuid: Xuid, staffId: number): Promise<ActionOutcome>;
   /** Lit les candidats du jour (GET getCandidates), à chaque ouverture de l'agence. */
   candidates(xuid: Xuid): Promise<CandidatesOutcome>;
+  /** Invite un joueur dans l'entreprise du joueur. Le service refuse si le joueur n'est pas le PDG, si l'entreprise est pleine, etc. */
+  invite(xuid: Xuid, targetXuid: Xuid): Promise<ActionOutcome>;
+  /** Fixe les parts de chaque associé. Le service vérifie le total et refuse (400) s'il n'est pas de 100. */
+  setShares(xuid: Xuid, shares: readonly ShareInput[]): Promise<ActionOutcome>;
+  /** Accepte l'invitation de l'entreprise `companyId`. La vue du joueur devient celle de cette entreprise. */
+  acceptInvite(xuid: Xuid, companyId: number): Promise<ActionOutcome>;
+  /** Relit l'entreprise du joueur (GET getCompany) : la liste des associés change sans que le joueur n'agisse. */
+  refresh(xuid: Xuid): Promise<RefreshOutcome>;
 }
 
 export interface ActionsDeps {
   readonly api: Pick<
     CoreApi,
-    "getCompany" | "collect" | "buyLevels" | "restoreStep" | "prestige" | "prestigePreview" | "getCandidates" | "hire" | "assignStaff" | "fireStaff"
+    | "getCompany"
+    | "collect"
+    | "buyLevels"
+    | "restoreStep"
+    | "prestige"
+    | "prestigePreview"
+    | "getCandidates"
+    | "hire"
+    | "assignStaff"
+    | "fireStaff"
+    | "invite"
+    | "setShares"
+    | "acceptInvite"
   >;
   readonly views: ViewStore;
   /** Un UUID neuf à chaque appel (runtime.ts, createRequestIdGenerator). */
@@ -75,11 +110,15 @@ export interface ActionsDeps {
   readonly log: Logger;
   /** Appelé, et attendu, après chaque encaissement réussi. Une exception est journalisée, jamais relancée. */
   readonly afterCollect?: (xuid: Xuid) => Promise<void>;
+  /** Appelé, et attendu, après chaque entrée dans une entreprise (le HUD se redessine). Une exception est journalisée, jamais relancée. */
+  readonly afterJoin?: (xuid: Xuid) => void | Promise<void>;
 }
 
 /** Une action prête à partir : tout ce qu'il faut pour l'envoyer, et pour lire ce qu'elle rapporte. */
 interface Plan<T> {
   readonly label: string;
+  /** L'entreprise visée, quand ce n'est pas celle du joueur (accepter une invitation). Le joueur y entre : la vue la remplace. */
+  readonly joins?: number;
   readonly send: (companyId: number, action: ActionBase) => Promise<ApiResult<T>>;
   /** Range le corps de la réponse dans le ViewStore et dit ce qui s'est passé. */
   readonly accept: (body: T) => { readonly update: ViewUpdate; readonly outcome: ActionOutcome };
@@ -98,27 +137,41 @@ export function createActions(deps: ActionsDeps): Actions {
     }
   }
 
+  async function afterJoin(xuid: Xuid): Promise<void> {
+    if (deps.afterJoin === undefined) return;
+    try {
+      await deps.afterJoin(xuid);
+    } catch (error) {
+      log.warn(`après acceptInvite : ${describeError(error)}`);
+    }
+  }
+
   async function run<T>(xuid: Xuid, plan: Plan<T>): Promise<ActionOutcome> {
     if (running.has(xuid)) return { kind: "busy" };
     const view = views.get(xuid);
     if (view === undefined) return { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" };
     running.add(xuid);
     try {
-      const companyId = view.state.companyId;
+      const companyId = plan.joins ?? view.state.companyId;
       const action: ActionBase = { requestId: newRequestId(), actor: xuid };
       let result = await plan.send(companyId, action);
 
       if (result.kind === "refused" && result.reason === CONFLICT_REASON) {
-        log.info(`${plan.label} : conflit, état rechargé puis action rejouée une fois`);
-        const fresh = await api.getCompany(companyId);
-        if (fresh.kind !== "ok") return failure(plan.label, fresh);
-        views.apply(xuid, { state: fresh.body });
+        if (plan.joins === undefined) {
+          log.info(`${plan.label} : conflit, état rechargé puis action rejouée une fois`);
+          const fresh = await api.getCompany(companyId);
+          if (fresh.kind !== "ok") return failure(plan.label, fresh);
+          views.apply(xuid, { state: fresh.body });
+        } else {
+          log.info(`${plan.label} : conflit, action rejouée une fois`);
+        }
         result = await plan.send(companyId, action);
       }
 
       if (result.kind === "ok") {
         const { update, outcome } = plan.accept(result.body);
-        views.apply(xuid, update);
+        if (plan.joins === undefined) views.apply(xuid, update);
+        else views.switchCompany(xuid, update);
         return outcome;
       }
       if (result.kind === "refused") {
@@ -206,6 +259,36 @@ export function createActions(deps: ActionsDeps): Actions {
       const result = await api.getCandidates(view.state.companyId);
       if (result.kind === "ok") return { kind: "candidates", candidates: result.body };
       return failure("getCandidates", result);
+    },
+    invite: (xuid, targetXuid) =>
+      run(xuid, {
+        label: "invite",
+        send: (companyId, action) => api.invite(companyId, action, targetXuid),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "invited" } }),
+      }),
+    setShares: (xuid, shares) =>
+      run(xuid, {
+        label: "setShares",
+        send: (companyId, action) => api.setShares(companyId, action, shares),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "sharesSet" } }),
+      }),
+    acceptInvite: async (xuid, companyId) => {
+      const outcome = await run(xuid, {
+        label: "acceptInvite",
+        joins: companyId,
+        send: (target, action) => api.acceptInvite(target, action),
+        accept: (body) => ({ update: { state: body.state, balances: body.balances }, outcome: { kind: "joined" } }),
+      });
+      if (outcome.kind === "joined") await afterJoin(xuid);
+      return outcome;
+    },
+    refresh: async (xuid) => {
+      const view = views.get(xuid);
+      if (view === undefined) return { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" };
+      const result = await api.getCompany(view.state.companyId);
+      if (result.kind !== "ok") return failure("getCompany", result);
+      views.apply(xuid, { state: result.body });
+      return { kind: "refreshed" };
     },
   };
 }

@@ -79,9 +79,9 @@ const titleOf = (spec: { title: string }) => spec.title;
 describe("menu principal", () => {
   const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }), missionState());
 
-  it("sept tuiles : Silo, Usines, Carte, Objectifs, Prestige et Personnel actifs, Amis verrouillé", () => {
+  it("huit tuiles : Silo, Usines, Carte, Objectifs, Prestige, Personnel et Associés actifs, Amis verrouillé", () => {
     assert.equal(screen.spec.title, MENU_TEXTES.titre);
-    assert.equal(screen.spec.buttons.length, 7);
+    assert.equal(screen.spec.buttons.length, 8);
     assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
       "silo",
       "usines",
@@ -89,6 +89,7 @@ describe("menu principal", () => {
       "objectifs",
       "prestige",
       "personnel",
+      "associes",
       "soon",
     ]);
   });
@@ -100,12 +101,12 @@ describe("menu principal", () => {
   });
 
   it("la tuile verrouillée porte un cadenas et un mot, en gris", () => {
-    const text = screen.spec.buttons[6] ?? "";
+    const text = screen.spec.buttons[7] ?? "";
     assert.ok(text.startsWith(COLOR.locked), text);
     assert.ok(bare(text).includes("[X]"));
     assert.ok(bare(text).endsWith(MENU_TEXTES.bientot));
     assert.match(bare(text), /Amis/);
-    for (const index of [0, 1, 2, 3, 4, 5]) {
+    for (const index of [0, 1, 2, 3, 4, 5, 6]) {
       assert.ok(!(screen.spec.buttons[index] ?? "").startsWith(COLOR.locked), `tuile ${index}`);
     }
   });

@@ -11,12 +11,12 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `manifest.json` | Pack "Silooo", module script `scripts/main.js`, dépendances. Les deux uuid ne changent jamais. |
 | `src/main.ts` | Point d'entrée. Rien ne le fait tomber : toute exception est attrapée et journalisée. |
 | `src/beta.ts` | Le seul fichier qui touche aux modules bêta (réseau, secret, variables). |
-| `src/http.ts` | Client de silooo-core : résultats typés ok, refusé, erreur, réseau ; un seul nouvel essai, pour les GET (POST, PATCH et DELETE sont des écritures, jamais rejouées). |
+| `src/http.ts` | Client de silooo-core : résultats typés ok, refusé, erreur, réseau ; un seul nouvel essai, pour les GET (POST, PUT, PATCH et DELETE sont des écritures, jamais rejouées). |
 | `src/protocol.ts`, `src/api.ts` | Chemins, corps et lecture des réponses, conformes à `api/silooo-core.openapi.yaml`. |
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, associés, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
 | `src/monde/` | Le monde : îles des usines, arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
@@ -65,7 +65,7 @@ version de Bedrock, on relit les appels listés ci-dessous.
 Appels bêta, tous dans `src/beta.ts` :
 
 - `@minecraft/server-net` : `http.request`, `HttpRequest` (uri, method, timeout, headers, body), `HttpHeader`,
-  `HttpRequestMethod` (`Get`, `Post`, `Patch`, `Delete`), `HttpResponse` (status, body) ;
+  `HttpRequestMethod` (`Get`, `Post`, `Put`, `Patch`, `Delete`), `HttpResponse` (status, body) ;
 - `@minecraft/server-admin` : `secrets.get`, `variables.get`, et le type `SecretString`.
 
 ## Les écrans
@@ -73,7 +73,7 @@ Appels bêta, tous dans `src/beta.ts` :
 Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
 la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
 de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service). La phase 4
-y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »).
+y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »), puis les associés (voir « Les associés »).
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
@@ -87,6 +87,10 @@ boussole ── MENU ─┬─ Silo ───── Encaisser ............ colle
                   │         │                                      └─ Renvoyer, confirmé ..... fireStaff
                   │         └─ Agence ─ un candidat ─ Embaucher ─ son usine, ou aucune ... hire
                   │                    (lecture des candidats du jour ........ getCandidates)
+                  ├─ Associés ─ la liste ─┬─ Inviter ─ un joueur connecté .................. invite
+                  │   (relue à chaque     ├─ Parts (PDG) ─ un champ par membre ............ setShares
+                  │    ouverture ........ ├─ Invitation reçue ─ Accepter ... acceptInvite, puis le HUD
+                  │    getCompany)        └─ Retour
                   └─ Amis : tuile verrouillée, avec le mot « Bientôt »
 ```
 
@@ -100,15 +104,17 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `apparence.ts` | Les couleurs de `design/` en codes Bedrock, et les repères provisoires qui tiennent la place des icônes et d'Oooscar. |
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
-| `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne est ignorée) et l'état de la liaison avec le service. |
-| `actions.ts` | Les sept actions (encaisser, acheter des niveaux, remettre en état, prestige, embaucher, affecter, renvoyer) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
+| `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne, ou d'une autre entreprise, est ignorée ; `switchCompany` change d'entreprise) et l'état de la liaison avec le service. |
+| `actions.ts` | Les dix actions (encaisser, acheter des niveaux, remettre en état, prestige, embaucher, affecter, renvoyer, inviter, fixer les parts, accepter une invitation) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
 | `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
 | `ecran.ts` | Le vocabulaire commun des écrans : routes, cibles des boutons, `Screen`, bulle et pages. Aucun écran, aucun import de Bedrock. |
-| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel compris. |
+| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel et associés compris. |
 | `personnel.ts` | Les écrans du personnel et de l'agence, et la ligne d'équipe de la fiche d'usine : des fonctions pures, comme celles de `menu.ts`. |
-| `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. Les tests passent un faux présentateur. |
+| `associes.ts` | Les écrans des associés (la liste, le choix du joueur à inviter, l'invitation reçue), le formulaire des parts et la lecture de ses champs : des fonctions pures. |
+| `invitations.ts` | Les invitations reçues de chaque joueur d'après l'événement `INVITATION` (une par entreprise, jusqu'à `expiresAt`), et l'annonce d'un changement de parts. |
+| `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui` : des écrans à boutons (`show`) et des formulaires à champs de texte (`ask`). Les tests passent un faux présentateur. |
 | `boussole.ts` | L'objet qui ouvre le menu : don à l'arrivée, ouverture à l'usage. |
 
 Seuls `main.ts`, `beta.ts`, `ui/formulaires.ts` et `monde/bedrock.ts` importent des modules `@minecraft/*` (`bedrock.ts` n'est importé que par `main.ts`). Les tests ne les chargent jamais.
@@ -244,6 +250,48 @@ somme qui manque, `USINE_VERROUILLEE`, `EMPLACEMENT_OCCUPE`, `DEJA_POSSEDE`), l'
 **La fiche d'usine.** Quand au moins un membre y travaille, elle ajoute une ligne « Équipe : `<n>` membres, avec chef » (ou
 « sans chef »), lue dans la liste du personnel : « chef » veut dire un membre qui n'est pas un simple salarié.
 
+### Les associés
+
+Cinquième tranche des écrans (phase 4). Le service décide de tout : la liste des membres, leur rôle, leur part, le nombre
+maximal d'associés, qui peut inviter. L'add-on n'additionne aucune part, ne compte aucun associé pour en déduire une
+limite, et ne connaît pas de maximum. Les écrans sont dans `ui/associes.ts` (fonctions pures) et les invitations reçues
+dans `ui/invitations.ts` ; les phrases dans `ASSOCIES_TEXTES`, toutes à valider par Kr. La liste des membres est
+`CompanyState.members` (le contrat ne la marque pas obligatoire : absente, elle est vide).
+
+**Associés.** La tuile du menu, juste avant « Amis », ouvre l'écran ASSOCIÉS. À chaque ouverture, il relit l'entreprise
+(`getCompany`) : la liste est celle du service, le PDG en premier, avec le rôle, le nom et la part en pourcent. La ligne du
+joueur porte « (toi) ». Un joueur seul lit qu'il peut inviter « jusqu'à ce que le service refuse » : l'écran ne donne aucun
+chiffre. Le PDG a les boutons « Inviter » et « Parts » (« Parts » seulement quand l'entreprise a au moins deux membres) ;
+un associé n'a que la liste. Les invitations reçues, s'il y en a, sont les premières entrées de la liste.
+
+**Inviter.** Le choix liste les joueurs connectés que le service connaît (ceux dont le `join` a répondu), sauf le joueur
+lui-même, par leur nom. L'identifiant (XUID) part avec la requête `invite`. Réussi, Oooscar dit « Invitation envoyée. »
+et on revient à l'écran ASSOCIÉS. Un refus passe par les bulles de refus : `PAS_LE_PDG`, `DEJA_POSSEDE` (« Il est déjà
+associé. »), `ENTREPRISE_PLEINE`, `ENTREPRISE_EN_COURS` (« Il a déjà lancé son entreprise. »). Un 400 veut dire que le
+service ne connaît pas ce joueur.
+
+**Parts.** Le formulaire a un champ de texte par membre, rempli avec la part que le service a donnée. L'add-on vérifie
+seulement que chaque champ est un entier de 0 à 100 ; il n'additionne rien. C'est le service qui répond : un 400 (la liste
+ne nomme pas exactement les membres, ou le total n'est pas celui qu'il attend) devient la bulle « Les parts doivent faire
+100. ». Un 200 remplace la liste par celle de la réponse.
+
+**Invitation reçue.** L'événement `INVITATION` (adressé à l'invité) est gardé en mémoire, une invitation par entreprise qui
+invite (une nouvelle remplace l'ancienne), jusqu'à son `expiresAt` ou jusqu'à la réponse du joueur. L'add-on compare
+`expiresAt` à l'horloge, rien d'autre. Le joueur en est prévenu dans le tchat (une fois par invitation, et à son arrivée
+s'il était hors ligne). L'entrée « `<nom>` t'invite dans `<entreprise>` » de l'écran ASSOCIÉS ouvre une fenêtre avec
+« Accepter » et « Plus tard ». Accepter appelle `acceptInvite` sur l'entreprise de l'invitation. Réussi, l'add-on prend
+l'identifiant et l'état de la réponse (il change d'entreprise, sans comparer les versions : ce sont deux entreprises), puis
+redessine le HUD. Le joueur quitte son entreprise actuelle ; le texte de la fenêtre le dit. Un 400 veut dire que
+l'invitation a expiré : elle disparaît de la liste.
+
+**Les annonces.** L'`ANNONCE` du service après un `setShares` (elle n'est envoyée qu'à celui qui a agi) fait dire à Oooscar,
+dans le tchat, « Les parts ont changé. ». La liste n'est relue qu'à la prochaine ouverture de l'écran.
+
+**Verrous.** `invite`, `setShares` et `acceptInvite` passent par `Actions` comme les autres : un identifiant par action,
+une action à la fois par joueur, un seul nouvel essai après `CONFLIT_REESSAYER`. `setShares` change la version de
+l'entreprise, pas `invite`. Pour `acceptInvite`, le nouvel essai ne relit pas l'entreprise (celle qu'on relirait est
+l'ancienne).
+
 ### Les formulaires
 
 Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert (le tchat, un autre menu). Le menu
@@ -300,7 +348,7 @@ définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun 
 
 Les noms des usines ne sont pas dans ce tableau : ils viennent de `definitions/usines.json` (clé « nom »), recopiés
 dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoires (`[D] [L] [G] [U] [T] [!] [E] [X]
-[S] [C] [O] [A] [P] [M] [R]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
+[S] [C] [O] [A] [P] [M] [R] [N]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
 `ui/apparence.ts` : ce sont des places gardées pour des images, pas des textes.
 
 | Où | Avant | Après |
@@ -523,6 +571,49 @@ Les échecs techniques, dans le code `network`, `unavailable` et `error` : `netw
 service ne répond pas. » ; `error` avec la raison `PAS_FAIT` (route pas encore écrite) donne « Pas encore
 disponible. » ; tout autre `error` donne « Problème côté service. ».
 
+L'entreprise partagée (phase 4). Les phrases sont dans `ASSOCIES_TEXTES` et dans la tuile `MENU_TEXTES.associes`, toutes
+à valider par Kr. L'avant est « rien ».
+
+| Où | Avant | Après |
+|---|---|---|
+| Menu, tuile | rien | Associés |
+| Menu, ligne d'info de la tuile, joueur seul | rien | Invite des joueurs |
+| Menu, ligne d'info de la tuile, avec des associés | rien | `<n>` associés |
+| Associés, titre | rien | ASSOCIÉS |
+| Associés, rôle du PDG | rien | PDG |
+| Associés, rôle d'un associé | rien | Associé |
+| Associés, ligne d'un membre | rien | `<rôle>` · `<nom>` · `<part>` % |
+| Associés, ligne du joueur lui-même | rien | `<ligne>` (toi) |
+| Associés, joueur seul (sans maximum : l'add-on n'en connaît pas) | rien | Tu es seul dans l'entreprise. Invite des joueurs, jusqu'à ce que le service refuse. |
+| Associés, bouton du PDG | rien | Inviter |
+| Associés, bouton du PDG | rien | Parts |
+| Associés, bouton | rien | Retour |
+| Invitation reçue, entrée de la liste et ligne du tchat | rien | `<nom>` t'invite dans `<entreprise>` |
+| Invitation, titre | rien | INVITATION |
+| Invitation, phrase | rien | Tu quittes ton entreprise actuelle. Le PDG fixera ta part. |
+| Invitation, bouton | rien | Accepter |
+| Invitation, bouton | rien | Plus tard |
+| Inviter, titre | rien | INVITER |
+| Inviter, phrase | rien | Choisis un joueur connecté. |
+| Inviter, aucun autre joueur | rien | Aucun autre joueur connecté. |
+| Parts, titre | rien | PARTS |
+| Parts, un champ par membre | rien | Part de `<nom>`, en % |
+| Parts, indice du champ | rien | Un nombre entier |
+| Parts, bouton d'envoi | rien | Enregistrer |
+| Bulle joie, invitation envoyée | rien | Invitation envoyée. |
+| Bulle joie, parts enregistrées | rien | Parts enregistrées. |
+| Bulle joie, après avoir accepté | rien | Bienvenue dans l'entreprise. |
+| Bulle joie, invitation reçue (tchat) | rien | Tu as une invitation. |
+| Bulle joie, annonce du service après un changement de parts (tchat) | rien | Les parts ont changé. |
+| Bulle oups, un champ n'est pas un pourcentage entier (rien n'est envoyé) | rien | Écris un pourcentage entier. |
+| Bulle oups, le service refuse les parts (400) | rien | Les parts doivent faire 100. |
+| Bulle oups, le service ne trouve plus l'invitation (400) | rien | Cette invitation a expiré. |
+| Bulle oups, le service ne connaît pas le joueur invité (400) | rien | Je ne connais pas ce joueur. |
+| Refus `DEJA_POSSEDE` d'une invitation (remplace Tu l'as déjà.) | Tu l'as déjà. | Il est déjà associé. |
+| Refus `DEJA_POSSEDE` en acceptant (remplace Tu l'as déjà.) | Tu l'as déjà. | Tu es déjà associé ici. |
+| Refus `ENTREPRISE_EN_COURS` d'une invitation (remplace Tu as déjà lancé ton entreprise.) | Tu as déjà lancé ton entreprise. | Il a déjà lancé son entreprise. |
+| Refus `ENTREPRISE_PLEINE` en acceptant (remplace Ton entreprise est pleine.) | Ton entreprise est pleine. | Cette entreprise est pleine. |
+
 ## Ce qui manque
 
 Au contrat (`api/`, non modifié par cette tranche) :
@@ -576,9 +667,24 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Rien ne donne le nom d'un membre qui n'est plus dans la liste (renvoyé par un autre associé) : l'écran qui le
   montrait revient simplement à son parent.
 
+À la tranche de l'entreprise partagée :
+
+- Pas de route pour quitter une entreprise, ni pour retirer un associé, ni pour lister les invitations en attente : une
+  invitation n'arrive que par l'événement `INVITATION`. Une invitation reçue pendant que le service était arrêté, ou avant
+  le dernier redémarrage de l'add-on, n'est vue que si l'événement est relu (le curseur repart de 0 au redémarrage du
+  service) ou si elle est encore dans la mémoire de l'add-on.
+- Les `ANNONCE` d'un `setShares` ou d'un `acceptInvite` ne vont qu'à celui qui a agi : les autres membres ne sont pas
+  prévenus du changement de parts. Ils voient la liste à jour à la prochaine ouverture de l'écran ASSOCIÉS.
+- L'identifiant (XUID) d'un joueur est encore provisoire (`identity.ts`, un hachage du nom) : l'invitation ne vise le bon
+  joueur que tant que le service l'accepte comme tel.
+- « Parts » n'est pas proposé à un PDG seul : il n'y a rien à répartir. C'est un choix de l'écran, le service accepterait.
+- Accepter une invitation laisse l'ancienne entreprise sans membre, sans moyen d'y revenir : le texte de la fenêtre le dit
+  (« Tu quittes ton entreprise actuelle. »), mais rien ne le retient.
+- La tuile du menu ne montre pas le nombre d'invitations en attente.
+
 Au design system :
 
-- Pas d'icône pour Objectifs, Amis, Silo, Personnel et Agence (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
+- Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence et Associés (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
 - Pas d'image d'Oooscar utilisable en jeu : les bulles portent un repère entre crochets.
 - Pas de glyphes dans le pack de ressources pour les icônes qui existent dans `design/icones/`.
 

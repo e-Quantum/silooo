@@ -4,6 +4,7 @@
 import { describeError } from "./runtime";
 import type { ApiResult, CoreClient } from "./http";
 import {
+  acceptInvitePath,
   actionBody,
   agencyPath,
   assignStaffBody,
@@ -15,10 +16,14 @@ import {
   heartbeatBody,
   hireBody,
   hirePath,
+  inviteBody,
   isRestoreStep,
+  isSharePercent,
+  isXuid,
   joinBody,
   leaveBody,
   levelsPath,
+  membersPath,
   missionsPath,
   parseCandidates,
   parseCollectResponse,
@@ -33,6 +38,7 @@ import {
   prestigePreviewPath,
   restorePath,
   restoreStepBody,
+  setSharesBody,
   staffPath,
   type ActionBase,
   type BuyAmount,
@@ -45,6 +51,7 @@ import {
   type MissionState,
   type Parsed,
   type PrestigePreview,
+  type ShareInput,
   type Xuid,
 } from "./protocol";
 
@@ -79,6 +86,12 @@ export interface CoreApi {
   assignStaff(companyId: number, staffId: number, action: ActionBase, factoryId: string): Promise<ApiResult<CompanyUpdated>>;
   /** DELETE /v1/companies/{companyId}/staff/{staffId} (fireStaff), 200 CompanyUpdated, 403 PAS_LE_PDG ou 409 Refused. */
   fireStaff(companyId: number, staffId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
+  /** POST /v1/companies/{companyId}/members (invite), 200 CompanyUpdated (inchangé), 403 PAS_LE_PDG ou 409 Refused. */
+  invite(companyId: number, action: ActionBase, targetXuid: Xuid): Promise<ApiResult<CompanyUpdated>>;
+  /** PUT /v1/companies/{companyId}/members (setShares), 200 CompanyUpdated, 400 si les parts ne font pas 100, 403 PAS_LE_PDG ou 409 Refused. */
+  setShares(companyId: number, action: ActionBase, shares: readonly ShareInput[]): Promise<ApiResult<CompanyUpdated>>;
+  /** POST /v1/companies/{companyId}/members/accept (acceptInvite), 200 CompanyUpdated de l'entreprise rejointe, ou 409 Refused. `companyId` est celle qui a invité. */
+  acceptInvite(companyId: number, action: ActionBase): Promise<ApiResult<CompanyUpdated>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -181,6 +194,27 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => fireStaffPath(companyId, staffId, action));
       if ("failure" in target) return target.failure;
       return readBody(await client.delete(target.path), parseCompanyUpdated);
+    },
+    async invite(companyId, action, targetXuid) {
+      const target = pathOrError(() => membersPath(companyId));
+      if ("failure" in target) return target.failure;
+      if (!isXuid(targetXuid)) return invalidArgument(`targetXuid invalide : ${targetXuid}`);
+      return readBody(await client.post(target.path, inviteBody(action, targetXuid)), parseCompanyUpdated);
+    },
+    async setShares(companyId, action, shares) {
+      const target = pathOrError(() => membersPath(companyId));
+      if ("failure" in target) return target.failure;
+      // Le format d'une part (un XUID, un entier de 0 à 100) est vérifié ici ; la somme, jamais : c'est le service qui la juge.
+      for (const share of shares) {
+        if (!isXuid(share.xuid)) return invalidArgument(`xuid invalide : ${share.xuid}`);
+        if (!isSharePercent(share.percent)) return invalidArgument(`part invalide : ${share.percent}`);
+      }
+      return readBody(await client.put(target.path, setSharesBody(action, shares)), parseCompanyUpdated);
+    },
+    async acceptInvite(companyId, action) {
+      const target = pathOrError(() => acceptInvitePath(companyId));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.post(target.path, actionBody(action)), parseCompanyUpdated);
     },
   };
 }

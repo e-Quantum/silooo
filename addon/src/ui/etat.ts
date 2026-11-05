@@ -32,8 +32,16 @@ export interface ViewUpdate {
 export interface ViewStore {
   /** La vue du joueur, ou undefined s'il n'est pas arrivé (pas de réponse de `join`) ou s'il est parti. */
   get(xuid: Xuid): CompanyView | undefined;
-  /** Range une réponse du service. Rend faux si elle est plus ancienne que celle qu'on a, ou si le joueur n'est pas là. */
+  /**
+   * Range une réponse du service. Rend faux si elle est plus ancienne que celle qu'on a, si elle parle d'une autre
+   * entreprise que celle de la vue, ou si le joueur n'est pas là.
+   */
   apply(xuid: Xuid, update: ViewUpdate): boolean;
+  /**
+   * Le joueur est entré dans une autre entreprise (`acceptInvite`) : la vue prend l'état de cette entreprise, sans
+   * comparer les versions (deux entreprises n'ont pas la même suite de versions). Rend faux si le joueur n'est pas là.
+   */
+  switchCompany(xuid: Xuid, update: ViewUpdate): boolean;
 }
 
 interface Entry {
@@ -76,7 +84,16 @@ export function createViewStore(deps: ViewStoreDeps): ViewStore {
     apply(xuid, update) {
       const entry = entryOf(xuid);
       if (entry === undefined) return false;
+      // Une réponse sur l'ancienne entreprise, arrivée après un changement d'entreprise, n'est plus celle du joueur.
+      if (update.state.companyId !== entry.view.state.companyId) return false;
       if (update.state.version < entry.view.state.version) return false;
+      const view = makeView(update.state, update.balances ?? entry.view.balances, clock.now());
+      entries.set(xuid, { source: entry.source, view });
+      return true;
+    },
+    switchCompany(xuid, update) {
+      const entry = entryOf(xuid);
+      if (entry === undefined) return false;
       const view = makeView(update.state, update.balances ?? entry.view.balances, clock.now());
       entries.set(xuid, { source: entry.source, view });
       return true;
@@ -149,5 +166,8 @@ export function observeApi(api: CoreApi, link: LinkState): CoreApi {
     hire: (companyId, slot, action, factoryId) => watch(api.hire(companyId, slot, action, factoryId)),
     assignStaff: (companyId, staffId, action, factoryId) => watch(api.assignStaff(companyId, staffId, action, factoryId)),
     fireStaff: (companyId, staffId, action) => watch(api.fireStaff(companyId, staffId, action)),
+    invite: (companyId, action, targetXuid) => watch(api.invite(companyId, action, targetXuid)),
+    setShares: (companyId, action, shares) => watch(api.setShares(companyId, action, shares)),
+    acceptInvite: (companyId, action) => watch(api.acceptInvite(companyId, action)),
   };
 }

@@ -45,6 +45,7 @@ import { registerMenuItem } from "./ui/boussole";
 import { createLinkState, createViewStore, observeApi, type LinkState, type ViewStore } from "./ui/etat";
 import { createFormPresenter } from "./ui/formulaires";
 import { createHud, startHud } from "./ui/hud";
+import { createInvitations, type Invitations } from "./ui/invitations";
 import { createMenu } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
 import { BOUSSOLE_TEXTES, CINEMATIQUE_TEXTES } from "./ui/textes";
@@ -165,26 +166,46 @@ function startScreens(deps: {
   readonly api: CoreApi;
   readonly views: ViewStore;
   readonly missions: Missions;
+  readonly invitations: Invitations;
+  readonly store: PlayerStore;
   readonly link: LinkState;
   readonly busy: (player: Player) => boolean;
   readonly travel: Travel<Player> | undefined;
   readonly scheduler: Scheduler;
   readonly log: Logger;
 }): void {
-  const { api, views, missions, link, busy, travel, scheduler, log } = deps;
+  const { api, views, missions, invitations, store, link, busy, travel, scheduler, log } = deps;
   try {
+    const hud = createHud<Player>({
+      players: () => world.getAllPlayers(),
+      views,
+      missions,
+      link,
+      clock: systemClock,
+      status: createStatusLog(log, "HUD"),
+      silenced: busy,
+    });
     // Après chaque encaissement, le service a pu faire avancer la mission : on la relit.
+    // Après être entré dans une entreprise (acceptInvite), le HUD se redessine tout de suite.
     const actions = createActions({
       api,
       views,
       newRequestId: createRequestIdGenerator(),
       log,
       afterCollect: missions.refresh,
+      afterJoin: () => hud.refresh(),
     });
     const menu = createMenu<Player>({
       views,
       missions,
       actions,
+      invitations,
+      // Les joueurs connectés que le service connaît : ceux dont le `join` a répondu.
+      online: () =>
+        store.xuids().flatMap((xuid) => {
+          const joined = store.get(xuid);
+          return joined === undefined ? [] : [{ xuid, name: joined.gamertag }];
+        }),
       ...(travel === undefined ? {} : { travel }),
       presenter: createFormPresenter(),
       clock: systemClock,
@@ -199,15 +220,6 @@ function startScreens(deps: {
       waitWhile: busy,
       scheduler,
       log,
-    });
-    const hud = createHud<Player>({
-      players: () => world.getAllPlayers(),
-      views,
-      missions,
-      link,
-      clock: systemClock,
-      status: createStatusLog(log, "HUD"),
-      silenced: busy,
     });
     startHud(scheduler, guard(log, "HUD", hud.refresh));
   } catch (error) {
@@ -243,10 +255,17 @@ function main(): void {
     const views = createViewStore({ players: store, clock: systemClock });
 
     const missions = createMissions({ api, players: store, say: tellPlayer, log });
+    const invitations = createInvitations({ clock: systemClock, players: store, say: tellPlayer, log });
 
     const worldPart = startWorld({ views, scheduler, log });
-    // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu.
-    const hooks = combineHooks<Player>(log, worldPart.hooks, { joined: (player) => missions.arrive(playerXuid(player)) });
+    // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu, et ses invitations en attente lui sont dites.
+    const hooks = combineHooks<Player>(log, worldPart.hooks, {
+      joined: async (player) => {
+        const xuid = playerXuid(player);
+        await missions.arrive(xuid);
+        invitations.arrive(xuid);
+      },
+    });
     registerSessionEvents(world, createSessionHandlers<Player>({ api, store, log, hooks }), log);
 
     const heartbeat = createHeartbeat({
@@ -262,9 +281,12 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    // Un seul écouteur pour l'instant : l'annonce d'une mission terminée. Les autres événements du service arrivent plus tard.
+    // Les écouteurs : l'annonce d'une mission terminée, l'invitation à une entreprise, l'annonce d'un changement de parts.
+    // Les autres événements du service arrivent plus tard.
     const listeners = createEventListeners(log);
     listeners.on("ANNONCE", missions.onAnnonce);
+    listeners.on("ANNONCE", invitations.onAnnonce);
+    listeners.on("INVITATION", invitations.onInvitation);
     startEventPolling(
       scheduler,
       createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),
@@ -272,7 +294,7 @@ function main(): void {
       config.startupDelaySeconds,
     );
 
-    startScreens({ api, views, missions, link, busy: worldPart.busy, travel: worldPart.travel, scheduler, log });
+    startScreens({ api, views, missions, invitations, store, link, busy: worldPart.busy, travel: worldPart.travel, scheduler, log });
 
     log.info(`add-on démarré (serveur ${serverId})`);
   } catch (error) {
