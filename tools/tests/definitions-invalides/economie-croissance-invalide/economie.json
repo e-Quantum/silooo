@@ -76,7 +76,13 @@
   },
   "lingotsHorsPrestige": {
     "missionBienvenue": 10,
-    "moyenneParHeureDeJeu": 1
+    "moyenneParHeureDeJeu": 1,
+    "commandeDuJour": 1,
+    "trouvaille": 1
+  },
+  "commandeDuJour": {
+    "objectifUnites": 100,
+    "minutesDeProductionParUnite": 1
   },
   "ville": {
     "zonesPrixLingots": [

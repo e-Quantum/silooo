@@ -147,3 +147,27 @@ data class Mission(val id: String, val progress: Int, val target: Int, val rewar
 /** Schéma `MissionState` : [current] est la première mission pas terminée (`null` quand toutes le sont), [completed] les terminées. */
 @Serializable
 data class MissionState(val current: Mission?, val completed: List<String>)
+
+/** Schéma `WorldOrder` : la commande mondiale du jour. [mine] est la part déjà livrée par le joueur demandé (0 sans joueur). */
+@Serializable
+data class WorldOrder(
+    val day: String,
+    val resourceId: String,
+    val target: Double,
+    val delivered: Double,
+    val rewardLingots: Long,
+    val completed: Boolean,
+    val mine: Double,
+)
+
+/** Réponse 200 de `deliverOrder` : la commande à jour, puis l'état de l'entreprise et les soldes de celui qui livre. */
+@Serializable
+data class OrderDelivered(val order: WorldOrder, val state: CompanyState, val balances: Balances)
+
+/** Schéma `Finding` : une trouvaille du Carnet, la ressource et le moment où le joueur l'a faite. */
+@Serializable
+data class Finding(val id: String, val foundAt: String)
+
+/** Schéma `FindingBook` : le Carnet du joueur, le nombre de trouvailles que le jeu propose et la prime de chacune. */
+@Serializable
+data class FindingBook(val found: List<Finding>, val total: Int, val rewardLingots: Long)

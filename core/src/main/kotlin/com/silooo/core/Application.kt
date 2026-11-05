@@ -21,6 +21,9 @@ import com.silooo.core.economy.economyRoutes
 import com.silooo.core.events.EventStore
 import com.silooo.core.events.JdbcEventStore
 import com.silooo.core.events.eventsRoutes
+import com.silooo.core.findings.FindingStore
+import com.silooo.core.findings.JdbcFindingStore
+import com.silooo.core.findings.findingRoutes
 import com.silooo.core.incident.IncidentStore
 import com.silooo.core.incident.IncidentTicker
 import com.silooo.core.incident.JdbcIncidentStore
@@ -30,6 +33,9 @@ import com.silooo.core.incident.launchIncidentTicker
 import com.silooo.core.mission.JdbcMissionStore
 import com.silooo.core.mission.MissionStore
 import com.silooo.core.mission.missionRoutes
+import com.silooo.core.orders.JdbcOrderStore
+import com.silooo.core.orders.OrderStore
+import com.silooo.core.orders.orderRoutes
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.server.serverRoutes
 import com.silooo.core.session.CompanyBootstrap
@@ -86,6 +92,10 @@ class Dependencies(
     val companyStore: CompanyStore = JdbcCompanyStore(),
     /** Les accès SQL des missions (`player_missions`), de leur récompense en Lingots et de leur événement. */
     val missionStore: MissionStore = JdbcMissionStore(),
+    /** Les accès SQL de la commande mondiale du jour (`world_orders`, `world_order_contributions`), de sa prime et de ses événements. */
+    val orderStore: OrderStore = JdbcOrderStore(),
+    /** Les accès SQL du Carnet de trouvailles (`player_findings`), de leur prime en Lingots et de leur événement. */
+    val findingStore: FindingStore = JdbcFindingStore(),
     /** Les accès SQL du personnel et de l'agence d'emploi (`staff`, `agency_candidates`). */
     val staffStore: StaffStore = JdbcStaffStore(),
     /** Les accès SQL des incidents d'usine (`factory_incidents`). */
@@ -136,6 +146,8 @@ fun Application.siloooModule(dependencies: Dependencies) {
             economyRoutes(dependencies)
             incidentRoutes(dependencies)
             missionRoutes(dependencies)
+            orderRoutes(dependencies)
+            findingRoutes(dependencies)
             staffRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit

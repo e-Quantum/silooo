@@ -36,6 +36,9 @@ class Definitions(
         DefinitionsChecks.economyInteger(economy, mission.reward)?.let { mission.id to it }
     }.toMap()
 
+    /** Les ressources du jeu : chaque produit de usines.json, une fois, dans l'ordre du fichier. La commande du jour et le Carnet en tirent. */
+    val resources: List<String> = factories.factories.flatMap { it.products }.distinct()
+
     init {
         val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents)
         if (problems.isNotEmpty()) {
@@ -54,6 +57,9 @@ internal object DefinitionsChecks {
 
     /** Les minutes d'une journée : une constante de la nature, pas un chiffre d'équilibrage. */
     const val MINUTES_PER_DAY = 24 * 60
+
+    /** La longueur de `world_orders.resource_id` et de `player_findings.finding_id`. */
+    const val RESOURCE_ID_MAX_LENGTH = 32
 
     private val MISSION_ID = Regex("^[a-z0-9]+(-[a-z0-9]+)*$")
     private val economyTree = Json { encodeDefaults = true }
@@ -126,6 +132,14 @@ internal object DefinitionsChecks {
             "economie.json : lingotsHorsPrestige.moyenneParHeureDeJeu ne peut pas être négatif"
         }
 
+        check(outside.dailyOrder >= 0) { "economie.json : lingotsHorsPrestige.commandeDuJour ne peut pas être négatif" }
+        check(outside.finding >= 0) { "economie.json : lingotsHorsPrestige.trouvaille ne peut pas être négatif" }
+        val dailyOrder = economy.dailyOrder
+        check(dailyOrder.targetUnits >= 1) { "economie.json : commandeDuJour.objectifUnites doit être au moins 1" }
+        check(dailyOrder.minutesOfIncomePerUnit.isFinite() && dailyOrder.minutesOfIncomePerUnit > 0.0) {
+            "economie.json : commandeDuJour.minutesDeProductionParUnite doit être positif"
+        }
+
         check(economy.city.zonePricesLingots.isNotEmpty() && economy.city.zonePricesLingots.all { it >= 1 }) {
             "economie.json : ville.zonesPrixLingots doit lister des prix d'au moins 1 Lingot"
         }
@@ -140,6 +154,12 @@ internal object DefinitionsChecks {
                 "usines.json : ${factory.id}.productionParNiveau doit être positif"
             }
         }
+        factories.factories.forEach { factory ->
+            factory.products.filter { it.isBlank() || it.length > RESOURCE_ID_MAX_LENGTH }.forEach { product ->
+                problems += "usines.json : ${factory.id}.produit « $product » doit faire de 1 à $RESOURCE_ID_MAX_LENGTH caractères"
+            }
+        }
+        check(factories.factories.any { it.products.isNotEmpty() }) { "usines.json : aucune usine ne produit de ressource (la commande du jour n'aurait rien à demander)" }
         check(prestige.courseStart.factoryId in ids) {
             "economie.json : prestige.departDeCourse.usine « ${prestige.courseStart.factoryId} » n'est pas une usine de usines.json"
         }

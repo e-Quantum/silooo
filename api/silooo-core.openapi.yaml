@@ -495,7 +495,14 @@ paths:
   /v1/orders/today:
     get:
       summary: La commande mondiale du jour et sa progression
+      description: |
+        Une commande par jour, la même pour tout le serveur, tirée de la date (UTC) : la ressource sort du catalogue
+        des usines (`definitions/usines.json`, listes `produit`), l'objectif et la prime de `definitions/economie.json`
+        (`commandeDuJour`, `lingotsHorsPrestige.commandeDuJour`). Tant que personne n'a livré, la commande n'est écrite
+        nulle part : cette route ne fait que lire. Avec `xuid`, `mine` donne la part déjà livrée par ce joueur
+        (0 sans `xuid`, ou pour un joueur qui n'a rien livré).
       operationId: todayOrder
+      parameters: [ { $ref: '#/components/parameters/PlayerXuidQuery' } ]
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
         '401': { $ref: '#/components/responses/Erreur' }
@@ -510,6 +517,18 @@ paths:
   /v1/orders/today/deliveries:
     post:
       summary: Livre des marchandises à la commande mondiale
+      description: |
+        Le joueur livre `quantity` unités de la ressource du jour. Chaque unité coûte du Donar à son entreprise : le
+        revenu de `definitions/economie.json` (`commandeDuJour.minutesDeProductionParUnite`) en minutes de SON revenu,
+        si bien qu'une unité coûte le même temps de jeu à un petit joueur et à un gros. Une livraison qui dépasse ce qui
+        reste à livrer est ramenée à ce reste, et seul le Donar de ce reste est pris. Le joueur peut livrer plusieurs
+        fois dans la journée : ses parts s'additionnent. Quand le dernier reste est livré, la commande est terminée :
+        chaque joueur qui a livré reçoit les Lingots hors prestige de `lingotsHorsPrestige.commandeDuJour`, une seule
+        fois, et un événement `COMMANDE_TERMINEE` (`payload` : `day`, `resourceId`, `rewardLingots`). Chaque livraison
+        publie un événement `ANNONCE` dont `payload.action` vaut `deliverOrder` (`resourceId`, `quantity`). Quand la
+        commande est déjà terminée, il n'y a plus rien à livrer : le service ne prend rien, n'écrit rien et répond 200 avec
+        la commande telle qu'elle est (`completed` vrai). Refus : `PAS_ASSEZ_DE_DONAR` (avec `missing`),
+        `CONFLIT_REESSAYER`. Un acteur inconnu, ou sans entreprise, donne 400.
       operationId: deliverOrder
       requestBody:
         required: true
@@ -521,7 +540,7 @@ paths:
                 - type: object
                   required: [quantity]
                   properties:
-                    quantity: { type: number, minimum: 0 }
+                    quantity: { type: integer, format: int64, minimum: 1, description: unités à livrer }
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
         '401': { $ref: '#/components/responses/Erreur' }
@@ -529,10 +548,10 @@ paths:
         '501': { $ref: '#/components/responses/Erreur' }
         '409': { $ref: '#/components/responses/Refused' }
         '200':
-          description: commande mise à jour
+          description: livraison faite (ou rien à livrer, la commande étant déjà terminée) ; la commande à jour, puis l'état de l'entreprise et les soldes de celui qui livre
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/WorldOrder' }
+              schema: { $ref: '#/components/schemas/OrderDelivered' }
 
   /v1/market/listings:
     get:
@@ -731,6 +750,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MissionState' }
 
+  /v1/players/{xuid}/findings:
+    get:
+      summary: Le Carnet de trouvailles du joueur
+      description: |
+        Une trouvaille est une ressource que le joueur voit sortir d'une de ses usines pour la première fois : au
+        premier `collect` qui rapporte du Donar, chaque ressource que produit une usine en marche de son entreprise
+        (`definitions/usines.json`, listes `produit`) entre dans le Carnet si elle n'y est pas déjà. Chaque trouvaille
+        rapporte une fois les Lingots hors prestige de `lingotsHorsPrestige.trouvaille` et publie un événement
+        `ANNONCE` dont `payload.action` vaut `trouvaille` (`resourceId`, `rewardLingots`). Il n'y a pas de route pour
+        en réclamer une : le service les inscrit dans `collect`. Un joueur inconnu du service donne 400.
+      operationId: getFindings
+      parameters: [ { $ref: '#/components/parameters/XuidPath' } ]
+      responses:
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+        '200':
+          description: Carnet du joueur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FindingBook' }
+
 components:
   securitySchemes:
     cleServeur:
@@ -742,6 +784,7 @@ components:
     CompanyId: { name: companyId, in: path, required: true, schema: { type: integer, format: int64 } }
     FactoryId: { name: factoryId, in: path, required: true, schema: { type: string, example: scierie } }
     XuidPath: { name: xuid, in: path, required: true, schema: { $ref: '#/components/schemas/Xuid' }, description: le joueur concerné }
+    PlayerXuidQuery: { name: xuid, in: query, required: false, schema: { $ref: '#/components/schemas/Xuid' }, description: le joueur dont on veut aussi la part }
     ActorXuid: { name: actor, in: query, required: true, schema: { type: string, pattern: '^[0-9]{1,20}$' }, description: le joueur qui agit }
     RequestId: { name: requestId, in: query, required: true, schema: { type: string, format: uuid } }
 
@@ -933,8 +976,29 @@ components:
         resourceId: { type: string }
         target: { type: number }
         delivered: { type: number }
-        rewardLingots: { type: integer, format: int64 }
+        rewardLingots: { type: integer, format: int64, description: 'Lingots hors prestige versés à chaque joueur qui a livré, quand la commande est terminée' }
         completed: { type: boolean }
+        mine: { type: number, description: la part déjà livrée par le joueur demandé (0 sans xuid) }
+    OrderDelivered:
+      type: object
+      required: [order, state, balances]
+      properties:
+        order: { $ref: '#/components/schemas/WorldOrder' }
+        state: { $ref: '#/components/schemas/CompanyState' }
+        balances: { $ref: '#/components/schemas/Balances' }
+    Finding:
+      type: object
+      required: [id, foundAt]
+      properties:
+        id: { type: string, description: 'identifiant de la ressource trouvée (usines.json, produit)' }
+        foundAt: { type: string, format: date-time }
+    FindingBook:
+      type: object
+      required: [found, total, rewardLingots]
+      properties:
+        found: { type: array, items: { $ref: '#/components/schemas/Finding' }, description: 'les trouvailles du joueur, de la plus ancienne à la plus récente' }
+        total: { type: integer, minimum: 0, description: 'le nombre de trouvailles que le jeu propose' }
+        rewardLingots: { type: integer, format: int64, minimum: 0, description: Lingots versés pour chaque trouvaille }
     Listing:
       type: object
       required: [listingId, sellerXuid, resourceId, remaining, unitPrice]

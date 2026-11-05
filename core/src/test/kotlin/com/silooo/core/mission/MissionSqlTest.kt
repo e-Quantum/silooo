@@ -70,6 +70,13 @@ class MissionSqlTest {
     private val first = definitions.missions.missions.first()
     private val reward = definitions.missionRewards.getValue(first.id)
 
+    /**
+     * Ce que le premier encaissement qui rapporte d'un joueur ajoute au Carnet : une prime par produit de l'usine de départ,
+     * en plus de la mission. Le Carnet est au joueur : chaque joueur qui encaisse touche la sienne.
+     */
+    private val starterProducts = definitions.factories.factories.single { it.id == definitions.economy.prestige.courseStart.factoryId }.products
+    private val findingsReward = starterProducts.size * definitions.economy.lingotsOutsidePrestige.finding
+
     @BeforeEach
     fun prepare() = MariaDbSupport.prepare()
 
@@ -215,9 +222,13 @@ class MissionSqlTest {
         assertEquals(HttpStatusCode.OK, collect(id).status)
 
         assertEquals(listOf("${KR.text}|${first.id}|${first.target}|1"), missionRows())
-        assertEquals(reward, lingotsOf(KR))
-        assertEquals(listOf("${KR.text}|LINGOTS|$reward|$reward|mission|${first.id}"), ledger())
-        assertEquals(listOf("${KR.text}|ANNONCE|collect", "${KR.text}|ANNONCE|mission"), events())
+        assertEquals(reward + findingsReward, lingotsOf(KR), "la mission, puis une prime du Carnet par produit de l'usine de départ")
+        assertEquals(listOf("${KR.text}|LINGOTS|$reward|$reward|mission|${first.id}"), ledger().filter { it!!.contains("|mission|") })
+        assertEquals(starterProducts.sorted(), ledger().filter { it!!.contains("|trouvaille|") }.map { it!!.substringAfterLast('|') }.sorted())
+        assertEquals(
+            listOf("${KR.text}|ANNONCE|collect", "${KR.text}|ANNONCE|mission") + List(starterProducts.size) { "${KR.text}|ANNONCE|trouvaille" },
+            events(),
+        )
         assertEquals(listOf("${first.id}|$reward"), missionEvents())
 
         val state = stateOf(KR)
@@ -305,7 +316,7 @@ class MissionSqlTest {
         assertEquals(HttpStatusCode.OK, collect(id, n = 1, actor = OTHER).status)
 
         assertEquals(listOf("${OTHER.text}|${first.id}|${first.target}|1"), missionRows())
-        assertEquals(reward, lingotsOf(OTHER))
+        assertEquals(reward + findingsReward, lingotsOf(OTHER))
         assertEquals(0L, lingotsOf(KR), "le PDG n'a rien reçu")
         assertEquals(listOf(first.id), stateOf(OTHER).completed)
         assertEquals(first.id, stateOf(KR).current?.id, "la mission du PDG n'a pas bougé")
@@ -314,6 +325,6 @@ class MissionSqlTest {
         earnSomething(id)
         assertEquals(HttpStatusCode.OK, collect(id, n = 2, actor = KR).status)
         assertEquals(listOf(OTHER.text, KR.text).sorted(), missionRows().map { it!!.substringBefore('|') }.sorted())
-        assertEquals(reward, lingotsOf(KR))
+        assertEquals(reward + findingsReward, lingotsOf(KR), "le Carnet du PDG est à lui : sa prime est à part de celle de l'associé")
     }
 }

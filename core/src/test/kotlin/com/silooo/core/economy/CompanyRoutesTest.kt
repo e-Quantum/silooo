@@ -18,6 +18,7 @@ import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.findings.InMemoryFindingStore
 import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.mission.MissionRow
 import com.silooo.core.server.ServerPresence
@@ -68,6 +69,8 @@ class CompanyRoutesTest {
         val missions: InMemoryMissionStore,
         /** La présence que `join` interroge, sur l'horloge du test : un signal de vie se périme quand le test avance le temps. */
         val presence: ServerPresence,
+        /** Le Carnet des joueurs, en mémoire : un encaissement qui rapporte y inscrit les ressources des usines en marche et verse leur prime. */
+        val findings: InMemoryFindingStore,
     ) {
         val engine get() = fixture.engine
         val recording get() = fixture.recording
@@ -124,6 +127,7 @@ class CompanyRoutesTest {
         val companies = InMemoryCompanyStore(fixture.store)
         val missions = InMemoryMissionStore(fixture.store)
         val presence = ServerPresence(clock = fixture.clock)
+        val findings = InMemoryFindingStore(fixture.store)
         application {
             siloooModule(
                 Dependencies(
@@ -137,11 +141,12 @@ class CompanyRoutesTest {
                     companyBootstrap = fixture.bootstrap,
                     companyStore = companies,
                     missionStore = missions,
+                    findingStore = findings,
                     serverPresence = presence,
                 ),
             )
         }
-        block(Harness(fixture, database, companies, missions, presence))
+        block(Harness(fixture, database, companies, missions, presence, findings))
     }
 
     // --- outils
@@ -393,7 +398,10 @@ class CompanyRoutesTest {
 
         assertEquals(MissionRow(first.target, completed = true), app.missions.rows.getValue(kr to first.id))
         assertEquals(listOf(InMemoryMissionStore.Credit(kr, reward, "mission", first.id)), app.missions.credits)
-        assertEquals(reward, app.fixture.store.balances.getValue(kr).lingots)
+        // Le solde du PDG est la récompense de la mission plus les primes du Carnet que le même encaissement a inscrit.
+        val findingsReward = app.findings.credits.sumOf { it.amount }
+        assertTrue(findingsReward > 0, "l'encaissement a inscrit les ressources de l'usine de départ")
+        assertEquals(reward + findingsReward, app.fixture.store.balances.getValue(kr).lingots)
         val event = app.missions.published.single()
         assertEquals(GameEventKind.ANNONCE, event.kind)
         assertEquals(kr, event.xuid)
@@ -407,7 +415,7 @@ class CompanyRoutesTest {
         assertEquals(HttpStatusCode.OK, collect(company.id, n = 2).status)
         assertEquals(1, app.missions.credits.size)
         assertEquals(1, app.missions.published.size)
-        assertEquals(reward, app.fixture.store.balances.getValue(kr).lingots)
+        assertEquals(reward + findingsReward, app.fixture.store.balances.getValue(kr).lingots, "ni la mission ni le Carnet ne repayent")
     }
 
     @Test
