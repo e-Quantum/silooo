@@ -115,19 +115,7 @@ etape_addon() {
 }
 
 etape_resource_pack() {
-  local liste=()
-  while IFS= read -r f; do liste+=("$f"); done < <(find resource-pack -name '*.json' | sort)
-  if [ "${#liste[@]}" -eq 0 ]; then echo "Aucun .json dans resource-pack/."; return 0; fi
-  node -e '
-    const fs = require("node:fs");
-    let mauvais = 0;
-    for (const f of process.argv.slice(1)) {
-      try { JSON.parse(fs.readFileSync(f, "utf8").replace(/^﻿/, "")); }
-      catch (e) { console.log(`${f}: JSON invalide : ${e.message}`); mauvais++; }
-    }
-    console.log(`${process.argv.length - 1} fichier(s) JSON lu(s), ${mauvais} invalide(s).`);
-    process.exit(mauvais ? 1 : 0);
-  ' "${liste[@]}"
+  node tools/verifier_pack.mjs
 }
 
 etape_tests_outillage() {
@@ -154,9 +142,9 @@ else
   ignorer "Add-on : tests et build" "pas de addon/package.json"
 fi
 if [ -d resource-pack ]; then
-  etape "Pack de ressources : JSON valides" etape_resource_pack
+  etape "Pack de ressources : JSON, copies de design/, Oooscar" etape_resource_pack
 else
-  ignorer "Pack de ressources : JSON valides" "pas de resource-pack/"
+  ignorer "Pack de ressources : JSON, copies de design/, Oooscar" "pas de resource-pack/"
 fi
 etape "Tests de l'outillage" etape_tests_outillage
 

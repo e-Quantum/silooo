@@ -17,18 +17,21 @@
 #   3. le décompresse une seule fois dans /data/bds/<version>/ (marque .silooo-extrait), enlève worlds/, config/,
 #      server.properties, allowlist.json et permissions.json du zip, et fait pointer worlds/ et config/ vers les volumes
 #      /data/worlds et /data/config, allowlist.json et permissions.json vers des fichiers de /data/config ;
-#   4. copie le pack Silooo de l'image (/opt/silooo/pack) dans behavior_packs/silooo ;
+#   4. copie le pack de comportement de l'image (/opt/silooo/pack) dans behavior_packs/silooo, et son pack de ressources
+#      (/opt/silooo/resource-pack) dans resource_packs/silooo ;
 #   5. écrit la configuration, puis cd /data/bds/<version> et exec ./bedrock_server avec LD_LIBRARY_PATH=.
 #
 # Ce que le script écrit (chemins relatifs au dossier de BDS, /data/bds/<version> dans l'image) :
 #   server.properties                           depuis server.properties.template, à chaque démarrage
 #   config/default/permissions.json             les modules de la Script API permis par défaut
 #   config/<uuid du module script>/             pour le pack Silooo : permissions.json, variables.json, secrets.json
-#   worlds/<BDS_LEVEL_NAME>/world_behavior_packs.json   le pack actif dans le monde
+#   worlds/<BDS_LEVEL_NAME>/world_behavior_packs.json   le pack de comportement actif dans le monde
+#   worlds/<BDS_LEVEL_NAME>/world_resource_packs.json   le pack de ressources actif dans le monde (même logique)
 #   allowlist.json et permissions.json          créés vides s'ils n'existent pas (des liens vers le volume de config)
 #
-# L'uuid du module script se lit dans le manifest.json du pack, jamais ici. La clé SILOOO_API_KEY va dans
-# secrets.json (mode 600) sans passer par une ligne de commande, et le script ne l'affiche ni ne la journalise.
+# L'uuid du module script se lit dans le manifest.json du pack de comportement, et l'uuid et la version du pack de
+# ressources dans le sien, jamais ici. La clé SILOOO_API_KEY va dans secrets.json (mode 600) sans passer par une ligne de
+# commande, et le script ne l'affiche ni ne la journalise.
 # Pas de « set -x » ici, jamais.
 #
 # Codes de sortie : 64 option inconnue, 65 zip ou manifest.json inutilisable (somme fausse comprise), 66 zip de BDS
@@ -47,13 +50,15 @@ echec() {
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GABARIT="${BDS_GABARIT:-$DIR_SCRIPT/server.properties.template}"
-# Les chemins de l'image. Les variables BDS_RACINE, BDS_DONNEES, BDS_SOMMES_SHA256, BDS_SOMME_MD5, BDS_URL et
-# SILOOO_PACK_DIR ne servent qu'aux essais de tools/tests/deploy-start.sh : le compose n'en passe aucune.
+# Les chemins de l'image. Les variables BDS_RACINE, BDS_DONNEES, BDS_SOMMES_SHA256, BDS_SOMME_MD5, BDS_URL,
+# SILOOO_PACK_DIR et SILOOO_RESOURCE_PACK_DIR ne servent qu'aux essais de tools/tests/deploy-start.sh : le compose n'en
+# passe aucune.
 BDS_RACINE="${BDS_RACINE:-/data/bds}"            # le dossier de Kr : le zip, puis BDS décompressé par version
 DONNEES="${BDS_DONNEES:-/data}"                  # les volumes du monde (worlds/) et de la config (config/)
 SOMMES_SHA256="${BDS_SOMMES_SHA256:-$DIR_SCRIPT/bds.sha256}"
 SOMME_MD5="${BDS_SOMME_MD5:-$DIR_SCRIPT/bds.md5}"
 PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack}" # le pack construit par l'image, copié dans BDS à chaque démarrage
+RESSOURCES_SOURCE="${SILOOO_RESOURCE_PACK_DIR:-$DIR_SCRIPT/resource-pack}" # le pack de ressources de l'image, copié de même
 # Posés par le Dockerfile (ENV) : la version de BDS que l'image attend, et l'identité honnête pour le téléchargement.
 BDS_VERSION="${BDS_VERSION:-}"
 BDS_USER_AGENT="${BDS_USER_AGENT:-silooo-bds/1.0 (+https://github.com/e-Quantum/silooo)}"
@@ -381,6 +386,25 @@ cat >"$CONFIG_DIR/default/permissions.json" <<'JSON'
 }
 JSON
 
+# ------------------------------------------------------------------ le monde et ses listes de packs
+MONDE_DIR="$BDS_DIR/worlds/$nom_monde"
+uuid_ok='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+
+# inscrire_pack <liste> <uuid> <version> : l'entrée du pack dans world_behavior_packs.json ou world_resource_packs.json,
+# deux listes du même format. Une liste existante garde ses autres packs ; l'entrée de Silooo est remplacée par celle du
+# manifeste, sans doublon. Une liste illisible n'est jamais écrasée (code 65).
+inscrire_pack() {
+  local liste=$1 id=$2 version=$3
+  if [ -s "$liste" ]; then
+    jq --arg id "$id" --argjson version "$version" \
+      'if type == "array" then map(select(.pack_id != $id)) + [{pack_id: $id, version: $version}] else error("la liste n est pas un tableau") end' \
+      "$liste" >"$liste.tmp" || { rm -f "$liste.tmp"; echec 65 "$liste n'est pas une liste JSON de packs : je ne l'écrase pas"; }
+    mv "$liste.tmp" "$liste"
+  else
+    printf '[\n  {\n    "pack_id": "%s",\n    "version": %s\n  }\n]\n' "$id" "$version" >"$liste"
+  fi
+}
+
 # ------------------------------------------------------------------ le pack de comportement Silooo
 PACK_DIR="$BDS_DIR/behavior_packs/silooo"
 MANIFESTE="$PACK_DIR/manifest.json"
@@ -408,7 +432,6 @@ if [ "$PACK_PRESENT" -eq 1 ]; then
   # L'uuid du module de type script, pas celui de l'en-tête : c'est le nom du dossier de config/ (docs/bedrock.md, fait 2).
   MODULE_UUID="$(jq -er '[.modules[]? | select(.type == "script")][0].uuid' "$MANIFESTE")" ||
     echec 65 "$MANIFESTE : aucun module de type script"
-  uuid_ok='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
   [[ $PACK_UUID =~ $uuid_ok ]] || echec 65 "$MANIFESTE : header.uuid n'est pas un uuid"
   [[ $MODULE_UUID =~ $uuid_ok ]] || echec 65 "$MANIFESTE : l'uuid du module script n'est pas un uuid"
   [[ $PACK_VERSION =~ ^\[[0-9]+,[0-9]+,[0-9]+\]$ ]] || echec 65 "$MANIFESTE : header.version doit être [x, y, z]"
@@ -461,18 +484,8 @@ JSON
   unset cle
 
   # Le monde liste le pack : sans cette ligne BDS ne charge pas le pack, même posé dans behavior_packs/.
-  MONDE_DIR="$BDS_DIR/worlds/$nom_monde"
   mkdir -p "$MONDE_DIR"
-  LISTE="$MONDE_DIR/world_behavior_packs.json"
-  if [ -s "$LISTE" ]; then
-    # Une liste existante garde ses autres packs ; l'entrée de Silooo est remplacée par celle du manifeste.
-    jq --arg id "$PACK_UUID" --argjson version "$PACK_VERSION" \
-      'if type == "array" then map(select(.pack_id != $id)) + [{pack_id: $id, version: $version}] else error("la liste n est pas un tableau") end' \
-      "$LISTE" >"$LISTE.tmp" || { rm -f "$LISTE.tmp"; echec 65 "$LISTE n'est pas une liste JSON de packs : je ne l'écrase pas"; }
-    mv "$LISTE.tmp" "$LISTE"
-  else
-    printf '[\n  {\n    "pack_id": "%s",\n    "version": %s\n  }\n]\n' "$PACK_UUID" "$PACK_VERSION" >"$LISTE"
-  fi
+  inscrire_pack "$MONDE_DIR/world_behavior_packs.json" "$PACK_UUID" "$PACK_VERSION"
   dire "pack Silooo $PACK_UUID $PACK_VERSION actif dans le monde « $nom_monde » ; config des scripts dans config/$MODULE_UUID (secrets en mode 600)"
 
   # Les modules server-net et server-admin sont en bêta : sans l'option « Beta APIs » dans le monde, ils ne se
@@ -480,6 +493,34 @@ JSON
   if [ ! -f "$MONDE_DIR/level.dat" ]; then
     alerte "le monde « $nom_monde » n'existe pas encore : BDS en créera un sans « Beta APIs », et les scripts ne se chargeront pas. Envoie un monde créé avec l'option (docs/deploiement.md)."
   fi
+fi
+
+# ------------------------------------------------------------------ le pack de ressources Silooo
+# Même logique que le pack de comportement : recopié de l'image à chaque démarrage (jamais celui d'un démarrage
+# précédent), puis listé dans le monde. Le HUD, les textures et Oooscar viennent de lui. Le manifeste est de type
+# resources : pas de module script, seuls header.uuid et header.version comptent.
+RESSOURCES_DIR="$BDS_DIR/resource_packs/silooo"
+RESSOURCES_MANIFESTE="$RESSOURCES_DIR/manifest.json"
+if [ -f "$RESSOURCES_SOURCE/manifest.json" ]; then
+  mkdir -p "$BDS_DIR/resource_packs"
+  rm -rf "$RESSOURCES_DIR"
+  cp -a "$RESSOURCES_SOURCE" "$RESSOURCES_DIR"
+  dire "pack de ressources Silooo copié de $RESSOURCES_SOURCE dans $RESSOURCES_DIR"
+fi
+if [ -f "$RESSOURCES_MANIFESTE" ]; then
+  command -v jq >/dev/null 2>&1 || echec 78 "jq est introuvable : il lit manifest.json"
+  RESSOURCES_UUID="$(jq -er '.header.uuid' "$RESSOURCES_MANIFESTE")" || echec 65 "$RESSOURCES_MANIFESTE : header.uuid manque ou le JSON est invalide"
+  RESSOURCES_VERSION="$(jq -ec '.header.version' "$RESSOURCES_MANIFESTE")" || echec 65 "$RESSOURCES_MANIFESTE : header.version manque"
+  [[ $RESSOURCES_UUID =~ $uuid_ok ]] || echec 65 "$RESSOURCES_MANIFESTE : header.uuid n'est pas un uuid"
+  [[ $RESSOURCES_VERSION =~ ^\[[0-9]+,[0-9]+,[0-9]+\]$ ]] || echec 65 "$RESSOURCES_MANIFESTE : header.version doit être [x, y, z]"
+  # Sans cette ligne BDS ne propose pas le pack aux joueurs, même posé dans resource_packs/.
+  mkdir -p "$MONDE_DIR"
+  inscrire_pack "$MONDE_DIR/world_resource_packs.json" "$RESSOURCES_UUID" "$RESSOURCES_VERSION"
+  dire "pack de ressources Silooo $RESSOURCES_UUID $RESSOURCES_VERSION actif dans le monde « $nom_monde »"
+else
+  # Sans pack de ressources, le serveur démarre quand même : les joueurs n'ont alors ni le HUD ni Oooscar.
+  dire "pas de pack de ressources Silooo ($RESSOURCES_MANIFESTE absent) : le serveur démarre sans pack de ressources"
+  rmdir "$RESSOURCES_DIR" 2>/dev/null || true
 fi
 
 # La liste des joueurs permis et celle des opérateurs : vides tant que personne n'est ajouté. Dans l'image, ces deux

@@ -186,6 +186,8 @@ verifier(/apt-get install[^\n]*\bunzip\b/.test(instructions.replace(/\\\n/g, ' '
 const volumesDockerfile = /^VOLUME\s+\[(.*)\]\s*$/m.exec(dockerfile)?.[1].split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
 verifier(egal(volumesDockerfile, ['/data/worlds', '/data/config', '/data/bds']), 'le Dockerfile déclare les volumes /data/worlds, /data/config et /data/bds', volumesDockerfile);
 verifier(/COPY --from=addon [^\n]*\/src\/addon\/dist\/pack \/opt\/silooo\/pack\/$/m.test(dockerfile), 'le pack construit dans l\'étape addon est copié dans /opt/silooo/pack');
+verifier(dockerfile.split('\n').some((l) => l.startsWith('COPY ') && l.endsWith(' resource-pack /opt/silooo/resource-pack/')), 'le pack de ressources du dépôt est copié dans /opt/silooo/resource-pack');
+verifier(startSh.includes('$DIR_SCRIPT/resource-pack}') && existsSync(join(racine, 'resource-pack/manifest.json')), 'start.sh cherche le pack de ressources dans /opt/silooo/resource-pack, à côté de lui, et le dépôt a un resource-pack/manifest.json');
 verifier(/^COPY [^\n]*deploy\/bds\/bds\.sha256 deploy\/bds\/bds\.md5 \/opt\/silooo\/$/m.test(dockerfile), 'bds.sha256 et bds.md5 sont copiés à côté de start.sh');
 const uaDockerfile = /^ARG BDS_USER_AGENT="([^"]+)"$/m.exec(dockerfile)?.[1];
 verifier(uaDockerfile && uaDockerfile.includes('silooo') && !/mozilla|chrome|safari/i.test(uaDockerfile), 'le User-Agent de téléchargement dit qui il est (pas celui d\'un navigateur)', uaDockerfile);
@@ -218,6 +220,7 @@ for (const motif of ['.env', 'deploy/.tag-courant', 'sauvegardes/']) {
 verifier(existsSync(join(racine, 'deploy/bds/Dockerfile.dockerignore')), 'Dockerfile.dockerignore est à côté du Dockerfile');
 const ignoreDocker = lire('deploy/bds/Dockerfile.dockerignore').split('\n').map((l) => l.trim());
 verifier(ignoreDocker.includes('**/.env') && ignoreDocker.includes('**/*.key') && ignoreDocker.includes('**/*.pem'), 'Dockerfile.dockerignore écarte les fichiers de secrets du contexte');
+verifier(ignoreDocker.includes('!resource-pack') && ignoreDocker.indexOf('*') < ignoreDocker.indexOf('!resource-pack'), 'Dockerfile.dockerignore laisse passer resource-pack/ après avoir tout exclu');
 
 console.log();
 console.log(`compose : ${reussis} réussi(s), ${echecs} en échec.`);

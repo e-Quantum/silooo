@@ -71,6 +71,22 @@ JSON
   : >"$1/behavior_packs/silooo/scripts/main.js"
 }
 
+# Un manifeste de pack de ressources : l'uuid de l'en-tête et celui du module sont différents exprès (la liste du monde
+# porte celui de l'en-tête).
+UUID_RESSOURCES="44444444-4444-4444-8444-444444444444"
+UUID_RESSOURCES_MODULE="55555555-5555-4555-8555-555555555555"
+poser_ressources() { # poser_ressources <dossier du pack de ressources>
+  mkdir -p "$1/textures/ui/silooo"
+  cat >"$1/manifest.json" <<JSON
+{
+  "format_version": 2,
+  "header": { "name": "pack.name", "description": "pack.description", "uuid": "$UUID_RESSOURCES", "version": [0, 1, 0], "min_engine_version": [1, 21, 0] },
+  "modules": [ { "type": "resources", "uuid": "$UUID_RESSOURCES_MODULE", "version": [0, 1, 0] } ]
+}
+JSON
+  printf 'png' >"$1/textures/ui/silooo/plein.png"
+}
+
 # ------------------------------------------------------------------ gabarit
 echo "start.sh : le gabarit"
 if grep -q '^transport=nethernet$' "$GABARIT" && grep -q '^content-log-file-enabled=true$' "$GABARIT"; then
@@ -85,11 +101,16 @@ D="$TMP/sans-pack"
 lancer "$D"
 if [ "$CODE" -eq 0 ]; then ok "sort en 0"; else ko "devait sortir en 0 (code $CODE)" "$SORTIE"; fi
 for attendu in "server-name=Silooo" "level-name=silooo" "max-players=20" "transport=nethernet" "server-port=19142" \
-  "server-udp-ports=19143-19174" "allow-list=true" "content-log-file-enabled=true" "online-mode=true"; do
+  "server-udp-ports=19143-19174" "allow-list=true" "content-log-file-enabled=true" "online-mode=true" "texturepack-required=true"; do
   if grep -qxF -- "$attendu" "$D/server.properties"; then ok "server.properties contient $attendu"; else ko "server.properties devrait contenir $attendu" "$(cat "$D/server.properties" 2>&1)"; fi
 done
 if grep -q '{{' "$D/server.properties"; then ko "server.properties garde une marque non remplacée"; else ok "server.properties sans marque restante"; fi
 if printf '%s\n' "$SORTIE" | grep -q "pas de pack"; then ok "dit qu'il démarre sans pack"; else ko "devait dire qu'il n'y a pas de pack" "$SORTIE"; fi
+if printf '%s\n' "$SORTIE" | grep -q "pas de pack de ressources" && [ ! -e "$D/resource_packs" ] && [ ! -e "$D/worlds/silooo/world_resource_packs.json" ]; then
+  ok "sans pack de ressources : le dit, et n'écrit ni resource_packs/ ni world_resource_packs.json"
+else
+  ko "sans pack de ressources : devait le dire et ne rien écrire" "$SORTIE"
+fi
 if [ ! -e "$D/config/$UUID_MODULE" ] && [ -z "$(find "$D/config" -name secrets.json 2>/dev/null)" ]; then ok "aucun secrets.json sans pack"; else ko "pas de secrets.json attendu sans pack"; fi
 if [ "$(lire_json "$D/config/default/permissions.json" 'd.allowed_modules.includes("@minecraft/server-admin")')" = true ]; then
   ok "config/default/permissions.json permet server-admin"
@@ -291,6 +312,79 @@ else
   : >"$D/worlds/silooo/level.dat"
   lancer "$D" SILOOO_API_KEY=x
   if printf '%s\n' "$SORTIE" | grep -q "Beta APIs"; then ko "pas d'avertissement attendu quand level.dat existe"; else ok "pas d'avertissement quand level.dat existe"; fi
+
+  # ---- Le pack de ressources : copié dans resource_packs/silooo, listé dans world_resource_packs.json (uuid et version
+  # de l'en-tête), sans clé ni configuration de scripts.
+  echo "start.sh : avec le pack de ressources Silooo"
+  poser_ressources "$TMP/ressources-source"
+  D="$TMP/avec-ressources"
+  lancer "$D" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-source" BDS_LEVEL_NAME=monde-test
+  if [ "$CODE" -eq 0 ] && [ -f "$D/resource_packs/silooo/manifest.json" ] && [ -f "$D/resource_packs/silooo/textures/ui/silooo/plein.png" ]; then
+    ok "le pack de ressources est copié dans resource_packs/silooo (sans pack de comportement, sans clé)"
+  else
+    ko "le pack de ressources devait être copié dans resource_packs/silooo (code $CODE)" "$SORTIE"
+  fi
+  LISTE_RES="$D/worlds/monde-test/world_resource_packs.json"
+  if [ "$(lire_json "$LISTE_RES" 'd[0].pack_id')" = "$UUID_RESSOURCES" ] && [ "$(lire_json "$LISTE_RES" 'd[0].version')" = "[0,1,0]" ] &&
+    [ "$(lire_json "$LISTE_RES" 'd.length')" = 1 ]; then
+    ok "world_resource_packs.json liste le pack (uuid et version de l'en-tête, pas celui du module)"
+  else
+    ko "world_resource_packs.json devrait lister le pack de ressources" "$(cat "$LISTE_RES" 2>&1)"
+  fi
+  if [ ! -e "$D/worlds/monde-test/world_behavior_packs.json" ] && [ -z "$(find "$D/config" -name secrets.json 2>/dev/null)" ]; then
+    ok "le pack de ressources n'écrit ni liste de packs de comportement ni secrets.json"
+  else
+    ko "le pack de ressources ne devait écrire ni world_behavior_packs.json ni secrets.json"
+  fi
+  if printf '%s\n' "$SORTIE" | grep -q "pack de ressources Silooo $UUID_RESSOURCES"; then ok "dit que le pack de ressources est actif"; else ko "devait dire que le pack de ressources est actif" "$SORTIE"; fi
+
+  # Les deux packs ensemble : chaque liste ne porte que son pack.
+  D="$TMP/deux-packs"
+  poser_pack "$D"
+  lancer "$D" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-source" SILOOO_API_KEY=x BDS_LEVEL_NAME=monde-test
+  if [ "$CODE" -eq 0 ] && [ "$(lire_json "$D/worlds/monde-test/world_behavior_packs.json" 'd.map(p => p.pack_id)')" = "[\"$UUID_PACK\"]" ] &&
+    [ "$(lire_json "$D/worlds/monde-test/world_resource_packs.json" 'd.map(p => p.pack_id)')" = "[\"$UUID_RESSOURCES\"]" ]; then
+    ok "deux packs : chaque liste du monde ne porte que son pack"
+  else
+    ko "deux packs : world_behavior_packs.json et world_resource_packs.json attendus, chacun avec son pack (code $CODE)" "$SORTIE"
+  fi
+
+  # Au démarrage suivant, le pack de l'image remplace celui du dossier de BDS.
+  D="$TMP/avec-ressources"
+  : >"$D/resource_packs/silooo/ancien.png"
+  lancer "$D" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-source" BDS_LEVEL_NAME=monde-test
+  if [ "$CODE" -eq 0 ] && [ ! -e "$D/resource_packs/silooo/ancien.png" ] && [ -f "$D/resource_packs/silooo/manifest.json" ]; then
+    ok "au démarrage suivant, le pack de ressources est remplacé par celui de l'image"
+  else
+    ko "le pack de ressources devait être remplacé à chaque démarrage (code $CODE)" "$SORTIE"
+  fi
+
+  # Une liste existante garde ses autres packs, sans doublon, et l'entrée de Silooo prend la version du manifeste.
+  printf '[ {"pack_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","version":[1,0,0]}, {"pack_id":"%s","version":[0,0,1]} ]\n' "$UUID_RESSOURCES" >"$LISTE_RES"
+  lancer "$D" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-source" BDS_LEVEL_NAME=monde-test
+  lancer "$D" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-source" BDS_LEVEL_NAME=monde-test
+  if [ "$CODE" -eq 0 ] && [ "$(lire_json "$LISTE_RES" 'd.length')" = 2 ] &&
+    [ "$(lire_json "$LISTE_RES" 'd.filter(p => p.pack_id === "'"$UUID_RESSOURCES"'").map(p => p.version)')" = "[[0,1,0]]" ] &&
+    [ "$(lire_json "$LISTE_RES" 'd[0].pack_id')" = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" ]; then
+    ok "une liste de ressources existante garde ses autres packs, l'entrée Silooo est mise à jour sans doublon"
+  else
+    ko "la liste de ressources devait garder l'autre pack et mettre le nôtre à [0,1,0]" "$(cat "$LISTE_RES" 2>&1)"
+  fi
+
+  # Une liste illisible n'est pas écrasée.
+  printf 'pas du json' >"$LISTE_RES"
+  lancer "$D" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-source" BDS_LEVEL_NAME=monde-test
+  if [ "$CODE" -eq 65 ] && [ "$(cat "$LISTE_RES")" = "pas du json" ]; then ok "une liste de ressources illisible : code 65 et fichier intact"; else ko "liste de ressources illisible : code 65 et fichier intact attendus (code $CODE)" "$SORTIE"; fi
+
+  # Un manifeste de ressources illisible, ou dont l'uuid n'en est pas un, arrête le démarrage.
+  poser_ressources "$TMP/ressources-cassees"
+  printf '{ pas du json' >"$TMP/ressources-cassees/manifest.json"
+  lancer "$TMP/ressources-cassees-bds" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-cassees"
+  if [ "$CODE" -eq 65 ]; then ok "manifeste de ressources illisible : code 65"; else ko "manifeste de ressources illisible : code 65 attendu (code $CODE)" "$SORTIE"; fi
+  poser_ressources "$TMP/ressources-uuid"
+  sed -i "s/$UUID_RESSOURCES/pas-un-uuid/" "$TMP/ressources-uuid/manifest.json"
+  lancer "$TMP/ressources-uuid-bds" SILOOO_RESOURCE_PACK_DIR="$TMP/ressources-uuid"
+  if [ "$CODE" -eq 65 ]; then ok "manifeste de ressources dont l'uuid n'en est pas un : code 65"; else ko "uuid de ressources invalide : code 65 attendu (code $CODE)" "$SORTIE"; fi
 fi
 
 # ------------------------------------------------------------------ le zip de BDS
@@ -591,11 +685,12 @@ if [ "$LIENS" -eq 1 ] && command -v unzip >/dev/null 2>&1 && command -v sha256su
   if command -v jq >/dev/null 2>&1; then
     poser_pack "$TMP/i/source"
     PACK_IMAGE="$TMP/i/source/behavior_packs/silooo"
+    poser_ressources "$TMP/i/ressources"
     R="$TMP/i/racine"
     mkdir -p "$R"
     ecrire_sommes "$TMP/i/sommes" "$SHA_BON" "$MD5_BON"
     cp "$ZIP_BON" "$R/$NOM_ZIP"
-    lancer_bds "$R" "$TMP/i/sommes" FAUX_CURL=interdit SILOOO_PACK_DIR="$PACK_IMAGE" SILOOO_API_KEY=cle-de-test
+    lancer_bds "$R" "$TMP/i/sommes" FAUX_CURL=interdit SILOOO_PACK_DIR="$PACK_IMAGE" SILOOO_RESOURCE_PACK_DIR="$TMP/i/ressources" SILOOO_API_KEY=cle-de-test
     if [ "$CODE" -eq 0 ] && [ -f "$R/$V/behavior_packs/silooo/manifest.json" ] && [ -f "$R/$V/behavior_packs/silooo/scripts/main.js" ] &&
       [ -f "$R/$V/behavior_packs/vanilla/manifest.json" ]; then
       ok "le pack de l'image est copié dans behavior_packs/silooo"
@@ -606,6 +701,12 @@ if [ "$LIENS" -eq 1 ] && command -v unzip >/dev/null 2>&1 && command -v sha256su
       ok "le monde (dans le volume) liste le pack copié"
     else
       ko "world_behavior_packs.json devait lister le pack" "$(cat "$R.donnees/worlds/silooo/world_behavior_packs.json" 2>&1)"
+    fi
+    if [ -f "$R/$V/resource_packs/silooo/textures/ui/silooo/plein.png" ] &&
+      [ "$(lire_json "$R.donnees/worlds/silooo/world_resource_packs.json" 'd[0].pack_id')" = "$UUID_RESSOURCES" ]; then
+      ok "le pack de ressources de l'image est copié dans resource_packs/silooo et listé dans le monde (dans le volume)"
+    else
+      ko "le pack de ressources devait être copié et listé" "$(cat "$R.donnees/worlds/silooo/world_resource_packs.json" 2>&1)"
     fi
     : >"$R/$V/behavior_packs/silooo/ancien-fichier.js"
     lancer_bds "$R" "$TMP/i/sommes" FAUX_CURL=interdit SILOOO_PACK_DIR="$PACK_IMAGE" SILOOO_API_KEY=cle-de-test

@@ -10,11 +10,11 @@ le projet Docker Compose, les scripts de déploiement et de sauvegarde. Le déta
 | --- | --- |
 | `compose.yml` | Projet `silooo` : `silooo-migrate`, `silooo-core`, `silooo-bds`, leurs limites de mémoire, réseaux et volumes |
 | `exemple.env.txt` | Modèle du fichier d'environnement, avec des valeurs fausses et une ligne d'explication par variable |
-| `bds/Dockerfile` | Image `silooo-bds` : l'add-on construit, `start.sh` et ses outils ; sans le serveur Bedrock ; construite par la CI |
+| `bds/Dockerfile` | Image `silooo-bds` : l'add-on construit, le pack de ressources (`../resource-pack/`), `start.sh` et ses outils ; sans le serveur Bedrock ; construite par la CI |
 | `bds/bds.sha256` | Somme SHA-256 du zip de Bedrock Dedicated Server, à écrire par Kr ; contrôlée au démarrage du conteneur |
 | `bds/bds.md5` | Content-MD5 annoncé par Mojang pour ce zip ; contrôlé tant que la somme SHA-256 n'est pas épinglée |
-| `bds/start.sh` | Entrée du conteneur : trouve, contrôle et décompresse le zip de BDS, écrit la configuration à partir des variables, puis lance le serveur |
-| `bds/server.properties.template` | Gabarit de `server.properties` |
+| `bds/start.sh` | Entrée du conteneur : trouve, contrôle et décompresse le zip de BDS, écrit la configuration à partir des variables, installe les deux packs (`behavior_packs/silooo`, `resource_packs/silooo`) et les liste dans le monde, puis lance le serveur |
+| `bds/server.properties.template` | Gabarit de `server.properties` (dont `texturepack-required=true`) |
 | `scripts/deploy.sh` | Déploie un tag : sauvegarde, tirage, migrations, démarrage, test de fumée, retour arrière |
 | `scripts/sauvegarde.sh` | Dump de la base `silooo` et archive du monde |
 | `scripts/commun.sh` | Réglages communs aux deux scripts |
@@ -61,6 +61,8 @@ SILOOO_TAG=<tag> docker compose -p silooo --project-directory /var/www/silooo -f
 - Un monde de départ créé avec « Beta APIs » (voir [docs/deploiement.md](../docs/deploiement.md)) : sans lui, les
   scripts de l'add-on ne se chargent pas.
 - La validation du nom du serveur (`BDS_SERVER_NAME`, « Silooo » par défaut) : texte vu par les joueurs.
+- La validation du nom et de la description du pack de ressources (`resource-pack/texts/fr_FR.lang`) : textes vus par les
+  joueurs, dans la liste des packs.
 
 ## Ce qui n'est pas encore éprouvé
 

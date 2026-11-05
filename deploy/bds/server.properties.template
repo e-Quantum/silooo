@@ -22,6 +22,10 @@ enable-lan-visibility=false
 allow-list={{BDS_ALLOW_LIST}}
 online-mode=true
 
+# Le pack de ressources de Silooo (resource_packs/silooo, listé dans world_resource_packs.json par start.sh) est obligatoire :
+# le HUD en dépend, sans lui le titre préfixé s'afficherait tel quel à l'écran.
+texturepack-required=true
+
 # Les erreurs de contenu (pack, scripts) vont dans un fichier du conteneur et ne sont pas perdues au tick suivant.
 content-log-file-enabled=true
 

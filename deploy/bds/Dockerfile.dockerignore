@@ -3,12 +3,13 @@
 # Le contexte est la racine du dépôt. Ce fichier porte le nom du Dockerfile suivi de « .dockerignore » : BuildKit
 # l'utilise à la place d'un .dockerignore à la racine (que le dépôt n'a pas). Même principe que core/Dockerfile.dockerignore.
 
-# On exclut tout, puis on rouvre ce que l'image lit : l'add-on (quand il existe), les définitions dont son build
-# peut avoir besoin (types générés), et les fichiers de l'image BDS. Un nouveau dossier à la racine n'entre donc
+# On exclut tout, puis on rouvre ce que l'image lit : l'add-on (quand il existe), le pack de ressources,
+# les définitions dont son build peut avoir besoin (types générés), et les fichiers de l'image BDS. Un nouveau dossier à la racine n'entre donc
 # jamais dans l'image par accident. Si le build de l'add-on lit un autre dossier du dépôt, rouvre-le ici.
 *
 
 !addon
+!resource-pack
 !definitions
 !deploy/bds
 

@@ -177,13 +177,13 @@ jobs:
           tags: silooo-bds:ci
           cache-from: type=gha,scope=bds
           cache-to: type=gha,mode=max,scope=bds
-      - name: Contrôler l'image (taille, utilisateur, pack, pas de BDS, rendu de la configuration)
+      - name: Contrôler l'image (taille, utilisateur, packs, pas de BDS, rendu de la configuration)
         run: |
           set -euo pipefail
           docker image ls silooo-bds:ci
           taille="$(docker image inspect silooo-bds:ci --format '{{.Size}}')"
           echo "Taille de l'image : $((taille / 1024 / 1024)) Mo"
-          docker run --rm --entrypoint sh silooo-bds:ci -c 'set -e; id; test "$(id -u)" = 10001; ls -l /opt/silooo /opt/silooo/pack; test -f /opt/silooo/pack/manifest.json; test -f /opt/silooo/pack/scripts/main.js; test -f /opt/silooo/bds.sha256; test -f /opt/silooo/bds.md5; test -d /data/bds; command -v unzip jq curl'
+          docker run --rm --entrypoint sh silooo-bds:ci -c 'set -e; id; test "$(id -u)" = 10001; ls -l /opt/silooo /opt/silooo/pack; test -f /opt/silooo/pack/manifest.json; test -f /opt/silooo/pack/scripts/main.js; ls /opt/silooo/resource-pack; test -f /opt/silooo/resource-pack/manifest.json; test -f /opt/silooo/resource-pack/ui/hud_screen.json; test -f /opt/silooo/resource-pack/textures/entity/oooscar.png; test -f /opt/silooo/bds.sha256; test -f /opt/silooo/bds.md5; test -d /data/bds; command -v unzip jq curl'
           # Décision 26 : le serveur Bedrock n'est pas dans l'image.
           present="$(docker run --rm --entrypoint sh silooo-bds:ci -c 'find / -xdev -name bedrock_server -print 2>/dev/null; ls -d /opt/bds 2>/dev/null; true')"
           if [ -n "$present" ]; then echo "::error::BDS ne doit pas être dans l'image : $present"; exit 1; fi
@@ -191,7 +191,11 @@ jobs:
           # start.sh rend la configuration dans un dossier jetable, sans chercher le zip ni lancer le serveur. La clé est
           # factice : avec un pack, start.sh la veut pour écrire secrets.json.
           docker run --rm -e SILOOO_API_KEY=cle-factice-de-la-ci -e BDS_PUBLIC_IP=203.0.113.10 --entrypoint sh silooo-bds:ci \
-            -c '/opt/silooo/start.sh --rendre-seulement /tmp/rendu && cat /tmp/rendu/server.properties && ls -R /tmp/rendu | head -n 40'
+            -c '/opt/silooo/start.sh --rendre-seulement /tmp/rendu && cat /tmp/rendu/server.properties && find /tmp/rendu -maxdepth 3 | sort | head -n 40'
+          # Le pack de ressources de l'image arrive dans resource_packs/silooo et le monde le liste (uuid de son manifeste).
+          docker run --rm -e SILOOO_API_KEY=cle-factice-de-la-ci -e BDS_PUBLIC_IP=203.0.113.10 --entrypoint sh silooo-bds:ci \
+            -c 'set -e; /opt/silooo/start.sh --rendre-seulement /tmp/rendu >/dev/null; test -f /tmp/rendu/resource_packs/silooo/manifest.json; test -f /tmp/rendu/resource_packs/silooo/ui/hud_screen.json; test -f /tmp/rendu/resource_packs/silooo/textures/entity/oooscar.png; grep -q "$(jq -r .header.uuid /opt/silooo/resource-pack/manifest.json)" /tmp/rendu/worlds/silooo/world_resource_packs.json; grep -qx "texturepack-required=true" /tmp/rendu/server.properties; cat /tmp/rendu/worlds/silooo/world_resource_packs.json'
+          echo "Le pack de ressources est dans l'image, copié par start.sh et listé dans le monde."
       # Sans zip dans le dossier monté, start.sh doit s'arrêter avec la marche à suivre pour Kr, et un code non nul.
       - name: Vérifier l'arrêt de start.sh sans zip de BDS
         run: |
