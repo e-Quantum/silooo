@@ -20,6 +20,8 @@ data class DatabaseConfig(val url: String, val user: String, val password: Strin
  *
  * [apiRequestRetention] : combien de temps `api_requests` garde une réponse pour la rejouer ; au-delà,
  * la ligne est purgée (voir [Config.API_REQUESTS_RETENTION_HOURS]).
+ *
+ * [deliveryPoll] : l'intervalle du relevé des commandes de Gemmes du site (`shop_deliveries`), voir [Config.DELIVERY_POLL_SECONDS].
  */
 data class ServiceConfig(
     val port: Int,
@@ -27,9 +29,11 @@ data class ServiceConfig(
     val database: DatabaseConfig,
     val definitionsDir: Path,
     val apiRequestRetention: Duration = Duration.ofHours(Config.DEFAULT_API_REQUESTS_RETENTION_HOURS),
+    val deliveryPoll: Duration = Duration.ofSeconds(Config.DEFAULT_DELIVERY_POLL_SECONDS),
 ) {
     override fun toString() =
-        "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention)"
+        "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, " +
+            "apiRequestRetention=$apiRequestRetention, deliveryPoll=$deliveryPoll)"
 }
 
 /**
@@ -62,6 +66,19 @@ object Config {
     /** Garde-fou : une faute de frappe ne doit pas garder les réponses un siècle (une année au plus). */
     const val MAX_API_REQUESTS_RETENTION_HOURS = 8760L
 
+    /**
+     * Toutes les combien de secondes le service relève `shop_deliveries` : les commandes de Gemmes que le site a écrites et qu'il
+     * verse aux joueurs qu'il connaît. Un réglage technique, pas un chiffre du jeu : plus court, le joueur voit ses Gemmes plus
+     * vite ; plus long, la base est moins sollicitée. Un joueur qui entre en jeu reçoit les siennes à `join`, sans attendre ce passage.
+     */
+    const val DELIVERY_POLL_SECONDS = "SILOOO_DELIVERY_POLL_SECONDS"
+
+    /** 30 secondes quand la variable n'est pas posée : le signal de vie du serveur bat toutes les 10 secondes, et un paiement se voit vite. */
+    const val DEFAULT_DELIVERY_POLL_SECONDS = 30L
+
+    /** Garde-fou : une faute de frappe ne doit pas laisser les paiements une journée sans livraison (une heure au plus). */
+    const val MAX_DELIVERY_POLL_SECONDS = 3600L
+
     /** Port d'écoute quand `SILOOO_PORT` n'est pas posé : celui de l'OpenAPI (`http://silooo-core:8080`). */
     const val DEFAULT_PORT = 8080
 
@@ -88,9 +105,11 @@ object Config {
         val port = reader.port()
         val definitionsDir = reader.definitionsDir(workingDir)
         val retention = reader.apiRequestRetention()
+        val deliveryPoll = reader.deliveryPoll()
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
+            checkNotNull(deliveryPoll),
         )
     }
 
@@ -170,6 +189,17 @@ object Config {
                 return null
             }
             return Duration.ofHours(hours)
+        }
+
+        fun deliveryPoll(): Duration? {
+            val raw = env[DELIVERY_POLL_SECONDS]
+            if (raw.isNullOrBlank()) return Duration.ofSeconds(DEFAULT_DELIVERY_POLL_SECONDS)
+            val seconds = raw.trim().toLongOrNull()
+            if (seconds == null || seconds !in 1..MAX_DELIVERY_POLL_SECONDS) {
+                problems += "$DELIVERY_POLL_SECONDS doit être un nombre entier de secondes entre 1 et $MAX_DELIVERY_POLL_SECONDS"
+                return null
+            }
+            return Duration.ofSeconds(seconds)
         }
 
         fun finish() {

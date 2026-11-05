@@ -22,7 +22,7 @@ const val EVENTS_MAX_LIMIT = 500
  * tel quel au prochain appel. `after` manquant ou négatif, `limit` hors de 1 à 500 : 400 `REQUETE_INVALIDE`.
  *
  * Pour écrire un événement, une route appelle [publishEvent] dans la transaction de ce qui le cause.
- * Plus tard (phase 5) : le relevé des livraisons de Gemmes (`shop_deliveries`) qui écrit `GEMMES_RECUES`.
+ * Le relevé des livraisons de Gemmes (`shop_deliveries`, voir `shop/DeliveryRelief`) écrit `GEMMES_RECUES` dans la transaction du versement.
  *
  * Limite connue : un identifiant se réserve à l'écriture mais n'est visible qu'à la validation. Une
  * transaction lente pourrait donc montrer l'événement 12 après que l'add-on a lu le 13 et passé le curseur.

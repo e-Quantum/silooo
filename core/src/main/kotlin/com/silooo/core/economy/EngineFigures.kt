@@ -41,12 +41,17 @@ import org.slf4j.LoggerFactory
  * La ville ([city], facultative) donne deux bonus : un pourcentage de production en plus sur le multiplicateur global, et
  * des logements qui baissent le salaire des premiers membres du personnel (par identifiant). Sans source de ville, ou sans
  * bâtiment à bonus, le calcul est celui d'avant la ville, bit pour bit.
+ *
+ * La boutique ([shop], facultative) donne un bonus de plus sur le multiplicateur global : le plus haut grade à vie du PDG de
+ * l'entreprise et son Pilier tant qu'il court. Sans source de boutique, ou sans grade ni Pilier, le calcul est celui d'avant la
+ * boutique, bit pour bit.
  */
 class EngineFigures(
     private val engine: EconomyEngine,
     private val store: SessionStore,
     private val clock: Clock = Clock.systemUTC(),
     private val city: CityBonusSource? = null,
+    private val shop: ShopBonusSource? = null,
 ) : EconomyFigures {
     private val knownFactories: Set<String> = engine.factoryIds().toSet()
 
@@ -252,12 +257,15 @@ class EngineFigures(
     }
 
     /**
-     * Le multiplicateur global : la moyenne des Lingots détenus par les membres, les étoiles de l'entreprise, et le bonus de
-     * production des bâtiments de la ville (rien sans ville ou sans bâtiment à bonus).
+     * Le multiplicateur global : la moyenne des Lingots détenus par les membres, les étoiles de l'entreprise, le bonus de
+     * production des bâtiments de la ville (rien sans ville ou sans bâtiment à bonus), puis les bonus de la boutique : le plus
+     * haut grade du PDG et son Pilier (rien sans source de boutique, ni sans grade ni Pilier).
      */
     private fun multiplierOf(connection: Connection, company: CompanyRecord, cityState: CityState?): Double {
         val base = engine.globalMultiplier(engine.averageHeldLingots(store.loadMemberLingots(connection, company.id)), company.stars)
-        return if (cityState == null) base else engine.withCityBonus(base, cityState.bonuses.donarProductionPercent)
+        val withCity = if (cityState == null) base else engine.withCityBonus(base, cityState.bonuses.donarProductionPercent)
+        val bonuses = shop?.of(connection, company) ?: return withCity
+        return engine.withShopBonuses(withCity, bonuses.gradePercent, bonuses.pilierPercent)
     }
 
     /** Le niveau des usines qui produisent, par identifiant : la matière du revenu de l'entreprise. */

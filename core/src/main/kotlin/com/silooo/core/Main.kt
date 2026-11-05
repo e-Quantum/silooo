@@ -5,6 +5,8 @@ import com.silooo.core.definitions.DefinitionsException
 import com.silooo.core.definitions.DefinitionsLoader
 import com.silooo.core.db.Migrations
 import com.silooo.core.incident.INCIDENT_TICK_EVERY
+import com.silooo.core.shop.DeliveryRelief
+import com.silooo.core.shop.JdbcShopStore
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import kotlin.system.exitProcess
@@ -61,12 +63,16 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     Migrations.validate(config.database)
     val database = HikariDatabase.connect(config.database)
     try {
+        val shopStore = JdbcShopStore()
         val dependencies = Dependencies(
             database = database,
             apiKey = config.apiKey,
             definitions = definitions,
+            shopStore = shopStore,
             apiRequestRetention = config.apiRequestRetention,
             incidentTick = INCIDENT_TICK_EVERY,
+            deliveries = DeliveryRelief(database, shopStore),
+            deliveryPoll = config.deliveryPoll,
         )
         log.info("silooo-core écoute sur le port {}.", config.port)
         // 0.0.0.0 : dans le conteneur, seul le réseau Docker atteint ce port. Le compose ne le publie jamais.

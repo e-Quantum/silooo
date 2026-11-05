@@ -28,7 +28,9 @@ internal const val GAMERTAG_MAX_LENGTH = 32
  *
  *  - `POST /v1/session/join` (`join`) : crée le joueur au premier passage, avec son entreprise (case d'archipel,
  *    PDG, usines de départ de [CompanyBootstrap]) et ses soldes à zéro, puis rend `JoinResponse`. Les chiffres
- *    du moteur d'économie passent par [EconomyFigures]. Sans `requestId` : un rejeu rend le même état.
+ *    du moteur d'économie passent par [EconomyFigures]. Les Gemmes que le site a vendues à ce joueur avant qu'il ne vienne sont
+ *    versées dans la même transaction (`PendingDeliveries`, branché sur `shop/DeliveryRelief`), donc déjà dans les soldes de la
+ *    réponse. Sans `requestId` : un rejeu rend le même état et ne verse rien deux fois.
  *  - `POST /v1/session/leave` (`leave`) : fige `players.last_seen_at`, verse la production au revenu plein et remet
  *    `last_collect_at` à maintenant, pour que la période hors ligne commence au départ du dernier membre connecté. 204.
  *
@@ -41,6 +43,7 @@ fun Route.sessionRoutes(dependencies: Dependencies) {
         economy = dependencies.economyFigures,
         bootstrap = dependencies.companyBootstrap,
         online = dependencies.serverPresence,
+        deliveries = dependencies.deliveries ?: PendingDeliveries.NONE,
     )
 
     post("/session/join") {

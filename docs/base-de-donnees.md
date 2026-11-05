@@ -77,10 +77,27 @@ C'est ce qui permet à plusieurs associés de jouer en même temps sans verrou l
 
 ## Les livraisons de Gemmes
 
-Le site de SileneMC écrit une ligne dans `shop_deliveries` par commande payée, avec le pseudo saisi
-sur le site. silooo-core relève les lignes sans `delivered_at`, retrouve le joueur par son gamertag,
-crédite le solde une seule fois grâce à la clé primaire `order_id`, écrit la ligne de journal et
-l'événement `GEMMES_RECUES`. Un pseudo inconnu laisse la ligne en attente.
+Le site de SileneMC écrit une ligne dans `shop_deliveries` par commande payée (`order_id`, le pseudo saisi sur le site, les Gemmes
+achetées). Le site n'a que le droit d'insérer. silooo-core fait le reste, dans `shop/DeliveryRelief`, de deux façons :
+
+- **à intervalle régulier** : un passage toutes les 30 secondes par défaut (variable `SILOOO_DELIVERY_POLL_SECONDS`), qui relève les
+  lignes sans `delivered_at`, de la plus ancienne à la plus récente, par lots de 100 ;
+- **au `join`** : les lignes d'un joueur qui arrive sont versées dans la transaction du `join`, avant la réponse.
+
+Le joueur d'une ligne est trouvé par `xuid` si la ligne en porte un que `players` connaît, sinon par `gamertag` (casse ignorée,
+celui dont `last_seen_at` est le plus récent s'ils sont plusieurs). Personne ne correspond : la ligne reste en attente, intacte
+(`delivered_at` toujours nul, `xuid` tel que le site l'a écrit), et le passage suivant, ou le `join` du joueur, la reprend.
+
+Une ligne trouvée se verse en **une seule transaction** :
+
+1. `UPDATE shop_deliveries SET delivered_at = ?, xuid = ? WHERE order_id = ? AND delivered_at IS NULL` doit toucher une ligne ; sinon
+   un autre passage l'a versée, et rien n'est écrit ;
+2. `player_balances.gemmes` et une ligne de `currency_ledger` (motif `livraison`, `ref_id` : l'`order_id`) ;
+3. l'événement `GEMMES_RECUES` dans `game_events` (`orderId`, `gemmes`, `gemmesTotal`).
+
+Si une des trois écritures échoue, aucune ne reste et la ligne attend le passage suivant. La commande est donc versée une seule fois,
+même si deux passages, ou un passage et un `join`, tournent en même temps : le second ne touche aucune ligne. Aucune migration n'a été
+nécessaire, V1 suffit.
 
 ## La règle des migrations
 
