@@ -295,6 +295,33 @@ class DeliveryReliefTest {
     }
 
     @Test
+    @DisplayName("Le pseudo d'une livraison se compare par la clé du site : casse, espaces des bords et espaces doublés sans effet, au relevé comme à join")
+    fun gamertagIsMatchedByTheSiteKey() = harness {
+        player(kr, "Kr Majuscule", gemmes = 0)
+        player(friend, "Ami", gemmes = 0)
+        shop.seedDelivery("casse", "KR MAJUSCULE", gemmes = 1)
+        shop.seedDelivery("bords", "  kr majuscule \t", gemmes = 10)
+        shop.seedDelivery("doubles", "Kr   Majuscule", gemmes = 100)
+        shop.seedDelivery("tout", " kR \t maJUSCULE ", gemmes = 1000)
+
+        // Au relevé : les quatre sont pour Kr, aucune pour l'ami.
+        assertEquals(4, poll())
+        assertEquals(1111L, gemmes(kr))
+        assertEquals(0L, gemmes(friend))
+        assertTrue(shop.deliveries.values.all { it.xuid == kr && it.deliveredAt != null })
+
+        // À join : le même rattrapage retrouve ces variantes, par le pseudo que le jeu donne.
+        shop.seedDelivery("apres-join", " KR majuscule", gemmes = 5)
+        database.let { runBlocking { it.transaction { connection -> relief.relieve(connection, kr, "Kr Majuscule") } } }
+        assertEquals(1116L, gemmes(kr))
+
+        // Un pseudo qui n'a que l'air proche reste en attente : un préfixe (Floodgate) ou une lettre de plus ne sont pas la même clé.
+        for ((n, other) in listOf(".Kr Majuscule", "Kr Majuscul", "KrMajuscule", "Kr Majuscule 2").withIndex()) shop.seedDelivery("proche-$n", other, gemmes = 7)
+        assertEquals(0, poll())
+        assertEquals(4, shop.deliveries.values.count { it.deliveredAt == null })
+    }
+
+    @Test
     @DisplayName("join : un joueur inconnu qui avait une commande en attente voit ses Gemmes dans la réponse, une fois ; un second join ne verse rien")
     fun joinCatchesUp() {
         val app = Harness()

@@ -63,6 +63,8 @@ data class AgencyDefinition(
 
 @Serializable
 data class RarityDefinition(
+    /** Le nom que les joueurs voient pour cette rareté (la clé du fichier reste le code). À valider par Kr. */
+    @SerialName("nom") val name: String,
     /** Part des candidats de cette rareté, en pourcent. */
     @SerialName("repartitionPourcent") val sharePercent: Double,
     /** Gain de production de l'usine où le membre travaille, en pourcent de sa production sans lui. */

@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "agence": {
+    "candidatsParJour": 5,
+    "rolesParPlace": [
+      "SALARIE",
+      "SALARIE",
+      "SALARIE",
+      "SALARIE",
+      "CHEF"
+    ],
+    "noms": [
+      "Adèle",
+      "Basile",
+      "Colette",
+      "Désiré",
+      "Estelle",
+      "Fabien",
+      "Gaspard",
+      "Hélène",
+      "Ignace",
+      "Josette",
+      "Lucien",
+      "Mireille",
+      "Noël",
+      "Odile",
+      "Pascal",
+      "Quentin",
+      "Rosalie",
+      "Sylvain",
+      "Thérèse",
+      "Ulysse",
+      "Valentin",
+      "Wilfried",
+      "Yvonne",
+      "Zoé"
+    ],
+    "apparences": {
+      "SALARIE": [
+        "ouvrier-casque",
+        "ouvrier-salopette",
+        "ouvriere-gilet",
+        "ouvriere-tablier",
+        "ouvrier-casquette",
+        "ouvriere-foulard"
+      ],
+      "CHEF": [
+        "chef-veste",
+        "chef-casque-blanc",
+        "cheffe-veste",
+        "cheffe-casque-blanc"
+      ]
+    }
+  },
+  "raretes": {
+    "COMMUN": {
+      "nom": "Ordinaire",
+      "repartitionPourcent": 75,
+      "bonusProductionPourcent": 10,
+      "salairePourcent": 2.5,
+      "coutHeuresDeRevenu": 1
+    },
+    "RARE": {
+      "repartitionPourcent": 20,
+      "bonusProductionPourcent": 25,
+      "salairePourcent": 6,
+      "coutHeuresDeRevenu": 4
+    },
+    "EPIQUE": {
+      "nom": "Exceptionnel",
+      "repartitionPourcent": 5,
+      "bonusProductionPourcent": 60,
+      "salairePourcent": 15,
+      "coutHeuresDeRevenu": 20
+    }
+  },
+  "roles": {
+    "SALARIE": {
+      "coutFacteur": 1,
+      "salaireFacteur": 1
+    },
+    "CHEF": {
+      "coutFacteur": 2,
+      "salaireFacteur": 1.5
+    }
+  },
+  "postes": {
+    "salariesBase": 1,
+    "niveauxParPoste": 25,
+    "chefsParUsine": 1
+  },
+  "chefEquipe": {
+    "plafondHorsLigneBonusHeures": 4
+  }
+}
