@@ -1,0 +1,110 @@
+{
+  "namespace": "silooo_hud",
+
+  "puce_fond": {
+    "type": "image",
+    "texture": "textures/ui/silooo/puce-fonte",
+    "nineslice_size": 3,
+    "size": ["100%sm + 6px", "100%sm + 6px"],
+    "layer": 1
+  },
+
+  "puce_texte": {
+    "type": "label",
+    "text": "#text",
+    "localize": false,
+    "color": [1.0, 0.9647, 0.8706],
+    "shadow": false,
+    "font_size": "normal",
+    "anchor_from": "center",
+    "anchor_to": "center",
+    "layer": 2
+  },
+
+  "monnaies": {
+    "type": "panel",
+    "size": ["100%c", "100%c"],
+    "bindings": [
+      {
+        "binding_name": "#hud_title_text_string"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "((('silooo:hud|' + (#hud_title_text_string - 'silooo:hud|')) = #hud_title_text_string) and (not ((#hud_title_text_string - 'silooo:hud|') = '')))",
+        "target_property_name": "#visible"
+      }
+    ],
+    "controls": [
+      {
+        "texte@silooo_hud.puce_texte": {
+          "bindings": [
+            {
+              "binding_name": "#hud_title_text_string"
+            },
+            {
+              "binding_type": "view",
+              "source_property_name": "(#hud_title_text_string - 'silooo:hud|')",
+              "target_property_name": "#text"
+            }
+          ]
+        }
+      },
+      {
+        "fond@silooo_hud.puce_fond": {}
+      }
+    ]
+  },
+
+  "consigne": {
+    "type": "panel",
+    "size": ["100%c", "100%c"],
+    "offset": [0, 1],
+    "bindings": [
+      {
+        "binding_name": "#hud_subtitle_text_string"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "((('silooo:consigne|' + (#hud_subtitle_text_string - 'silooo:consigne|')) = #hud_subtitle_text_string) and (not ((#hud_subtitle_text_string - 'silooo:consigne|') = '')))",
+        "target_property_name": "#visible"
+      }
+    ],
+    "controls": [
+      {
+        "texte@silooo_hud.puce_texte": {
+          "bindings": [
+            {
+              "binding_name": "#hud_subtitle_text_string"
+            },
+            {
+              "binding_type": "view",
+              "source_property_name": "(#hud_subtitle_text_string - 'silooo:consigne|')",
+              "target_property_name": "#text"
+            }
+          ]
+        }
+      },
+      {
+        "fond@silooo_hud.puce_fond": {}
+      }
+    ]
+  },
+
+  "zone": {
+    "type": "stack_panel",
+    "orientation": "vertical",
+    "size": ["100%c", "100%c"],
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "offset": [3, 3],
+    "layer": 4,
+    "controls": [
+      {
+        "monnaies@silooo_hud.monnaies": {}
+      },
+      {
+        "consigne@silooo_hud.consigne": {}
+      }
+    ]
+  }
+}
