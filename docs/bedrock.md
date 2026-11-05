@@ -264,8 +264,11 @@ const reponse = await http.request(req); // reponse.status, reponse.body
 - En-têtes : aucun cookie ni jeton, et aucune acceptation de CLUF dans la requête. Le CLUF est celui de
   minecraft.net/terms (l'image itzg demande `EULA=TRUE`) ; la
   [page de téléchargement](https://www.minecraft.net/download/server/bedrock) n'a pas pu être lue (délai
-  dépassé). User-Agent : le User-Agent par défaut de curl n'a reçu aucune réponse en 20 s ; un User-Agent vide
-  et `Mozilla/5.0` ont reçu 200. Un User-Agent propre à la CI n'a pas été essayé : à tester.
+  dépassé). User-Agent : le 5 novembre 2026, ni le User-Agent par défaut de curl ni celui de l'image
+  (`silooo-bds/1.0 (+https://github.com/e-Quantum/silooo)`) n'ont reçu de réponse (0 octet, puis délai dépassé),
+  depuis le PC comme depuis les runners GitHub ; lors du premier relevé, un User-Agent vide et `Mozilla/5.0`
+  avaient reçu 200. Le site ne sert le zip qu'aux navigateurs. On ne déguise pas le client : le zip est posé par
+  Kr (décision 26 de `docs/passation.md`, `docs/deploiement.md`, « Le zip de BDS »).
 - Intégrité : aucune somme publiée trouvée sur une page. Les réponses portent un en-tête `Content-MD5`, lu mais
   non recalculé sur le fichier : `1.26.62.1` = `4a23794a882b008d3f0a5fde8b338f55`, `1.26.61.1` =
   `72e52f2f9fd1050806959f41e8293905`, `1.26.60.6` = `f0ae82eec98e4191a917349b7af12c6c`. Pas de SHA-256 : la CI
