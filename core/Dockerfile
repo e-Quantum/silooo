@@ -33,7 +33,7 @@ RUN groupadd --system --gid 10001 silooo \
 
 WORKDIR /app
 COPY --from=build /src/core/build/install/silooo-core/lib /app/lib
-# Les chiffres du jeu (economie.json, usines.json, boutique.json) : le service les lit au démarrage et
+# Les chiffres du jeu (economie.json, usines.json, boutique.json, monde.json) : le service les lit au démarrage et
 # refuse de démarrer s'il en manque un. Changer un chiffre, c'est reconstruire l'image, pas le code.
 COPY definitions /app/definitions
 ENV SILOOO_DEFINITIONS_DIR=/app/definitions

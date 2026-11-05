@@ -309,6 +309,20 @@ class EconomyEngineTest {
     }
 
     @Test
+    @DisplayName("Le plafond passé par l'appelant (celui de l'entreprise) remplace celui des définitions, la formule reste la même")
+    fun offlineCapOfTheCaller() {
+        val cap = offlineRules.capHours
+        for (companyCap in listOf(cap / 2, cap, cap * 3)) {
+            assertEquals(companyCap, engine.offlineHours(companyCap * 10, companyCap))
+            assertEquals(companyCap / 2, engine.offlineHours(companyCap / 2, companyCap))
+            val rate = 4321.5
+            assertEquals(rate * companyCap * offlineRules.efficiency, engine.offlineEarnings(rate, companyCap * 10, companyCap))
+        }
+        assertEquals(0.0, engine.offlineHours(3.0, 0.0))
+        assertThrows<IllegalArgumentException> { engine.offlineHours(1.0, -1.0) }
+    }
+
+    @Test
     @DisplayName("Le gain hors ligne est le revenu fois les heures comptées fois l'efficacité")
     fun offlineEarnings() {
         val rate = 12_345.678
@@ -334,17 +348,46 @@ class EconomyEngineTest {
     // ---------------------------------------------------------------- prestige
 
     @Test
-    @DisplayName("Les seuils sont ceux de prestige.seuils, et la course suivante n'en a pas")
+    @DisplayName("Les seuils listés sont ceux de prestige.seuils ; une course qui n'est pas numérotée depuis 1 est refusée")
     fun thresholds() {
         for (entry in prestigeRules.thresholds) {
-            assertTrue(engine.hasPrestigeThreshold(entry.course))
+            assertTrue(engine.hasListedThreshold(entry.course))
             assertEquals(entry.donar, engine.prestigeThreshold(entry.course))
         }
-        val beyond = prestigeRules.thresholds.size + 1
-        assertFalse(engine.hasPrestigeThreshold(beyond))
-        assertFalse(engine.hasPrestigeThreshold(0))
-        assertThrows<IllegalArgumentException> { engine.prestigeThreshold(beyond) }
+        assertFalse(engine.hasListedThreshold(prestigeRules.thresholds.size + 1))
+        assertFalse(engine.hasListedThreshold(0))
         assertThrows<IllegalArgumentException> { engine.prestigeThreshold(0) }
+        assertThrows<IllegalArgumentException> { engine.prestigeThreshold(-3) }
+    }
+
+    @Test
+    @DisplayName("Au-delà des courses listées, chaque seuil vaut le précédent fois facteurSeuilSuivant")
+    fun thresholdsBeyondTheListedCourses() {
+        val listed = prestigeRules.thresholds
+        val factor = prestigeRules.nextThresholdFactor
+        val first = listed.size + 1
+        assertEquals(listed.last().donar * factor, engine.prestigeThreshold(first))
+        var previous = engine.prestigeThreshold(first)
+        for (course in first + 1..first + 5) {
+            val threshold = engine.prestigeThreshold(course)
+            assertRelative(previous * factor, threshold, 1e-12, "course $course")
+            assertTrue(threshold > previous, "les seuils croissent : course $course")
+            previous = threshold
+        }
+        for (course in first..first + 5) {
+            assertFalse(engine.hasListedThreshold(course))
+            assertTrue(engine.canPrestige(course, engine.prestigeThreshold(course)))
+            assertFalse(engine.canPrestige(course, Math.nextDown(engine.prestigeThreshold(course))))
+        }
+    }
+
+    @Test
+    @DisplayName("Un seuil qui sortirait des doubles reste fini : la course est sans fin, jamais une erreur")
+    fun thresholdsStayFinite() {
+        val farAway = prestigeRules.thresholds.size + 10_000
+        assertEquals(Double.MAX_VALUE, engine.prestigeThreshold(farAway))
+        assertEquals(Double.MAX_VALUE, engine.prestigeThreshold(Int.MAX_VALUE))
+        assertTrue(engine.prestigeLingotsExact(farAway, 1.0).isFinite())
     }
 
     @Test

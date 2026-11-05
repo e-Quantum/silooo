@@ -45,7 +45,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "seuils", "etoilesSuivantes", "conversionLingots",
+        "seuils", "etoilesSuivantes", "facteurSeuilSuivant", "conversionLingots",
         "productionParEtoile", "bonusParLingotDetenu", "departDeCourse"
       ],
       "properties": {
@@ -64,6 +64,11 @@
           }
         },
         "etoilesSuivantes": { "type": "string" },
+        "facteurSeuilSuivant": {
+          "description": "Au-delà de la dernière course listée dans seuils, chaque seuil vaut le précédent multiplié par ce facteur (la lecture chiffrée de etoilesSuivantes).",
+          "type": "number",
+          "exclusiveMinimum": 1
+        },
         "conversionLingots": {
           "type": "object",
           "additionalProperties": false,

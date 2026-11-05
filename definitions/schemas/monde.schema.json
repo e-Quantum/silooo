@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/monde.schema.json",
+  "title": "Monde de Silooo",
+  "description": "Forme de definitions/monde.json. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "archipel"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "archipel": {
+      "description": "La grille des archipels dans le monde unique : une case par entreprise, rangées de gauche à droite puis de rangée en rangée.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ecartEntreCases", "casesParRangee", "origine"],
+      "properties": {
+        "ecartEntreCases": {
+          "description": "Distance en blocs entre les origines de deux cases voisines, sur x comme sur z : la place réservée à chaque archipel.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "casesParRangee": {
+          "description": "Nombre de cases d'une rangée (le long de x) avant de passer à la rangée suivante (le long de z).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "origine": {
+          "description": "Coordonnées en blocs de la case d'indice 0.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "z"],
+          "properties": {
+            "x": { "type": "integer" },
+            "z": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}

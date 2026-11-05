@@ -185,15 +185,24 @@ class EconomyEngine(private val definitions: Definitions) {
 
     // ---------------------------------------------------------------- hors ligne
 
-    /** Les heures hors ligne qui comptent : le temps absent, plafonné par `horsLigne.plafondHeures`. */
-    fun offlineHours(awayHours: Double): Double {
+    /**
+     * Les heures hors ligne qui comptent : le temps absent, plafonné. Le plafond est `capHours` ; sans lui, le
+     * plafond de départ de `horsLigne.plafondHeures`. Le service passe celui de l'entreprise
+     * (`companies.offline_cap_hours`), que les améliorations étendent : la formule reste ici, le plafond
+     * vient de l'appelant.
+     */
+    fun offlineHours(awayHours: Double, capHours: Double = offlineRules.capHours): Double {
         require(awayHours >= 0.0) { "Une durée d'absence n'est pas négative : $awayHours" }
-        return minOf(awayHours, offlineRules.capHours)
+        require(capHours >= 0.0) { "Un plafond hors ligne n'est pas négatif : $capHours" }
+        return minOf(awayHours, capHours)
     }
 
-    /** Le Donar gagné pendant l'absence : le revenu en ligne, sur les heures comptées, à l'efficacité hors ligne. */
-    fun offlineEarnings(ratePerHour: Double, awayHours: Double): Double =
-        ratePerHour * offlineHours(awayHours) * offlineRules.efficiency
+    /**
+     * Le Donar gagné pendant l'absence : le revenu en ligne, sur les heures comptées ([offlineHours]), à
+     * l'efficacité hors ligne.
+     */
+    fun offlineEarnings(ratePerHour: Double, awayHours: Double, capHours: Double = offlineRules.capHours): Double =
+        ratePerHour * offlineHours(awayHours, capHours) * offlineRules.efficiency
 
     /**
      * Le multiplicateur hors ligne moyen d'un joueur qui joue `playHoursPerDay` heures par jour et dont les
@@ -208,19 +217,23 @@ class EconomyEngine(private val definitions: Definitions) {
 
     // ---------------------------------------------------------------- prestige
 
-    /** Vrai si `prestige.seuils` donne un seuil pour cette course (numérotée depuis 1). */
-    fun hasPrestigeThreshold(course: Int): Boolean = course in 1..prestigeRules.thresholds.size
+    /** Vrai si `prestige.seuils` liste le seuil de cette course (numérotée depuis 1) ; sinon il se déduit du dernier. */
+    fun hasListedThreshold(course: Int): Boolean = course in 1..prestigeRules.thresholds.size
 
     /**
-     * Le seuil de prestige de la course (Donar gagnés dans la course). Au-delà de la dernière course
-     * listée, le moteur ne dit rien : `etoilesSuivantes` est un texte, le tableur s'arrête à la 6e étoile
-     * (point 5 du README doré, à trancher par Kr). L'appelant vérifie [hasPrestigeThreshold].
+     * Le seuil de prestige de la course (Donar gagnés dans la course). Les courses de `prestige.seuils` ont
+     * leur seuil. Au-delà de la dernière, chaque seuil vaut le précédent fois `prestige.facteurSeuilSuivant`
+     * (le tableur s'arrête à la 6e étoile, la clé chiffre le texte `etoilesSuivantes` : point 5 du README
+     * doré, **à valider par Kr**). Un seuil qui sortirait des doubles vaut [Double.MAX_VALUE] : la course est
+     * alors sans fin, mais l'état d'une entreprise reste toujours calculable.
      */
     fun prestigeThreshold(course: Int): Double {
-        require(hasPrestigeThreshold(course)) {
-            "Pas de seuil de prestige pour la course $course : economie.json en définit ${prestigeRules.thresholds.size}"
-        }
-        return prestigeRules.thresholds[course - 1].donar
+        require(course >= 1) { "Une course se numérote depuis 1 : $course" }
+        val listed = prestigeRules.thresholds
+        if (course <= listed.size) return listed[course - 1].donar
+        val beyondLast = (course - listed.size).toDouble()
+        val threshold = listed.last().donar * StrictMath.pow(prestigeRules.nextThresholdFactor, beyondLast)
+        return if (threshold.isFinite()) threshold else Double.MAX_VALUE
     }
 
     /** Vrai quand les Donar gagnés dans la course atteignent son seuil (le seuil lui-même suffit). */

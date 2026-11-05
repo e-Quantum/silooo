@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "archipel": {
+    "ecartEntreCases": 600,
+    "casesParRangee": 64,
+    "origine": {
+      "x": 0
+    }
+  }
+}

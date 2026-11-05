@@ -29,20 +29,26 @@ class DefinitionsLoaderTest {
     private val economyText = TestDefinitions.text(DefinitionsLoader.ECONOMY_FILE)
     private val factoriesText = TestDefinitions.text(DefinitionsLoader.FACTORIES_FILE)
     private val shopText = TestDefinitions.text(DefinitionsLoader.SHOP_FILE)
+    private val worldText = TestDefinitions.text(DefinitionsLoader.WORLD_FILE)
 
     private fun parseJson(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
 
-    private fun load(economy: String = economyText, factories: String = factoriesText, shop: String = shopText): Definitions =
-        DefinitionsLoader.parse(economy, factories, shop)
+    private fun load(
+        economy: String = economyText,
+        factories: String = factoriesText,
+        shop: String = shopText,
+        world: String = worldText,
+    ): Definitions = DefinitionsLoader.parse(economy, factories, shop, world)
 
     @Test
-    @DisplayName("Les trois fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
+    @DisplayName("Les quatre fichiers du dépôt se chargent, et le dossier donne le même résultat que les textes")
     fun loadsTheRepositoryFiles() {
         val fromDirectory = DefinitionsLoader.load(TestDefinitions.directory)
         val fromText = load()
         assertEquals(fromText.economy, fromDirectory.economy)
         assertEquals(fromText.factories, fromDirectory.factories)
         assertEquals(fromText.shop, fromDirectory.shop)
+        assertEquals(fromText.world, fromDirectory.world)
         assertTrue(fromDirectory.factories.factories.isNotEmpty())
         assertTrue(fromDirectory.economy.prestige.thresholds.isNotEmpty())
     }
@@ -81,6 +87,43 @@ class DefinitionsLoaderTest {
             val damaged = root.without(path).toString()
             val error = assertThrows<DefinitionsException>("boutique.json sans ${path.joinToString(".")}") { load(shop = damaged) }
             assertTrue(error.message!!.contains("boutique.json"), error.message)
+        }
+    }
+
+    @Test
+    @DisplayName("Retirer n'importe quelle clé de monde.json fait échouer le chargement")
+    fun everyWorldKeyIsRequired() {
+        val root = parseJson(worldText)
+        val paths = root.keyPaths()
+        assertTrue(paths.isNotEmpty())
+        for (path in paths) {
+            val damaged = root.without(path).toString()
+            val error = assertThrows<DefinitionsException>("monde.json sans ${path.joinToString(".")}") { load(world = damaged) }
+            assertTrue(error.message!!.contains("monde.json"), error.message)
+        }
+    }
+
+    @Test
+    @DisplayName("Une grille de monde sans écart ou sans case par rangée est refusée")
+    fun worldGridMustHaveRoom() {
+        val root = parseJson(worldText)
+        val archipelago = root.getValue("archipel").jsonObject
+        for (key in listOf("ecartEntreCases", "casesParRangee")) {
+            val damaged = JsonObject(root + ("archipel" to JsonObject(archipelago + (key to JsonPrimitive(0)))))
+            val message = assertThrows<DefinitionsException>("monde.json avec $key à 0") { load(world = damaged.toString()) }.message!!
+            assertTrue(message.contains("archipel.$key"), message)
+        }
+    }
+
+    @Test
+    @DisplayName("Un facteur de seuil qui ne dépasse pas 1 est refusé")
+    fun nextThresholdFactorMustExceedOne() {
+        val root = parseJson(economyText)
+        val prestige = root.getValue("prestige").jsonObject
+        for (factor in listOf(1, 0)) {
+            val damaged = JsonObject(root + ("prestige" to JsonObject(prestige + ("facteurSeuilSuivant" to JsonPrimitive(factor)))))
+            val message = assertThrows<DefinitionsException>("facteurSeuilSuivant à $factor") { load(economy = damaged.toString()) }.message!!
+            assertTrue(message.contains("prestige.facteurSeuilSuivant"), message)
         }
     }
 
@@ -172,6 +215,10 @@ class DefinitionsLoaderTest {
         assertTrue(noShop.message!!.contains(DefinitionsLoader.SHOP_FILE), noShop.message)
 
         Files.writeString(temporary.resolve(DefinitionsLoader.SHOP_FILE), shopText)
+        val noWorld = assertThrows<DefinitionsException> { DefinitionsLoader.load(temporary) }
+        assertTrue(noWorld.message!!.contains(DefinitionsLoader.WORLD_FILE), noWorld.message)
+
+        Files.writeString(temporary.resolve(DefinitionsLoader.WORLD_FILE), worldText)
         assertEquals(load().economy, DefinitionsLoader.load(temporary).economy)
     }
 }
