@@ -92,7 +92,7 @@
       "description": "Les blocs de Minecraft qui jouent la palette de design/decor/ (herbe, terre, pierre, planches) et les détails.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["herbe", "terre", "pierre", "planches", "toit", "gravats", "mousse", "echafaudage", "lumiere", "vide"],
+      "required": ["herbe", "terre", "pierre", "planches", "toit", "gravats", "mousse", "echafaudage", "lumiere", "enseigne", "vide"],
       "properties": {
         "herbe": { "$ref": "#/$defs/bloc" },
         "terre": { "$ref": "#/$defs/bloc" },
@@ -103,6 +103,7 @@
         "mousse": { "description": "Ce qui reste d'un mur de planches abîmé, et le sol arraché.", "$ref": "#/$defs/bloc" },
         "echafaudage": { "description": "Les poteaux d'un chantier (usine en remise en état).", "$ref": "#/$defs/bloc" },
         "lumiere": { "description": "La lanterne d'une usine active.", "$ref": "#/$defs/bloc" },
+        "enseigne": { "description": "L'enseigne murale qui porte le nom de l'usine, au-dessus de sa porte.", "$ref": "#/$defs/bloc" },
         "vide": { "$ref": "#/$defs/bloc" }
       }
     },

@@ -186,6 +186,8 @@ export type IlesDefinitions = {
     readonly echafaudage: IlesBloc;
     /** La lanterne d'une usine active. */
     readonly lumiere: IlesBloc;
+    /** L'enseigne murale qui porte le nom de l'usine, au-dessus de sa porte. */
+    readonly enseigne: IlesBloc;
     readonly vide: IlesBloc;
   };
   /** Un emplacement et un bâtiment par usine du catalogue (usines.json). Le bâtiment dépend de l'identifiant d'usine. */
