@@ -1,0 +1,38 @@
+# server.properties de silooo-bds, rendu par deploy/bds/start.sh à chaque démarrage : chaque marque entre doubles
+# accolades est remplacée par la valeur de la variable du même nom (tableau de deploy/README.md). Une clé absente
+# d'ici prend le défaut de BDS (liste : docs/bedrock.md, « Relevé pour la version 26.60 », faits 5 et 6).
+# Ne modifie pas le fichier rendu dans le conteneur : il est réécrit au prochain démarrage.
+
+# Texte vu par les joueurs dans la liste des serveurs : à valider par Kr.
+server-name={{BDS_SERVER_NAME}}
+level-name={{BDS_LEVEL_NAME}}
+max-players={{BDS_MAX_PLAYERS}}
+
+# Seul transport accepté par les clients 26.60 (RakNet est déprécié). Avec NetherNet, server-port est un port TCP
+# de signalisation HTTP (GET /v1/join) et le jeu passe en UDP dans la plage de server-udp-ports.
+transport=nethernet
+server-port={{BDS_PORT}}
+# [IP:]public:local, forme décrite dans le server.properties livré avec BDS. Derrière Docker, l'IP publique est
+# obligatoire : BDS ne la devine pas, et le client doit recevoir une adresse qu'il peut joindre.
+server-udp-ports={{BDS_UDP_PORTS_VALEUR}}
+# Inutile dans un conteneur : la découverte sur le réseau local utilise l'UDP 7551.
+enable-lan-visibility=false
+
+# Écrit explicitement : la valeur par défaut diffère selon les sources (docs/bedrock.md, fait 6).
+allow-list={{BDS_ALLOW_LIST}}
+online-mode=true
+
+# Les erreurs de contenu (pack, scripts) vont dans un fichier du conteneur et ne sont pas perdues au tick suivant.
+content-log-file-enabled=true
+
+# Chien de garde des scripts, aux valeurs par défaut de BDS écrites en clair : un script qui bloque le tick est
+# interrompu, un script qui dépasse la mémoire fait enregistrer le monde puis arrêter le serveur.
+script-watchdog-enable=true
+script-watchdog-enable-exception-handling=true
+script-watchdog-enable-shutdown=true
+script-watchdog-hang-exception=true
+script-watchdog-hang-threshold=10000
+script-watchdog-spike-threshold=100
+script-watchdog-slow-threshold=10
+script-watchdog-memory-warning=100
+script-watchdog-memory-limit=250

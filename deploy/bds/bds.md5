@@ -1,0 +1,8 @@
+# MD5 du zip de BDS, tel que Mojang l'annonce (en-tête Content-MD5 de minecraft.net, relevé dans docs/bedrock.md).
+# start.sh la contrôle quand deploy/bds/bds.sha256 n'a pas encore de somme SHA-256 épinglée. Le MD5 ne protège pas contre une
+# altération voulue : il attrape un téléchargement coupé ou le mauvais fichier. Dès que la somme SHA-256 est épinglée, ce
+# fichier ne sert plus.
+#
+# Fichier : bedrock-server-1.26.62.1.zip
+# Forme   : « somme  nom du fichier » (deux espaces), comme md5sum l'écrit.
+4a23794a882b008d3f0a5fde8b338f55  bedrock-server-1.26.62.1.zip

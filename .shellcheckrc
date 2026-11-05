@@ -1,0 +1,4 @@
+# Réglages de ShellCheck pour tout le dépôt (la CI le lance sur deploy/**/*.sh, voir .github/workflows/ci.yml).
+# Les scripts de deploy/scripts/ sourcent commun.sh : on suit les fichiers sourcés, depuis le dossier du script.
+external-sources=true
+source-path=SCRIPTDIR

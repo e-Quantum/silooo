@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests de l'outillage : anti_ia.py (règles, JSON, hook), verifier_definitions.mjs et les scripts.
+# Tests de l'outillage : anti_ia.py (règles, JSON, hook), verifier_definitions.mjs, les scripts, et les fichiers de deploy/.
 # Lancé par tools/verifier.sh ; utilisable seul : bash tools/tests/run.sh
 set -uo pipefail
 
@@ -170,6 +170,22 @@ for dossier in tools/tests/definitions-invalides/*/; do
     ok "$cas est refusé"
   else
     ko "$cas devrait être refusé avec « $attendu » (code $code)" "$sortie"
+  fi
+done
+
+# ------------------------------------------------------------------ deploy/
+# Trois essais, chacun dans son fichier : start.sh (sans Docker), deploy.sh et sauvegarde.sh (avec un faux docker),
+# puis le compose, le Dockerfile, start.sh et l'exemple d'environnement lus les uns contre les autres.
+echo "deploy/ : start.sh, deploy.sh et sauvegarde.sh, compose et fichiers voisins"
+for essai in tools/tests/deploy-start.sh tools/tests/deploy-deploy.sh tools/tests/deploy-compose.mjs; do
+  if [ "${essai##*.}" = mjs ]; then lanceur=(node); else lanceur=(bash); fi
+  sortie="$("${lanceur[@]}" "$essai" 2>&1)"
+  code=$?
+  printf '%s\n' "$sortie" | grep 'IGNORÉ' | sed 's/^/  /' || true
+  if [ "$code" -eq 0 ]; then
+    ok "$essai : $(printf '%s\n' "$sortie" | tail -n 1)"
+  else
+    ko "$essai a échoué (code $code)" "$(printf '%s\n' "$sortie" | grep -A3 'ECHEC' || printf '%s\n' "$sortie" | tail -n 20)"
   fi
 done
 

@@ -1,0 +1,17 @@
+# Somme SHA-256 du zip de BDS que Kr pose dans le dossier monté sur /data/bds (SILOOO_BDS_DIR). start.sh la lit : les lignes
+# qui commencent par # sont ignorées, la dernière ligne a la forme « somme  nom du fichier » (deux espaces).
+#
+# Fichier  : bedrock-server-1.26.62.1.zip
+# Source   : https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-1.26.62.1.zip
+#            (le lien que donne https://net-secondary.web.minecraft-services.net/api/v1.0/download/links)
+#
+# Kr : télécharge le zip dans un navigateur, `sha256sum`, écris la somme ici.
+#      (sous Windows : Get-FileHash -Algorithm SHA256 bedrock-server-1.26.62.1.zip, en minuscules)
+#      Remplace les zéros de la dernière ligne, committe : la CI refait l'image et le tag suivant porte la somme.
+#
+# Tant que la ligne ci-dessous ne contient que des zéros, la somme n'est pas épinglée : start.sh contrôle alors le MD5 de
+# deploy/bds/bds.md5 (le Content-MD5 annoncé par Mojang) et écrit dans le journal du conteneur la somme SHA-256 à épingler.
+#
+# Pour changer de version de BDS (docs/bedrock.md, « La procédure de mise à jour ») : nouveau numéro dans
+# ARG BDS_VERSION du Dockerfile, nouveau nom de fichier ici et dans bds.md5, nouvelles sommes, dans le même commit.
+0000000000000000000000000000000000000000000000000000000000000000  bedrock-server-1.26.62.1.zip

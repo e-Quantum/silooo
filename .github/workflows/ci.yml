@@ -79,6 +79,180 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Les fichiers de deploy/ qui ne passent pas par une image : les scripts shell (ShellCheck, installé sur le runner)
+  # et le compose, lu par Docker Compose lui-même avec un fichier d'environnement factice. Le compose se lance comme
+  # le fait deploy/scripts/deploy.sh : projet silooo, dossier de projet là où est le fichier d'environnement.
+  # Les tests de ces fichiers (tools/tests/deploy-*) tournent déjà dans le job verifier.
+  deploy-fichiers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck sur les scripts de deploy/ et leurs tests
+        run: |
+          set -euo pipefail
+          shellcheck --version
+          mapfile -t scripts < <(find deploy -name '*.sh' | sort)
+          echo "${#scripts[@]} script(s) dans deploy/ :"
+          printf '  %s\n' "${scripts[@]}"
+          # .shellcheckrc (racine du dépôt) : external-sources et source-path=SCRIPTDIR, pour suivre commun.sh.
+          shellcheck "${scripts[@]}" tools/tests/deploy-start.sh tools/tests/deploy-deploy.sh
+      - name: Valider deploy/compose.yml avec un fichier d'environnement factice
+        run: |
+          set -euo pipefail
+          dossier="$(mktemp -d)"
+          # Valeurs fausses, écrites dans un dossier jetable : le compose les exige (${VAR:?}) mais rien n'en sort.
+          cat > "$dossier/.env" <<'FIN'
+          SILOOO_DB_URL=jdbc:mariadb://mariadb:3306/silooo
+          SILOOO_DB_USER=silooo
+          SILOOO_DB_PASSWORD=mot-de-passe-factice-de-la-ci
+          SILOOO_API_KEY=cle-factice-de-la-ci
+          BDS_PUBLIC_IP=203.0.113.10
+          FIN
+          docker compose version
+          SILOOO_TAG=ci docker compose -p silooo --project-directory "$dossier" -f deploy/compose.yml config -q
+          echo "deploy/compose.yml : valide."
+
+  # L'image de silooo-bds (deploy/bds/Dockerfile) : l'add-on construit, start.sh et les modèles de configuration. Elle
+  # ne contient PAS le serveur Bedrock (décision 26) : minecraft.net refuse les clients qui ne sont pas des navigateurs,
+  # le zip ne se redistribue pas, et le User-Agent n'est pas déguisé. Kr pose le zip dans le dossier monté sur /data/bds ;
+  # start.sh le contrôle au démarrage. La construction n'a donc aucun besoin du réseau de Mojang. Même logique que le job
+  # image ci-dessus : contexte à la racine, construite à chaque poussée, poussée sur main seulement.
+  image-bds:
+    needs: [verifier, deploy-fichiers]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/e-quantum/silooo-bds
+      PUBLIER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      BUILDKIT_PROGRESS: plain
+    steps:
+      - uses: actions/checkout@v4
+      # Information, ne bloque pas : ce que répond le site de Minecraft au téléchargement de BDS depuis un runner, avec
+      # l'identité honnête de l'image (le User-Agent du Dockerfile), en HTTP/2 puis en HTTP/1.1, puis un essai de
+      # téléchargement du zip. Si le zip arrive avec le bon MD5 (deploy/bds/bds.md5), il sert à l'essai de démarrage
+      # plus bas ; sinon le journal dit pourquoi. Rien n'est déguisé : le User-Agent ne change pas, et le zip n'est ni
+      # publié ni gardé (le dossier du runner disparaît avec lui).
+      - name: Sonder le téléchargement de BDS
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          version="$(sed -n 's/^ARG BDS_VERSION=//p' deploy/bds/Dockerfile)"
+          agent="$(sed -n 's/^ARG BDS_USER_AGENT="\(.*\)"$/\1/p' deploy/bds/Dockerfile)"
+          url="https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-${version}.zip"
+          echo "version=$version ; agent=$agent"
+          curl --version | head -n 1
+          for protocole in --http2 --http1.1; do
+            echo "--- HEAD $protocole"
+            curl -sS -I "$protocole" --max-time 30 --user-agent "$agent" "$url" 2>&1 | head -n 25 || true
+          done
+          echo "--- GET du zip, 2 essais de 60 s"
+          mkdir -p "$RUNNER_TEMP/bds"
+          for essai in 1 2; do
+            if curl --fail --silent --show-error --location --connect-timeout 30 --max-time 60 --user-agent "$agent" \
+              --output "$RUNNER_TEMP/bds/zip.partiel" "$url"; then
+              attendu="$(grep -Ev '^[[:space:]]*(#|$)' deploy/bds/bds.md5 | awk '{ print $1 }')"
+              obtenu="$(md5sum "$RUNNER_TEMP/bds/zip.partiel" | awk '{ print $1 }')"
+              echo "MD5 attendu $attendu ; obtenu $obtenu ; SHA-256 $(sha256sum "$RUNNER_TEMP/bds/zip.partiel" | awk '{ print $1 }')"
+              if [ "$attendu" = "$obtenu" ]; then
+                mv "$RUNNER_TEMP/bds/zip.partiel" "$RUNNER_TEMP/bds/bedrock-server-${version}.zip"
+                echo "zip téléchargé et conforme au MD5 de Mojang"
+                break
+              fi
+              echo "::warning::Le zip téléchargé n'a pas le MD5 attendu : il n'est pas utilisé."
+            fi
+            rm -f "$RUNNER_TEMP/bds/zip.partiel"
+          done
+          ls -l "$RUNNER_TEMP/bds"
+      - uses: docker/setup-buildx-action@v3
+      - name: Construire l'image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/bds/Dockerfile
+          load: true
+          tags: silooo-bds:ci
+          cache-from: type=gha,scope=bds
+          cache-to: type=gha,mode=max,scope=bds
+      - name: Contrôler l'image (taille, utilisateur, pack, pas de BDS, rendu de la configuration)
+        run: |
+          set -euo pipefail
+          docker image ls silooo-bds:ci
+          taille="$(docker image inspect silooo-bds:ci --format '{{.Size}}')"
+          echo "Taille de l'image : $((taille / 1024 / 1024)) Mo"
+          docker run --rm --entrypoint sh silooo-bds:ci -c 'set -e; id; test "$(id -u)" = 10001; ls -l /opt/silooo /opt/silooo/pack; test -f /opt/silooo/pack/manifest.json; test -f /opt/silooo/pack/scripts/main.js; test -f /opt/silooo/bds.sha256; test -f /opt/silooo/bds.md5; test -d /data/bds; command -v unzip jq curl'
+          # Décision 26 : le serveur Bedrock n'est pas dans l'image.
+          present="$(docker run --rm --entrypoint sh silooo-bds:ci -c 'find / -xdev -name bedrock_server -print 2>/dev/null; ls -d /opt/bds 2>/dev/null; true')"
+          if [ -n "$present" ]; then echo "::error::BDS ne doit pas être dans l'image : $present"; exit 1; fi
+          echo "BDS n'est pas dans l'image."
+          # start.sh rend la configuration dans un dossier jetable, sans chercher le zip ni lancer le serveur. La clé est
+          # factice : avec un pack, start.sh la veut pour écrire secrets.json.
+          docker run --rm -e SILOOO_API_KEY=cle-factice-de-la-ci -e BDS_PUBLIC_IP=203.0.113.10 --entrypoint sh silooo-bds:ci \
+            -c '/opt/silooo/start.sh --rendre-seulement /tmp/rendu && cat /tmp/rendu/server.properties && ls -R /tmp/rendu | head -n 40'
+      # Sans zip dans le dossier monté, start.sh doit s'arrêter avec la marche à suivre pour Kr, et un code non nul.
+      - name: Vérifier l'arrêt de start.sh sans zip de BDS
+        run: |
+          set -uo pipefail
+          dossier="$(mktemp -d)"
+          # Le conteneur tourne en uid 10001 : le dossier lui est ouvert, comme le chown 10001:10001 de Kr.
+          chmod 777 "$dossier"
+          # Le shell de GitHub est lancé avec -e : le code de sortie attendu (66) est lu sans arrêter le script.
+          code=0
+          sortie="$(docker run --rm -e SILOOO_API_KEY=cle-factice-de-la-ci -e BDS_PUBLIC_IP=203.0.113.10 \
+            -e BDS_URL=http://127.0.0.1:9/bedrock-server.zip -v "$dossier:/data/bds" silooo-bds:ci 2>&1)" || code=$?
+          printf '%s\n' "$sortie" | tail -n 30
+          if [ "$code" -ne 66 ]; then echo "::error::Sans zip, start.sh devait sortir en 66 (code $code)"; exit 1; fi
+          if ! printf '%s\n' "$sortie" | grep -q "SILOOO_BDS_DIR"; then echo "::error::Le message pour Kr manque"; exit 1; fi
+          echo "Sans zip : sortie 66 et marche à suivre affichée."
+      # Information, ne bloque pas. Il faut un zip de BDS : celui que la sonde plus haut a pu télécharger. Depuis un
+      # runner, minecraft.net répond mal (décision 26) ; sans zip, l'étape le dit et réussit.
+      - name: Démarrer le serveur quarante-cinq secondes puis l'arrêter (information, ne bloque pas)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          version="$(sed -n 's/^ARG BDS_VERSION=//p' deploy/bds/Dockerfile)"
+          zip="$RUNNER_TEMP/bds/bedrock-server-${version}.zip"
+          if [ ! -f "$zip" ]; then
+            echo "Pas de zip de BDS sur ce runner : la sonde n'a pas pu le télécharger depuis minecraft.net (voir son journal)."
+            echo "L'essai de démarrage est sauté. Il se fait sur le VPS, avec le zip que Kr y pose (docs/deploiement.md, « Le zip de BDS »)."
+            exit 0
+          fi
+          chmod 777 "$RUNNER_TEMP/bds"
+          # -it comme stdin_open et tty du compose : la console de BDS lit l'entrée standard.
+          docker run -dit --name bds-essai -e SILOOO_API_KEY=cle-factice-de-la-ci -e BDS_PUBLIC_IP=203.0.113.10 \
+            -v "$RUNNER_TEMP/bds:/data/bds" silooo-bds:ci
+          sleep 45
+          echo "--- journal après 45 s"
+          docker logs bds-essai 2>&1 | tail -n 40
+          echo "--- arrêt par SIGINT (le signal du compose)"
+          debut=$SECONDS
+          docker kill --signal=SIGINT bds-essai
+          docker wait bds-essai
+          echo "arrêté en $((SECONDS - debut)) s"
+          docker logs bds-essai 2>&1 | tail -n 15
+      - name: Se connecter au registre GitHub
+        if: env.PUBLIER == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pousser l'image (sur main seulement)
+        if: env.PUBLIER == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/bds/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:main
+          cache-from: type=gha,scope=bds
+          cache-to: type=gha,mode=max,scope=bds
+
   # La migration V1 rejouée sur la même version de MariaDB que la production (12.3.3 sur SileneMC).
   # Les tests Testcontainers de core/ (job verifier) rejouent aussi les migrations avec Flyway ; ceci
   # reste le contrôle du fichier SQL brut, avec le client mariadb, sans Gradle.
