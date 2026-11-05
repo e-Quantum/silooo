@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 18 h 27, D2 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 18 h 59, D2 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -42,6 +42,19 @@ est recopiée sous l'étape qu'elle touche.
 - Les coulisses sont écrites et branchées (`SpoilStore`, `JdbcSpoilStore`, `SpoilFeature`, `/spoil`, `Feature.commands` pour
   poser les commandes) : jamais vues sur un vrai serveur. Le code JDA des pièces jointes (`JdaEvents`) et des réactions
   (`JdaServer.reactors`) compile mais ne se teste que sur le serveur de test.
+- Les admissions du staff sont écrites et branchées (`AdmissionStore`, `JdbcAdmissionStore` sur `discord_admissions`,
+  `AdmissionFeature`, `SiteRegistrationStore.admit`) : toutes les 60 secondes, une carte par inscription de la page
+  d'attente dans `#✅・admissions`, avec Admettre, Refuser et Plus tard ; Admettre pose `admitted_at`, puis donne le rôle
+  Bêta et écrit l'invitation en privé si le Discord est relié. Jamais vues sur un vrai serveur. Sans liaison, le rôle et
+  l'invitation attendent `/lier` (D3).
+- Le journal du bot (`BotJournal`) est la façon commune d'écrire une ligne dans `#📒・journal-du-bot` : les admissions
+  et `/annonce` y notent chaque geste du staff, et un refus de Discord n'y casse pas le geste.
+- Le garde anti-IA existe en Kotlin (`wording/AntiIa.kt`, `AntiIa.check` et `AntiIa.summary`, mêmes règles et mêmes noms
+  que `tools/anti_ia.py`, `AntiIaTest` : 59 cas dont ceux de `tools/tests/anti-ia/`). Il relit les annonces avant
+  l'aperçu.
+- `/annonce` est écrite et branchée (`AnnounceFeature`) : titre, texte, image, mention ; le garde anti-IA, l'aperçu pour
+  le staff seul, Publier et Annuler. Elle ne publie pas encore dans les Actus du site (décision 31). Jamais vue sur un
+  vrai serveur.
 - Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
   est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
@@ -135,8 +148,10 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   plan) ; écrit avec ses tests sur le faux Discord, pas encore vu sur un vrai serveur
 - [x] Les coulisses : `/spoil`, l'aperçu des réactions, les seuils, la publication par le seul bot, l'attente jusqu'à
   7 h, le registre en base ; écrit avec ses tests sur le faux Discord, pas encore vu sur un vrai serveur
-- [ ] Les admissions : les cartes lues dans `site_registrations` (S4 du site), Admettre, Refuser, Plus tard ; `/annonce`
-  avec le contrôle anti-IA avant l'aperçu
+- [x] Les admissions : les cartes lues dans `site_registrations` (S4 du site), Admettre, Refuser, Plus tard ; `/annonce`
+  avec le contrôle anti-IA avant l'aperçu ; écrit avec ses tests sur le faux Discord et sur MariaDB (CI), pas encore vu
+  sur un vrai serveur ; l'option « Publier aussi dans les Actus du site » attend les Actus (décision 31), le rôle et
+  l'invitation d'un inscrit non relié attendent `/lier` (D3, décision 29)
 - [ ] Les tickets par menu, « Crée ton vocal », l'XP de tchat (un message par minute, rôles aux niveaux 5, 10, 20, 30,
   classement de la semaine), les giveaways (lot gardé sur l'identifiant Discord, crédité à la liaison prouvée) et leur
   règlement en brouillon
@@ -278,6 +293,9 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   zéro et le spoil suivant ne part pas. Puis rejouer `/spoil` sur le serveur de test avec une image : le premier spoil
   part tout de suite avec le rôle Coulisses, le second attend, les réactions `:silo:` font monter la ligne d'état jusqu'au
   seuil ; dire si Discord a refusé la pièce jointe, la réponse différée ou la modification du message
+- [ ] Rejouer les admissions et `/annonce` sur le serveur de test (une inscription sur la page d'attente, puis Admettre ;
+  puis `/annonce` avec et sans image, avec un texte à tics pour voir le refus).
+- [ ] Dire à la session du site que `/annonce` écrira dans les Actus quand leur registre sera sur `main`.
 - [ ] Choisir les paliers de prestige qui donnent un rôle, et trancher les rôles liés de Discord (option, ou rien)
 - [ ] Retirer les récompenses par invitation de SileneMC (`#🎁・inviter`), interdites par Discord (critique, point 14)
 - [ ] Plus tard, aux boosts : le badge SILO à 3 boosts, la bannière en arrière-plan d'invitation à 2, en haut des
@@ -347,6 +365,39 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
     JDA avec une réponse différée, pour que le téléchargement ne bloque rien.
 23. **Le compte des réactions relit Discord à chaque tic** (`reactors`), au lieu de compter les événements : les bots sont
     exclus, chaque membre compte une fois, et le compte survit à un redémarrage.
+24. **Le garde anti-IA en Kotlin vit dans `wording/`, pas dans `discord/`.** `AntiIa.check` doit relire les annonces du
+    staff avant l'aperçu, avec les mêmes règles et les mêmes noms que `tools/anti_ia.py`. Le garde du dépôt relit les
+    chaînes du paquet `discord/` et y refuserait les mots bannis que la liste contient : le garde Kotlin est donc dans
+    `core/src/main/kotlin/com/silooo/core/wording/`, que `anti_ia.py` ne lit pas.
+25. **Les majuscules d'insistance se jugent ligne par ligne, sans l'exception de la boutique.** Un titre « MAINTENANCE »
+    seul sur sa ligne passe, comme dans un `.txt` ou un `.md` ; la même capitale au milieu d'une ligne qui a des
+    minuscules est signalée. Le Kotlin n'a pas l'exception de `boutique.json` : un « Ultime » seul sur sa ligne est
+    signalé, il ne passe qu'après « grade ».
+26. **Admettre pose `admitted_at` par une méthode nouvelle, `SiteRegistrationStore.admit`.** Le registre du site avait la
+    lecture et savait poser `admitted_at` à l'inscription ou à la liaison (`link`), pas à la demande du staff. La méthode
+    le pose à maintenant (UTC) si l'inscription ne l'a pas encore, et ne le retire jamais. La carte est modifiée avant le
+    rôle et le message privé : Discord n'attend la réponse d'un bouton que trois secondes, et ces deux appels viennent
+    en plus.
+27. **`AdmissionStore.registration` relit `site_registrations` depuis le paquet `discord/`**, en lecture seule, au lieu
+    d'élargir `SiteRegistrationStore` pour le bot : le registre du site garde sa surface, et la carte n'a besoin que du
+    gamertag, de la date et du compte Discord.
+28. **Une carte admise ou refusée ne se rejoue pas.** Un second clic répond « Cette inscription est déjà traitée. » et ne
+    change rien. Plus tard n'est pas une décision finale : la carte garde Admettre et Refuser, et Refuser et Plus tard ne
+    touchent pas à l'inscription du site.
+29. **Sans liaison Discord, l'admission est posée mais le rôle et l'invitation attendent.** Un inscrit qui n'a pas relié
+    son Discord est admis (`admitted_at`, le jeu le laisse entrer) ; le journal note « Sans liaison Discord : le rôle et
+    l'invitation attendent la liaison. » À D3, `/lier` devra lire `admitted_at` et donner alors le rôle Bêta et l'invitation.
+30. **Le journal du bot avale les refus de Discord.** `BotJournal.line` n'écrit qu'une ligne de contrôle pour le staff : si
+    Discord la refuse, le geste qu'elle notait, admission ou annonce, a déjà eu lieu et ne doit pas échouer pour autant ;
+    le refus s'écrit dans les journaux du service. Sans salon du journal, la ligne est simplement perdue.
+31. **`/annonce` sans l'option « Publier aussi dans les Actus du site ».** Le cadrage la prévoit, mais le site n'a pas
+    encore d'Actus sur `main` (la session du site y travaille sur `claude/site-attente`) : il n'y a pas de registre où
+    écrire. Elle viendra quand les Actus seront là, en écrivant dans leur registre (« À faire par Kr »).
+32. **Les brouillons d'`/annonce`.** Un brouillon par membre du staff, en mémoire (un redémarrage le perd, le staff
+    relance la commande), le nouveau remplace l'ancien, quinze minutes de vie (un délai d'interface, pas un chiffre du jeu,
+    donc pas dans `definitions/`). L'aperçu n'est vu que du staff et ne prévient personne, même avec la mention. Sans
+    rôle Actus sur le serveur, l'annonce part sans mention. Si Discord refuse la publication, le brouillon est remis pour
+    que le staff puisse réessayer.
 
 ## À valider par Kr
 
@@ -356,7 +407,8 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   arrivées groupées (30 s, 10 mentions), le statut qui alterne chaque minute, les spoils (40 % des membres proposés,
   compte chaque minute, nuit de 22 h à 7 h), l'XP (15 à 25 points, une fois par minute, niveau n à 100 × n + 50 × n ×
   (n - 1) / 2 points, rôles aux niveaux 5, 10, 20, 30, dix au classement), le top réactions à dix, les meilleurs
-  moments à 5 `:prestige:`, le monte-charge toutes les 5 minutes, le rapport du lundi à 9 h, trois rappels par jour.
+  moments à 5 `:prestige:`, le monte-charge toutes les 5 minutes, le rapport du lundi à 9 h, trois rappels par jour, les
+  inscriptions relues chaque minute pour les admissions (`admissions.relectureSecondes`, 60).
 - Les lignes du compte rendu d'Oooscar dans `#📒・journal-du-bot` (`PlanReport.text`, D0) : « Plan du serveur, phase
   attente. », « J'ai créé N rôles, N catégories et N salons. », « Je ne supprime jamais rien. », « Il manque… » à blanc ;
   et pour l'accueil guidé (D2) : « J'ai posé l'accueil guidé : 2 question(s), 9 réponse(s), N salon(s) par défaut dont
@@ -408,6 +460,37 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   - Le message du spoil, lu des membres : l'en-tête « <@&rôle> Spoil n°3 » (la mention du rôle Coulisses), le texte, puis
     la ligne d'état. Les trois lignes d'état : « Spoil n°4 à 40 réactions : 12. » ; la même suivie de « Il part à
     7 h. » quand le seuil est atteint la nuit ; « Spoil n°4 : pas encore déposé. » quand rien n'attend.
+- Les admissions (`Admissions.kt`, `AdmissionTexts`, D2). Dans les textes, `@staff` est la mention du membre du staff et la
+  date s'écrit « le 5 novembre 2026 à 18 h 10 » (« le 1er » le premier du mois). Tout est vu du staff seul, sauf
+  l'invitation.
+  - La carte, dans `#✅・admissions` : « Inscription de Gamertag, le 5 novembre 2026 à 18 h 10. » puis « Discord :
+    relié. » ou « Discord : pas encore relié. » Les trois boutons : « Admettre », « Refuser », « Plus tard ».
+  - La carte après le geste, une ligne de plus : « Admis par @staff le 5 novembre 2026 à 18 h 12. », « Refusé par @staff
+    le 5 novembre 2026 à 18 h 12. » ou « Remis à plus tard par @staff le 5 novembre 2026 à 18 h 12. »
+  - Les réponses aux boutons, vues du clic seul : « Ces boutons sont pour le staff. », « Cette inscription n'est plus
+    là. », « Cette inscription est déjà traitée. »
+  - L'invitation, le seul texte que l'inscrit lit, en message privé : « Tu es admis à la bêta de Silooo. Elle n'a pas
+    encore ouvert : tu seras prévenu ici le jour venu, avec l'adresse et le port. »
+  - Les lignes du journal : « Admission : Gamertag admis par @staff. », « Admission : Gamertag refusé par @staff. »,
+    « Admission : Gamertag remis à plus tard par @staff. » La ligne d'une admission peut finir par une note : « Sans
+    liaison Discord : le rôle et l'invitation attendent la liaison. », « Le rôle Bêta manque sur le serveur :
+    l'invitation n'est pas partie. », « Message privé fermé : l'invitation n'est pas partie. » ou « Discord a refusé le
+    rôle ou le message privé : l'invitation n'est pas partie. »
+- `/annonce` (`Announce.kt`, `AnnounceTexts`, D2). Tout est vu du staff seul, sauf l'annonce publiée.
+  - La commande : « Publie une annonce dans le salon des annonces ». Ses options : `titre`, « Le titre de l'annonce, 100
+    caractères au plus » ; `texte`, « Le texte de l'annonce, 1 800 caractères au plus (collé, il garde ses lignes) » ;
+    `image`, « Une image png ou gif, 16 Mo au plus » ; `mention`, « Mentionner le rôle Actus (non par défaut) », avec les
+    choix « oui » et « non ».
+  - Les refus : « Cette commande est pour le staff. », « Le titre est vide : rien n'est gardé. », « Le texte est vide :
+    rien n'est gardé. », « Le titre fait N caractères : 100 au plus. Rien n'est gardé. », « Le texte fait N caractères :
+    1 800 au plus. Rien n'est gardé. », « Le fichier « nom » est refusé : png ou gif, 16 Mo au plus. Rien n'est gardé. »
+  - Le refus du garde anti-IA : « L'annonce n'est pas gardée. », puis le résumé du garde (il nomme les règles touchées),
+    puis « Corrige et relance /annonce. »
+  - L'aperçu : l'annonce telle qu'elle partira (le titre en gras, le texte, l'image, la mention du rôle Actus si elle est
+    demandée), avec les boutons « Publier » et « Annuler », sans prévenir personne.
+  - Après les boutons : « Publié dans #annonces. », « Annulé. », « Aucune annonce en attente : relance /annonce. », « Le
+    salon des annonces n'existe pas sur le serveur. »
+  - La ligne du journal : « Annonce publiée par @staff : Titre. »
 - Le format « Gamertag · P3 », les lignes d'Oooscar et les textes des rappels : écrits à D3, listés ici au fur et à
   mesure.
 - Le nom du bot, Oooscar, et son avatar ; la bannière, l'icône, les couleurs des rôles et les emojis du serveur (D1).
@@ -483,3 +566,15 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   `BotRuntimeTest` 6) ; vérificateur en cours à l'heure de l'écriture. Rien n'a tourné sur un vrai serveur : le code JDA
   des pièces jointes et des réactions compile mais ne se teste que sur le serveur de test. Suite : vérificateur, fusion
   sur `main`, puis les admissions et `/annonce`.
+- 5 novembre 2026, 18 h 32 à 18 h 59 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Les admissions et `/annonce` : `AdmissionStore` (`Registration`, `Admission`, `JdbcAdmissionStore` sur
+  `discord_admissions`, V10), `Admissions.kt` (`AdmissionTexts`, `AdmissionFeature`), `SiteRegistrationStore.admit`
+  (`SiteRegistrations.kt`, `JdbcSiteRegistrationStore.kt`), le bloc `admissions.relectureSecondes` de
+  `definitions/discord.json` et de son schéma, `BotJournal`, `Announce.kt` (`AnnounceTexts`, `AnnounceFeature`),
+  `wording/AntiIa.kt` (le garde anti-IA en Kotlin, décisions 24 et 25), `BotFeatures`, `InMemoryAdmissionStore`. Tests
+  écrits : `AdmissionTest` 17, `BotJournalTest` 3, `AnnounceTest` 16, `DiscordDefinitionsTest` 5, `AntiIaTest` 59,
+  `AdmissionSqlTest` et le cas `admit` de `SiteRegistrationSqlTest` (MariaDB, ignorés sans Docker). Les décisions 24 à 32
+  et les textes à valider sont ci-dessus ; `core/README.md` à jour. Rien n'a tourné sur un vrai serveur ; `/annonce`
+  n'écrit pas encore dans les Actus du site (décision 31) et le rôle et l'invitation d'un inscrit non relié attendent
+  `/lier` (décision 29). Suite : vérificateur, fusion sur `main`, puis les tickets, « Crée ton vocal », l'XP et les
+  giveaways.

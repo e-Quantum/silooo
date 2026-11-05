@@ -117,4 +117,18 @@ class SiteRegistrationSqlTest {
         assertEquals(1, MariaDbSupport.update("UPDATE site_registrations SET admitted_at = UTC_TIMESTAMP(3) WHERE gamertag_key = ?", "kr test"))
         assertTrue(admitted("KR TEST"))
     }
+
+    @Test
+    @DisplayName("Admettre pose admitted_at une seule fois : vrai la première fois, faux ensuite, faux pour une clé inconnue ; la date posée ne bouge plus")
+    fun admit() {
+        register("Kr Test")
+        assertNull(MariaDbSupport.string("SELECT admitted_at FROM site_registrations"))
+        assertTrue(inTransaction { store.admit(it, "kr test") })
+        val admittedAt = MariaDbSupport.string("SELECT admitted_at FROM site_registrations")
+        assertNotNull(admittedAt)
+        assertFalse(inTransaction { store.admit(it, "kr test") })
+        assertFalse(inTransaction { store.admit(it, "inconnu") })
+        assertEquals(admittedAt, MariaDbSupport.string("SELECT admitted_at FROM site_registrations"))
+        assertEquals(SiteRegistration("kr test", "Kr Test", linked = false, admitted = true), inTransaction { store.find(it, "kr test") })
+    }
 }

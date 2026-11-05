@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://silooo.com/schemas/discord.schema.json",
   "title": "Le Discord de Silooo, tenu par le bot Oooscar",
-  "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways et les concours. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours et les admissions. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides"],
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions"],
   "$defs": {
     "identifiantDuPlan": {
       "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
@@ -331,6 +331,20 @@
           "description": "À partir de ce nombre de membres, la commande de candidature s'ouvre.",
           "type": "integer",
           "minimum": 1
+        }
+      }
+    },
+    "admissions": {
+      "description": "Les cartes d'admission du salon du staff : les inscriptions de la page d'attente, relues dans la base.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relectureSecondes"],
+      "properties": {
+        "relectureSecondes": {
+          "description": "Toutes ces secondes, le bot cherche les inscriptions sans carte et en poste une par inscription.",
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 3600
         }
       }
     }
