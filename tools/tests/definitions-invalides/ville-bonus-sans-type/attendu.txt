@@ -1,0 +1,1 @@
+n'a pas de typeBonus, ses niveaux ne portent donc pas de bonus

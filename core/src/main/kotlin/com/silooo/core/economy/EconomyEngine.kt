@@ -7,9 +7,10 @@ import com.silooo.core.definitions.StaffRole
 
 /**
  * Un membre du personnel qui travaille dans une usine active : ce que le moteur a besoin d'en savoir pour le revenu
- * (son rôle et sa rareté, rien de son nom ni de son apparence).
+ * (son rôle et sa rareté, rien de son nom ni de son apparence). [housed] : un logement de la ville l'héberge, son salaire
+ * baisse de `logement.reductionSalairePourcent`. Sans logement (le défaut), le calcul est celui d'avant la ville, bit pour bit.
  */
-data class CrewMember(val role: StaffRole, val rarity: StaffRarity)
+data class CrewMember(val role: StaffRole, val rarity: StaffRarity, val housed: Boolean = false)
 
 /**
  * Le moteur d'économie : les formules du jeu, rien d'autre. Pas de base, pas d'horloge, pas de
@@ -295,13 +296,22 @@ class EconomyEngine(private val definitions: Definitions) {
     fun staffSalaryPercent(role: StaffRole, rarity: StaffRarity): Double = personnel.rarity(rarity).salaryPercent * personnel.role(role).salaryFactor
 
     /**
+     * Le même salaire pour un membre qui est [housed] ou non : logé, il baisse de `logement.reductionSalairePourcent` de la ville
+     * (`ville.json`). Non logé, c'est exactement [staffSalaryPercent]. **À valider par Kr.**
+     */
+    fun staffSalaryPercent(role: StaffRole, rarity: StaffRarity, housed: Boolean): Double {
+        val salary = staffSalaryPercent(role, rarity)
+        return if (housed) salary * (1.0 - definitions.city.housing.salaryDiscountPercent / PERCENT) else salary
+    }
+
+    /**
      * Le net d'une équipe, en pourcent de la production de son usine : la somme des bonus moins la somme des salaires. Chaque
      * membre compte pour lui seul, en pourcent de la production SANS équipe : deux membres rapportent la somme de ce que
      * chacun rapporterait seul. **À valider par Kr** (aucun texte ne dit comment les bonus se cumulent).
      */
     fun crewNetPercent(crew: List<CrewMember>): Double {
         var net = 0.0
-        for (member in crew) net += staffBonusPercent(member.rarity) - staffSalaryPercent(member.role, member.rarity)
+        for (member in crew) net += staffBonusPercent(member.rarity) - staffSalaryPercent(member.role, member.rarity, member.housed)
         return net
     }
 
@@ -310,8 +320,8 @@ class EconomyEngine(private val definitions: Definitions) {
      * `factoryId` au niveau `level` (sans équipe), fois `multiplier`. Le revenu net ([ratePerHour]) l'a déjà retiré ; ce
      * chiffre sert à l'afficher.
      */
-    fun salaryPerHour(factoryId: String, level: Int, role: StaffRole, rarity: StaffRarity, multiplier: Double): Double =
-        multiplier * factoryRate(factory(factoryId), level) * staffSalaryPercent(role, rarity) / PERCENT
+    fun salaryPerHour(factoryId: String, level: Int, role: StaffRole, rarity: StaffRarity, multiplier: Double, housed: Boolean = false): Double =
+        multiplier * factoryRate(factory(factoryId), level) * staffSalaryPercent(role, rarity, housed) / PERCENT
 
     /**
      * Le prix d'embauche : un nombre d'heures du revenu de l'entreprise (`raretes.*.coutHeuresDeRevenu`) fois le facteur du
@@ -399,6 +409,16 @@ class EconomyEngine(private val definitions: Definitions) {
      */
     fun globalMultiplier(averageHeldLingots: Double, stars: Int): Double =
         lingotMultiplier(averageHeldLingots) * starMultiplier(stars)
+
+    /**
+     * Le multiplicateur global avec le bonus de production de la ville : `multiplier × (1 + pourcent / 100)`. Sans bonus
+     * ([donarProductionPercent] à zéro), c'est `multiplier` lui-même, bit pour bit. Le pourcent est déjà plafonné
+     * (`plafonds.PRODUCTION_DONAR` de `ville.json`). **À valider par Kr.**
+     */
+    fun withCityBonus(multiplier: Double, donarProductionPercent: Double): Double {
+        require(donarProductionPercent.isFinite() && donarProductionPercent >= 0.0) { "Un bonus de ville n'est pas négatif : $donarProductionPercent" }
+        return if (donarProductionPercent == 0.0) multiplier else multiplier * (1.0 + donarProductionPercent / PERCENT)
+    }
 
     // ---------------------------------------------------------------- hors ligne
 

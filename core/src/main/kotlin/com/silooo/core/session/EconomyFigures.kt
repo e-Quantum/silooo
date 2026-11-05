@@ -1,5 +1,6 @@
 package com.silooo.core.session
 
+import com.silooo.core.api.CityState
 import com.silooo.core.api.Member
 import com.silooo.core.api.Staff
 import java.sql.Connection
@@ -29,6 +30,8 @@ class CompanyFigures(
     val threshold: Double,
     private val factories: Map<String, FactoryFigures>,
     val staff: List<Staff> = emptyList(),
+    /** La ville, quand le moteur en a une source (voir `EngineFigures`) ; `null` sinon, et le champ n'est pas écrit. */
+    val city: CityState? = null,
     val members: List<Member> = emptyList(),
 ) {
     /** Les chiffres de l'usine [factoryId]. Une usine que le moteur ne connaît pas n'a pas de chiffres : zéro. */

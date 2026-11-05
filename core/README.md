@@ -515,3 +515,54 @@ deux tables de V1 suffisent. Le prestige et le partage des Lingots (`PrestigeSha
   `members/MemberSqlTest` (MariaDB, CI) : lignes, événements et version écrits et annulés ensemble, le plafond de membres et
   un invité pris par deux entreprises sous concurrence.
 
+## La ville côté service
+
+Trois routes, déjà nommées au contrat (qui reste à 32 opérations), et maintenant écrites : `buyZone`
+(`POST /v1/companies/{companyId}/city/zones/{zoneIndex}`), `placeBuilding` (`POST /v1/companies/{companyId}/city/buildings`,
+corps : `buildingType`, `x`, `z`, `rotation`) et `upgradeBuilding` (`POST /v1/companies/{companyId}/city/buildings/{buildingId}`).
+Le service décide de tout (prix, droits, emplacement, bonus) ; l'add-on affiche `CompanyState.city`. Les règles de jeu et les tableaux
+de chiffres sont dans `docs/economie.md`, section « La ville côté service » ; les chiffres eux-mêmes dans `definitions/ville.json`
+(et `economie.json`, `ville.zonesPrixLingots`).
+
+- **Le code** est dans `city/` : `CityRules` (les règles pures sur `definitions/` : zone d'une parcelle, prix, prochaine zone, vue
+  d'un bâtiment, bonus plafonnés, logés), `CityService` (les trois actions), `CityRoutes` (la forme des requêtes et
+  `call.idempotent`), `CityStore` et `JdbcCityStore` (le SQL sur `zones` et `city_buildings`), `CityFigures` (la ville vue par le
+  moteur : `housed` du personnel et bonus de production, sans que `economy/` connaisse le SQL). `economy/CityBonusSource` est
+  l'interface que le moteur lit ; sans source, rien ne change.
+- **L'ordre des vérifications** est le même pour les trois actions : forme de la requête (400 avant tout), appartenance de l'acteur
+  à l'entreprise, règles du jeu (409 : `ZONE_VERROUILLEE`, `EMPLACEMENT_OCCUPE`, `DEJA_POSSEDE`), puis les Lingots
+  (`PAS_ASSEZ_DE_LINGOTS`, avec la somme qui manque), puis seulement les écritures. Un refus n'écrit rien.
+  - `buyZone` : zone entre 1 et 16, `DEJA_POSSEDE` si elle est déjà à l'entreprise, `ZONE_VERROUILLEE` si ce n'est pas la
+    suivante, si la mairie est trop basse ou s'il manque des usines actives (la première zone en demande deux). La première zone
+    pose aussi la mairie niveau 1 à `mairie.emplacementDepart`.
+  - `placeBuilding` : type inconnu, non posable, coin hors grille ou rotation hors 0, 90, 180, 270 : 400. Puis zone non achetée ou
+    mairie trop basse : `ZONE_VERROUILLEE` ; parcelle prise : `EMPLACEMENT_OCCUPE` ; autant d'exemplaires que le catalogue
+    en permet : `DEJA_POSSEDE`.
+  - `upgradeBuilding` : bâtiment inconnu ou d'une autre entreprise : 400 ; dernier niveau : `DEJA_POSSEDE` ; mairie trop basse :
+    `ZONE_VERROUILLEE`. La mairie est un bâtiment comme les autres pour cette route ; son niveau passe aussi dans
+    `companies.mairie_level`.
+- **Une seule écriture de l'entreprise par action** : `updateCompany` une fois (`CompanyWrites.writeProduction`, avec
+  `mairieLevel` pour la mairie, qui ajoute `mairie_level = ?` au même `UPDATE`). La production en attente est versée avant de
+  débiter, comme partout, et un verrou perdu donne `CONFLIT_REESSAYER`. Les lignes de la ville, le débit, le journal des monnaies
+  et l'événement partent dans la même transaction que l'idempotence : si la publication échoue, tout est annulé.
+- **Qui paie** : l'acteur, avec son solde personnel (`creditBalance` négatif). Motifs du journal : `zone` (`cid/zone`),
+  `batiment` (`cid/buildingId`) et `amelioration` (`cid/buildingId/niveau`). Le PDG et les associés ont les mêmes droits ici.
+- **Les bonus** entrent dans le moteur par `economy/EngineFigures` : `Staff.housed`, un salaire réduit pour les logés, et le
+  multiplicateur global multiplié par `1 + pourcent / 100` pour `PRODUCTION_DONAR` (`EconomyEngine.withCityBonus`), qui rend
+  exactement le calcul d'avant quand le bonus est nul. `LIVRAISON_VITESSE` n'a pas encore de lecteur. `CompanyState.city` et
+  `Staff.housed` sont absents des réponses quand le service n'a pas de source de ville.
+- **La migration V6** (`V6__ville_parcelle.sql`) ajoute la clé unique `ux_buildings_plot (company_id, x, z)` sur
+  `city_buildings` : une parcelle, un bâtiment, même si deux actions arrivent ensemble. Rien d'autre ne change dans le schéma.
+- **Les événements** : un `ANNONCE` par action (`payload.action` : `buyZone`, `placeBuilding`, `upgradeBuilding`, avec `companyId`
+  et l'acteur), écrit dans la transaction de l'action.
+- **Les tests** : `city/CityRulesTest` (zone d'une parcelle, prix, bonus, plafonds, logés), `economy/EngineFiguresCityTest`
+  (réponses identiques sans bâtiment à bonus, logement, bonus de production et son plafond),
+  `city/CityRoutesTest` (sans base : les trois routes, refus, 400, rejeu, conflit, qui paie), `ContractTest` (les trois
+  opérations et le maximum de 16 zones), `DefinitionsLoaderTest` pour `ville.json`, et `city/CitySqlTest` (MariaDB, CI
+  seulement, ignoré sans Docker) : lignes, débit, journal et version écrits et annulés ensemble, la clé de V6 sous concurrence,
+  `companies.mairie_level`. `InMemoryCityStore` est le faux magasin partagé des tests.
+- **Les manques du contrat** (à traiter avec Kr) : pas de code pour « bâtiment pas encore permis par la mairie » (rendu en
+  `ZONE_VERROUILLEE`), ni pour « quantité maximale » et « dernier niveau » (rendus en `DEJA_POSSEDE`) ; le maximum de 16 zones est
+  écrit en dur dans le chemin de `buyZone` (le test de contrat vérifie qu'il égale le nombre de zones des définitions) ;
+  `CompanyState.city` est facultatif ; le catalogue des missions n'a que `collect`, donc aucune mission de ville ; `SiloooJson` est
+  tolérant et accepte un entier entre guillemets.

@@ -350,9 +350,131 @@ function controlesIncidents(fichier, d, dossier) {
   }
 }
 
+/** Lit un fichier JSON voisin ; null s'il manque ou s'il est illisible (sa propre vérification le dit). */
+function lireVoisin(dossier, nom) {
+  const fichier = join(dossier, nom);
+  if (!existsSync(fichier)) return null;
+  try {
+    return JSON.parse(readFileSync(fichier, "utf8").replace(/^﻿/, ""));
+  } catch {
+    return null;
+  }
+}
+
+function nonDecroissant(fichier, chemin, valeurs, nom) {
+  for (let i = 1; i < valeurs.length; i++) {
+    if (typeof valeurs[i] === "number" && typeof valeurs[i - 1] === "number" && valeurs[i] < valeurs[i - 1]) {
+      signaler(fichier, `${chemin}[${i}]`, `${nom} ne doivent pas baisser : ${valeurs[i]} suit ${valeurs[i - 1]}`);
+    }
+  }
+}
+
+function controlesVille(fichier, d, dossier) {
+  const zones = liste(d.zones?.ordre);
+  const colonnes = d.zones?.colonnes;
+  const taille = d.zones?.tailleChunks;
+  const blocsParChunk = d.ile?.blocsParChunk;
+  const parcelle = d.ile?.parcelleChunks;
+
+  // Le quadrillage est carré et chaque case porte une zone, une seule : les zones sont une permutation de la grille.
+  if (Number.isInteger(colonnes) && zones.length !== colonnes * colonnes) {
+    signaler(fichier, "$.zones.ordre", `${colonnes * colonnes} zones attendues (${colonnes} colonnes au carré), ${zones.length} reçues`);
+  }
+  const cases = new Map();
+  zones.forEach((z, i) => {
+    if (Number.isInteger(colonnes) && (z?.colonne >= colonnes || z?.rangee >= colonnes)) {
+      signaler(fichier, `$.zones.ordre[${i}]`, `la case (${z.colonne}, ${z.rangee}) sort du quadrillage de ${colonnes} colonnes`);
+    }
+    const cle = `${z?.colonne},${z?.rangee}`;
+    if (cases.has(cle)) {
+      signaler(fichier, `$.zones.ordre[${i}]`, `la case (${z?.colonne}, ${z?.rangee}) est déjà celle de la zone ${cases.get(cle) + 1}`);
+    } else {
+      cases.set(cle, i);
+    }
+  });
+  // On étend la ville de proche en proche : chaque zone touche une zone déjà achetée.
+  zones.forEach((z, i) => {
+    if (i === 0) return;
+    const touche = zones.slice(0, i).some((autre) => Math.abs(autre?.colonne - z?.colonne) + Math.abs(autre?.rangee - z?.rangee) === 1);
+    if (!touche) {
+      signaler(fichier, `$.zones.ordre[${i}]`, `la zone ${i + 1} ne touche aucune des zones précédentes : la ville se bâtirait en îlots`);
+    }
+  });
+  nonDecroissant(fichier, "$.zones.ordre", zones.map((z) => z?.niveauMairieRequis), "les niveaux de mairie des zones");
+  if (Number.isInteger(taille) && Number.isInteger(parcelle) && taille % parcelle !== 0) {
+    signaler(fichier, "$.ile.parcelleChunks", `${parcelle} chunks ne divisent pas une zone de ${taille} chunks : une parcelle déborderait sur la zone voisine`);
+  }
+
+  // La mairie de départ est sur une parcelle entière de la première zone.
+  const depart = d.mairie?.emplacementDepart;
+  if (depart && Number.isInteger(blocsParChunk) && Number.isInteger(parcelle) && Number.isInteger(taille) && zones.length > 0) {
+    const cote = blocsParChunk * parcelle;
+    for (const axe of ["x", "z"]) {
+      if (Number.isInteger(depart[axe]) && depart[axe] % cote !== 0) {
+        signaler(fichier, `$.mairie.emplacementDepart.${axe}`, `${depart[axe]} n'est pas sur une parcelle entière (multiple de ${cote} blocs)`);
+      }
+    }
+    const zoneBlocs = taille * blocsParChunk;
+    const premiere = zones[0];
+    const dedans = (valeur, rang) => Number.isInteger(valeur) && Number.isInteger(rang) && valeur >= rang * zoneBlocs && valeur < (rang + 1) * zoneBlocs;
+    if (!dedans(depart.x, premiere?.colonne) || !dedans(depart.z, premiere?.rangee)) {
+      signaler(fichier, "$.mairie.emplacementDepart", "la mairie de départ doit se trouver dans la première zone");
+    }
+  }
+
+  // Le catalogue.
+  const batiments = liste(d.batiments);
+  doublons(fichier, "$.batiments", batiments, "le bâtiment");
+  const mairie = batiments.find((b) => b?.id === "mairie");
+  if (!mairie) {
+    signaler(fichier, "$.batiments", "le bâtiment « mairie » manque : les niveaux de mairie viennent de là");
+  } else if (mairie.posable !== false) {
+    signaler(fichier, `$.batiments[${batiments.indexOf(mairie)}].posable`, "la mairie n'est pas posable par le joueur : elle est posée toute seule à l'achat de la première zone");
+  }
+  const niveauxMairie = liste(mairie?.niveaux).length;
+  const dernierRequis = Math.max(0, ...zones.map((z) => (Number.isInteger(z?.niveauMairieRequis) ? z.niveauMairieRequis : 0)));
+  if (mairie && dernierRequis > niveauxMairie) {
+    signaler(fichier, "$.zones.ordre", `une zone demande la mairie niveau ${dernierRequis}, mais la mairie n'a que ${niveauxMairie} niveaux`);
+  }
+  batiments.forEach((b, i) => {
+    const chemin = `$.batiments[${i}]`;
+    const niveaux = liste(b?.niveaux);
+    const avecBonus = niveaux.filter((n) => n?.bonus !== undefined).length;
+    if (b?.typeBonus === undefined && avecBonus > 0) {
+      signaler(fichier, `${chemin}.niveaux`, `« ${b?.id} » n'a pas de typeBonus, ses niveaux ne portent donc pas de bonus`);
+    }
+    if (b?.typeBonus !== undefined && avecBonus !== niveaux.length) {
+      signaler(fichier, `${chemin}.niveaux`, `« ${b?.id} » a un typeBonus (${b.typeBonus}) : chacun de ses niveaux doit porter un bonus`);
+    }
+    nonDecroissant(fichier, `${chemin}.niveaux`, niveaux.map((n) => n?.bonus), `les bonus de « ${b?.id} »`);
+    nonDecroissant(fichier, `${chemin}.niveaux`, niveaux.map((n) => n?.niveauMairieRequis), `les niveaux de mairie de « ${b?.id} »`);
+    niveaux.forEach((n, k) => {
+      if (mairie && Number.isInteger(n?.niveauMairieRequis) && n.niveauMairieRequis > niveauxMairie) {
+        signaler(fichier, `${chemin}.niveaux[${k}].niveauMairieRequis`, `la mairie niveau ${n.niveauMairieRequis} n'existe pas (${niveauxMairie} niveaux) : ce niveau ne s'achèterait jamais`);
+      }
+      // Rien ne s'obtient pour rien, sauf le premier niveau de la mairie, posé avec la première zone.
+      if (n?.prixLingots === 0 && !(b?.id === "mairie" && k === 0)) {
+        signaler(fichier, `${chemin}.niveaux[${k}].prixLingots`, "un niveau gratuit n'a pas de sens : seul le niveau 1 de la mairie, posé avec la première zone, l'est");
+      }
+    });
+  });
+
+  // Les prix des zones sont dans economie.json : une zone, un prix. L'île fait ce que iles.json dit.
+  const economie = lireVoisin(dossier, "economie.json");
+  const prix = liste(economie?.ville?.zonesPrixLingots);
+  if (economie && prix.length !== zones.length) {
+    signaler(fichier, "$.zones.ordre", `${zones.length} zones ici, mais ${prix.length} prix dans economie.json (ville.zonesPrixLingots) : une zone, un prix`);
+  }
+  const iles = lireVoisin(dossier, "iles.json");
+  const demiCote = iles?.anneau?.ilePrincipaleDemiCote;
+  if (Number.isInteger(demiCote) && [colonnes, taille, blocsParChunk].every(Number.isInteger) && colonnes * taille * blocsParChunk !== 2 * demiCote) {
+    signaler(fichier, "$.zones", `la ville fait ${colonnes * taille * blocsParChunk} blocs de côté, mais l'île principale de iles.json en fait ${2 * demiCote}`);
+  }
+}
+
 const CONTROLES = {
   usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions,
-  personnel: controlesPersonnel, incidents: controlesIncidents,
+  personnel: controlesPersonnel, incidents: controlesIncidents, ville: controlesVille,
 };
 
 // ---------------------------------------------------------------- programme

@@ -1,6 +1,7 @@
 package com.silooo.core.session
 
 import com.silooo.core.api.Balances
+import com.silooo.core.api.CityState
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Member
 import com.silooo.core.api.Role
@@ -144,6 +145,9 @@ class TestEconomy(private val sessions: InMemorySessionStore? = null) : EconomyF
     /** Ce que le faux rend comme Donar versé. */
     var offline = 0.0
 
+    /** La ville que les chiffres montrent ; `null` : l'entreprise n'en a pas, et `CompanyState.city` n'est pas écrit. */
+    var city: CityState? = null
+
     override fun forCompany(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyFigures = CompanyFigures(
         ratePerHour = 11.0,
         multiplier = 22.0,
@@ -156,6 +160,7 @@ class TestEconomy(private val sessions: InMemorySessionStore? = null) : EconomyF
             )
         },
         members = sessions?.loadMembers(connection, company.id).orEmpty().map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
+        city = city,
     )
 
     override fun settle(connection: Connection, company: CompanyRecord, regime: Regime, playerLastSeenAt: Instant?): Double {

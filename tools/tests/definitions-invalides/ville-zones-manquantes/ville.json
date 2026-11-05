@@ -1,0 +1,297 @@
+{
+  "version": 1,
+  "commentaire": "La ville de l'île principale : ses zones, ses bâtiments et leurs bonus. Valeurs de départ, à valider par Kr. Les prix des zones restent dans economie.json (ville.zonesPrixLingots). Les coordonnées sont en blocs depuis le coin de l'île principale (le plus petit x et le plus petit z), l'add-on y ajoute l'origine de l'archipel et le décalage de iles.json.",
+  "ile": {
+    "blocsParChunk": 16,
+    "parcelleChunks": 1
+  },
+  "zones": {
+    "colonnes": 4,
+    "tailleChunks": 8,
+    "premiere": {
+      "usinesActivesMin": 2
+    },
+    "ordre": [
+      {
+        "colonne": 1,
+        "rangee": 1,
+        "niveauMairieRequis": 1
+      },
+      {
+        "colonne": 2,
+        "rangee": 1,
+        "niveauMairieRequis": 2
+      },
+      {
+        "colonne": 2,
+        "rangee": 2,
+        "niveauMairieRequis": 3
+      },
+      {
+        "colonne": 1,
+        "rangee": 2,
+        "niveauMairieRequis": 4
+      },
+      {
+        "colonne": 1,
+        "rangee": 0,
+        "niveauMairieRequis": 5
+      },
+      {
+        "colonne": 2,
+        "rangee": 0,
+        "niveauMairieRequis": 6
+      },
+      {
+        "colonne": 3,
+        "rangee": 0,
+        "niveauMairieRequis": 7
+      },
+      {
+        "colonne": 3,
+        "rangee": 1,
+        "niveauMairieRequis": 8
+      },
+      {
+        "colonne": 3,
+        "rangee": 2,
+        "niveauMairieRequis": 9
+      },
+      {
+        "colonne": 3,
+        "rangee": 3,
+        "niveauMairieRequis": 10
+      },
+      {
+        "colonne": 2,
+        "rangee": 3,
+        "niveauMairieRequis": 11
+      },
+      {
+        "colonne": 1,
+        "rangee": 3,
+        "niveauMairieRequis": 12
+      },
+      {
+        "colonne": 0,
+        "rangee": 3,
+        "niveauMairieRequis": 13
+      },
+      {
+        "colonne": 0,
+        "rangee": 2,
+        "niveauMairieRequis": 14
+      },
+      {
+        "colonne": 0,
+        "rangee": 1,
+        "niveauMairieRequis": 15
+      }
+    ]
+  },
+  "mairie": {
+    "emplacementDepart": {
+      "x": 192,
+      "z": 192,
+      "rotation": 0
+    }
+  },
+  "logement": {
+    "reductionSalairePourcent": 20
+  },
+  "plafonds": {
+    "LOGEMENTS": 60,
+    "PRODUCTION_DONAR": 10,
+    "LIVRAISON_VITESSE": 40
+  },
+  "batiments": [
+    {
+      "id": "mairie",
+      "posable": false,
+      "quantiteMax": 1,
+      "niveaux": [
+        {
+          "prixLingots": 0,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 2,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 3,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 4,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 6,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 8,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 10,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 12,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 15,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 18,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 22,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 26,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 30,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 35,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 40,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 45,
+          "niveauMairieRequis": 1
+        }
+      ]
+    },
+    {
+      "id": "route",
+      "posable": true,
+      "quantiteMax": 200,
+      "niveaux": [
+        {
+          "prixLingots": 1,
+          "niveauMairieRequis": 1
+        },
+        {
+          "prixLingots": 2,
+          "niveauMairieRequis": 3
+        }
+      ]
+    },
+    {
+      "id": "maison",
+      "posable": true,
+      "quantiteMax": 12,
+      "typeBonus": "LOGEMENTS",
+      "niveaux": [
+        {
+          "prixLingots": 3,
+          "niveauMairieRequis": 1,
+          "bonus": 1
+        },
+        {
+          "prixLingots": 6,
+          "niveauMairieRequis": 3,
+          "bonus": 2
+        },
+        {
+          "prixLingots": 12,
+          "niveauMairieRequis": 5,
+          "bonus": 3
+        }
+      ]
+    },
+    {
+      "id": "immeuble",
+      "posable": true,
+      "quantiteMax": 6,
+      "typeBonus": "LOGEMENTS",
+      "niveaux": [
+        {
+          "prixLingots": 10,
+          "niveauMairieRequis": 3,
+          "bonus": 4
+        },
+        {
+          "prixLingots": 20,
+          "niveauMairieRequis": 5,
+          "bonus": 6
+        },
+        {
+          "prixLingots": 35,
+          "niveauMairieRequis": 8,
+          "bonus": 8
+        },
+        {
+          "prixLingots": 60,
+          "niveauMairieRequis": 11,
+          "bonus": 10
+        }
+      ]
+    },
+    {
+      "id": "commerce",
+      "posable": true,
+      "quantiteMax": 4,
+      "typeBonus": "PRODUCTION_DONAR",
+      "niveaux": [
+        {
+          "prixLingots": 8,
+          "niveauMairieRequis": 2,
+          "bonus": 0.5
+        },
+        {
+          "prixLingots": 15,
+          "niveauMairieRequis": 4,
+          "bonus": 1
+        },
+        {
+          "prixLingots": 30,
+          "niveauMairieRequis": 7,
+          "bonus": 1.5
+        },
+        {
+          "prixLingots": 55,
+          "niveauMairieRequis": 10,
+          "bonus": 2.5
+        }
+      ]
+    },
+    {
+      "id": "garage",
+      "posable": true,
+      "quantiteMax": 3,
+      "typeBonus": "LIVRAISON_VITESSE",
+      "niveaux": [
+        {
+          "prixLingots": 12,
+          "niveauMairieRequis": 4,
+          "bonus": 5
+        },
+        {
+          "prixLingots": 25,
+          "niveauMairieRequis": 6,
+          "bonus": 10
+        },
+        {
+          "prixLingots": 45,
+          "niveauMairieRequis": 9,
+          "bonus": 15
+        }
+      ]
+    }
+  ]
+}

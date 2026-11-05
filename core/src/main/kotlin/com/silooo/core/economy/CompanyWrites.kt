@@ -28,20 +28,34 @@ import kotlinx.serialization.json.put
  *
  * À appeler AVANT toute autre écriture de l'action : c'est la version de l'entreprise qui protège les écritures suivantes
  * d'une action concurrente.
+ *
+ * [mairieLevel], quand il est donné, est le nouveau niveau de la mairie : il s'écrit dans la même écriture, donc au même
+ * changement de version (l'amélioration de la mairie, voir `CityService`).
  */
-internal fun writeProduction(connection: Connection, company: CompanyRecord, production: Production, spent: Double): CompanyRecord {
+internal fun writeProduction(
+    connection: Connection,
+    company: CompanyRecord,
+    production: Production,
+    spent: Double,
+    mairieLevel: Int? = null,
+): CompanyRecord {
     val balance = company.donar + production.earned
     val donar = balance - spent
     val earned = company.donarEarned + production.earned
-    val version = updateCompany(
-        connection,
-        company.id,
-        company.version,
+    val changes = mutableListOf<Pair<CompanyColumn, Any?>>(
         CompanyColumn.DONAR to donar,
         CompanyColumn.DONAR_EARNED to earned,
         CompanyColumn.LAST_COLLECT_AT to production.at,
     )
-    return company.copy(donar = donar, donarEarned = earned, lastCollectAt = production.at, version = version)
+    if (mairieLevel != null) changes += CompanyColumn.MAIRIE_LEVEL to mairieLevel
+    val version = updateCompany(connection, company.id, company.version, *changes.toTypedArray())
+    return company.copy(
+        donar = donar,
+        donarEarned = earned,
+        lastCollectAt = production.at,
+        mairieLevel = mairieLevel ?: company.mairieLevel,
+        version = version,
+    )
 }
 
 /** Un montant manquant doit rester un nombre JSON : un prix qui sortirait des doubles vaut [Double.MAX_VALUE]. */

@@ -32,7 +32,7 @@ class IncidentRig(chancePercent: Double = 100.0, wrap: (IncidentStore) -> Incide
      * la demande : [Definitions] refuse une chance nulle, que le tirage ([draw]) accepte pour les tests qui ne veulent aucun incident.
      */
     val definitions: Definitions by lazy {
-        fx.definitions.let { Definitions(it.economy, it.factories, it.shop, it.world, it.missions, it.personnel, incidentDefinitions) }
+        fx.definitions.let { Definitions(it.economy, it.factories, it.shop, it.world, it.missions, it.personnel, incidentDefinitions, it.city) }
     }
     val service = IncidentService(fx.store, companies, wrap(incidents), fx.engine, fx.figures, draw, presence, fx.clock)
     val connection: Connection get() = fx.connection
