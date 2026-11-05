@@ -33,7 +33,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
   (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
   (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
   journal de l'étape « Vérifier le dépôt » et cherche `SKIPPED` avant de conclure que tout est vert.
-- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 29 opérations. Quand une
+- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 30 opérations. Quand une
   session écrit une route, elle l'ajoute à `WRITTEN` et branche ses faux dans `contractDependencies()`.
 - Rapport complet : `core/build/reports/tests/test/index.html`.
 
@@ -46,7 +46,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_DB_USER` | Compte de la base | oui |
 | `SILOOO_DB_PASSWORD` | Mot de passe de la base | oui |
 | `SILOOO_API_KEY` | La clé attendue dans l'en-tête `X-Silooo-Key` | oui, sauf en mode `migrate` |
-| `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
+| `SILOOO_DEFINITIONS_DIR` | Le dossier `definitions/` (economie.json, usines.json, boutique.json, monde.json, missions.json) | non en développement (le `definitions/` du dépôt, trouvé depuis `core/` ou la racine) ; oui ailleurs ; inutile en mode `migrate` |
 | `SILOOO_API_REQUESTS_RETENTION_HOURS` | Durée de garde des réponses d'idempotence (`api_requests`), de 1 à 8760 heures | non, 24 par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
@@ -100,11 +100,12 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `Application.kt` | Le module Ktor et `Dependencies` : la base, les magasins et les interfaces du moteur lui sont passés, aucun singleton |
 | `api/` | Le plugin `X-Silooo-Key` (401), les corps d'erreur et de refus, les modèles du contrat, l'idempotence (`Idempotency`, `call.idempotent`), la purge, le filet 501 `PAS_FAIT` |
 | `db/` | `Database` (pool et transactions), `Migrations`, le verrou optimiste (`updateCompany`), le journal des monnaies (`creditBalance`), le magasin de `api_requests`, `TransientConflict` |
-| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde) : classes typées et `DefinitionsLoader` |
-| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
+| `definitions/` | Le chargeur strict de `definitions/` (économie, usines, boutique, monde, missions) : classes typées et `DefinitionsLoader` |
+| `economy/` | Le moteur pur (`EconomyEngine` : prix, production, prestige, hors ligne ; `Notation` ; `BuyAmount`), ses deux branchements sur `join` (`EngineFigures` implémente `EconomyFigures`, `DefinitionsBootstrap` implémente `CompanyBootstrap`) et les routes `companies/{companyId}` : `CompanyRoutes` (HTTP), `CompanyService` (`getCompany`, `collect`, `buyLevels`, `restoreStep`, `prestigePreview`, `prestige`), `CompanyStore` et `JdbcCompanyStore` (SQL) |
 | `server/` | `POST /v1/server/heartbeat` et l'état en mémoire des serveurs Bedrock (`ServerPresence`, la source de présence de `join`) |
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
+| `mission/` | `GET /v1/players/{xuid}/missions` : `MissionRoutes`, `MissionService` (la chaîne de missions, l'avancement, la fin), `MissionStore` et `JdbcMissionStore` (`player_missions`, versement des Lingots, événement) ; `CompanyService.collect` l'appelle |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
 `/v1` sans clé valable 401 avec `{"reason": "CLE_INVALIDE"}`. Écrire une route la remplace sans rien
@@ -177,7 +178,7 @@ nom est pris. À valider par Kr (texte vu par les joueurs).
 ## Les routes d'économie
 
 `GET /v1/companies/{companyId}` (`getCompany`), `POST .../collect`, `POST .../factories/{factoryId}/levels`
-(`buyLevels`) et `POST .../factories/{factoryId}/restore` (`restoreStep`) sont écrites. `CompanyRoutes` valide
+(`buyLevels`) et `POST .../factories/{factoryId}/restore` (`restoreStep`) sont écrites, puis le prestige (section suivante). `CompanyState.island` vient de la case d'archipel de l'entreprise (`archipelago_slots`). `CompanyRoutes` valide
 l'entrée et répond ; `CompanyService` lit, décide et écrit, sans HTTP et sans aucun chiffre du jeu (prix, production
 et plafond viennent de `EconomyEngine` et d'`EconomyFigures`) ; `CompanyStore` porte le SQL qui reste (l'usine,
 l'événement, l'existence de l'entreprise). Le Donar de l'entreprise s'écrit par `updateCompany` (verrou optimiste,
@@ -194,20 +195,78 @@ personnelles.
   `USINE_VERROUILLEE` pour `buyLevels`. `leave`, qui verse maintenant la production, peut se heurter à un autre associé : après ses essais il rend
   409 `CONFLIT_REESSAYER`, que l'OpenAPI ne déclare pas pour lui (`KNOWN_409_GAPS` de `ContractTest`).
 - **Les événements** : l'OpenAPI n'a pas de type propre à ces actions. Elles publient un `ANNONCE` adressé à l'acteur,
-  dont `payload.action` vaut `collect`, `buyLevels` ou `restoreStep` ; ajouter un type d'événement commence par
-  l'OpenAPI.
+  dont `payload.action` vaut `collect`, `buyLevels`, `restoreStep`, `prestige` ou `mission` ; ajouter un type
+  d'événement commence par l'OpenAPI.
 - **Règles à valider par Kr** : les deux régimes de production (revenu plein en ligne, plafond et efficacité hors ligne), le comportement de `max`, la remise en
   état sans coût ([economie.md](../docs/economie.md), sections Hors ligne, Le prix des niveaux, La remise en état).
-- **Les tests** : `economy/CompanyRoutesTest` (sans base, 34 tests), `contract/ContractTest` (les quatre opérations
-  sont dans `WRITTEN`) et `economy/CompanySqlTest` (MariaDB réelle, ignoré sans Docker : ce qui s'écrit dans `companies`,
+- **Les tests** : `economy/CompanyRoutesTest` (sans base), `contract/ContractTest` (les routes d'économie, le prestige
+  et les missions sont dans `WRITTEN`) et `economy/CompanySqlTest` (MariaDB réelle, ignoré sans Docker : ce qui s'écrit dans `companies`,
   `company_factories` et `game_events`, la transaction unique, et des achats simultanés).
+
+## Le prestige
+
+`GET /v1/companies/{companyId}/prestige/preview` (`prestigePreview`) et `POST .../prestige` (`prestige`) sont dans
+`CompanyService`, avec les autres actions. L'aperçu ne change rien. Le prestige est réservé au PDG (403 `PAS_LE_PDG`)
+et refusé sous le seuil (409 `SEUIL_NON_ATTEINT`, avec les Donar qui manquent). Seuil, Lingots, rendement décroissant
+et départ de course sortent d'`EconomyEngine`, qui les lit dans `economie.json` : aucun chiffre du jeu dans le service.
+
+- **Dans l'ordre** : la production en attente est versée d'abord (en ligne), elle compte pour le seuil et pour les
+  Lingots ; puis une seule écriture `updateCompany` pose la course suivante (Donar et Donar gagnés à zéro,
+  `course_number` + 1, époque et étoiles tirées du moteur, `course_started_at` et `last_collect_at` à maintenant) ;
+  puis les usines repartent, les Lingots se créditent un membre à la fois (`player_balances` et `currency_ledger`,
+  motif `prestige`), la ligne de `prestige_history` s'écrit, et chaque membre reçoit un événement. Tout dans la
+  transaction de `call.idempotent` : un échec annule tout, un rejeu ne verse rien de plus.
+- **Le partage** : `company_members.share_percent`, arrondi vers le bas pour chacun, le reste au PDG
+  (`economy/PrestigeShares`).
+- **La remise à zéro des usines** : la Carrière (`prestige.departDeCourse`) repart `ACTIVE` à son niveau de départ ;
+  les autres usines repassent `EN_RUINE`, niveau 0, étape 0, leurs lignes gardées, et leurs incidents ouverts sont
+  clos. La mairie, le silo, le plafond hors ligne et le personnel ne sont pas remis à zéro : ils ne sont pas encore
+  modélisés.
+- **Les événements** : `ANNONCE` adressé à chaque membre, `payload.action = "prestige"`, avec `companyId`, `course`,
+  `era`, `stars`, `lingotsTotal` et la part du membre (`lingots`). `PRESTIGE_ENTREPRISE`, qui existe dans l'OpenAPI,
+  n'est pas utilisé : un seul événement adressé à toute l'entreprise ne dit pas la part de chacun.
+- **Règles à valider par Kr** : la production en attente compte avant le test du seuil ; le reste du partage va au
+  PDG ; les usines autres que la Carrière repartent en ruine ; un événement par membre
+  ([economie.md](../docs/economie.md), section Le prestige et les Lingots).
+- **Les tests** : `PrestigeSharesTest`, les cas de `CompanyRoutesTest`, et dans `CompanySqlTest` (MariaDB, CI) la
+  course écrite en base, l'annulation d'ensemble et des prestiges simultanés qui ne versent qu'une fois.
+
+## Les missions
+
+`GET /v1/players/{xuid}/missions` (`getMissions`) rend la mission en cours et la liste de celles que le joueur a
+terminées. Le catalogue est `definitions/missions.json` (schéma `definitions/schemas/missions.schema.json`) : pour
+chaque mission, son `id` (la clé de `player_missions`), l'`evenement` qu'elle compte (`collect`), la `cible` et la
+`recompense`, qui n'est pas un nombre mais le chemin du nombre dans `economie.json` (la première mission,
+`bienvenue-mairie`, pointe `lingotsHorsPrestige.missionBienvenue`). `Definitions.missionRewards` le résout au
+chargement, et `tools/verifier_definitions.mjs` refuse un chemin qui ne mène pas à un entier. Les textes des missions
+sont ceux de l'add-on : le service ne rend que l'identifiant, l'avancement et les Lingots.
+
+- **Qui compte** : `MissionService.record` est appelé par `CompanyService.collect`, dans la même transaction, quand
+  l'encaissement rapporte du Donar (un `collect` à zéro, ou sans rien de dû, ne compte pas). Le service compte
+  lui-même : l'add-on ne dit jamais « mission faite ».
+- **La chaîne** : la mission en cours est la première du catalogue que le joueur n'a pas terminée, et c'est la seule
+  qui avance. Une ligne de `player_missions` d'une mission qui n'est plus au catalogue est ignorée.
+- **La fin** : à la cible, la mission se termine dans la même transaction que le `collect` : `completed_at`, Lingots
+  versés (`creditBalance`, motif `mission`, `ref_id` = l'identifiant de la mission) et un événement `ANNONCE`
+  (`payload.action = "mission"`, avec `missionId` et `rewardLingots`). Il n'y a pas de route pour la réclamer, et une
+  mission terminée ne se rejoue jamais : un rejeu du même `requestId` rend la réponse gardée, un nouvel encaissement ne
+  verse rien de plus. La ligne est relue sous verrou (`SELECT ... FOR UPDATE`), et le `collect` lui-même est déjà
+  protégé par le verrou optimiste de l'entreprise.
+- **Les cas que le contrat ne nomme pas** : un XUID mal formé ou d'un joueur que le service ne connaît pas donne 400
+  `REQUETE_INVALIDE` (le contrat ne déclare pas de 404).
+- **Règles à valider par Kr** : la mission n'avance que si l'encaissement rapporte ; les missions se font dans l'ordre
+  du catalogue ; la récompense est versée à la fin, sans geste du joueur ([economie.md](../docs/economie.md), section Les missions).
+- **Les tests** : `mission/MissionServiceTest` (sans base), les cas de `CompanyRoutesTest` et de `ContractTest`
+  (`getMissions` est dans `WRITTEN`), `DefinitionsLoaderTest` pour le catalogue, et `mission/MissionSqlTest` (MariaDB,
+  CI) : la ligne, le solde, le journal et l'événement écrits ensemble, l'annulation d'ensemble, des `collect`
+  simultanés qui ne terminent la mission qu'une fois.
 
 ## Ce qui vient après, en phase 1
 
 Chaque route suit la recette [`silooo-route`](../.claude/skills/silooo-route/SKILL.md) : contrat,
 test de contrat, puis code.
 
-- Les routes d'économie qui suivent `restoreStep` (usines à découvrir et à racheter, agence et personnel, prestige,
+- Les routes d'économie qui suivent `restoreStep` (usines à découvrir et à racheter, agence et personnel,
   associés, ville, marché, boutique) : elles se servent du moteur et de `CompanyService` comme les quatre premières.
 - Un coût de remise en état dans `definitions/`, et des types d'événement propres dans l'OpenAPI.
 - Le compose et le déploiement arrivent en phase 2 ([passation.md](../docs/passation.md)).

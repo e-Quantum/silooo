@@ -142,6 +142,50 @@ le service tranche ainsi, **à valider par Kr** :
 - Chaque prestige s'enregistre dans `prestige_history` avec sa durée : c'est la matière du tableau
   de bord d'équilibrage.
 
+### Ce que fait l'opération `prestige`
+
+Ni `economie.json` ni le contrat ne disent tout ce qu'un prestige remet à zéro. Le service tranche ainsi, **à valider
+par Kr** (`prestigePreview` montre le résultat sans rien écrire, `prestige` l'écrit) :
+
+- Seul le PDG lance le prestige (`PAS_LE_PDG` pour un associé). Il est refusé sous le seuil (`SEUIL_NON_ATTEINT`, avec
+  les Donar qui manquent).
+- La production en attente est versée d'abord, au régime en ligne (voir « Hors ligne ») : elle compte pour le test du
+  seuil et pour les Lingots, comme si le joueur avait encaissé juste avant.
+- La course suivante commence : Donar et Donar gagnés à zéro, `course_number` + 1, l'époque et les étoiles données par
+  le moteur pour cette course, `course_started_at` et `last_collect_at` à maintenant.
+- Les usines repartent. La Carrière (`prestige.departDeCourse`) est `ACTIVE` à son niveau de départ. Les autres usines
+  repassent `EN_RUINE`, niveau 0, étape 0 : la ligne est gardée (une usine déjà découverte n'est pas à redécouvrir,
+  seulement à remettre en état) et les incidents ouverts sont clos. La mairie, le silo, le plafond hors ligne et le
+  personnel ne sont pas remis à zéro : ils ne sont pas encore modélisés.
+- Le total de Lingots se partage selon `company_members.share_percent`. Chaque part est arrondie vers le bas, et le
+  reste va au PDG, pour que la somme versée soit exactement le total.
+- Chaque Lingot versé passe par `currency_ledger` (motif `prestige`, référence « entreprise-*n*-course-*k* »), et chaque
+  membre reçoit un événement `ANNONCE` (`payload.action = "prestige"`) avec sa part. Le type `PRESTIGE_ENTREPRISE` de
+  l'OpenAPI n'est pas utilisé : un événement unique ne dit pas la part de chacun.
+
+## Les missions
+
+`definitions/missions.json` liste les missions dans l'ordre où un joueur les fait. Chaque entrée dit son `id` (la clé de
+`player_missions`), l'`evenement` qu'elle compte (`collect` pour l'instant), la `cible` (le nombre d'actions) et la
+`recompense`. La récompense n'est pas un nombre : c'est le chemin du nombre dans `economie.json`, pour que le chiffre
+reste à un seul endroit. La première mission, `bienvenue-mairie`, pointe `lingotsHorsPrestige.missionBienvenue`. Le
+vérificateur de `tools/` et le chargeur du service refusent un chemin qui ne mène pas à un nombre entier de Lingots.
+
+Le service tranche ainsi, **à valider par Kr** :
+
+- Le service compte lui-même : un `collect` qui rapporte du Donar fait avancer la mission en cours. Un `collect` qui ne
+  rapporte rien (rien d'écoulé, ou aucune usine qui produit) ne compte pas.
+- Les missions forment une chaîne : la mission en cours est la première du catalogue que le joueur n'a pas terminée, et
+  elle seule avance.
+- À la cible, la mission se termine toute seule, dans la même transaction que le `collect` : les Lingots de la
+  récompense sont versés (`currency_ledger`, motif `mission`, référence = l'identifiant de la mission) et un événement
+  `ANNONCE` (`payload.action = "mission"`) prévient le joueur. Il n'y a pas de geste pour « réclamer ».
+- Une mission terminée ne se rejoue jamais, et chaque joueur a les siennes (un associé qui encaisse avance sa mission,
+  pas celle du PDG).
+- `GET /v1/players/{xuid}/missions` rend la mission en cours (identifiant, avancement, cible, Lingots) et la liste des
+  missions terminées. Les textes de chaque mission sont ceux de l'add-on, retrouvés par l'identifiant : le service ne
+  les connaît pas.
+
 ## La ville : zones et bonus
 
 - Chaque zone de l'île principale a un prix fixe en Lingots, connu à l'avance : clé
@@ -217,3 +261,4 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `prestige.departDeCourse` (`usine`, `niveau`) | absente | `carriere`, niveau `1` | Le tableur démarre chaque course avec la Carrière au niveau 1 (Paramètres!B17), jamais à zéro : règle du jeu sans clé, dont le moteur a besoin. **À valider par Kr** (point 2 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, le rejeu des tests dorés les retrouve. |
 | 5 nov. 2026 | `prestige.facteurSeuilSuivant` | absente (le texte `etoilesSuivantes` parlait d'un facteur à recaler) | `1000` | Le moteur doit donner un seuil à toute course, et `join` ne peut pas tomber au-delà de la 9e : la clé chiffre le texte. **À valider par Kr** (point 5 de `core/src/test/resources/golden/README.md`). Treize cibles : inchangées, aucune course listée ne change. |
 | 5 nov. 2026 | `monde.json` : `archipel.ecartEntreCases`, `archipel.casesParRangee`, `archipel.origine` (`x`, `z`) | fichier absent | `600`, `64`, `0` et `0` | `CompanyBootstrap.slotOrigin` pose chaque île neuve sur une grille : colonne `N % casesParRangee`, rangée `N / casesParRangee`. 600 blocs reprend l'espace à prévoir par joueur ([game-design.md](game-design.md), section Technique) ; la largeur de 64 cases et l'origine en (0, 0) sont des valeurs de départ, à recaler quand le monde sera posé. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
+| 5 nov. 2026 | `missions.json` : `missions[]` (`id`, `evenement`, `cible`, `recompense`) | fichier absent | `bienvenue-mairie`, `collect`, `1`, `lingotsHorsPrestige.missionBienvenue` | Le service compte les missions lui-même (`collect` qui rapporte) et les termine tout seul. Le catalogue n'a aucun chiffre d'économie : la récompense est le chemin d'une clé de `economie.json`, dont `lingotsHorsPrestige.missionBienvenue` (10) ne change pas. **À valider par Kr.** Treize cibles : inchangées, ces clés ne touchent pas l'économie. |
