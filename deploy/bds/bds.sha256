@@ -14,4 +14,4 @@
 #
 # Pour changer de version de BDS (docs/bedrock.md, « La procédure de mise à jour ») : nouveau numéro dans
 # ARG BDS_VERSION du Dockerfile, nouveau nom de fichier ici et dans bds.md5, nouvelles sommes, dans le même commit.
-0000000000000000000000000000000000000000000000000000000000000000  bedrock-server-1.26.62.1.zip
+50cdb466cddef99066b888e2198479a9b352ea1535f00820b0204e92baa1ab0a  bedrock-server-1.26.62.1.zip
