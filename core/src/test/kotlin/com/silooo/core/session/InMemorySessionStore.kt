@@ -2,6 +2,7 @@ package com.silooo.core.session
 
 import com.silooo.core.api.Balances
 import com.silooo.core.api.FactoryState
+import com.silooo.core.api.Member
 import com.silooo.core.api.Role
 import com.silooo.core.api.Staff
 import com.silooo.core.db.Xuid
@@ -27,6 +28,9 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
     /** Le personnel de chaque entreprise, par identifiant croissant (les écritures passent par `InMemoryStaffStore`). */
     val staff = LinkedHashMap<Long, MutableList<StaffRecord>>()
     val profiles = LinkedHashMap<Xuid, PlayerProfile>()
+
+    /** Les parts de Lingots posées par un test (`share_percent`). Sans part posée : 100 pour le PDG, 0 pour un associé. */
+    val sharePercents = LinkedHashMap<Xuid, Int>()
     val leaves = mutableListOf<Xuid>()
 
     /** Une panne à jouer à la place de l'inscription du joueur (tests de refus et d'échec). */
@@ -88,6 +92,18 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
     override fun loadMemberXuids(connection: Connection, companyId: Long): List<Xuid> =
         members.filterValues { it.companyId == companyId }.keys.toList()
 
+    override fun loadMembers(connection: Connection, companyId: Long): List<MemberRecord> =
+        members.filterValues { it.companyId == companyId }.entries
+            .sortedBy { it.value.role != Role.PDG } // stable : les associés restent dans l'ordre d'arrivée
+            .map { (xuid, membership) ->
+                MemberRecord(
+                    xuid = xuid,
+                    name = players[xuid]?.gamertag ?: xuid.text,
+                    role = membership.role,
+                    sharePercent = sharePercents[xuid] ?: if (membership.role == Role.PDG) 100 else 0,
+                )
+            }
+
     override fun markLeft(connection: Connection, xuid: Xuid): Boolean {
         failOnLeave?.invoke()?.let { throw it }
         leaves += xuid
@@ -139,6 +155,7 @@ class TestEconomy(private val sessions: InMemorySessionStore? = null) : EconomyF
                 bonusPercent = 77.0, salaryPercent = 88.0, salaryPerHour = 99.0, factoryId = it.factoryId,
             )
         },
+        members = sessions?.loadMembers(connection, company.id).orEmpty().map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
     )
 
     override fun settle(connection: Connection, company: CompanyRecord, regime: Regime, playerLastSeenAt: Instant?): Double {

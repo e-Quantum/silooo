@@ -37,7 +37,7 @@ class DefinitionsBootstrapTest {
     }
 
     private fun world(spacing: Int, perRow: Int, x: Int, z: Int): String =
-        """{"version": 1, "archipel": {"ecartEntreCases": $spacing, "casesParRangee": $perRow, "origine": {"x": $x, "z": $z}}}"""
+        """{"version": 1, "archipel": {"ecartEntreCases": $spacing, "casesParRangee": $perRow, "origine": {"x": $x, "z": $z}}, "entreprise": {"membresMax": 4, "invitationHeures": 48}}"""
 
     @Test
     @DisplayName("Les usines de départ sont celles de prestige.departDeCourse, ACTIVE, sans étape de remise en état")

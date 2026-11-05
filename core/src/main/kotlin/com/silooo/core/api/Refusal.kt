@@ -37,13 +37,16 @@ object RefusalCodes {
     const val ALREADY_OWNED = "DEJA_POSSEDE"
     const val PREVIOUS_RANK_REQUIRED = "GRADE_PRECEDENT_REQUIS"
 
+    /** L'entreprise d'un joueur est déjà lancée : elle ne peut pas rejoindre une autre entreprise (`invite`, `acceptInvite`). */
+    const val ENTERPRISE_UNDERWAY = "ENTREPRISE_EN_COURS"
+
     /** L'écriture a perdu contre une autre (version dépassée, même requête en cours) : l'add-on relit et rejoue. */
     const val CONFLICT_RETRY = "CONFLIT_REESSAYER"
 
     val ALL: Set<String> = setOf(
         NOT_ENOUGH_DONAR, NOT_ENOUGH_LINGOTS, NOT_ENOUGH_GEMS, NOT_THE_CEO, THRESHOLD_NOT_REACHED,
         FACTORY_LOCKED, ZONE_LOCKED, SPOT_TAKEN, COMPANY_FULL, ALREADY_OWNED, PREVIOUS_RANK_REQUIRED,
-        CONFLICT_RETRY,
+        CONFLICT_RETRY, ENTERPRISE_UNDERWAY,
     )
 }
 

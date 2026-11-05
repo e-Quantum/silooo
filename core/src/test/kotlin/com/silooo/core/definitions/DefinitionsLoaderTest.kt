@@ -318,6 +318,18 @@ class DefinitionsLoaderTest {
     }
 
     @Test
+    @DisplayName("Une entreprise sans membre possible, ou une invitation qui n'est valable aucune heure, est refusée")
+    fun companyMustHaveRoom() {
+        val root = parseJson(worldText)
+        val company = root.getValue("entreprise").jsonObject
+        for (key in listOf("membresMax", "invitationHeures")) {
+            val damaged = JsonObject(root + ("entreprise" to JsonObject(company + (key to JsonPrimitive(0)))))
+            val message = assertThrows<DefinitionsException>("monde.json avec $key à 0") { load(world = damaged.toString()) }.message!!
+            assertTrue(message.contains("entreprise.$key"), message)
+        }
+    }
+
+    @Test
     @DisplayName("Un facteur de seuil qui ne dépasse pas 1 est refusé")
     fun nextThresholdFactorMustExceedOne() {
         val root = parseJson(economyText)

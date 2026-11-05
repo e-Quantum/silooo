@@ -297,6 +297,29 @@ class JdbcSessionStore : SessionStore {
             it.executeQuery().use { rows -> buildList { while (rows.next()) add(checkNotNull(Xuid.parse(rows.getString(1)))) } }
         }
 
+    override fun loadMembers(connection: Connection, companyId: Long): List<MemberRecord> =
+        // CAST en texte : un BIGINT UNSIGNED ne tient pas dans un Long. Le PDG d'abord, puis l'ordre d'arrivée.
+        connection.prepareStatement(
+            "SELECT CAST(m.xuid AS CHAR) AS xuid, p.gamertag, m.role, m.share_percent FROM company_members m " +
+                "JOIN players p ON p.xuid = m.xuid WHERE m.company_id = ? ORDER BY m.role = 'PDG' DESC, m.joined_at, m.xuid",
+        ).use {
+            it.setLong(1, companyId)
+            it.executeQuery().use { rows ->
+                buildList {
+                    while (rows.next()) {
+                        add(
+                            MemberRecord(
+                                xuid = checkNotNull(Xuid.parse(rows.getString("xuid"))),
+                                name = rows.getString("gamertag"),
+                                role = Role.valueOf(rows.getString("role")),
+                                sharePercent = rows.getInt("share_percent"),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
     override fun markLeft(connection: Connection, xuid: Xuid): Boolean =
         connection.prepareStatement("UPDATE players SET last_seen_at = UTC_TIMESTAMP(3) WHERE xuid = ?").use {
             it.setXuid(1, xuid)

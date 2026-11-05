@@ -71,6 +71,13 @@ data class Staff(
     val factoryId: String? = null,
 )
 
+/**
+ * Schéma `Member` : un membre de l'entreprise. [sharePercent] est sa part entière du partage des Lingots au prestige ; les parts de
+ * tous les membres font 100. [name] est son gamertag.
+ */
+@Serializable
+data class Member(val xuid: String, val name: String, val role: Role, val sharePercent: Int)
+
 /** Schéma `CompanyState.island` : l'origine de l'archipel de l'entreprise, en blocs (`archipelago_slots`). */
 @Serializable
 data class Island(val x: Int, val z: Int)
@@ -91,6 +98,8 @@ data class CompanyState(
     val factories: List<Factory>,
     val zonesOwned: List<Int>,
     val staff: List<Staff> = emptyList(),
+    /** Le PDG d'abord, puis les associés dans l'ordre d'arrivée. */
+    val members: List<Member> = emptyList(),
     val island: Island,
     val version: Int,
 )

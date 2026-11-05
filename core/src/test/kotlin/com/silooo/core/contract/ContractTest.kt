@@ -29,6 +29,8 @@ import com.silooo.core.events.EVENTS_MAX_LIMIT
 import com.silooo.core.events.GameEventKind
 import com.silooo.core.events.InMemoryEventStore
 import com.silooo.core.findings.InMemoryFindingStore
+import com.silooo.core.members.InMemoryMemberStore
+import com.silooo.core.members.Invitation
 import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.orders.InMemoryOrderStore
 import com.silooo.core.session.FactoryRecord
@@ -100,6 +102,9 @@ class ContractTest {
     /** Un joueur qui n'est membre d'aucune entreprise. */
     private val stranger = "2535428000000099"
 
+    /** Le second joueur des exemples du contrat : la cible d'exemple de `invite`, ou le PDG qui invite Kr dans `acceptInvite`. */
+    private val other = "2535428000000002"
+
     /** Un `requestId` bien formé, différent de [ID] et d'un numéro à l'autre : une action par numéro, jamais un rejeu par hasard. */
     private fun id(n: Int): String = "6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e%02d".format(n)
 
@@ -114,7 +119,12 @@ class ContractTest {
      * routes d'économie écrivent l'entreprise par `updateCompany`, qu'une connexion qui note les écritures suffit à
      * satisfaire ; `join` et `pollEvents` n'y touchent jamais.
      */
-    private fun contractDependencies(sessions: InMemorySessionStore, economy: TestEconomy, missions: InMemoryMissionStore): Dependencies {
+    private fun contractDependencies(
+        sessions: InMemorySessionStore,
+        economy: TestEconomy,
+        missions: InMemoryMissionStore,
+        members: InMemoryMemberStore,
+    ): Dependencies {
         val database = RecordingDatabase()
         return Dependencies(
             database = database,
@@ -131,6 +141,7 @@ class ContractTest {
             findingStore = InMemoryFindingStore(sessions),
             clock = MutableClock(sessions.now),
             staffStore = InMemoryStaffStore(sessions),
+            memberStore = members,
         )
     }
 
@@ -146,11 +157,12 @@ class ContractTest {
     ) = testApplication {
         val sessions = InMemorySessionStore()
         val economy = TestEconomy(sessions)
-        if (operationId != null) seedFor(operationId, sessions, economy)
+        val members = InMemoryMemberStore(sessions)
+        if (operationId != null) seedFor(operationId, sessions, economy, members)
         extraSeed(sessions)
         val missions = InMemoryMissionStore(sessions)
         inspect(sessions, missions)
-        application { siloooModule(contractDependencies(sessions, economy, missions)) }
+        application { siloooModule(contractDependencies(sessions, economy, missions, members)) }
         block()
     }
 
@@ -159,13 +171,21 @@ class ContractTest {
      * contrat), son PDG [krXuid], et l'usine `factoryId` d'exemple du contrat, dans l'état que chaque opération veut
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
-    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy) {
+    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy, members: InMemoryMemberStore) {
         if (operationId == "getMissions" || operationId == "getFindings") {
             // Un joueur déjà inscrit, sans entreprise : les missions et le Carnet ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
             return
         }
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "deliverOrder")
+        if (operationId == "acceptInvite") {
+            // L'entreprise 1 est celle d'un autre PDG, qui a invité Kr ; Kr a la sienne (la 2), intacte.
+            seedPlayer(sessions, other, "Patron")
+            seedPlayer(sessions, krXuid, "Kr")
+            members.invitations[1L to Xuid.parse(krXuid)!!] =
+                Invitation(1, Xuid.parse(krXuid)!!, Xuid.parse(other)!!, sessions.now.plusSeconds(3600))
+            return
+        }
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "deliverOrder", "invite", "setShares")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
@@ -194,10 +214,20 @@ class ContractTest {
                 sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
                 sessions.staff[companyId] = mutableListOf(StaffRecord(1, null, "Membre de test", "ouvrier-casque", StaffRole.SALARIE, StaffRarity.COMMUN))
             }
+            // Le joueur invité par l'exemple du contrat, avec son entreprise de départ (la 2) : intacte, donc invitable.
+            "invite" -> seedPlayer(sessions, other, "Invité")
             // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
             "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
                 .copy(donarEarned = EconomyEngine(TestDefinitions.loaded).prestigeThreshold(1) * 4)
         }
+    }
+
+    /** Inscrit le joueur [xuid] avec son entreprise de départ, comme son premier `join` : rend l'identifiant de l'entreprise. */
+    private fun seedPlayer(sessions: InMemorySessionStore, xuid: String, gamertag: String): Long {
+        val player = Xuid.parse(xuid)!!
+        val connection = RecordingConnection().connection
+        sessions.enterPlayer(connection, player, gamertag)
+        return sessions.createCompany(connection, player, "Entreprise de $gamertag", TestBootstrap).companyId
     }
 
     private suspend fun ApplicationTestBuilder.send(method: String, url: String, body: String? = null, key: String? = KEY): HttpResponse =
@@ -243,9 +273,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 31 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    @DisplayName("Le contrat compte 32 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
     fun thirtyOperations() {
-        assertEquals(31, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+        assertEquals(32, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {
@@ -282,6 +312,7 @@ class ContractTest {
         assertEquals(contract.enumOf(contract.schema("GameEvent"), "kind"), GameEventKind.entries.map { it.name }.toSet(), "GameEventKind et GameEvent.kind")
         assertEquals(contract.enumOf(contract.schema("Factory"), "state"), FactoryState.entries.map { it.name }.toSet(), "FactoryState et Factory.state")
         assertEquals(contract.enumOf(contract.schema("JoinResponse"), "role"), Role.entries.map { it.name }.toSet(), "Role et JoinResponse.role")
+        assertEquals(contract.enumOf(contract.schema("Member"), "role"), Role.entries.map { it.name }.toSet(), "Role et Member.role")
         assertEquals(contract.enumOf(contract.schema("Staff"), "rarity"), StaffRarity.entries.map { it.name }.toSet(), "StaffRarity et Staff.rarity")
         // Le contrat connaît aussi DIRECTEUR, que le jeu ne fait pas encore embaucher : tous les rôles du service y sont, pas l'inverse.
         assertTrue(contract.enumOf(contract.schema("Staff"), "role").containsAll(StaffRole.entries.map { it.name }), "StaffRole dans Staff.role")
@@ -468,6 +499,37 @@ class ContractTest {
                 """{"requestId":"$ID","actor":"$krXuid","factoryId":"usine-inconnue"}""",
                 """{"requestId":"$ID","actor":"$stranger","factoryId":"scierie"}""",
             ),
+            "invite" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""", """{"actor":"$krXuid","targetXuid":"$other"}""",
+                """{"requestId":"abc","actor":"$krXuid","targetXuid":"$other"}""", """{"requestId":"$ID","actor":"abc","targetXuid":"$other"}""",
+                """{"requestId":"$ID","actor":"$krXuid","targetXuid":"abc"}""", """{"requestId":"$ID","actor":"$krXuid","targetXuid":2}""",
+                """{"requestId":"$ID","actor":"$krXuid","targetXuid":"123456789012345678901"}""",
+                // Le PDG qui s'invite, un joueur que le service ne connaît pas, un acteur qui n'est pas de l'entreprise.
+                """{"requestId":"$ID","actor":"$krXuid","targetXuid":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","targetXuid":"$stranger"}""",
+                """{"requestId":"$ID","actor":"$stranger","targetXuid":"$other"}""",
+            ),
+            "acceptInvite" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+                // Un joueur sans entreprise, un joueur que personne n'a invité.
+                """{"requestId":"$ID","actor":"$stranger"}""", """{"requestId":"$ID","actor":"$other"}""",
+            ),
+            "setShares" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""", """{"actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":100}]}""",
+                """{"requestId":"abc","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":100}]}""",
+                """{"requestId":"$ID","actor":"abc","shares":[{"xuid":"$krXuid","percent":100}]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":{"xuid":"$krXuid","percent":100}}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"abc","percent":100}]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid"}]}""", """{"requestId":"$ID","actor":"$krXuid","shares":[{"percent":100}]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":101}]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":-1}]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":50.5}]}""",
+                // Pas 100 en tout, aucun membre nommé, un membre inconnu, le même nommé deux fois, un acteur qui n'est pas de l'entreprise.
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":99}]}""", """{"requestId":"$ID","actor":"$krXuid","shares":[]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":50},{"xuid":"$other","percent":50}]}""",
+                """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":50},{"xuid":"$krXuid","percent":50}]}""",
+                """{"requestId":"$ID","actor":"$stranger","shares":[{"xuid":"$krXuid","percent":100}]}""",
+            ),
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
@@ -492,7 +554,7 @@ class ContractTest {
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
-        val seeded = setOf("hire", "assignStaff")
+        val seeded = setOf("hire", "assignStaff", "invite", "acceptInvite", "setShares")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
@@ -771,6 +833,91 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("invite : l'état rendu est inchangé et une invitation est gardée ; sans PDG 403 PAS_LE_PDG ; entreprise déjà lancée 409 ENTREPRISE_EN_COURS")
+    fun invite() {
+        val url = "/v1/companies/1/members"
+        withService("invite") {
+            val invited = send("POST", url, """{"requestId":"${id(10)}","actor":"$krXuid","targetXuid":"$other"}""")
+            val body = invited.bodyAsText()
+            assertEquals(200, invited.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "invite")
+            val members = parse(body).jsonObject.getValue("state").jsonObject.getValue("members").jsonArray
+            assertEquals(listOf(krXuid), members.map { it.jsonObject.getValue("xuid").jsonPrimitive.content }, "inviter ne fait entrer personne")
+            assertEquals(200, send("POST", url, """{"requestId":"${id(11)}","actor":"$krXuid","targetXuid":"$other"}""").status.value, "réinviter renouvelle")
+        }
+        withService("invite", extraSeed = { sessions ->
+            sessions.members[Xuid.parse(other)!!] = Membership(1, Role.ASSOCIE)
+        }) {
+            val notCeo = send("POST", url, """{"requestId":"${id(12)}","actor":"$other","targetXuid":"$stranger"}""")
+            val body = notCeo.bodyAsText()
+            assertEquals(403, notCeo.status.value, body)
+            assertConforms(refused, body, "invite (403)")
+            assertEquals(RefusalCodes.NOT_THE_CEO, reason(parse(body)))
+        }
+        withService("invite", extraSeed = { sessions ->
+            sessions.companies[2] = sessions.companies.getValue(2).copy(stars = 1)
+        }) {
+            val underway = send("POST", url, """{"requestId":"${id(13)}","actor":"$krXuid","targetXuid":"$other"}""")
+            val body = underway.bodyAsText()
+            assertEquals(409, underway.status.value, body)
+            assertConforms(refused, body, "invite (409)")
+            assertEquals(RefusalCodes.ENTERPRISE_UNDERWAY, reason(parse(body)))
+        }
+    }
+
+    @Test
+    @DisplayName("acceptInvite : l'invité entre comme associé à 0 %, les parts font toujours 100, rejoué à l'identique ; sans invitation 400 ; entreprise lancée 409 ENTREPRISE_EN_COURS")
+    fun acceptInvite() {
+        val url = "/v1/companies/1/members/accept"
+        val request = """{"requestId":"${id(14)}","actor":"$krXuid"}"""
+        withService("acceptInvite") {
+            val accepted = send("POST", url, request)
+            val body = accepted.bodyAsText()
+            assertEquals(200, accepted.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "acceptInvite")
+            val members = parse(body).jsonObject.getValue("state").jsonObject.getValue("members").jsonArray.map { it.jsonObject }
+            assertEquals(listOf(other, krXuid), members.map { it.getValue("xuid").jsonPrimitive.content }, "le PDG d'abord, puis l'associé")
+            assertEquals(listOf("PDG", "ASSOCIE"), members.map { it.getValue("role").jsonPrimitive.content })
+            assertEquals(listOf(100, 0), members.map { it.getValue("sharePercent").jsonPrimitive.content.toInt() })
+            assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+            assertEquals(400, send("POST", url, """{"requestId":"${id(15)}","actor":"$krXuid"}""").status.value, "l'invitation est consommée")
+        }
+        withService("acceptInvite", extraSeed = { sessions ->
+            sessions.companies[2] = sessions.companies.getValue(2).copy(courseNumber = 2)
+        }) {
+            val underway = send("POST", url, request)
+            val body = underway.bodyAsText()
+            assertEquals(409, underway.status.value, body)
+            assertConforms(refused, body, "acceptInvite (409)")
+            assertEquals(RefusalCodes.ENTERPRISE_UNDERWAY, reason(parse(body)))
+        }
+    }
+
+    @Test
+    @DisplayName("setShares : les parts du PDG et de l'associé dans CompanyState.members, rejoué à l'identique ; un associé reçoit 403 PAS_LE_PDG")
+    fun setShares() {
+        val url = "/v1/companies/1/members"
+        val request = """{"requestId":"${id(16)}","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":60},{"xuid":"$other","percent":40}]}"""
+        val partner = { sessions: InMemorySessionStore -> sessions.members[Xuid.parse(other)!!] = Membership(1, Role.ASSOCIE) }
+        withService("setShares", extraSeed = partner) {
+            val set = send("PUT", url, request)
+            val body = set.bodyAsText()
+            assertEquals(200, set.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "setShares")
+            val members = parse(body).jsonObject.getValue("state").jsonObject.getValue("members").jsonArray.map { it.jsonObject }
+            assertEquals(listOf(krXuid to 60, other to 40), members.map { it.getValue("xuid").jsonPrimitive.content to it.getValue("sharePercent").jsonPrimitive.content.toInt() })
+            assertEquals(body, send("PUT", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+        }
+        withService("setShares", extraSeed = partner) {
+            val notCeo = send("PUT", url, """{"requestId":"${id(17)}","actor":"$other","shares":[{"xuid":"$krXuid","percent":60},{"xuid":"$other","percent":40}]}""")
+            val body = notCeo.bodyAsText()
+            assertEquals(403, notCeo.status.value, body)
+            assertConforms(refused, body, "setShares (403)")
+            assertEquals(RefusalCodes.NOT_THE_CEO, reason(parse(body)))
+        }
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -792,6 +939,9 @@ class ContractTest {
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
             "todayOrder" to 200, "deliverOrder" to 200, "getFindings" to 200,
             "getCandidates" to 200, "hire" to 200, "assignStaff" to 200, "fireStaff" to 200,
+            "invite" to 200,
+            "acceptInvite" to 200,
+            "setShares" to 200,
         )
 
         /** Plus de Donar que n'importe quelle embauche n'en coûte au revenu fictif de `TestEconomy` (11 par heure). */
