@@ -784,6 +784,13 @@ components:
         threshold: { $ref: '#/components/schemas/Donar' }
         factories: { type: array, items: { $ref: '#/components/schemas/Factory' } }
         zonesOwned: { type: array, items: { type: integer } }
+        island:
+          type: object
+          description: "origine de l'archipel de l'entreprise, en blocs (archipelago_slots) : l'add-on y pose l'île et les usines, il ne la calcule pas"
+          required: [x, z]
+          properties:
+            x: { type: integer }
+            z: { type: integer }
         version: { type: integer, description: verrou optimiste }
     JoinResponse:
       type: object
