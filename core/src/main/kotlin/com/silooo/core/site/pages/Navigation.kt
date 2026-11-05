@@ -1,7 +1,9 @@
 package com.silooo.core.site.pages
 
+import com.silooo.core.definitions.ShopDefinitions
 import com.silooo.core.site.ContentPage
 import com.silooo.core.site.SiteMode
+import com.silooo.core.site.SiteSettings
 
 /** Un lien de la navigation : l'adresse de la page et le mot qu'on lit sur le bouton. */
 internal class NavItem(val url: String, val label: String)
@@ -29,11 +31,16 @@ internal object Navigation {
     }
 }
 
-/** Ce que chaque page reçoit du site : l'adresse publique (pour `og:image`), le Discord s'il existe et la navigation. */
+/**
+ * Ce que chaque page reçoit du site : l'adresse publique (pour `og:image`), le Discord s'il existe, la navigation,
+ * ce que la configuration dit du jeu ([settings]) et la boutique des définitions ([shop], d'où viennent tous les prix).
+ */
 internal class SiteShell(
     siteUrl: String,
     val discordUrl: String?,
     val nav: List<NavItem>,
+    val settings: SiteSettings,
+    val shop: ShopDefinitions,
 ) {
     /** L'adresse publique sans barre finale, prête à recevoir un chemin qui commence par `/`. */
     val siteUrl: String = siteUrl.trimEnd('/')

@@ -1,5 +1,6 @@
 package com.silooo.core.site
 
+import org.commonmark.node.Link
 import org.commonmark.parser.Parser
 import org.commonmark.renderer.html.HtmlRenderer
 
@@ -15,7 +16,16 @@ internal class ContentHeader(val fields: Map<String, String>)
  */
 internal object Markdown {
     private val parser = Parser.builder().build()
-    private val renderer = HtmlRenderer.builder().escapeHtml(true).sanitizeUrls(true).build()
+    private val renderer = HtmlRenderer.builder()
+        .escapeHtml(true)
+        .sanitizeUrls(true)
+        // `sanitizeUrls` pose rel="nofollow" sur chaque lien ; un lien vers une autre page du site n'en veut pas.
+        .attributeProviderFactory {
+            org.commonmark.renderer.html.AttributeProvider { node, _, attributes ->
+                if (node is Link && node.destination.startsWith("/")) attributes.remove("rel")
+            }
+        }
+        .build()
 
     fun toHtml(markdown: String): String = renderer.render(parser.parse(markdown))
 

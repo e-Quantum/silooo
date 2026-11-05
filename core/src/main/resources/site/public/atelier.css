@@ -306,6 +306,47 @@ main { margin-bottom: var(--pas-6); }
 }
 .lecture strong { font-weight: 600; }
 
+/* ---------- S2 : les pages publiques du mode ouvert */
+/* L'adresse du serveur : un ticket par ligne, son nom en étiquette au-dessus (centré sur l'accueil, à gauche en lecture). */
+.adresse { display: flex; flex-direction: column; gap: var(--pas-2); align-items: flex-start; margin: 0 0 var(--pas-4); }
+.presentation .adresse { align-items: center; margin: 0; }
+.adresse__ligne { display: flex; flex-direction: column; gap: var(--pas-1); align-items: inherit; margin: 0; }
+.lecture .adresse__ligne { margin: 0; }
+.adresse__nom { font-family: var(--font-etiquette); font-size: 16px; line-height: 24px; letter-spacing: 1px; }
+.joueurs { margin: 0; font-weight: 600; }
+/* Sur le fond de fonte de l'accueil, un lien en laiton clair : le bleu des liens ne s'y lit pas. */
+.presentation__texte a { color: var(--laiton-clair); }
+.presentation__texte a:hover { color: var(--papier); }
+
+/* Le panneau des médias (vidéo, capture) : caché tant que Kr n'y a rien posé, un commentaire ne compte pas comme contenu. */
+.medias:empty { display: none; }
+
+/* Les offres (packs, grades, abonnements) : une ligne par offre, sur le papier des pages de lecture. */
+.offres { list-style: none; margin: 0 0 var(--pas-4); padding: 0; }
+.offre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2) var(--pas-4);
+  padding: var(--pas-2) 0;
+  border-bottom: 3px solid var(--fonte-900);
+}
+.offre:last-child { border-bottom: 0; }
+.offre__nom { font-weight: 600; min-width: 120px; }
+.offre__detail { flex: 0 1 auto; }
+/* Sur le papier, la Gemme prend la couleur du texte : papier sur papier ne se lirait pas. */
+.lecture .sa-monnaie--gemmes { color: var(--fonte-900); }
+.lecture ul:not(.offres):not(.liens) { margin: 0 0 var(--pas-4); padding-left: var(--pas-6); }
+
+/* Les boutons d'une liste (sites de vote). */
+.liens { list-style: none; margin: 0 0 var(--pas-4); padding: 0; display: flex; flex-wrap: wrap; gap: var(--pas-2); }
+.lecture a.sa-bouton { color: var(--fonte-900); }
+
+/* Les mises à jour : une entrée par version, séparées par un filet. */
+.entree { margin-top: var(--pas-6); padding-top: var(--pas-4); border-top: 3px solid var(--fonte-900); }
+.entree__date { margin: 0; font-family: var(--font-etiquette); font-size: 16px; line-height: 24px; letter-spacing: 1px; }
+.entree h2 { margin-top: var(--pas-1); }
+
 @media (min-width: 600px) {
   body { padding: 0 var(--pas-6); }
   .sa-panneau { padding: var(--pas-6); }

@@ -33,12 +33,51 @@ class SiteRenderToDisk {
         val pages = listOf(
             Triple(SiteMode.ATTENTE, null as String?, listOf("/" to "index.html", "/mentions/" to "mentions/index.html", "/wiki/" to "introuvable/index.html")),
             Triple(SiteMode.ATTENTE, "https://discord.gg/exemple", listOf("/" to "discord/index.html")),
-            Triple(SiteMode.OUVERT, null, listOf("/" to "ouvert/index.html", "/mentions/" to "ouvert/mentions/index.html")),
+            Triple(
+                SiteMode.OUVERT,
+                null,
+                listOf(
+                    "/" to "ouvert/index.html",
+                    "/mentions/" to "ouvert/mentions/index.html",
+                    "/rejoindre/" to "ouvert/rejoindre/index.html",
+                    "/ce-qui-se-vend/" to "ouvert/ce-qui-se-vend/index.html",
+                    "/boutique/" to "ouvert/boutique/index.html",
+                    "/vote/" to "ouvert/vote/index.html",
+                    "/mises-a-jour/" to "ouvert/mises-a-jour/index.html",
+                ),
+            ),
+            // Avec la boutique, deux sites de vote et le Discord posés : les liens et les boutons que le mode ouvert montre alors.
+            Triple(
+                SiteMode.OUVERT,
+                "https://discord.gg/exemple",
+                listOf(
+                    "/" to "ouvert-complet/index.html",
+                    "/boutique/" to "ouvert-complet/boutique/index.html",
+                    "/vote/" to "ouvert-complet/vote/index.html",
+                    "/mises-a-jour/" to "ouvert-complet/mises-a-jour/index.html",
+                ),
+            ),
+        )
+        val settings = SiteSettings(
+            shopUrl = "https://boutique.exemple.test/",
+            voteSites = listOf(VoteSite("Premier site", "https://un.exemple.test/"), VoteSite("Second site", "https://deux.exemple.test/")),
+        )
+        // Deux entrées d'exemple pour voir la page des mises à jour remplie ; elles ne sont écrites nulle part dans le dépôt.
+        val sample = listOf(
+            UpdateEntries.parse("2026-12-01-exemple.md", "---\ntitre: Une usine de plus\ndescription: Exemple.\ndate: 2026-12-01\n---\nTexte d'exemple.\n"),
+            UpdateEntries.parse("2026-11-05-exemple.md", "---\ntitre: Le serveur ouvre\ndescription: Exemple.\ndate: 2026-11-05\n---\nTexte d'exemple.\n"),
         )
         for ((mode, discord, routes) in pages) {
+            val complete = routes.first().second.startsWith("ouvert-complet")
             testApplication {
                 application {
-                    siteModule(Dependencies(FakeDatabase(), "cle", definitions = TestDefinitions.loaded, siteMode = mode, discordUrl = discord))
+                    siteModule(
+                        Dependencies(
+                            FakeDatabase(), "cle", definitions = TestDefinitions.loaded, siteMode = mode, discordUrl = discord,
+                            siteSettings = if (complete) settings else SiteSettings(),
+                        ),
+                        updates = if (complete) sample else emptyList(),
+                    )
                 }
                 val client = createClient { followRedirects = false }
                 for ((route, file) in routes) {

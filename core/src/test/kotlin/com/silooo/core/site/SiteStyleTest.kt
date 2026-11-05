@@ -68,7 +68,7 @@ class SiteStyleTest {
         }
         withSite(SiteMode.OUVERT) { client ->
             val html = client.get("/mentions/").bodyAsText()
-            assertEquals(listOf("Accueil", "Mentions"), navLabels(html))
+            assertEquals(listOf("Accueil", "Rejoindre", "Boutique", "Vote", "Mises à jour", "Mentions"), navLabels(html))
             assertEquals(1, Regex("""aria-current="page"""").findAll(html).count(), "la page courante est marquée une fois")
         }
     }

@@ -30,7 +30,10 @@ class SiteContentTest {
     @DisplayName("La liste des contenus livrés est celle du dossier des ressources")
     fun bundledListMatchesFolder() {
         val folder = Path.of(checkNotNull(SiteContent::class.java.classLoader.getResource("site/contenu")).toURI())
-        val files = Files.list(folder).use { stream -> stream.map { it.fileName.toString().removeSuffix(".md") }.sorted().toList() }
+        val files = Files.list(folder).use { stream ->
+            // Les sous-dossiers (mises-a-jour/) ont leur propre liste et leur propre test (SitePublicPagesTest).
+            stream.filter { Files.isRegularFile(it) }.map { it.fileName.toString().removeSuffix(".md") }.sorted().toList()
+        }
         assertEquals(SiteContent.BUNDLED.sorted(), files)
     }
 
