@@ -1,0 +1,544 @@
+{
+  "columns": {
+    "power": {
+      "column": "A",
+      "label": "Puissance de 1 000"
+    },
+    "suffix": {
+      "column": "B",
+      "label": "Suffixe",
+      "note": "vide pour la puissance 0"
+    },
+    "value": {
+      "column": "C",
+      "label": "Vaut"
+    }
+  },
+  "note": "Md = milliard. Après Md, deux lettres : aa = mille milliards (10^12), ab = 10^15, ac = 10^18… Les scripts Bedrock montent jusqu'à environ 10^308 (suffixe « du »).",
+  "source": {
+    "file": "docs/references/silooo-equilibrage-v2.xlsx",
+    "generator": "tools/tableur/extraire.py",
+    "sha256": "553035cc854e45b506f062e633dc051068621ab1fa0178009bf107e8068e4652",
+    "sheets": [
+      "Notation"
+    ],
+    "warning": "Fichier généré par tools/tableur/extraire.py : ne pas modifier à la main."
+  },
+  "suffixes": [
+    {
+      "power": 0,
+      "suffix": "",
+      "value": 1
+    },
+    {
+      "power": 1,
+      "suffix": "k",
+      "value": 1000
+    },
+    {
+      "power": 2,
+      "suffix": "M",
+      "value": 1000000
+    },
+    {
+      "power": 3,
+      "suffix": "Md",
+      "value": 1000000000
+    },
+    {
+      "power": 4,
+      "suffix": "aa",
+      "value": 1000000000000
+    },
+    {
+      "power": 5,
+      "suffix": "ab",
+      "value": 1000000000000000
+    },
+    {
+      "power": 6,
+      "suffix": "ac",
+      "value": 1e+18
+    },
+    {
+      "power": 7,
+      "suffix": "ad",
+      "value": 1e+21
+    },
+    {
+      "power": 8,
+      "suffix": "ae",
+      "value": 1e+24
+    },
+    {
+      "power": 9,
+      "suffix": "af",
+      "value": 1e+27
+    },
+    {
+      "power": 10,
+      "suffix": "ag",
+      "value": 1e+30
+    },
+    {
+      "power": 11,
+      "suffix": "ah",
+      "value": 1e+33
+    },
+    {
+      "power": 12,
+      "suffix": "ai",
+      "value": 1e+36
+    },
+    {
+      "power": 13,
+      "suffix": "aj",
+      "value": 1e+39
+    },
+    {
+      "power": 14,
+      "suffix": "ak",
+      "value": 1e+42
+    },
+    {
+      "power": 15,
+      "suffix": "al",
+      "value": 1e+45
+    },
+    {
+      "power": 16,
+      "suffix": "am",
+      "value": 1e+48
+    },
+    {
+      "power": 17,
+      "suffix": "an",
+      "value": 1e+51
+    },
+    {
+      "power": 18,
+      "suffix": "ao",
+      "value": 1e+54
+    },
+    {
+      "power": 19,
+      "suffix": "ap",
+      "value": 1e+57
+    },
+    {
+      "power": 20,
+      "suffix": "aq",
+      "value": 1e+60
+    },
+    {
+      "power": 21,
+      "suffix": "ar",
+      "value": 1e+63
+    },
+    {
+      "power": 22,
+      "suffix": "as",
+      "value": 1e+66
+    },
+    {
+      "power": 23,
+      "suffix": "at",
+      "value": 1e+69
+    },
+    {
+      "power": 24,
+      "suffix": "au",
+      "value": 1e+72
+    },
+    {
+      "power": 25,
+      "suffix": "av",
+      "value": 1e+75
+    },
+    {
+      "power": 26,
+      "suffix": "aw",
+      "value": 1e+78
+    },
+    {
+      "power": 27,
+      "suffix": "ax",
+      "value": 1e+81
+    },
+    {
+      "power": 28,
+      "suffix": "ay",
+      "value": 1e+84
+    },
+    {
+      "power": 29,
+      "suffix": "az",
+      "value": 1e+87
+    },
+    {
+      "power": 30,
+      "suffix": "ba",
+      "value": 1e+90
+    },
+    {
+      "power": 31,
+      "suffix": "bb",
+      "value": 1e+93
+    },
+    {
+      "power": 32,
+      "suffix": "bc",
+      "value": 1e+96
+    },
+    {
+      "power": 33,
+      "suffix": "bd",
+      "value": 1e+99
+    },
+    {
+      "power": 34,
+      "suffix": "be",
+      "value": 1e+102
+    },
+    {
+      "power": 35,
+      "suffix": "bf",
+      "value": 1e+105
+    },
+    {
+      "power": 36,
+      "suffix": "bg",
+      "value": 1e+108
+    },
+    {
+      "power": 37,
+      "suffix": "bh",
+      "value": 1e+111
+    },
+    {
+      "power": 38,
+      "suffix": "bi",
+      "value": 1e+114
+    },
+    {
+      "power": 39,
+      "suffix": "bj",
+      "value": 1e+117
+    },
+    {
+      "power": 40,
+      "suffix": "bk",
+      "value": 1e+120
+    },
+    {
+      "power": 41,
+      "suffix": "bl",
+      "value": 1e+123
+    },
+    {
+      "power": 42,
+      "suffix": "bm",
+      "value": 1e+126
+    },
+    {
+      "power": 43,
+      "suffix": "bn",
+      "value": 1e+129
+    },
+    {
+      "power": 44,
+      "suffix": "bo",
+      "value": 1e+132
+    },
+    {
+      "power": 45,
+      "suffix": "bp",
+      "value": 1e+135
+    },
+    {
+      "power": 46,
+      "suffix": "bq",
+      "value": 1e+138
+    },
+    {
+      "power": 47,
+      "suffix": "br",
+      "value": 1e+141
+    },
+    {
+      "power": 48,
+      "suffix": "bs",
+      "value": 1e+144
+    },
+    {
+      "power": 49,
+      "suffix": "bt",
+      "value": 1e+147
+    },
+    {
+      "power": 50,
+      "suffix": "bu",
+      "value": 1e+150
+    },
+    {
+      "power": 51,
+      "suffix": "bv",
+      "value": 1e+153
+    },
+    {
+      "power": 52,
+      "suffix": "bw",
+      "value": 1e+156
+    },
+    {
+      "power": 53,
+      "suffix": "bx",
+      "value": 1e+159
+    },
+    {
+      "power": 54,
+      "suffix": "by",
+      "value": 1e+162
+    },
+    {
+      "power": 55,
+      "suffix": "bz",
+      "value": 1e+165
+    },
+    {
+      "power": 56,
+      "suffix": "ca",
+      "value": 1e+168
+    },
+    {
+      "power": 57,
+      "suffix": "cb",
+      "value": 1e+171
+    },
+    {
+      "power": 58,
+      "suffix": "cc",
+      "value": 1e+174
+    },
+    {
+      "power": 59,
+      "suffix": "cd",
+      "value": 1e+177
+    },
+    {
+      "power": 60,
+      "suffix": "ce",
+      "value": 1e+180
+    },
+    {
+      "power": 61,
+      "suffix": "cf",
+      "value": 1e+183
+    },
+    {
+      "power": 62,
+      "suffix": "cg",
+      "value": 1e+186
+    },
+    {
+      "power": 63,
+      "suffix": "ch",
+      "value": 1e+189
+    },
+    {
+      "power": 64,
+      "suffix": "ci",
+      "value": 1e+192
+    },
+    {
+      "power": 65,
+      "suffix": "cj",
+      "value": 1e+195
+    },
+    {
+      "power": 66,
+      "suffix": "ck",
+      "value": 1e+198
+    },
+    {
+      "power": 67,
+      "suffix": "cl",
+      "value": 1e+201
+    },
+    {
+      "power": 68,
+      "suffix": "cm",
+      "value": 1e+204
+    },
+    {
+      "power": 69,
+      "suffix": "cn",
+      "value": 1e+207
+    },
+    {
+      "power": 70,
+      "suffix": "co",
+      "value": 1e+210
+    },
+    {
+      "power": 71,
+      "suffix": "cp",
+      "value": 1e+213
+    },
+    {
+      "power": 72,
+      "suffix": "cq",
+      "value": 1e+216
+    },
+    {
+      "power": 73,
+      "suffix": "cr",
+      "value": 1e+219
+    },
+    {
+      "power": 74,
+      "suffix": "cs",
+      "value": 1e+222
+    },
+    {
+      "power": 75,
+      "suffix": "ct",
+      "value": 1e+225
+    },
+    {
+      "power": 76,
+      "suffix": "cu",
+      "value": 1e+228
+    },
+    {
+      "power": 77,
+      "suffix": "cv",
+      "value": 1e+231
+    },
+    {
+      "power": 78,
+      "suffix": "cw",
+      "value": 1e+234
+    },
+    {
+      "power": 79,
+      "suffix": "cx",
+      "value": 1e+237
+    },
+    {
+      "power": 80,
+      "suffix": "cy",
+      "value": 1e+240
+    },
+    {
+      "power": 81,
+      "suffix": "cz",
+      "value": 1e+243
+    },
+    {
+      "power": 82,
+      "suffix": "da",
+      "value": 1e+246
+    },
+    {
+      "power": 83,
+      "suffix": "db",
+      "value": 1e+249
+    },
+    {
+      "power": 84,
+      "suffix": "dc",
+      "value": 1e+252
+    },
+    {
+      "power": 85,
+      "suffix": "dd",
+      "value": 1e+255
+    },
+    {
+      "power": 86,
+      "suffix": "de",
+      "value": 1e+258
+    },
+    {
+      "power": 87,
+      "suffix": "df",
+      "value": 1e+261
+    },
+    {
+      "power": 88,
+      "suffix": "dg",
+      "value": 1e+264
+    },
+    {
+      "power": 89,
+      "suffix": "dh",
+      "value": 1e+267
+    },
+    {
+      "power": 90,
+      "suffix": "di",
+      "value": 1e+270
+    },
+    {
+      "power": 91,
+      "suffix": "dj",
+      "value": 1e+273
+    },
+    {
+      "power": 92,
+      "suffix": "dk",
+      "value": 1e+276
+    },
+    {
+      "power": 93,
+      "suffix": "dl",
+      "value": 1e+279
+    },
+    {
+      "power": 94,
+      "suffix": "dm",
+      "value": 1e+282
+    },
+    {
+      "power": 95,
+      "suffix": "dn",
+      "value": 1e+285
+    },
+    {
+      "power": 96,
+      "suffix": "do",
+      "value": 1e+288
+    },
+    {
+      "power": 97,
+      "suffix": "dp",
+      "value": 1e+291
+    },
+    {
+      "power": 98,
+      "suffix": "dq",
+      "value": 1e+294
+    },
+    {
+      "power": 99,
+      "suffix": "dr",
+      "value": 1e+297
+    },
+    {
+      "power": 100,
+      "suffix": "ds",
+      "value": 1e+300
+    },
+    {
+      "power": 101,
+      "suffix": "dt",
+      "value": 1e+303
+    },
+    {
+      "power": 102,
+      "suffix": "du",
+      "value": 1e+306
+    }
+  ]
+}

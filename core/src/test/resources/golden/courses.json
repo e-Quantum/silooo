@@ -1,0 +1,318 @@
+{
+  "columns": {
+    "conversionReferenceDonar": {
+      "column": "P",
+      "label": "Référence de conversion (Donar)",
+      "unit": "Donar"
+    },
+    "course": {
+      "column": "A",
+      "label": "Course"
+    },
+    "durationHours": {
+      "column": "N",
+      "label": "Durée de la course (h)",
+      "unit": "h"
+    },
+    "endHour": {
+      "column": "O",
+      "label": "Heure de fin (cumulée)",
+      "unit": "h"
+    },
+    "endsWith": {
+      "column": "B",
+      "label": "Ce qui la termine"
+    },
+    "exhaustedSteps": {
+      "column": "T",
+      "label": "Paliers épuisés ?"
+    },
+    "globalMultiplier": {
+      "column": "L",
+      "label": "Multiplicateur global",
+      "unit": "×"
+    },
+    "incomeAtEndDisplay": {
+      "column": "U",
+      "label": "Revenu à la fin (par h de jeu)"
+    },
+    "lingotsEarnedAtPrestige": {
+      "column": "Q",
+      "label": "Lingots gagnés au prestige",
+      "unit": "Lingots"
+    },
+    "lingotsEarnedBeforeStart": {
+      "column": "J",
+      "label": "Lingots gagnés avant le départ",
+      "unit": "Lingots"
+    },
+    "lingotsKept": {
+      "column": "K",
+      "label": "Lingots gardés",
+      "unit": "Lingots"
+    },
+    "mostAdvancedEra": {
+      "column": "C",
+      "label": "Époque la plus avancée"
+    },
+    "prestigeThresholdDonar": {
+      "column": "E",
+      "label": "Seuil de prestige (Donar)",
+      "unit": "Donar"
+    },
+    "purchasesBeforePrestige": {
+      "column": "M",
+      "label": "Achats faits avant le prestige"
+    },
+    "starsAlreadyEarned": {
+      "column": "D",
+      "label": "Étoiles déjà gagnées"
+    },
+    "startHour": {
+      "column": "I",
+      "label": "Heure de départ (cumulée)",
+      "unit": "h"
+    },
+    "targetMax": {
+      "column": "H",
+      "label": "Cible max (h)",
+      "unit": "h"
+    },
+    "targetMin": {
+      "column": "G",
+      "label": "Cible min (h)",
+      "unit": "h"
+    },
+    "thresholdDisplay": {
+      "column": "F",
+      "label": "Seuil affiché au joueur"
+    },
+    "valueComparedToTarget": {
+      "column": "R",
+      "label": "Valeur comparée à la cible (h)",
+      "unit": "h"
+    },
+    "verdict": {
+      "column": "S",
+      "label": "Verdict"
+    }
+  },
+  "courses": [
+    {
+      "conversionReferenceDonar": 1000000,
+      "course": 1,
+      "durationHours": 14.7008517393275,
+      "endHour": 14.7008517393275,
+      "endsWith": "1er prestige : époque 2 (vapeur)",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 1.05,
+      "incomeAtEndDisplay": "195.5 M",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 10,
+      "lingotsKept": 5,
+      "mostAdvancedEra": 1,
+      "prestigeThresholdDonar": 1000000000,
+      "purchasesBeforePrestige": 21,
+      "starsAlreadyEarned": 0,
+      "startHour": 0,
+      "targetMax": 15,
+      "targetMin": 10,
+      "thresholdDisplay": "1 Md",
+      "valueComparedToTarget": 14.7008517393275,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 500000000,
+      "course": 2,
+      "durationHours": 22.8066590993855,
+      "endHour": 37.507510838713,
+      "endsWith": "2e prestige : époque 3 (moderne)",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 1.62350425869664,
+      "incomeAtEndDisplay": "183.7 Md",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 124.700851739328,
+      "lingotsKept": 62.3504258696638,
+      "mostAdvancedEra": 2,
+      "prestigeThresholdDonar": 500000000000,
+      "purchasesBeforePrestige": 34,
+      "starsAlreadyEarned": 0,
+      "startHour": 14.7008517393275,
+      "targetMax": 40,
+      "targetMin": 30,
+      "thresholdDisplay": "500 Md",
+      "valueComparedToTarget": 37.507510838713,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 1000000000000,
+      "course": 3,
+      "durationHours": 44.8304448100092,
+      "endHour": 82.3379556487222,
+      "endsWith": "3e prestige : époque 4 (futuriste)",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 2.23753755419357,
+      "incomeAtEndDisplay": "95.3 aa",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 247.507510838713,
+      "lingotsKept": 123.753755419357,
+      "mostAdvancedEra": 3,
+      "prestigeThresholdDonar": 1000000000000000,
+      "purchasesBeforePrestige": 64,
+      "starsAlreadyEarned": 0,
+      "startHour": 37.507510838713,
+      "targetMax": 100,
+      "targetMin": 70,
+      "thresholdDisplay": "1 ab",
+      "valueComparedToTarget": 82.3379556487222,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 200000000000000,
+      "course": 4,
+      "durationHours": 22.2037272867086,
+      "endHour": 104.541682935431,
+      "endsWith": "1re étoile",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 2.96168977824361,
+      "incomeAtEndDisplay": "17 ab",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 392.337955648722,
+      "lingotsKept": 196.168977824361,
+      "mostAdvancedEra": 4,
+      "prestigeThresholdDonar": 2e+17,
+      "purchasesBeforePrestige": 81,
+      "starsAlreadyEarned": 0,
+      "startHour": 82.3379556487222,
+      "targetMax": 30,
+      "targetMin": 20,
+      "thresholdDisplay": "200 ab",
+      "valueComparedToTarget": 22.2037272867086,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 5e+17,
+      "course": 5,
+      "durationHours": 20.9809669657319,
+      "endHour": 125.522649901163,
+      "endsWith": "2e étoile",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 1071.81252440315,
+      "incomeAtEndDisplay": "24.1 ac",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 514.541682935431,
+      "lingotsKept": 257.270841467715,
+      "mostAdvancedEra": 4,
+      "prestigeThresholdDonar": 5e+20,
+      "purchasesBeforePrestige": 108,
+      "starsAlreadyEarned": 1,
+      "startHour": 104.541682935431,
+      "targetMax": 30,
+      "targetMin": 20,
+      "thresholdDisplay": "500 ac",
+      "valueComparedToTarget": 20.9809669657319,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 5e+20,
+      "course": 6,
+      "durationHours": 20.1681287279333,
+      "endHour": 145.690778629096,
+      "endsWith": "3e étoile",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 375985.192455523,
+      "incomeAtEndDisplay": "33.7 ad",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 635.522649901163,
+      "lingotsKept": 317.761324950581,
+      "mostAdvancedEra": 4,
+      "prestigeThresholdDonar": 5e+23,
+      "purchasesBeforePrestige": 139,
+      "starsAlreadyEarned": 2,
+      "startHour": 125.522649901163,
+      "targetMax": 30,
+      "targetMin": 20,
+      "thresholdDisplay": "500 ad",
+      "valueComparedToTarget": 20.1681287279333,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 3e+23,
+      "course": 7,
+      "durationHours": 20.880339505171,
+      "endHour": 166.571118134267,
+      "endsWith": "4e étoile",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 129018255.114928,
+      "incomeAtEndDisplay": "14.6 ae",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 755.690778629096,
+      "lingotsKept": 377.845389314548,
+      "mostAdvancedEra": 4,
+      "prestigeThresholdDonar": 3e+26,
+      "purchasesBeforePrestige": 155,
+      "starsAlreadyEarned": 3,
+      "startHour": 145.690778629096,
+      "targetMax": 30,
+      "targetMin": 20,
+      "thresholdDisplay": "300 ae",
+      "valueComparedToTarget": 20.880339505171,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 3e+26,
+      "course": 8,
+      "durationHours": 25.9770058297861,
+      "endHour": 192.548123964053,
+      "endsWith": "5e étoile",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 43601130284.4378,
+      "incomeAtEndDisplay": "11.7 af",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 876.571118134267,
+      "lingotsKept": 438.285559067134,
+      "mostAdvancedEra": 4,
+      "prestigeThresholdDonar": 3e+29,
+      "purchasesBeforePrestige": 169,
+      "starsAlreadyEarned": 4,
+      "startHour": 166.571118134267,
+      "targetMax": 30,
+      "targetMin": 20,
+      "thresholdDisplay": "300 af",
+      "valueComparedToTarget": 25.9770058297861,
+      "verdict": "Dans la cible"
+    },
+    {
+      "conversionReferenceDonar": 1e+29,
+      "course": 9,
+      "durationHours": 21.5754879222845,
+      "endHour": 214.123611886338,
+      "endsWith": "6e étoile",
+      "exhaustedSteps": "Non",
+      "globalMultiplier": 14610959706163.2,
+      "incomeAtEndDisplay": "4.6 ag",
+      "lingotsEarnedAtPrestige": 100,
+      "lingotsEarnedBeforeStart": 1002.54812396405,
+      "lingotsKept": 501.274061982027,
+      "mostAdvancedEra": 4,
+      "prestigeThresholdDonar": 1e+32,
+      "purchasesBeforePrestige": 185,
+      "starsAlreadyEarned": 5,
+      "startHour": 192.548123964053,
+      "targetMax": 30,
+      "targetMin": 20,
+      "thresholdDisplay": "100 ag",
+      "valueComparedToTarget": 21.5754879222845,
+      "verdict": "Dans la cible"
+    }
+  ],
+  "source": {
+    "file": "docs/references/silooo-equilibrage-v2.xlsx",
+    "generator": "tools/tableur/extraire.py",
+    "sha256": "553035cc854e45b506f062e633dc051068621ab1fa0178009bf107e8068e4652",
+    "sheets": [
+      "Courses"
+    ],
+    "warning": "Fichier généré par tools/tableur/extraire.py : ne pas modifier à la main."
+  }
+}
