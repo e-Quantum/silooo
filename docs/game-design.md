@@ -496,7 +496,7 @@ Pile retenue (décidé le 4 nov. 2026) : le serveur officiel Bedrock (BDS) avec 
 | Saison et social | season\_pass, season\_claims, server\_votes, friends | Pass, votes pour le serveur, amis |
 | Technique | game\_events, api\_requests | Événements à afficher en jeu, réponses gardées pour les appels rejoués |
 
-L'API compte 29 opérations, groupées comme le jeu : session (arrivée, départ), entreprise (état, encaisser la production), usines (monter de niveau, remise en état, incidents), agence et personnel, prestige (aperçu puis confirmation par le PDG), associés et parts, ville (zones, bâtiments), commande mondiale, marché, boutique en jeu, pass de saison, et le relevé des événements. Un refus renvoie toujours un code simple (PAS\_ASSEZ\_DE\_DONAR, PAS\_LE\_PDG…) : c'est l'add-on qui choisit l'icône et la bulle d'Oooscar, pour que tout se comprenne sans lire.
+L'API compte 30 opérations, groupées comme le jeu : session (arrivée, départ), entreprise (état, encaisser la production), usines (monter de niveau, remise en état, incidents), agence et personnel, prestige (aperçu puis confirmation par le PDG), associés et parts, missions du joueur, ville (zones, bâtiments), commande mondiale, marché, boutique en jeu, pass de saison, et le relevé des événements. Un refus renvoie toujours un code simple (PAS\_ASSEZ\_DE\_DONAR, PAS\_LE\_PDG…) : c'est l'add-on qui choisit l'icône et la bulle d'Oooscar, pour que tout se comprenne sans lire.
 
 **Choix faits en autonomie, à confirmer**
 
