@@ -162,6 +162,30 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 `docs/discord-passation.md`, paquet `core/.../discord/`, ADR 0007, migration V8) : la phase 5 du jeu publie les
 événements que le bot lit, elle n'écrit rien sur Discord (décision 43). Le filet 501 des tests (`ApiTest`) passe de `/v1/shop/catalog` à `/v1/market/listings`, qui reste « pas fait ».
 
+## Cadre visuel (décidé par Kr le 5 novembre 2026)
+
+Kr a fixé avec une session de chat l'ambition visuelle et quatre règles du jeu : `docs/game-design.md`, section
+« Builds, animations et cinématiques », et les paragraphes datés du 5 nov. (réseau, Silo, pannes, époques). Ce ne
+sont pas des décisions prises sans Kr. Kr achètera un nouveau VPS pour l'ouverture, choisi d'après la mesure faite
+sur l'usine pilote ; le VPS actuel sert jusque-là.
+
+- [x] Les décisions écrites dans `docs/game-design.md`, roadmap de lancement comprise
+- [x] La carte dimensionnée pour la plus grande île : `ecartEntreCases` 704 (aligné sur les chunks), centre 352,
+  anneau 300, `plateforme.rayonMax` 18, angles réordonnés par chaîne ; `verifierIles` contrôle l'anneau avec `rayonMax`
+- [ ] La Carrière, usine pilote complète : structures par époque et par taille, entité décor, cinématique de
+  chantier, capture sur console, mesure de la mémoire et du processeur ; la mesure décide du nouveau VPS
+- [ ] Poser des structures préfabriquées (`.mcstructure`, avec points d'ancrage) au lieu de dessiner le bâtiment
+  dans `addon/src/monde/plan.ts`
+- [ ] Les trois tailles d'île (rayons 7, 12 et 18 proposés) : seuils dans `definitions/`, taille dite par le service
+  (OpenAPI d'abord), pose par l'add-on
+- [ ] Les ponts du réseau et les camions (une entité par pont, près du joueur seulement)
+- [ ] Les pannes : arrêt total, stock bloqué rendu à la réparation, technicien, scénarios de réparation
+  (`incidents.json`, `personnel.json`, service ; recette `silooo-equilibrage`)
+- [ ] La modernisation par la remise en état après un prestige (service, puis style d'époque côté add-on)
+- [ ] La cinématique de chantier d'environ 30 s, pour tous les joueurs de l'île (base : `monde/cinematique.ts`)
+- [ ] Les événements animés du lancement : visite d'inspecteur, record de production
+- [ ] Le pack de textures : la palette des builds en vanilla+ cartoon 16 × 16
+
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
@@ -526,11 +550,16 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 - Les règles des routes d'économie (`docs/economie.md`) : production en deux régimes (décision 27) ; `max` achète
   tout ce que le solde paie et ne refuse que si pas même un niveau ; remise en état gratuite en quatre étapes, niveau
   final `max(niveau, departDeCourse.niveau)` ; `heartbeat` de moins de 30 s = joueur connecté.
-- Les valeurs de `definitions/monde.json` (`ecartEntreCases` 600, `casesParRangee` 64, `origine` (0, 0)) et
+- Les valeurs de `definitions/monde.json` (`ecartEntreCases` 704 depuis le 5 novembre, 600 avant : la carte suit le
+  cadre visuel ; `casesParRangee` 64, `origine` (0, 0)) et
   `prestige.facteurSeuilSuivant` = 1000 dans `definitions/economie.json` (`docs/economie.md`, historique du 5 nov.).
 - Trois règles du hors ligne prises par le branchement (`docs/economie.md`) : l'absence se compte depuis
   `last_collect_at` de l'entreprise et non depuis le départ du joueur ; la colonne `offline_cap_hours` fait foi
   (recopiée de `horsLigne.plafondHeures` à la création) ; le surplus au-delà du plafond est perdu.
+- Le cadre visuel, proposé par la session de chat et pas décidé par Kr mot pour mot : l'ordre des usines sur
+  l'anneau (`definitions/iles.json`, angles : la chaîne du fer à la suite de la Carrière, la Briqueterie de l'autre
+  côté), les tailles intermédiaires d'île (7, 12, 18), et le moment où arrivent les ponts du réseau (« dès la
+  deuxième usine voisine », `docs/game-design.md`, « Se déplacer »).
 
 ## Journal
 
@@ -929,3 +958,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   quatre codes de refus ajoutés à l'add-on) refusionne `main` et déclare ses cinq cosmétiques de saison dans
   `boutique.json` (hors vente) avant sa relecture. Vérifier : `git log --oneline -3 origin/main`,
   `cd core && ./gradlew test --tests '*Shop*'`.
+- **5 novembre 2026, 17 h 15 : session de chat, le cadre visuel.** Kr a fixé l'ambition visuelle et quatre règles
+  du jeu (réseau d'usines, Silo pour les produits finis, pannes sans perte, modernisation par la remise en état) :
+  écrites dans `docs/game-design.md`, nouvelle section « Builds, animations et cinématiques ». La carte est
+  dimensionnée pour les îles qui grandissent (`monde.json`, `iles.json`, `plateforme.rayonMax` dans le schéma et les
+  types générés) ; tests de l'add-on adaptés aux nouvelles coordonnées (1423 tests). `tools/verifier.sh` vert sauf
+  l'étape Gradle, qui ne peut pas télécharger Gradle depuis le conteneur de la session : à voir dans la CI de
+  `claude/cadre-visuels`. Les tâches sont dans « Cadre visuel ». Vérifier : `gh run list --branch claude/cadre-visuels`.
