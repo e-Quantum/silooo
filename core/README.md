@@ -52,6 +52,10 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_SITE_MODE` | Le mode du site : `attente` ou `ouvert` (toute autre valeur arrête le service, code 78) | non, `attente` par défaut |
 | `SILOOO_SITE_URL` | L'adresse publique du site, qui commence par `http` | non, `https://silooo.com` par défaut |
 | `SILOOO_SITE_URL_DISCORD` | Le lien Discord affiché sur la page d'accueil et d'attente | non, pas de lien tant qu'elle n'est pas posée |
+| `SILOOO_SITE_ADRESSE_JEU` | L'adresse du serveur de jeu affichée sur l'accueil et Rejoindre (sans port) | non, `play.silooo.com` par défaut |
+| `SILOOO_SITE_PORT_JEU` | Le port du jeu affiché, entier de 1 à 65535 (le défaut est celui de `BDS_PORT` dans `deploy/compose.yml`, ADR 0004) | non, `19142` par défaut |
+| `SILOOO_SITE_URL_BOUTIQUE` | L'adresse où s'achètent les Gemmes, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
+| `SILOOO_SITE_SITES_DE_VOTE` | Les sites de vote, `nom\|url` séparés par des points-virgules (une entrée mal formée arrête le service) | non, aucun site par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe ni la clé ne s'écrivent dans les journaux.
@@ -581,7 +585,7 @@ n'existe pas sur le port du site, et le Caddy de SileneMC ne joint que celui-là
 ne le publie jamais.
 
 - **Deux modes**, choisis par `SILOOO_SITE_MODE`. En `attente` (le défaut), `/` est la page d'attente et `/mentions/` les mentions.
-  En `ouvert`, `/` est un accueil minimal que l'étape S2 remplacera. Toute autre adresse répond 404, avec une page Silooo. Le mode
+  En `ouvert`, `/` est l'accueil et les pages de S2 répondent (voir plus bas). Toute autre adresse répond 404, avec une page Silooo. Le mode
   `ouvert` n'est écrit dans aucun fichier du dépôt : seul Kr le pose, dans l'environnement du service.
 - **Les contenus** sont des fichiers Markdown de `site/contenu/`, avec un en-tête entre deux lignes `---` : `titre`, `description`,
   `url` (elle finit par `/`) et `modes` (`[attente, ouvert]`). `SiteContent` les lit et les rend en HTML (commonmark-java, HTML brut
@@ -589,6 +593,12 @@ ne le publie jamais.
   son nom dans `SiteContent.BUNDLED` et une fonction de rendu dans `site/pages/` (choisie dans `SiteRoutes.kt`).
 - **Les pages** sont écrites en DSL HTML (`kotlinx.html`) : `pages/Gabarit.kt` pose la page entière (en-tête, `main`, pied avec la mention
   de Mojang et le lien Mentions), `Attente.kt`, `Accueil.kt`, `Mentions.kt` et `Erreur.kt` posent le `h1` et le contenu. Aucun script.
+- **Les pages publiques du mode `ouvert`** (S2) : `/` (accueil), `/rejoindre/`, `/ce-qui-se-vend/`, `/boutique/`, `/vote/`,
+  `/mises-a-jour/`, toutes en 404 en `attente`. Mécanique : un contenu Markdown de `site/contenu/` porte le texte écrit à la main ;
+  un paragraphe seul `{{nom}}` y marque l'endroit d'un bloc que la page Kotlin de `site/pages/` rend depuis les définitions
+  (`Dependencies.definitions.shop`) ou la configuration (`SiteSettings`). **Jamais un chiffre tapé** : prix, bonus, jours,
+  Gemmes viennent du JSON, l'adresse et le port de la configuration, et un test le vérifie. Les entrées de mises à jour sont
+  `site/contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (`titre`, `description`, `date`), listées dans `UpdateEntries.BUNDLED`.
 - **Les fichiers** de `site/public/` sont servis sous `/public/` avec un cache d'un jour ; les pages ne se gardent pas. Le logo est une
   copie de `design/logo/` (un test la compare à la source octet pour octet) : on recopie la source, on ne retouche pas la copie.
 - **Relire en local**, sur son poste : `SILOOO_SITE_MODE=ouvert ./gradlew run` (avec les variables de la base et de la clé, voir

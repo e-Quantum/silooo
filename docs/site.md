@@ -22,15 +22,15 @@ ou que Kr fera le relevé depuis son PC.
 
 | Page | Rôle | D'où ça vient |
 | --- | --- | --- |
-| Accueil | Le jeu en une phrase, l'adresse `play.silooo.com` et son port, les joueurs en ligne, une vidéo de vingt secondes en jeu, une capture du menu, le lien Discord. En mode `attente`, seule la phrase, le logo et les mentions | « Travailler la réticence des joueurs Hubyy » |
-| Rejoindre | L'adresse et le port, la marche à suivre par plate-forme (PC, téléphone et tablette, console) | « Interface et onboarding console », ADR 0004 |
-| Ce qui se vend | La phrase « tout ce qui s'achète se gagne aussi en jouant », puis la liste exacte de ce qui se vend, avec les prix, visible avant la connexion | Obligations de la boutique |
+| Accueil (`contenu/accueil.md` + `pages/Accueil.kt`) | Le jeu en une phrase, l'adresse `play.silooo.com` et son port, les joueurs en ligne, une vidéo de vingt secondes en jeu, une capture du menu, le lien Discord. En mode `attente`, seule la phrase, le logo et les mentions | « Travailler la réticence des joueurs Hubyy » |
+| Rejoindre (`contenu/rejoindre.md`, adresse et port par `pages/Joueurs.kt`) | L'adresse et le port, la marche à suivre par plate-forme (PC, téléphone et tablette, console) | « Interface et onboarding console », ADR 0004 |
+| Ce qui se vend (`contenu/ce-qui-se-vend.md`, tableaux par `pages/Offres.kt`) | La phrase « tout ce qui s'achète se gagne aussi en jouant », puis la liste exacte de ce qui se vend, avec les prix, visible avant la connexion | Obligations de la boutique |
 | Wiki et guides | Les systèmes du jeu, dans l'ordre où le joueur les rencontre ; les règles du serveur, qui ne sont pas en jeu à l'arrivée | « Interface et onboarding console » |
 | Classements | Hebdomadaires, en Lingots gagnés dans la semaine, jamais en richesse totale ; les villes les mieux votées | « Économie sur le long terme » |
 | Fiche publique d'entreprise | Nom, logo, couleurs, slogan, membres, époque, étoiles, ville | « Identité d'entreprise » |
-| Boutique | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
-| Vote | Les sites de vote et Hubyy, la récompense par vote, la jauge de la Vote party | « Votes » |
-| Mises à jour | Une entrée datée par tag déployé, écrite pour les joueurs | Référence Rinaorc, ADR 0006 |
+| Boutique (`contenu/boutique.md`, `pages/Boutique.kt`) | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
+| Vote (`contenu/vote.md`, `pages/Vote.kt`) | Les sites de vote et Hubyy, la récompense par vote, la jauge de la Vote party | « Votes » |
+| Mises à jour (`contenu/mises-a-jour.md`, entrées dans `contenu/mises-a-jour/`, `pages/MisesAJour.kt`) | Une entrée datée par tag déployé, écrite pour les joueurs | Référence Rinaorc, ADR 0006 |
 | Mentions | « NOT AN OFFICIAL MINECRAFT SERVICE », mentions légales, conditions de vente, protection des mineurs ; le site n'a ni traceur ni cookie | Obligations |
 
 Aucune liaison de compte (Discord, site) n'est obligatoire pour jouer. Le site est en français
@@ -185,6 +185,17 @@ Section tenue par la direction du site, étape par étape ([site-passation.md](s
     (`pages/Navigation.kt`) filtrée par les pages que `SiteContent` rend pour le mode : seulement Mentions en `attente`,
     sans lien mort en `ouvert`. `<head>` : `og:title`, `og:description`, `og:image` absolu (`SILOOO_SITE_URL` et le logo de
     512 px), `theme-color` du ciel, icône du site.
+- S2 : les six pages publiques du mode `ouvert` (404 en `attente`). Les textes écrits à la main sont des contenus Markdown
+  (`accueil`, `rejoindre`, `ce-qui-se-vend`, `boutique`, `vote`, `mises-a-jour`) ; ce qui vient des définitions ou de la
+  configuration est rendu par le code, à la place d'un paragraphe seul `{{nom}}` du contenu (`pages/Insertions.kt`) : les
+  packs, grades et abonnements viennent de `definitions/boutique.json` (`pages/Offres.kt`), l'adresse et le port de
+  `SILOOO_SITE_ADRESSE_JEU` et `SILOOO_SITE_PORT_JEU` (le défaut du port est contrôlé contre `BDS_PORT` de
+  `deploy/compose.yml`), le bouton d'achat de `SILOOO_SITE_URL_BOUTIQUE`, les boutons de vote de `SILOOO_SITE_SITES_DE_VOTE`.
+  Aucun chiffre n'est tapé dans un contenu (un test le vérifie), les noms de grade viennent des définitions. La récompense
+  par vote n'est pas chiffrée dans `definitions/` : la page dit qu'elle arrive. Les mises à jour sont des fichiers
+  `contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (en-tête `titre`, `description`, `date`), listés dans `UpdateEntries.BUNDLED`
+  (un test compare la liste au dossier), la plus récente en tête, une par tag déployé ; un nom mal formé ou une entrée sans
+  date arrête le démarrage. Aucune entrée n'existe tant que rien n'est déployé.
 
 ## Ce qui est tranché, provisoirement
 
