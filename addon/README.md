@@ -65,8 +65,10 @@ Appels bêta, tous dans `src/beta.ts` :
 
 ## Points ouverts
 
-- L'API de script ne donne pas le XUID d'un joueur. `src/identity.ts` envoie `Player.id` ; si silooo-core exige
-  un XUID numérique, c'est le seul fichier à changer une fois la source du XUID décidée.
+- L'API de script ne donne pas le XUID d'un joueur. `src/identity.ts` envoie à sa place une empreinte FNV-1a
+  64 bits du gamertag (minuscules, sans espaces autour), en décimal : elle passe le schéma `Xuid` du contrat et la
+  colonne `BIGINT UNSIGNED` du service, et survit à un monde recréé (décision 25 de `docs/passation.md`, à valider
+  par Kr). Quand une source de vrai XUID existera, c'est le seul fichier à changer.
 - Ce qui ne se vérifie que sur un vrai BDS : le comportement de `http.request` sur un statut 4xx ou 5xx et sur un
   délai dépassé, l'ordre de démarrage du script, le format de `allowed_uris` dans `permissions.json`.
 - Un `join` qui échoue n'est pas rejoué, et un script rechargé ne refait pas le `join` des joueurs déjà en ligne.

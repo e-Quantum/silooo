@@ -5,6 +5,7 @@ import type { ApiResult } from "../src/http";
 import type { JoinResponse } from "../src/protocol";
 import { createSessionHandlers, registerSessionEvents, type LeaveEventLike, type SpawnEventLike } from "../src/session";
 import { createPlayerStore } from "../src/state";
+import { provisionalXuid as X } from "../src/identity";
 import { joinResponse, ok, recordingLogger } from "./helpers";
 
 type Api = Pick<CoreApi, "join" | "leave">;
@@ -33,9 +34,9 @@ describe("arrivée", () => {
   it("join au premier passage, état gardé par XUID", async () => {
     const { handlers, store, calls, log } = setup();
     await handlers.onSpawn(spawn("42", "Alex"));
-    assert.deepEqual(calls, ["join 42 Alex"]);
-    assert.equal(store.get("42")?.gamertag, "Alex");
-    assert.equal(store.get("42")?.join.companyId, 7);
+    assert.deepEqual(calls, [`join ${X("Alex")} Alex`]);
+    assert.equal(store.get(X("Alex"))?.gamertag, "Alex");
+    assert.equal(store.get(X("Alex"))?.join.companyId, 7);
     assert.match(log.infos.join("\n"), /join de Alex : premier passage, entreprise 7, 0 usine/);
   });
 
@@ -83,7 +84,7 @@ describe("départ", () => {
     const { handlers, store, calls } = setup();
     await handlers.onSpawn(spawn("42", "Alex"));
     await handlers.onLeave(leave("42", "Alex"));
-    assert.deepEqual(calls, ["join 42 Alex", "leave 42"]);
+    assert.deepEqual(calls, [`join ${X("Alex")} Alex`, `leave ${X("Alex")}`]);
     assert.equal(store.size, 0);
   });
 
@@ -127,7 +128,7 @@ describe("départ", () => {
     });
     const { handlers } = setup({
       join: async (xuid) => {
-        if (xuid === "A") await attenteA;
+        if (xuid === X("A")) await attenteA;
         ordre.push(`join ${xuid}`);
         return ok(joinResponse({ xuid }));
       },
@@ -136,7 +137,7 @@ describe("départ", () => {
     await handlers.onSpawn(spawn("B", "B"));
     libererA();
     await a;
-    assert.deepEqual(ordre, ["join B", "join A"]);
+    assert.deepEqual(ordre, [`join ${X("B")}`, `join ${X("A")}`]);
   });
 });
 

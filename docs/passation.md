@@ -63,10 +63,11 @@ mesure de la mémoire réelle. Les deux demandent la base, le port et le DNS : v
 - [ ] `deploy/bds/` : image BDS épinglée (version et somme contrôlées), utilisateur non root, monde dans un volume, `config/default/permissions.json` qui autorise `server-net` et `server-admin`, gabarit de `server.properties` (port de l'ADR 0004)
 - [ ] `deploy/compose.yml` : projet `silooo`, services `silooo-migrate`, `silooo-core` (512 Mo) et `silooo-bds` (1,5 Gio), réseau de SileneMC rejoint en externe, secrets lus dans le fichier d'environnement non versionné
 - [ ] `deploy/scripts/deploy.sh <tag>` : sauvegarde, tirage des images, migration, redémarrage, test de fumée, retour arrière ; `docs/deploiement.md` mis à jour
-- [ ] `addon/` : projet TypeScript strict, esbuild vers un seul `scripts/main.js`, manifest aux versions de modules relevées, tests de la logique pure, paquet `.mcpack` construit
-- [ ] `addon/` : client `server-net` vers silooo-core (clé par `server-admin`, en-tête `X-Silooo-Key`, délai, codes `Erreur` traités d'un bloc), heartbeat périodique, `join` à l'arrivée, `leave` au départ, interrogation de `GET /v1/events` avec curseur
-- [ ] `tools/` : générateur des types TypeScript de l'add-on tirés de `definitions/`, et contrôle « types à jour » dans `tools/verifier.sh`
-- [ ] `tools/verifier.sh` et CI : `addon/` vérifié (compilation stricte, tests, paquet) ; image BDS construite par la CI et publiée depuis `main`
+- [x] `addon/` : projet TypeScript strict, esbuild vers un seul `scripts/main.js`, manifest aux versions de modules relevées, tests de la logique pure (`node --test`, 111 tests), paquet `.mcpack` construit
+- [x] `addon/` : client `server-net` vers silooo-core (clé par `server-admin`, en-tête `X-Silooo-Key`, délai, codes `Erreur` traités d'un bloc), heartbeat périodique, `join` à l'arrivée, `leave` au départ, interrogation de `GET /v1/events` avec curseur ; tous les appels bêta dans `addon/src/beta.ts`
+- [x] `tools/` : générateur des types TypeScript de l'add-on tirés de `definitions/` (`tools/generer_types.mjs`, parcourt le dossier), et contrôle « Types de l'add-on à jour » dans `tools/verifier.sh`
+- [x] `tools/verifier.sh` et CI : `addon/` vérifié (compilation stricte, tests, paquet ; la CI lance le vérificateur)
+- [ ] CI : image BDS construite et publiée depuis `main` : sous-agent `deploy/` en cours, branche `claude/phase2-deploy`
 - [ ] Déploiement sur le VPS, test depuis une console : un joueur rejoint `play.silooo.com` et apparaît sur son île (**À faire par Kr** : base, port, DNS, puis le test)
 - [ ] Mesure de la mémoire réelle des conteneurs sur le VPS (**après le déploiement**, donc après Kr)
 
@@ -92,6 +93,7 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
 - [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (recommandé : 19142 à 19173 ; `docs/adr/0004-port-bedrock.md`)
 - [ ] Fournir un monde Bedrock créé dans le client avec l'option « Beta APIs » activée, ou valider la méthode que la phase 2 trouvera pour l'activer sur BDS : `server-net` et `server-admin` l'exigent (`docs/bedrock.md`, fait 1)
+- [ ] Trancher l'identité des joueurs : la Script API ne donne pas le XUID ; l'add-on envoie une empreinte du gamertag (décision 25). Valider, ou choisir une source de XUID (journal de BDS, `allowlist.json`), ce qui demandera de changer la clé des joueurs
 - [ ] DNS `play.silooo.com` vers l'IP du VPS
 - [ ] Protéger la branche `main` sur GitHub (CI verte obligatoire, avance rapide, pas de force-push)
 - [ ] Plus tard : secrets GitHub pour le déploiement par la CI, et une clé de lecture du registre `ghcr.io` pour le VPS
@@ -183,13 +185,23 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
     `collect`, `buyLevels`, `restoreStep`) ne dépendent ni de `deploy/` ni de `addon/`, et la phase 2 ne peut
     pas se fermer sans Kr (base, port, DNS). Même règle que la décision 20 : trois sessions au plus, chacune
     dans son dossier (`core/` pour celle-ci). Le côté add-on de la phase 3 attend la fusion de `addon/`.
+25. **Identité provisoire des joueurs : une empreinte du gamertag.** La Script API 2.11.0 ne donne pas le XUID ;
+    `Player.id` est opaque et propre au monde chargé (un monde recréé pendant l'alpha changerait tous les joueurs
+    d'identité), et `players.xuid` est un `BIGINT UNSIGNED`. L'add-on envoie donc, dans le champ `xuid`, une
+    empreinte FNV-1a 64 bits du gamertag en minuscules (`addon/src/identity.ts`, seul fichier qui le décide) :
+    elle passe le schéma `Xuid`, tient dans la colonne, survit au monde, et le site SileneMC connaît les joueurs
+    par leur gamertag. Coût : un gamertag changé est un joueur neuf tant qu'une vraie source de XUID n'existe pas.
+    Ni le contrat, ni la base, ni le service ne changent. À valider par Kr.
 
 ## À valider par Kr
 
 - Les huit points d'interprétation du tableur et la règle d'arrondi des Lingots
   (`core/src/test/resources/golden/README.md`) : le moteur suit le tableur en attendant.
 - Le nom d'entreprise provisoire « Entreprise de <gamertag> » (`core/.../session/CompanyNaming.kt`), premier
-  texte vu par les joueurs. Aucun autre texte de joueur n'a été écrit.
+  texte vu par les joueurs.
+- Le nom du pack « Silooo » et sa description « Pack de comportement du jeu Silooo. » (`addon/manifest.json`),
+  visibles dans la liste des packs du monde. Aucun autre texte de joueur n'a été écrit.
+- L'identité provisoire des joueurs par empreinte du gamertag (décision 25).
 - Les valeurs de `definitions/monde.json` (`ecartEntreCases` 600, `casesParRangee` 64, `origine` (0, 0)) et
   `prestige.facteurSeuilSuivant` = 1000 dans `definitions/economie.json` (`docs/economie.md`, historique du 5 nov.).
 - Trois règles du hors ligne prises par le branchement (`docs/economie.md`) : l'absence se compte depuis
@@ -251,3 +263,10 @@ pour le côté service, pendant que la phase 2 écrit `deploy/` et `addon/` (dé
 - **5 novembre 2026, 7 h 00 : direction, phase 3 ouverte côté service.** Liste de la phase 3 écrite d'après le
   plan ; troisième sous-agent lancé sur les routes d'économie (`claude/phase3-economie-routes`, `core/` seul),
   à côté des deux de la phase 2. Décision 24.
+- **5 novembre 2026, 7 h 25 : direction, add-on de la phase 2 fusionné.** `claude/phase2-addon` en avance rapide
+  (`f4535dd` : `addon/` complet, `tools/generer_types.mjs`, étape « Types de l'add-on à jour », 106 tests Node) ;
+  `tools/verifier.sh` vert avec `npm ci`, `npm test`, `npm run build` et le `.mcpack`. Le sous-agent a relevé que
+  l'API de script ne donne pas le XUID : décision 25 (empreinte du gamertag dans `addon/src/identity.ts`, 5 tests
+  de plus), question posée à Kr, piste notée dans `docs/bedrock.md`. Quatre cases de la phase 2 cochées ; restent
+  `deploy/` (sous-agent en cours), l'image BDS dans la CI, et les deux cases qui attendent Kr. Vérifier :
+  `git log --oneline -4 origin/main`, `cd addon && npm test`.
