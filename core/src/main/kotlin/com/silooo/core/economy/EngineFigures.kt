@@ -82,7 +82,7 @@ class EngineFigures(
                     nominalRatePerHour = if (works) multiplier * engine.factoryRate(factory.factoryId, factory.level, crew) else 0.0,
                 )
             },
-            staff = staff.map { member -> staffView(member, running, multiplier, slowdowns, member.id in housed) },
+            staff = staff.map { member -> staffView(member, running, multiplier, slowdowns, member.id in housed, cityState != null) },
             city = cityState,
             members = store.loadMembers(connection, company.id).map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
         )
@@ -129,6 +129,7 @@ class EngineFigures(
         multiplier: Double,
         slowdowns: Map<String, Double>,
         housed: Boolean,
+        showHoused: Boolean,
     ): Staff {
         // Une usine à l'arrêt n'est pas dans [running] : son équipe ne coûte rien. Ralentie, la production baisse et le salaire avec elle.
         val workplace = running.firstOrNull { it.factoryId == member.factoryId }
@@ -147,7 +148,8 @@ class EngineFigures(
                     (slowdowns[workplace.factoryId] ?: NO_SLOWDOWN)
             },
             factoryId = member.factoryId,
-            housed = housed,
+            // Sans ville, le champ n'est pas écrit : la réponse est celle d'avant la ville, octet pour octet.
+            housed = housed.takeIf { showHoused },
         )
     }
 

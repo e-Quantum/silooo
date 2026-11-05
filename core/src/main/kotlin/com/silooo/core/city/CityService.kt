@@ -30,11 +30,12 @@ import kotlinx.serialization.json.put
  *
  * Une action suit le déroulé de [com.silooo.core.staff.StaffService] :
  *  1. L'acteur est membre de l'entreprise ; sinon [RequestRejected] (400).
- *  2. Les refus du jeu (`Refusal`) tombent avant la première écriture, dans l'ordre de leur description dans l'OpenAPI.
+ *  2. Les refus du jeu (`Refusal`) tombent avant la première écriture, dans l'ordre de leur description dans l'OpenAPI, les Lingots
+ *     en dernier ([requireLingots] lit le solde ; `creditBalance` le revérifie sous verrou et reste le filet si deux dépenses se croisent).
  *  3. La production en attente est versée d'abord ([EconomyFigures.pendingProduction], en ligne) avec le reste de l'action, en
  *     UNE écriture `updateCompany` (verrou optimiste) : les Lingots détenus font bouger le multiplicateur, et les bâtiments aussi,
  *     donc l'état d'avant a produit jusqu'à maintenant, jamais au-delà. Puis les Lingots sont retirés, la ville est écrite, puis
- *     l'événement. Un solde trop juste lève `PAS_ASSEZ_DE_LINGOTS` : la transaction est annulée, la production versée avec.
+ *     l'événement.
  *  4. L'état rendu est bâti sur ce qui vient d'être écrit.
  *
  * Les règles que les définitions ne disent pas (tranchées au plus simple, **à valider par Kr**) :
@@ -73,6 +74,7 @@ class CityService(
         if (active < rules.activeFactoriesRequired(zoneIndex)) refuse(RefusalCodes.ZONE_LOCKED)
 
         val price = rules.zonePrice(zoneIndex)
+        requireLingots(connection, actor, price)
         val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
         val after = writeProduction(connection, company, production, spent = 0.0)
         pay(connection, actor, price, REASON_ZONE, "$companyId/$zoneIndex")
@@ -115,6 +117,7 @@ class CityService(
         if (buildings.any { it.x == x && it.z == z }) refuse(RefusalCodes.SPOT_TAKEN)
         if (buildings.count { it.buildingType == definition.id } >= definition.maxCount) refuse(RefusalCodes.ALREADY_OWNED)
 
+        requireLingots(connection, actor, first.priceLingots)
         val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
         val after = writeProduction(connection, company, production, spent = 0.0)
         val buildingId = city.insertBuilding(connection, companyId, definition.id, 1, zoneIndex, x, z, rotation)
@@ -154,6 +157,7 @@ class CityService(
         val next = definition.level(nextLevel)
         if (company.mairieLevel < next.townHallLevelRequired) refuse(RefusalCodes.ZONE_LOCKED)
 
+        requireLingots(connection, actor, next.priceLingots)
         val production = figures.pendingProduction(connection, company, factories, Regime.ONLINE)
         val isTownHall = definition.id == rules.townHall.id
         val after = writeProduction(connection, company, production, spent = 0.0, mairieLevel = if (isTownHall) nextLevel else null)
@@ -171,6 +175,12 @@ class CityService(
             },
         )
         return updated(connection, actor, after, factories)
+    }
+
+    /** Refuse `PAS_ASSEZ_DE_LINGOTS`, avec ce qui manque, si [actor] détient moins de [amount] Lingots : avant toute écriture. */
+    private fun requireLingots(connection: Connection, actor: Xuid, amount: Long) {
+        val held = sessions.loadBalances(connection, actor).lingots
+        if (held < amount) refuse(RefusalCodes.NOT_ENOUGH_LINGOTS, missing = (amount - held).toDouble())
     }
 
     /** Retire [amount] Lingots à [actor] ; un solde trop juste devient le refus `PAS_ASSEZ_DE_LINGOTS`, avec ce qui manque. */

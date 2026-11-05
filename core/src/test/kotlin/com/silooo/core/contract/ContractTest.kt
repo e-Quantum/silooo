@@ -4,6 +4,7 @@ import com.silooo.core.Dependencies
 import com.silooo.core.MutableClock
 import com.silooo.core.TestDefinitions
 import com.silooo.core.api.Balances
+import com.silooo.core.api.CityState
 import com.silooo.core.api.ErrorCodes
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.GameEvent
@@ -12,10 +13,16 @@ import com.silooo.core.api.RefusalCodes
 import com.silooo.core.api.Role
 import com.silooo.core.api.SERVER_KEY_HEADER
 import com.silooo.core.api.SiloooJson
+import com.silooo.core.city.CityBuildingRecord
+import com.silooo.core.city.CityRules
+import com.silooo.core.city.CityService
+import com.silooo.core.city.InMemoryCityStore
 import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingConnection
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
+import com.silooo.core.definitions.BuildingBonusType
+import com.silooo.core.definitions.CityDefinitions
 import com.silooo.core.definitions.DefinitionsChecks
 import com.silooo.core.definitions.StaffRarity
 import com.silooo.core.definitions.StaffRole
@@ -127,6 +134,7 @@ class ContractTest {
         missions: InMemoryMissionStore,
         incidents: InMemoryIncidentStore,
         members: InMemoryMemberStore,
+        city: InMemoryCityStore,
     ): Dependencies {
         val database = RecordingDatabase()
         return Dependencies(
@@ -146,6 +154,7 @@ class ContractTest {
             staffStore = InMemoryStaffStore(sessions),
             incidentStore = incidents,
             memberStore = members,
+            cityStore = city,
         )
     }
 
@@ -163,11 +172,12 @@ class ContractTest {
         val economy = TestEconomy(sessions)
         val incidents = InMemoryIncidentStore(sessions)
         val members = InMemoryMemberStore(sessions)
-        if (operationId != null) seedFor(operationId, sessions, economy, incidents, members)
+        val city = InMemoryCityStore(sessions)
+        if (operationId != null) seedFor(operationId, sessions, economy, incidents, members, city)
         extraSeed(sessions)
         val missions = InMemoryMissionStore(sessions)
         inspect(sessions, missions)
-        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members)) }
+        application { siloooModule(contractDependencies(sessions, economy, missions, incidents, members, city)) }
         block()
     }
 
@@ -176,7 +186,14 @@ class ContractTest {
      * contrat), son PDG [krXuid], et l'usine `factoryId` d'exemple du contrat, dans l'état que chaque opération veut
      * (en ruine pour `restoreStep`, active et payable pour `buyLevels`). Le prix vient du moteur, pas d'un littéral.
      */
-    private fun seedFor(operationId: String, sessions: InMemorySessionStore, economy: TestEconomy, incidents: InMemoryIncidentStore, members: InMemoryMemberStore) {
+    private fun seedFor(
+        operationId: String,
+        sessions: InMemorySessionStore,
+        economy: TestEconomy,
+        incidents: InMemoryIncidentStore,
+        members: InMemoryMemberStore,
+        city: InMemoryCityStore,
+    ) {
         if (operationId == "getMissions" || operationId == "getFindings") {
             // Un joueur déjà inscrit, sans entreprise : les missions et le Carnet ne dépendent que de lui.
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
@@ -190,12 +207,13 @@ class ContractTest {
                 Invitation(1, Xuid.parse(krXuid)!!, Xuid.parse(other)!!, sessions.now.plusSeconds(3600))
             return
         }
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "deliverOrder", "resolveIncident", "invite", "setShares")
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff", "deliverOrder", "resolveIncident", "invite", "setShares", "buyZone", "placeBuilding", "upgradeBuilding")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
         val companyId = sessions.createCompany(connection, owner, "Entreprise de test", TestBootstrap).companyId
         sessions.balances[owner] = Balances(0, 0, 0, 0)
+        economy.city = sampleCity()
 
         val factoryId = text(contract.example(operations.single { it.id == "buyLevels" }.pathParameters.single { it.name == "factoryId" }.schema))
         when (operationId) {
@@ -226,10 +244,46 @@ class ContractTest {
                 sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
                 incidents.seedOpen(companyId, factoryId, "panne", 0.6, sessions.now)
             }
+            // La première zone : les usines actives qu'elle demande (parmi celles d'usines.json) et de quoi la payer, au centime près.
+            "buyZone" -> {
+                val rules = CityRules(TestDefinitions.loaded)
+                EconomyEngine(TestDefinitions.loaded).factoryIds().take(rules.activeFactoriesRequired(1))
+                    .forEach { sessions.putFactory(companyId, FactoryRecord(it, FactoryState.ACTIVE, 0, 1, null)) }
+                sessions.balances[owner] = Balances(rules.zonePrice(1), 0, 0, 0)
+            }
+            // La zone 1 est à l'entreprise, la mairie (le bâtiment 1) est à son emplacement de départ, et le PDG a de quoi payer.
+            "placeBuilding", "upgradeBuilding" -> {
+                val rules = CityRules(TestDefinitions.loaded)
+                city.seedZones(companyId, listOf(1))
+                city.seedBuilding(companyId, CityDefinitions.TOWN_HALL_ID, 1, 1, rules.startPlot.x, rules.startPlot.z, rules.startPlot.rotation)
+                sessions.balances[owner] = Balances(CITY_LINGOTS, 0, 0, 0)
+            }
             // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
             "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
                 .copy(donarEarned = EconomyEngine(TestDefinitions.loaded).prestigeThreshold(1) * 4)
         }
+    }
+
+    /**
+     * La ville que les chiffres fictifs montrent : deux zones, la mairie au niveau 2, une maison, un immeuble au dernier niveau et une
+     * route. Elle porte un bonus et n'en porte pas, un niveau suivant et pas de niveau suivant, une prochaine zone.
+     */
+    private fun sampleCity(): CityState {
+        val rules = CityRules(TestDefinitions.loaded)
+        val start = rules.startPlot
+        val step = rules.plotBlocks
+        val top = TestDefinitions.loaded.city.building("immeuble")!!.maxLevel()
+        return rules.state(
+            mairieLevel = 2,
+            owned = listOf(1, 2),
+            buildings = listOf(
+                CityBuildingRecord(1, CityDefinitions.TOWN_HALL_ID, 2, 1, start.x, start.z, start.rotation),
+                CityBuildingRecord(2, "maison", 1, 1, start.x - step, start.z, 90),
+                CityBuildingRecord(3, "immeuble", top, 1, start.x + step, start.z, 180),
+                CityBuildingRecord(4, "route", 1, 1, start.x, start.z + step, 270),
+            ),
+            staffCount = 2,
+        )
     }
 
     /** Inscrit le joueur [xuid] avec son entreprise de départ, comme son premier `join` : rend l'identifiant de l'entreprise. */
@@ -348,6 +402,20 @@ class ContractTest {
         val slot = operations.single { it.id == "hire" }.pathParameters.single { it.name == "slot" }.schema
         assertEquals(1, (slot["minimum"] as Number).toInt(), "hire : la première place")
         assertEquals(DefinitionsChecks.AGENCY_SLOTS_MAX, (slot["maximum"] as Number).toInt(), "hire : la dernière place")
+
+        // La ville : le chemin de buyZone, le type et la rotation de placeBuilding, les valeurs de bonusType.
+        val zone = operations.single { it.id == "buyZone" }.pathParameters.single { it.name == "zoneIndex" }.schema
+        assertEquals(1, (zone["minimum"] as Number).toInt(), "buyZone : la première zone")
+        assertEquals(DefinitionsChecks.ZONES_MAX, (zone["maximum"] as Number).toInt(), "buyZone : la dernière zone")
+        assertTrue(TestDefinitions.loaded.city.zones.order.size <= DefinitionsChecks.ZONES_MAX, "ville.json : pas plus de zones que le contrat n'en nomme")
+        val placing = operations.single { it.id == "placeBuilding" }.body!!
+        assertEquals(DefinitionsChecks.BUILDING_ID_MAX_LENGTH, (contract.propertyOf(placing, "buildingType")["maxLength"] as Number).toInt(), "placeBuilding : la longueur du type")
+        assertEquals(1, (contract.propertyOf(placing, "buildingType")["minLength"] as Number).toInt(), "placeBuilding : un type n'est pas vide")
+        assertEquals(CityService.ROTATIONS.map { it.toString() }.toSet(), contract.enumOf(placing, "rotation"), "placeBuilding : les rotations")
+        assertEquals(CityService.ROTATIONS.map { it.toString() }.toSet(), contract.enumOf(contract.schema("CityBuilding"), "rotation"), "CityBuilding : les rotations")
+        assertEquals(BuildingBonusType.entries.map { it.name }.toSet(), contract.enumOf(contract.schema("CityBuilding"), "bonusType"), "CityBuilding : les types de bonus")
+        val nextZone = contract.propertyOf(contract.schema("CityState"), "nextZone")
+        assertEquals(DefinitionsChecks.ZONES_MAX, (contract.propertyOf(nextZone, "zoneIndex")["maximum"] as Number).toInt(), "CityState.nextZone : la dernière zone")
     }
 
     @Test
@@ -460,6 +528,14 @@ class ContractTest {
     @TestFactory
     @DisplayName("Routes écrites : une requête hors contrat donne 400 REQUETE_INVALIDE avec un corps Erreur")
     fun writtenRoutesRefuseBadRequests(): List<DynamicTest> {
+        fun placing(
+            requestId: String = ID,
+            actor: String = krXuid,
+            type: String = "\"maison\"",
+            x: String = "128",
+            z: String = "128",
+            rotation: String = "0",
+        ) = """{"requestId":"$requestId","actor":"$actor","buildingType":$type,"x":$x,"z":$z,"rotation":$rotation}"""
         val bad = mapOf(
             "heartbeat" to listOf(
                 "{}", "pas du json", """{"serverId":"bds-1"}""", """{"serverId":"bds-1","onlineXuids":["abc"]}""",
@@ -540,6 +616,32 @@ class ContractTest {
                 """{"requestId":"$ID","actor":"$krXuid","shares":[{"xuid":"$krXuid","percent":50},{"xuid":"$krXuid","percent":50}]}""",
                 """{"requestId":"$ID","actor":"$stranger","shares":[{"xuid":"$krXuid","percent":100}]}""",
             ),
+            "buyZone" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+                // Un acteur qui n'est pas de l'entreprise.
+                """{"requestId":"$ID","actor":"$stranger"}""",
+            ),
+            "upgradeBuilding" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+                """{"requestId":"$ID","actor":"$stranger"}""",
+            ),
+            "placeBuilding" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""",
+                placing(requestId = "abc"), placing(actor = "abc"), placing(actor = stranger),
+                // Un champ qui manque, un type vide, trop long ou qui n'est pas du texte.
+                """{"requestId":"$ID","actor":"$krXuid","x":128,"z":128,"rotation":0}""",
+                """{"requestId":"$ID","actor":"$krXuid","buildingType":"maison","z":128,"rotation":0}""",
+                """{"requestId":"$ID","actor":"$krXuid","buildingType":"maison","x":128,"rotation":0}""",
+                """{"requestId":"$ID","actor":"$krXuid","buildingType":"maison","x":128,"z":128}""",
+                placing(type = "\"\""), placing(type = "\"${"x".repeat(DefinitionsChecks.BUILDING_ID_MAX_LENGTH + 1)}\""), placing(type = "12"),
+                // Une parcelle négative ou décimale ; une rotation hors 0, 90, 180, 270.
+                placing(x = "-16"), placing(z = "-16"), placing(x = "128.5"), placing(z = "128.5"),
+                placing(rotation = "45"), placing(rotation = "-90"), placing(rotation = "360"), placing(rotation = "90.5"),
+                // Ce que le service sait et le contrat non : un type inconnu, la mairie (qu'on ne pose pas), une parcelle hors de l'île ou de travers.
+                placing(type = "\"palais\""), placing(type = "\"mairie\""), placing(x = "512"), placing(z = "100000"), placing(x = "130"), placing(z = "1"),
+            ),
             "resolveIncident" to listOf(
                 "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
                 """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
@@ -570,15 +672,25 @@ class ContractTest {
         val resolveBody = """{"requestId":"$ID","actor":"$krXuid"}"""
         val incidentUrls = listOf("0", "-1", "abc", "99", "1.5").map { "/v1/companies/1/incidents/$it/resolve" } +
             listOf("0", "-1", "abc", "99").map { "/v1/companies/$it/incidents/1/resolve" }
+        // La ville : une zone ou un bâtiment que le chemin ne sait pas lire ou qui n'existent pas, une entreprise qui n'existe pas.
+        val cityBody = """{"requestId":"$ID","actor":"$krXuid"}"""
+        val cityRequests: List<Triple<String, String, String?>> =
+            listOf("0", "17", "-1", "abc", "1.5").map { Triple("buyZone", "/v1/companies/1/city/zones/$it", cityBody) } +
+                listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("buyZone", "$it/city/zones/1", cityBody) } +
+                listOf("0", "-1", "abc", "99", "1.5").map { Triple("upgradeBuilding", "/v1/companies/1/city/buildings/$it", cityBody) } +
+                listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("upgradeBuilding", "$it/city/buildings/1", cityBody) } +
+                listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("placeBuilding", "$it/city/buildings", placing()) }
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
         // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
-        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares")
+        val seeded = setOf("hire", "assignStaff", "resolveIncident", "invite", "acceptInvite", "setShares", "buyZone", "placeBuilding", "upgradeBuilding")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
                 dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
             }
         } + staffRequests.map { (opId, url, body) ->
+            dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
+        } + cityRequests.map { (opId, url, body) ->
             dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
         } + incidentUrls.map { url ->
             dynamicTest("resolveIncident : $url") { assertBadRequest(operations.single { it.id == "resolveIncident" }, url, resolveBody, seed = "resolveIncident") }
@@ -965,6 +1077,121 @@ class ContractTest {
         assertEquals(0.0, donar(closedBody), "un incident déjà clos ne rapporte rien")
     }
 
+    /** Un refus [code] du contrat (409 par défaut) : le statut, le corps `Refused` conforme et le motif. Rend le corps. */
+    private suspend fun assertRefusal(response: HttpResponse, code: String, status: Int = 409): String {
+        val body = response.bodyAsText()
+        assertEquals(status, response.status.value, body)
+        assertConforms(refused, body, "refus $code")
+        assertEquals(code, reason(parse(body)))
+        return body
+    }
+
+    @Test
+    @DisplayName("buyZone : CompanyUpdated avec la zone achetée, payée avec les Lingots de celui qui agit, rejoué à l'identique ; DEJA_POSSEDE, ZONE_VERROUILLEE, PAS_ASSEZ_DE_LINGOTS")
+    fun buyZone() {
+        val rules = CityRules(TestDefinitions.loaded)
+        val url = "/v1/companies/1/city/zones/1"
+        val request = """{"requestId":"${id(11)}","actor":"$krXuid"}"""
+        withService("buyZone") {
+            val bought = send("POST", url, request)
+            val body = bought.bodyAsText()
+            assertEquals(200, bought.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "buyZone")
+            val answer = parse(body).jsonObject
+            assertEquals(listOf(1), answer.getValue("state").jsonObject.getValue("zonesOwned").jsonArray.map { it.jsonPrimitive.content.toInt() })
+            assertEquals("0", answer.getValue("balances").jsonObject.getValue("lingots").jsonPrimitive.content, "le prix de la zone est retiré")
+            assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+
+            assertRefusal(send("POST", url, """{"requestId":"${id(12)}","actor":"$krXuid"}"""), RefusalCodes.ALREADY_OWNED)
+            assertRefusal(send("POST", "/v1/companies/1/city/zones/3", """{"requestId":"${id(13)}","actor":"$krXuid"}"""), RefusalCodes.ZONE_LOCKED)
+        }
+        withService("buyZone", extraSeed = { it.balances[Xuid.parse(krXuid)!!] = Balances(0, 0, 0, 0) }) {
+            val poor = assertRefusal(send("POST", url, request), RefusalCodes.NOT_ENOUGH_LINGOTS)
+            assertEquals(rules.zonePrice(1).toDouble(), parse(poor).jsonObject.getValue("missing").jsonPrimitive.content.toDouble(), "ce qui manque")
+        }
+        withService("getCompany") {
+            assertRefusal(send("POST", url, request), RefusalCodes.ZONE_LOCKED)
+        }
+    }
+
+    @Test
+    @DisplayName("placeBuilding : CompanyUpdated, rejoué à l'identique ; EMPLACEMENT_OCCUPE, ZONE_VERROUILLEE, PAS_ASSEZ_DE_LINGOTS")
+    fun placeBuilding() {
+        val rules = CityRules(TestDefinitions.loaded)
+        val url = "/v1/companies/1/city/buildings"
+        fun place(n: Int, x: Int, z: Int, type: String = "maison") =
+            """{"requestId":"${id(n)}","actor":"$krXuid","buildingType":"$type","x":$x,"z":$z,"rotation":90}"""
+        val zoneBlocks = TestDefinitions.loaded.city.zones.sizeChunks * TestDefinitions.loaded.city.grid.blocksPerChunk
+        val second = TestDefinitions.loaded.city.zones.order[1]
+        withService("placeBuilding") {
+            val request = place(14, rules.startPlot.x - rules.plotBlocks, rules.startPlot.z)
+            val placed = send("POST", url, request)
+            val body = placed.bodyAsText()
+            assertEquals(200, placed.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "placeBuilding")
+            assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+
+            assertRefusal(send("POST", url, place(15, rules.startPlot.x - rules.plotBlocks, rules.startPlot.z)), RefusalCodes.SPOT_TAKEN)
+            assertRefusal(send("POST", url, place(16, rules.startPlot.x, rules.startPlot.z)), RefusalCodes.SPOT_TAKEN)
+            assertRefusal(send("POST", url, place(17, second.column * zoneBlocks, second.row * zoneBlocks)), RefusalCodes.ZONE_LOCKED)
+            assertRefusal(send("POST", url, place(18, rules.startPlot.x + rules.plotBlocks, rules.startPlot.z, "immeuble")), RefusalCodes.ZONE_LOCKED)
+        }
+        withService("placeBuilding", extraSeed = { it.balances[Xuid.parse(krXuid)!!] = Balances(0, 0, 0, 0) }) {
+            val poor = assertRefusal(send("POST", url, place(19, rules.startPlot.x - rules.plotBlocks, rules.startPlot.z)), RefusalCodes.NOT_ENOUGH_LINGOTS)
+            assertEquals(
+                TestDefinitions.loaded.city.building("maison")!!.level(1).priceLingots.toDouble(),
+                parse(poor).jsonObject.getValue("missing").jsonPrimitive.content.toDouble(),
+                "ce qui manque",
+            )
+        }
+    }
+
+    @Test
+    @DisplayName("upgradeBuilding : CompanyUpdated, rejoué à l'identique, la mairie monte de niveau en niveau ; PAS_ASSEZ_DE_LINGOTS avec missing")
+    fun upgradeBuilding() {
+        val url = "/v1/companies/1/city/buildings/1"
+        val hall = TestDefinitions.loaded.city.building(CityDefinitions.TOWN_HALL_ID)!!
+        withService("upgradeBuilding") {
+            val request = """{"requestId":"${id(20)}","actor":"$krXuid"}"""
+            val upgraded = send("POST", url, request)
+            val body = upgraded.bodyAsText()
+            assertEquals(200, upgraded.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "upgradeBuilding")
+            assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+            val next = send("POST", url, """{"requestId":"${id(21)}","actor":"$krXuid"}""")
+            assertEquals(200, next.status.value, next.bodyAsText())
+            assertEquals(CITY_LINGOTS - hall.level(2).priceLingots - hall.level(3).priceLingots, parse(next.bodyAsText()).jsonObject.getValue("balances").jsonObject.getValue("lingots").jsonPrimitive.content.toLong())
+        }
+        withService("upgradeBuilding", extraSeed = { it.balances[Xuid.parse(krXuid)!!] = Balances(0, 0, 0, 0) }) {
+            val poor = assertRefusal(send("POST", url, """{"requestId":"${id(22)}","actor":"$krXuid"}"""), RefusalCodes.NOT_ENOUGH_LINGOTS)
+            assertEquals(hall.level(2).priceLingots.toDouble(), parse(poor).jsonObject.getValue("missing").jsonPrimitive.content.toDouble(), "ce qui manque")
+        }
+    }
+
+    @Test
+    @DisplayName("CityState : la ville du service suit le contrat, avec ou sans zone à acheter, bâtiment au dernier niveau ou non, mairie sans bonus")
+    fun cityStateFollowsTheContract() {
+        val rules = CityRules(TestDefinitions.loaded)
+        val schema = contract.schema("CityState")
+        val everyZone = (1..rules.zoneCount).toList()
+        val shapes = mapOf("une zone à acheter" to sampleCity(), "toutes les zones" to rules.state(1, everyZone, emptyList(), 0))
+        for ((name, state) in shapes) {
+            val shown = SiloooJson.encodeToJsonElement(CityState.serializer(), state)
+            assertEquals(emptyList<String>(), contract.violations(schema, shown), name)
+        }
+
+        val full = SiloooJson.encodeToJsonElement(CityState.serializer(), sampleCity()).jsonObject
+        val buildings = full.getValue("buildings").jsonArray.map { it.jsonObject }
+        assertTrue(buildings.any { it.getValue("nextLevel") is JsonNull }, "un bâtiment au dernier niveau : nextLevel nul")
+        assertTrue(buildings.any { it.getValue("nextLevel") !is JsonNull }, "un bâtiment qui peut monter : nextLevel écrit")
+        assertTrue(buildings.any { it.getValue("bonusType") is JsonNull }, "la mairie et la route : bonusType nul")
+        assertTrue(buildings.any { it.getValue("bonusType") !is JsonNull }, "la maison : bonusType écrit")
+        assertTrue(full.getValue("nextZone") !is JsonNull)
+        assertTrue(SiloooJson.encodeToJsonElement(CityState.serializer(), shapes.getValue("toutes les zones")).jsonObject.getValue("nextZone") is JsonNull, "plus de zone à acheter : nextZone nul")
+        assertTrue(contract.violations(schema, JsonObject(full + ("bonuses" to JsonObject(emptyMap())))).isNotEmpty(), "le vérificateur voit une propriété qui manque")
+        assertTrue(contract.violations(schema, JsonObject(full + ("mairieLevel" to JsonPrimitive("2")))).isNotEmpty(), "le vérificateur voit un mauvais type")
+    }
+
     @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
@@ -991,7 +1218,13 @@ class ContractTest {
             "acceptInvite" to 200,
             "setShares" to 200,
             "resolveIncident" to 200,
+            "buyZone" to 200,
+            "placeBuilding" to 200,
+            "upgradeBuilding" to 200,
         )
+
+        /** Les Lingots du PDG dans les tests de la ville quand le prix n'est pas l'objet du test : de quoi tout payer. */
+        const val CITY_LINGOTS = 10_000L
 
         /** Plus de Donar que n'importe quelle embauche n'en coûte au revenu fictif de `TestEconomy` (11 par heure). */
         const val RICH = 1.0e6
