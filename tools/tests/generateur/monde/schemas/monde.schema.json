@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/monde.schema.json",
+  "title": "Monde de test",
+  "description": "Fichier fictif pour tester le générateur : il couvre chaque forme de schéma qu'il sait convertir.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "zones", "etiquettes", "mode"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "zones": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/zone" }
+    },
+    "etiquettes": {
+      "description": "Une table : clé libre, valeur typée.",
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "mode": { "enum": ["jour", "nuit"] },
+    "reglage": { "type": ["number", "null"] },
+    "valeur": { "oneOf": [{ "type": "string" }, { "type": "integer" }] },
+    "ouvert": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": { "nom": { "type": "string" } }
+    },
+    "niveau-max": { "type": "integer" },
+    "version-schema": { "const": 1 },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "tout": {}
+  },
+  "$defs": {
+    "identifiant": {
+      "description": "Identifiant en kebab-case.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "prix"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifiant" },
+        "prix": { "type": "number", "exclusiveMinimum": 0 },
+        "voisines": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/identifiant" } },
+        "bonus": { "description": "Facultatif.", "type": "integer" }
+      },
+      "anyOf": [{ "required": ["prix"] }, { "required": ["bonus"] }]
+    }
+  }
+}

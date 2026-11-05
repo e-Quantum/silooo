@@ -173,6 +173,76 @@ for dossier in tools/tests/definitions-invalides/*/; do
   fi
 done
 
+# ------------------------------------------------------------------ generer_types.mjs
+echo "generer_types.mjs : le fichier de l'add-on est à jour, la génération est exacte et se vérifie"
+generer() { node tools/generer_types.mjs "$@" 2>&1; }
+
+sortie="$(generer --verifier)"
+if [ $? -eq 0 ]; then ok "addon/src/generated/definitions.ts est à jour"; else ko "addon/src/generated/definitions.ts est périmé" "$sortie"; fi
+
+# Le dossier fictif tools/tests/generateur/monde joue le rôle d'un futur definitions/monde.json : une
+# forme de schéma de chaque sorte, et un identifiant en double (« plaine ») que l'union ne répète pas.
+sortie="$(generer tools/tests/generateur/monde --sortie "$TMP_NATIF/monde.ts")"
+if [ $? -eq 0 ] && cmp -s "$TMP/monde.ts" tools/tests/generateur/monde/attendu.ts; then
+  ok "monde.json fictif : le fichier généré est celui qu'on attend"
+else
+  ko "monde.json fictif : sortie différente de tools/tests/generateur/monde/attendu.ts" "$(diff "$TMP/monde.ts" tools/tests/generateur/monde/attendu.ts 2>&1 | head -n 15)"
+fi
+generer tools/tests/generateur/monde --sortie "$TMP_NATIF/monde-2.ts" >/dev/null
+if cmp -s "$TMP/monde.ts" "$TMP/monde-2.ts"; then ok "deux générations de suite donnent le même fichier"; else ko "la génération n'est pas déterministe"; fi
+
+sortie="$(generer tools/tests/generateur/monde --sortie tools/tests/generateur/monde/attendu.ts --verifier)"
+if [ $? -eq 0 ]; then ok "--verifier accepte un fichier à jour"; else ko "--verifier devrait accepter un fichier à jour" "$sortie"; fi
+sed 's/$/\r/' tools/tests/generateur/monde/attendu.ts > "$TMP/monde-crlf.ts"
+sortie="$(generer tools/tests/generateur/monde --sortie "$TMP_NATIF/monde-crlf.ts" --verifier)"
+if [ $? -eq 0 ]; then ok "--verifier ignore les fins de ligne Windows"; else ko "--verifier devrait ignorer CRLF" "$sortie"; fi
+
+sed 's/readonly prix: number/readonly prix: string/' tools/tests/generateur/monde/attendu.ts > "$TMP/monde-perime.ts"
+sortie="$(generer tools/tests/generateur/monde --sortie "$TMP_NATIF/monde-perime.ts" --verifier)"
+code=$?
+if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -q "périmé"; then
+  ok "--verifier refuse un fichier périmé (code 1, message « périmé »)"
+else
+  ko "--verifier devrait refuser un fichier périmé (code $code)" "$sortie"
+fi
+if grep -q "readonly prix: string" "$TMP/monde-perime.ts"; then ok "--verifier n'écrit rien dans le fichier"; else ko "--verifier a réécrit le fichier"; fi
+sortie="$(generer tools/tests/generateur/monde --sortie "$TMP_NATIF/absent.ts" --verifier)"
+code=$?
+if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -q "absent"; then ok "--verifier refuse un fichier absent"; else ko "--verifier devrait refuser un fichier absent (code $code)" "$sortie"; fi
+
+for dossier in tools/tests/generateur/mot-cle-inconnu tools/tests/generateur/sans-schema; do
+  cas="$(basename "$dossier")"
+  attendu="$(head -n 1 "$dossier/attendu.txt")"
+  sortie="$(generer "$dossier" --sortie "$TMP_NATIF/echec.ts")"
+  code=$?
+  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu" && [ ! -e "$TMP/echec.ts" ]; then
+    ok "$cas échoue sans rien écrire"
+  else
+    ko "$cas devrait échouer avec « $attendu » (code $code)" "$sortie"
+  fi
+done
+
+# Le dossier est parcouru : on ajoute un monde.json aux vraies définitions, sans rien changer au script.
+mkdir -p "$TMP/definitions-plus/schemas"
+cp definitions/*.json "$TMP/definitions-plus/"
+cp definitions/schemas/*.json "$TMP/definitions-plus/schemas/"
+cp tools/tests/generateur/monde/monde.json "$TMP/definitions-plus/"
+cp tools/tests/generateur/monde/schemas/monde.schema.json "$TMP/definitions-plus/schemas/"
+sortie="$(generer "$TMP_NATIF/definitions-plus" --sortie "$TMP_NATIF/plus.ts")"
+if [ $? -eq 0 ] && grep -q "export type MondeDefinitions" "$TMP/plus.ts" && grep -q "export type FactoryId" "$TMP/plus.ts" \
+  && grep -q "export type ShopGradeId" "$TMP/plus.ts" && grep -q "export type MondeZonesId" "$TMP/plus.ts"; then
+  ok "un nouveau monde.json est repris sans changer le script"
+else
+  ko "un nouveau monde.json devrait être repris" "$sortie"
+fi
+if ! grep -q "FactoryId" "$TMP/monde.ts"; then ok "chaque union d'identifiants vient de son propre fichier"; else ko "le dossier fictif ne devrait contenir aucun identifiant d'usine"; fi
+
+# anti_ia.py --tout saute les dossiers « generated » (les identifiants y sont déjà contrôlés à la source).
+mkdir -p "$TMP/addon/src/generated"
+printf '%s\n' 'export type GradeId = "ultime";' > "$TMP/addon/src/generated/ids.ts"
+sortie="$(anti_ia --tout --racine "$TMP_NATIF" 2>&1)"
+if ! printf '%s\n' "$sortie" | grep -q "generated/"; then ok "anti_ia.py --tout ignore addon/src/generated/"; else ko "anti_ia.py --tout ne devrait pas lire generated/" "$sortie"; fi
+
 echo
 echo "Tests de l'outillage : $REUSSIS réussi(s), $ECHECS en échec."
 if [ "$ECHECS" -gt 0 ]; then exit 1; fi
