@@ -22,15 +22,15 @@ ou que Kr fera le relevé depuis son PC.
 
 | Page | Rôle | D'où ça vient |
 | --- | --- | --- |
-| Accueil | Le jeu en une phrase, l'adresse `play.silooo.com` et son port, les joueurs en ligne, une vidéo de vingt secondes en jeu, une capture du menu, le lien Discord. En mode `attente`, seule la phrase, le logo et les mentions | « Travailler la réticence des joueurs Hubyy » |
-| Rejoindre | L'adresse et le port, la marche à suivre par plate-forme (PC, téléphone et tablette, console) | « Interface et onboarding console », ADR 0004 |
-| Ce qui se vend | La phrase « tout ce qui s'achète se gagne aussi en jouant », puis la liste exacte de ce qui se vend, avec les prix, visible avant la connexion | Obligations de la boutique |
+| Accueil (`contenu/accueil.md` + `pages/Accueil.kt`) | Le jeu en une phrase, l'adresse `play.silooo.com` et son port, les joueurs en ligne, une vidéo de vingt secondes en jeu, une capture du menu, le lien Discord. En mode `attente`, seule la phrase, le logo et les mentions | « Travailler la réticence des joueurs Hubyy » |
+| Rejoindre (`contenu/rejoindre.md`, adresse et port par `pages/Joueurs.kt`) | L'adresse et le port, la marche à suivre par plate-forme (PC, téléphone et tablette, console) | « Interface et onboarding console », ADR 0004 |
+| Ce qui se vend (`contenu/ce-qui-se-vend.md`, tableaux par `pages/Offres.kt`) | La phrase « tout ce qui s'achète se gagne aussi en jouant », puis la liste exacte de ce qui se vend, avec les prix, visible avant la connexion | Obligations de la boutique |
 | Wiki et guides | Les systèmes du jeu, dans l'ordre où le joueur les rencontre ; les règles du serveur, qui ne sont pas en jeu à l'arrivée | « Interface et onboarding console » |
 | Classements | Hebdomadaires, en Lingots gagnés dans la semaine, jamais en richesse totale ; les villes les mieux votées | « Économie sur le long terme » |
 | Fiche publique d'entreprise | Nom, logo, couleurs, slogan, membres, époque, étoiles, ville | « Identité d'entreprise » |
-| Boutique | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
-| Vote | Les sites de vote et Hubyy, la récompense par vote, la jauge de la Vote party | « Votes » |
-| Mises à jour | Une entrée datée par tag déployé, écrite pour les joueurs | Référence Rinaorc, ADR 0006 |
+| Boutique (`contenu/boutique.md`, `pages/Boutique.kt`) | Les packs de Gemmes ([definitions/boutique.json](../definitions/boutique.json)), les grades, le Pilier ; historique d'achats consultable | Catalogue et obligations |
+| Vote (`contenu/vote.md`, `pages/Vote.kt`) | Les sites de vote et Hubyy, la récompense par vote, la jauge de la Vote party | « Votes » |
+| Mises à jour (`contenu/mises-a-jour.md`, entrées dans `contenu/mises-a-jour/`, `pages/MisesAJour.kt`) | Une entrée datée par tag déployé, écrite pour les joueurs | Référence Rinaorc, ADR 0006 |
 | Mentions | « NOT AN OFFICIAL MINECRAFT SERVICE », mentions légales, conditions de vente, protection des mineurs ; le site n'a ni traceur ni cookie | Obligations |
 
 Aucune liaison de compte (Discord, site) n'est obligatoire pour jouer. Le site est en français
@@ -137,9 +137,65 @@ faire monter, des grades payants.
 
 Section tenue par la direction du site, étape par étape ([site-passation.md](site-passation.md)) :
 
-- S0 : le paquet `site/` de silooo-core, le port et les deux modes, la page d'attente, les mentions, où vont les
-  ressources. À écrire quand S0 est sur `main`.
-- S1 : ce que Silooo Atelier devient sur le web. À écrire quand S1 est sur `main`.
+- S0 : le site est un module de silooo-core, paquet `com.silooo.core.site`. `Main.kt` démarre un second serveur
+  Ktor sur `SILOOO_SITE_PORT` (8081 par défaut), à côté de celui de l'API, dans la même JVM ; `/v1` n'existe pas sur
+  ce port. Deux modes : `SILOOO_SITE_MODE=attente` (le défaut : la page d'attente et les mentions) et `ouvert`
+  (un accueil minimal, que S2 remplace). Les contenus sont des fichiers Markdown à en-tête (`titre`, `description`,
+  `url`, `modes`) dans `core/src/main/resources/site/contenu/`, lus et rendus une fois au démarrage ; les fichiers
+  statiques sont dans `core/src/main/resources/site/public/` (servis sous `/public/`), le logo y est une copie
+  contrôlée de `design/logo/`. Les pages sont écrites en DSL HTML (`pages/Gabarit.kt` pose la page, les autres
+  posent le `h1` et le contenu) ; aucun script, en-têtes de sécurité et de cache posés par le module. Les tests sont
+  dans `core/src/test/kotlin/com/silooo/core/site/` et `ConfigTest` ; `tools/anti_ia.py` relit les contenus et les
+  littéraux du paquet `site`. Détail : `core/README.md`, section « Le site ».
+- S1 : Silooo Atelier devient un style web, écrit à la main dans `core/src/main/resources/site/public/` (voir ci-dessous).
+  - **Une seule feuille liée** par les pages, `site.css`, qui importe `atelier/tokens.css` (copie de `design/tokens.css`)
+    puis `atelier.css` (les composants et la mise en page, écrits à la main d'après `design/composants/bundle.css`).
+    Les composants gardent leurs noms `sa-*` : `sa-panneau` (et `--laiton`), `sa-plaque` (`--rouge`, `--petite`),
+    `sa-bouton` (rouge, `--laiton`, `--fonte`, état appuyé, focus visible), `sa-ticket`, `sa-monnaie`, `sa-icone`,
+    `sa-puce`, `sa-bulle`, `sa-oooscar`. Les `border-image` pointent vers les textures 9-slice copiées, avec la même
+    bordure fixe que la charte (15, 12 ou 6 pixels) pour que les coins gardent leur taille de 5 pixels de texture
+    à ×3. Le pixel art s'affiche en `image-rendering: pixelated`, Oooscar et le logo restent lisses, à hauteur fixe.
+  - **Ce qui est copié de `design/`** : `tokens.css`, les douze textures utiles de `textures/`, les quatorze icônes,
+    `oooscar-joie.png`, le logo (SVG, PNG de 512, de 128 et de 64 pixels). `SiteAtelierTest` compare chaque copie à sa
+    source octet pour octet : on change `design/`, puis on recopie, jamais l'inverse. Un composant neuf se dessine
+    d'abord dans `design/`, puis se recopie ici.
+  - **Les polices** sont servies par le site, pas par un tiers : les `woff2` du sous-ensemble latin de Jersey 10 (400),
+    Pixelify Sans (400 et 600) et Silkscreen (400), tirés des paquets npm `@fontsource/*` (version 5.3.0, licence OFL 1.1),
+    avec leur licence et un `LISEZ-MOI.md` dans `public/polices/<police>/`. Les `@font-face` ont `font-display: swap` et
+    les secours de `tokens.css` prennent le relais. La politique de sécurité ajoute `font-src 'self'` et rien d'autre.
+  - **Les tailles** : le corps fait 20 px sur 27 px d'interligne (1,35), sur téléphone aussi. Le titre `h1` est une
+    plaque en `affiche-titre` (50 px), les `h2`, le nom du site et le bouton rouge sont en `affiche-chiffre` (40 px) : deux
+    tailles d'affiche par page, pas une de plus. Les légendes (la mention de Mojang du pied) sont en `etiquette` (16 px,
+    la grille de Silkscreen). Les liens de navigation sont en corps gras de 20 px pour que huit tiennent sur un téléphone.
+    Les espacements sont les `--pas-N`, donc des multiples de 3 px ; les tailles de police sont celles de la charte.
+  - **Le fond des pages de lecture** (mentions, erreurs, plus tard le wiki) : texte `--fonte-900` sur un bloc de
+    `--papier`, dans le panneau de fonte. Le contraste est de 15,8 contre 6,6 pour `--papier` sur `--fonte-500` : les deux
+    passent la charte, mais un texte long se lit mieux sur le papier. La page d'attente, courte, garde le texte `--papier`
+    sur le panneau de fonte, comme les fenêtres du jeu. Les liens des pages de lecture sont en `--email-bleu` sur
+    `--papier` (7,9 contre 1), survolés en `--email-rouge-sombre` (9,5 contre 1).
+  - **Mobile** : à 360 px de large, pas de défilement horizontal (aucune largeur fixe de plus de 360 px, les `width` des
+    images sont des plafonds), liens de navigation, boutons et liens du pied de 60 px au moins. Un seul bouton rouge par
+    page : le Discord sur l'attente, le retour à l'accueil sur la page introuvable.
+  - **Ce que la charte bannit et que `SiteAtelierTest` refuse dans le CSS** : `border-radius`, les dégradés (`linear-`,
+    `radial-` et `conic-gradient`), `blur(`, `backdrop-filter`, toute `width:` fixe au-dessus de 360 px (hors `max-width`),
+    toute adresse d'un autre hôte, tout fichier cité par `url(...)` qui n'existe pas dans les ressources. Les seules
+    ombres sont `ombre-pixel` et `ombre-texte`.
+  - **Le gabarit** (`pages/Gabarit.kt`) : lien d'évitement, en-tête (logo SVG, nom, navigation), `<main>` en panneau de fonte, pied
+    (mention de Mojang, Mentions, Discord s'il est configuré). La navigation est une liste d'adresses ordonnée
+    (`pages/Navigation.kt`) filtrée par les pages que `SiteContent` rend pour le mode : seulement Mentions en `attente`,
+    sans lien mort en `ouvert`. `<head>` : `og:title`, `og:description`, `og:image` absolu (`SILOOO_SITE_URL` et le logo de
+    512 px), `theme-color` du ciel, icône du site.
+- S2 : les six pages publiques du mode `ouvert` (404 en `attente`). Les textes écrits à la main sont des contenus Markdown
+  (`accueil`, `rejoindre`, `ce-qui-se-vend`, `boutique`, `vote`, `mises-a-jour`) ; ce qui vient des définitions ou de la
+  configuration est rendu par le code, à la place d'un paragraphe seul `{{nom}}` du contenu (`pages/Insertions.kt`) : les
+  packs, grades et abonnements viennent de `definitions/boutique.json` (`pages/Offres.kt`), l'adresse et le port de
+  `SILOOO_SITE_ADRESSE_JEU` et `SILOOO_SITE_PORT_JEU` (le défaut du port est contrôlé contre `BDS_PORT` de
+  `deploy/compose.yml`), le bouton d'achat de `SILOOO_SITE_URL_BOUTIQUE`, les boutons de vote de `SILOOO_SITE_SITES_DE_VOTE`.
+  Aucun chiffre n'est tapé dans un contenu (un test le vérifie), les noms de grade viennent des définitions. La récompense
+  par vote n'est pas chiffrée dans `definitions/` : la page dit qu'elle arrive. Les mises à jour sont des fichiers
+  `contenu/mises-a-jour/AAAA-MM-JJ-<sujet>.md` (en-tête `titre`, `description`, `date`), listés dans `UpdateEntries.BUNDLED`
+  (un test compare la liste au dossier), la plus récente en tête, une par tag déployé ; un nom mal formé ou une entrée sans
+  date arrête le démarrage. Aucune entrée n'existe tant que rien n'est déployé.
 
 ## Ce qui est tranché, provisoirement
 

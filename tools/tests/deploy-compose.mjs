@@ -144,8 +144,12 @@ verifier(manquantes.length === 0, 'chaque variable du compose est dans exemple.e
 const configKotlin = lire('core/src/main/kotlin/com/silooo/core/Config.kt');
 const variablesCore = [...new Set([...configKotlin.matchAll(/"(SILOOO_[A-Z0-9_]+)"/g)].map((m) => m[1]))];
 const reglees = new Set(['SILOOO_PORT', 'SILOOO_DEFINITIONS_DIR']); // port 8080 du contrat, et définitions embarquées dans l'image
+// Le site public (docs/site-passation.md) : des variables facultatives, avec un défaut sûr (attente, 8081). deploy/ est à la
+// direction du jeu : elle les ajoute à exemple.env.txt (docs/site-passation.md, « Pour la direction du jeu »), puis retire
+// chaque nom de cette liste. Une variable du site qui n'est ni ici ni dans exemple.env.txt fait échouer le test.
+for (const nom of ['SILOOO_SITE_PORT', 'SILOOO_SITE_MODE', 'SILOOO_SITE_URL', 'SILOOO_SITE_URL_DISCORD', 'SILOOO_SITE_ADRESSE_JEU', 'SILOOO_SITE_PORT_JEU', 'SILOOO_SITE_URL_BOUTIQUE', 'SILOOO_SITE_SITES_DE_VOTE']) reglees.add(nom);
 const oubliees = variablesCore.filter((nom) => !reglees.has(nom) && !connues.has(nom));
-verifier(variablesCore.length >= 5 && oubliees.length === 0, 'chaque variable lue par Config.kt est dans exemple.env.txt (sauf SILOOO_PORT et SILOOO_DEFINITIONS_DIR)', oubliees);
+verifier(variablesCore.length >= 5 && oubliees.length === 0, 'chaque variable lue par Config.kt est dans exemple.env.txt (sauf SILOOO_PORT, SILOOO_DEFINITIONS_DIR et les variables du site, en attente dans deploy/)', oubliees);
 
 // start.sh : toute variable BDS_* qu'il lit est passée par le compose, et les défauts concordent partout.
 const startSh = lire('deploy/bds/start.sh');

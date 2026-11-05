@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 13 h 13, la ville et l'add-on de l'entreprise partagée fusionnés, bilan (session de direction).
+Dernière mise à jour : 5 novembre 2026, 13 h 21, phase 5 ouverte, tranche des Gemmes et des grades lancée (session de direction).
 
 ## État
 
@@ -36,7 +36,9 @@ Dernière mise à jour : 5 novembre 2026, 13 h 13, la ville et l'add-on de l'ent
   après), la carte des îles avec la téléportation les écrans du personnel et de l'agence, les incidents et l'électricité avec le mini-jeu de réparation, les
   écrans de l'entreprise partagée (1177 tests). La ville côté service (`buyZone`, `placeBuilding`,
   `upgradeBuilding`, migration V6, `definitions/ville.json`) est sur `main` ; l'add-on ne la montre pas encore.
-  En cours : l'add-on de la ville et de l'île principale (`claude/phase4-addon-ville`).
+  En cours : l'add-on de la ville et de l'île principale (`claude/phase4-addon-ville`). Phase 5 ouverte le
+  5 novembre 2026 (décision 39) ; première tranche en cours : les livraisons de Gemmes, les grades et le Pilier côté
+  service (`claude/phase5-gemmes-grades`).
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 
@@ -128,6 +130,31 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [x] add-on : incidents et électricité (`ui/incidents.ts`, `ui/reparation.ts` ; `Factory.incidentKind` lu par le protocole ; la tuile, la fiche et la carte nomment la sorte ; bouton Réparer puis mini-jeu de trois formulaires par sorte, plus un général pour une sorte inconnue, un seul bon geste par étape, un mauvais choix rejoue l'étape avec une bulle, jamais de perte ; `resolveIncident` dans `api.ts`, refus 409 par le mécanisme actuel ; sans courant : « Il faut une Centrale en marche. », pas de bouton, achat de niveaux gardé ; `INCIDENT` écouté dans `main.ts` : message au tchat, puis relecture de l'état ; la récompense n'est jamais calculée, elle vient de l'événement ; 1019 tests ; textes `INCIDENT_TEXTES`, `REPARATION_TEXTES`, quatre bulles et le nombre d'étapes **à valider par Kr**)
 - [x] `definitions/` : les chiffres que la phase 4 révèle manquants, ajoutés avec leurs schémas et le tableur, jamais dans le code : salaires (`personnel.json`, fait), incidents et électricité (`incidents.json`, fait), bonus des bâtiments (`ville.json`, fait : zones, mairie, logement, plafonds, catalogue de six bâtiments ; neuf fichiers de définitions) ; seul le coût de la remise en état attend Kr (« À faire par Kr »)
 
+## Phase 5 : boutique et vote
+
+Condition de sortie (plan) : livraisons de Gemmes depuis le site, grades et Pilier, sites de vote et Vote party, salon
+Discord ; un achat réel de test est livré une fois, et une seule. Ouverte le 5 novembre 2026 à 13 h 21 (session de
+direction, décision 39), pendant la dernière tranche de la phase 4. Depuis la décision 37, le site silooo.com (direction
+du site) écrit les commandes PayNow dans `shop_deliveries` et les votes arrivent de Hubyy au format Votifier v2 : la
+phase 5 du jeu reçoit et crédite. Ce qui touche un compte externe revient à Kr (« À faire par Kr ») : l'achat réel de
+test, Hubyy et les sites de vote, le port et le jeton Votifier, le salon et le webhook Discord. Le service, l'add-on, les
+définitions et la doc avancent sans attendre, et rien de ce qui en dépend n'est déployé. Le marché (`listMarket`,
+`createListing`, `buyListing`) reste « pas fait » tant que Kr n'a pas tranché ; aucune lootbox ni aucun hasard payant
+(`CLAUDE.md`), même si `docs/game-design.md` en parle encore.
+
+- [ ] silooo-core : livraison des Gemmes (`shop_deliveries`, écrite par le webhook PayNow du site et par le site SileneMC, relevée par un minuteur du service : joueur retrouvé par `xuid` puis par gamertag, crédit une seule fois par `order_id`, journal des monnaies, événement `GEMMES_RECUES` ; pseudo inconnu laissé en attente et rattrapé à la connexion du joueur ; `docs/base-de-donnees.md` « Les livraisons de Gemmes ») ; grades à vie et Pilier (`catalog`, `buyItem` pour ces articles : ordre imposé des grades, `player_ranks`, `player_subscriptions` 28 jours, 50 Gemmes rendues à chaque achat de 28 jours, cadeau par `forXuid` ; bonus de Donar du grade et du Pilier lus par `EconomyEngine` dans `definitions/boutique.json`, jamais dans le code) : `claude/phase5-gemmes-grades` en cours
+- [ ] silooo-core : le reste de la boutique en jeu (`catalog`, `buyItem` : cosmétiques dans `player_cosmetics`, dont le titre Pionnier écrit par le site, effet de prestige, boost collectif +25 % pour tout le serveur pendant une heure avec le pseudo de l'acheteur, événement `BOOST_COLLECTIF`, cadeau à un autre joueur) ; idempotence par `shop_purchases.request_id` ; prix dans `definitions/boutique.json` (articles ajoutés avec le schéma) ; aucune lootbox, aucun hasard payant
+- [ ] silooo-core : pass de saison (`getPass`, `claimPass`) : paliers gratuits et premium, points et saison dans `definitions/pass.json` (nouveau, avec son schéma et ses cas invalides), `season_pass`, `season_claims`, le premium acheté en Gemmes par `buyItem`
+- [ ] silooo-core : votes et Vote party : réception Votifier v2 (jeton et port lus dans l'environnement, jamais dans le dépôt ; éteinte sans jeton ; tests sans réseau sur le décodage et la signature), une ligne `server_votes` par vote, récompense par vote en Lingots hors prestige lue dans `definitions/vote.json`, séries de jours, Vote party quand le serveur atteint l'objectif collectif du jour (récompense à tous les joueurs présents), événement `ANNONCE` ; les sites de vote autres que Hubyy plus tard, par le même chemin
+- [ ] silooo-core : Discord (un envoyeur de messages par webhook dont l'adresse vient de l'environnement du conteneur, jamais du dépôt ; messages du prestige, de la Vote party, du boost collectif et du courant qui manque ; éteint sans adresse ; tests sans réseau)
+- [ ] add-on : boutique (catalogue, achat, cadeau, grades et Pilier, titre et objet Pionnier, bulle d'Oooscar à l'arrivée des Gemmes `GEMMES_RECUES`), pass de saison (progression, réclamer un palier), rappel de vote et Vote party, annonce du boost collectif ; textes **à valider par Kr**
+- [ ] `definitions/` : `boutique.json` complété (cosmétiques, effet de prestige, boost collectif), `pass.json`, `vote.json`, avec leurs schémas, leurs cas invalides et les types générés
+- [ ] docs : `docs/economie.md` « La boutique », « Le pass de saison », « Les votes » ; `core/README.md` ; `docs/deploiement.md` : ce que Kr branche (Votifier, Discord)
+
+Tranches prévues, deux à la fois au plus (décision 37) : gemmes-grades et votes ; puis pass, boutique-cosmetiques
+(après gemmes-grades, même paquet `shop/`) et discord ; puis l'add-on de la boutique, du pass et des votes, après les
+routes. Le filet 501 des tests (`ApiTest`) passe de `/v1/shop/catalog` à `/v1/market/listings`, qui reste « pas fait ».
+
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
@@ -151,6 +178,10 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
 - [ ] Dans l'application Claude, ouvrir les deux sessions « Phase 0 : outillage » et « Phase 0 : recettes » restées en attente de « Trust repository » et les fermer (leur travail a été fait par la direction) ; au prochain lancement d'une session PC en worktree, cliquer « Trust repository » une fois
 - [ ] Trancher trois trous du contrat relevés par les tests : aucune route pour nommer l'entreprise (le game design le demande à l'étape 1 de l'onboarding ; en attendant, nom provisoire « Entreprise de <gamertag> ») ; aucune route ne fait avancer `tutorial_step` (à prévoir en phase 3) ; `PAS_ASSEZ_DE_JETONS` et `PAS_ASSEZ_DE_CLES` manquent dans `Refused` (les clés dépendent de ta décision sur les lootbox)
 - [ ] Les fichiers de la direction du site (`docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md`, `docs/references/site/`) apparaissent **non suivis dans le dossier de la direction du jeu** (`C:\Users\largu\Documents\silooo`), alors qu'elle devait travailler dans le worktree `silooo-site` : vérifier où elle écrit. La direction du jeu ne les touche ni ne les ajoute jamais ; tant qu'ils ne sont pas commités, `git status` n'est pas propre de son fait.
+- [ ] Phase 5 : un achat réel de test sur la boutique PayNow, livré une fois et une seule, puis la vérification en jeu (le site écrit `shop_deliveries`, le jeu crédite et montre `GEMMES_RECUES`).
+- [ ] Phase 5 : Hubyy : déclarer Silooo avec l'adresse, le port Votifier et le jeton ; ouvrir ce port sur le VPS ; le jeton dans l'environnement du conteneur silooo, jamais dans le dépôt. Les autres sites de vote plus tard, par le même chemin.
+- [ ] Phase 5 : le salon Discord et son webhook ; l'adresse dans l'environnement du conteneur silooo, jamais dans le dépôt.
+- [ ] Phase 5 : trancher le marché entre joueurs (`listMarket`, `createListing`, `buyListing`) : `CLAUDE.md` interdit toute monnaie échangeable entre joueurs, donc ces routes restent « pas fait » tant que Kr n'a pas dit ce qu'il en reste.
 
 ## Décisions prises sans Kr
 
@@ -345,6 +376,12 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
     moins ; le commerce multiplie le multiplicateur global ; la ville survit au prestige ; aucun bonus ne donne
     de Lingots ni ne touche aux seuils. Les chiffres (`ville.json`, `economie.json` `ville.zonesPrixLingots`)
     sont des valeurs de départ. À relire par Kr.
+39. **La phase 5 s'ouvre pendant la dernière tranche de la phase 4.** La phase 4 n'a plus qu'une case hors Kr,
+    l'add-on de la ville, déjà en cours dans une session ; la deuxième session accordée par Kr resterait vide une à
+    deux heures. La phase 5 (boutique et vote) s'ouvre donc dès maintenant pour son côté service, qui ne touche
+    aucun fichier de l'add-on ; la phase 4 se clôt dès que l'add-on de la ville est fusionné, et rien de la phase 5
+    n'est déployé (la condition de sortie demande Kr : achat réel, port Votifier, Discord). Les lootbox du game
+    design ne sont pas construites : `CLAUDE.md` interdit le hasard payant.
 
 ## À valider par Kr
 
@@ -671,3 +708,9 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   - Direction du site (`docs/site-passation.md`, « Pour la direction du jeu ») : rien de nouveau depuis les
     réponses de 12 h 45 ; le site est à l'étape S0, rien n'est « Prêt à mettre en ligne », donc rien à déployer.
   - Vérifier : `git log --oneline -12 origin/main`, `gh run list --branch main --limit 3`.
+- **5 novembre 2026, 13 h 21 : direction, phase 5 ouverte ; tranche des Gemmes et des grades lancée.** Liste de la
+  phase 5 écrite d'après le plan et la décision 37 (Gemmes par `shop_deliveries` que le webhook PayNow du site écrit,
+  votes en Votifier v2). Décision 39. Lancée : `claude/phase5-gemmes-grades` (paquet `shop/` : relevé des livraisons,
+  `catalog` et `buyItem` pour les grades et le Pilier, bonus de Donar lus par le moteur ; le filet 501 des tests passe
+  à `listMarket`). Toujours en cours : `claude/phase4-addon-ville`. Tranches suivantes, deux à la fois : votes, puis
+  pass, cosmétiques, Discord, puis l'add-on. Quatre lignes ajoutées pour Kr (achat de test, Votifier, Discord, marché).
