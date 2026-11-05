@@ -9,7 +9,8 @@
 // tools/anti_ia.py lit les chaînes de ce fichier comme celles de tout addon/src/**/*.ts.
 
 import type { CityBuildingId, FactoryId, IncidentKindId, MissionId } from "../generated/definitions";
-import type { BuyAmount, CityBonusType, MemberRole, RefusalReason, StaffRarity, StaffRole } from "../protocol";
+import { PERSONNEL, type CosmeticCategory } from "../monde/definitions";
+import type { BuyAmount, CityBonusType, MemberRole, PassTrack, RefusalReason, StaffRarity, StaffRole } from "../protocol";
 import { COLOR, EXPRESSION_MARK, type Expression } from "./apparence";
 import { formatAmount, formatCount } from "./nombres";
 import type { FactoryStatus } from "./usines";
@@ -140,7 +141,7 @@ const REFUSAL_BUBBLES: Readonly<Record<RefusalReason, (amount: number | undefine
   DEJA_POSSEDE: () => say("fier", "Tu l'as déjà."),
   GRADE_PRECEDENT_REQUIS: () => say("oups", "Il faut d'abord le grade précédent."),
   CONFLIT_REESSAYER: () => say("oups", "Ça a bougé. Réessaie."),
-  // À valider par Kr : les quatre refus du pass de saison. Les écrans du pass viennent dans une autre tranche.
+  // À valider par Kr : les quatre refus du pass de saison (les écrans du pass sont dans ui/pass.ts).
   PALIER_NON_ATTEINT: (amount) =>
     amount === 1 ? say("oups", "Il te manque 1 point.") : missing("points", amount, "Il te manque des points."),
   DEJA_RECLAME: () => say("oups", "Tu as déjà réclamé ce palier."),
@@ -271,6 +272,8 @@ export const MENU_TEXTES = {
   associes: "Associés",
   /** La tuile qui mène à la ville (VILLE_TEXTES). */
   ville: "Ville",
+  /** La tuile qui mène à la boutique en Gemmes (BOUTIQUE_TEXTES). */
+  boutique: "Boutique",
 } as const;
 
 export const USINES_TEXTES = {
@@ -531,11 +534,14 @@ export const PERSONNEL_TEXTES = {
     CHEF: "Chef",
     DIRECTEUR: "Directeur",
   } satisfies Record<StaffRole, string>,
-  /** Les raretés du contrat (Staff.rarity). Le nom de la troisième est à confirmer par Kr : la charte bannit le mot du game design. */
+  /**
+   * Les raretés du contrat (Staff.rarity). Le nom de chacune est celui de definitions/personnel.json (clé « nom »), lu
+   * dans les types générés : ce fichier n'a pas ses propres mots. La troisième est à confirmer par Kr : la charte bannit le mot du game design.
+   */
   raretes: {
-    COMMUN: "Commun",
-    RARE: "Rare",
-    EPIQUE: "Exceptionnel",
+    COMMUN: PERSONNEL.raretes.COMMUN.nom,
+    RARE: PERSONNEL.raretes.RARE.nom,
+    EPIQUE: PERSONNEL.raretes.EPIQUE.nom,
   } satisfies Record<StaffRarity, string>,
   /** Rareté et rôle, en tête de la fiche d'un membre ou d'un candidat. */
   sorte: (rarete: string, role: string): string => `${rarete} · ${role}`,
@@ -922,3 +928,204 @@ export function bonusLine(type: CityBonusType | null | undefined, bonus: number 
   if (type === null || type === undefined || bonus === null || bonus === undefined) return undefined;
   return VILLE_TEXTES.bonus.types[type](bonus);
 }
+
+// ---------------------------------------------------------------- la boutique, le pass et les votes
+
+/**
+ * Une durée en minutes, dite en mots : 60 → « une heure », 120 → « 2 heures », 45 → « 45 minutes ». Le nombre de
+ * minutes vient de definitions/boutique.json ou de l'événement du service.
+ */
+export function dureeEnMots(minutes: number): string {
+  if (minutes === 60) return "une heure";
+  if (minutes > 60 && minutes % 60 === 0) return `${minutes / 60} heures`;
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}
+
+/** Des Lingots, au singulier ou au pluriel : « 1 Lingot », « 2 Lingots ». `count` est déjà mis en forme (nombres.ts). */
+function lingotsLabel(count: string): string {
+  return count === "1" ? "1 Lingot" : `${count} Lingots`;
+}
+
+/**
+ * La boutique en Gemmes : le solde, les rayons, la fiche d'un article, le cadeau. Les noms, les catégories et les bonus des
+ * articles viennent de definitions/boutique.json, les prix et ce que le joueur possède du catalogue du service : aucun chiffre
+ * du jeu n'est écrit ici. Les Gemmes ne s'achètent pas en jeu : le joueur est renvoyé vers la boutique du site, sans adresse.
+ */
+export const BOUTIQUE_TEXTES = {
+  titre: "BOUTIQUE",
+  /** La ligne d'info de la tuile du menu : le solde de Gemmes du service. */
+  tuile: (gemmes: string): string => `Gemmes ${gemmes}`,
+  /** Le solde de Gemmes, en tête de l'écran. */
+  solde: (gemmes: string): string => `Gemmes : ${gemmes}`,
+  /** Le titre Pionnier, sous le nom de l'entreprise dans le menu. */
+  titreDuJoueur: (titre: string): string => `Titre : ${titre}`,
+  retour: "Retour",
+  /** Les portes de la boutique dont le nom n'est pas dans definitions/boutique.json. */
+  rayons: {
+    grades: "Grades",
+    cosmetiques: "Cosmétiques",
+    boost: "Boost collectif",
+    pass: "Pass de saison",
+  },
+  /** Les rayons de cosmétiques (la clé `categorie` de definitions/boutique.json). */
+  categories: {
+    skinUsine: "Skins d'usine",
+    skinVehicule: "Skins de véhicule",
+    pet: "Compagnons",
+    decor: "Décors",
+    effetPrestige: "Effets de prestige",
+    titre: "Titres",
+  } satisfies Record<CosmeticCategory, string>,
+  /** La ligne d'info d'une porte ou d'une tuile d'article. */
+  details: {
+    prochainGrade: (nom: string): string => `Prochain : ${nom}`,
+    tousLesGrades: "Tous possédés",
+    articles: (count: number): string => (count === 1 ? "1 article" : `${count} articles`),
+    /** Le prix d'un article sur sa tuile, tel que le catalogue du service le donne. */
+    prix: (gemmes: string): string => `${gemmes} Gemmes`,
+    possede: "Possédé",
+    enCours: "En cours",
+    bloque: "Grade précédent requis",
+    indisponible: "Pas en vente",
+    rayonVide: "Rien en vente ici.",
+  },
+  /** Un rayon : sa fenêtre porte ce titre, son nom est la première ligne. */
+  rayon: {
+    titre: "RAYON",
+  },
+  /** La fiche d'un article. */
+  article: {
+    titre: "ARTICLE",
+    prix: (gemmes: string): string => `Prix : ${gemmes} Gemmes`,
+    possede: "Tu l'as.",
+    enCours: "Ton abonnement court.",
+    bloque: "Il faut d'abord le grade précédent.",
+    grade: (bonus: string): string => `Grade : +${bonus} % de Donar.`,
+    gradeOrdre: "Les grades se prennent dans l'ordre.",
+    abonnement: (jours: string): string => `Dure ${jours} jours. Chaque achat les prolonge.`,
+    abonnementBonus: (bonus: string): string => `+${bonus} % de Donar pendant l'abonnement.`,
+    abonnementRendu: (gemmes: string): string => `${gemmes} Gemmes rendues à chaque achat.`,
+    cosmetique: (categorie: string): string => `Cosmétique : ${categorie}.`,
+    boost: (pourcent: string, duree: string): string => `+${pourcent} % de production pour tout le serveur, pendant ${duree}.`,
+    boostPseudo: "Ton pseudo est annoncé à tous.",
+    boostSuite: "Les boosts se suivent, sans s'empiler.",
+    acheter: "Acheter",
+    prolonger: "Prolonger",
+    offrir: "Offrir",
+    retour: "Retour",
+  },
+  /** Le choix du joueur à qui l'on offre l'article, parmi les joueurs connectés. */
+  offrir: {
+    titre: "OFFRIR",
+    phrase: (article: string, gemmes: string): string => `Choisis qui reçoit ${article} (${gemmes} Gemmes).`,
+    aucun: "Aucun autre joueur connecté.",
+    retour: "Retour",
+  },
+  /** Ajoutée sous la bulle quand il manque des Gemmes : où l'on en achète, sans adresse. */
+  gemmesManquent: "Les Gemmes s'achètent sur la boutique du site.",
+  bulles: {
+    achete: say("joie", "Achat effectué !"),
+    prolonge: say("joie", "Abonnement prolongé !"),
+    boostLance: say("fier", "Boost lancé pour tout le serveur."),
+    offert: say("joie", "Cadeau envoyé !"),
+    /** Offrir un grade ou un cosmétique que le destinataire a déjà (DEJA_POSSEDE). */
+    dejaChezLui: say("oups", "Il l'a déjà."),
+    /** Offrir un grade que le destinataire ne peut pas encore prendre (GRADE_PRECEDENT_REQUIS). */
+    gradePrecedentPourLui: say("oups", "Il lui faut le grade précédent."),
+    /** Le service refuse l'article (400) : il n'existe plus, ou le jeu ne le vend pas. */
+    plusEnVente: say("oups", "Cet article n'est plus en vente."),
+  },
+} as const;
+
+/** Le pass de saison : la saison, les points, les paliers des deux pistes, la piste premium. Les chiffres sont ceux du service. */
+export const PASS_TEXTES = {
+  titre: "PASS",
+  paliers: { titre: "PALIERS", page: "Paliers" },
+  palier: { titre: "PALIER" },
+  retour: "Retour",
+  /** Les deux pistes du contrat (PassTrack). */
+  pistes: {
+    GRATUIT: "Gratuit",
+    PREMIUM: "Premium",
+  } satisfies Record<PassTrack, string>,
+  dates: (debut: string, fin: string): string => `Du ${debut} au ${fin}`,
+  pasEnCours: "La saison n'est pas en cours.",
+  points: (points: string): string => `Points : ${points}`,
+  premium: {
+    actif: "Piste premium active",
+    inactif: "Piste premium non activée",
+  },
+  aReclamer: (count: number): string => {
+    if (count === 0) return "Rien à réclamer";
+    if (count === 1) return "1 récompense à réclamer";
+    return `${count} récompenses à réclamer`;
+  },
+  passerPremium: "Passer premium",
+  prixPremium: (gemmes: string): string => `${gemmes} Gemmes`,
+  /** Une tuile de palier. */
+  tuile: {
+    palier: (numero: string): string => `Palier ${numero}`,
+    des: (points: string): string => `Dès ${points} points`,
+    lingots: lingotsLabel,
+  },
+  /** L'état d'une récompense sur la fiche d'un palier. */
+  etats: {
+    reclame: "Réclamé",
+    aReclamer: "À réclamer",
+    pasAtteint: "Pas atteint",
+    premiumRequis: "Demande le premium",
+    aucune: "Rien sur cette piste",
+  },
+  /** La fiche d'un palier : la piste et sa récompense. */
+  ligne: (piste: string, recompense: string): string => `${piste} : ${recompense}`,
+  seuil: (points: string): string => `${points} points pour l'atteindre`,
+  reclamer: {
+    GRATUIT: "Réclamer le gratuit",
+    PREMIUM: "Réclamer le premium",
+  } satisfies Record<PassTrack, string>,
+  /** Ce que le service a versé : sous la bulle d'un palier réclamé. */
+  recu: (recompense: string): string => `Reçu : ${recompense}`,
+  bulles: {
+    palierReclame: say("joie", "Palier réclamé !"),
+    premiumActif: say("joie", "Pass premium activé !"),
+  },
+} as const;
+
+/** Les votes : le rappel du vote du jour, la récompense d'un vote, la Vote party. Les Lingots sont ceux du service. */
+export const VOTE_TEXTES = {
+  rappel: {
+    /** Dite à l'arrivée du joueur qui n'a pas voté aujourd'hui. */
+    bulle: say("joie", "Tu n'as pas encore voté aujourd'hui."),
+    ligne: (sites: string): string => `Vote sur ${sites} pour gagner des Lingots.`,
+    /** La ligne de l'écran de la boutique. */
+    boutique: (sites: string): string => `Vote du jour : ${sites}`,
+  },
+  vote: {
+    bulle: say("joie", "Merci pour ton vote !"),
+    recompense: (lingots: string): string => `+${lingotsLabel(lingots)}`,
+    serie: (jours: string): string => (jours === "1" ? "Série : 1 jour" : `Série : ${jours} jours`),
+    bonus: (lingots: string): string => `Dont bonus de série : ${lingotsLabel(lingots)}`,
+  },
+  voteParty: {
+    bulle: say("fier", "La Vote party a lieu !"),
+    ligne: (lingots: string): string => `Chaque joueur présent gagne ${lingotsLabel(lingots)}.`,
+  },
+} as const;
+
+/** Les annonces du service à tout le serveur ou à un joueur : Gemmes reçues, boost collectif, pionnier, usine sans courant. */
+export const ANNONCES_TEXTES = {
+  gemmes: {
+    bulle: say("joie", "Tes Gemmes sont arrivées !"),
+    ligne: (gemmes: string, solde: string): string => `Gemmes : +${gemmes}, solde ${solde}`,
+  },
+  /** Une seule ligne de tchat pour tout le serveur. */
+  boost: {
+    avecNom: (pseudo: string, pourcent: string, duree: string): string => `${pseudo} offre un boost de +${pourcent} % au serveur pendant ${duree}.`,
+    sansNom: (pourcent: string, duree: string): string => `Un boost de +${pourcent} % court sur le serveur pendant ${duree}.`,
+  },
+  pionnier: say("fier", "Bienvenue parmi les pionniers."),
+  sansCourant: {
+    bulle: say("oups", "Il faut une Centrale en marche."),
+    ligne: (usine: string): string => `${usine} est arrêtée faute de courant.`,
+  },
+} as const;

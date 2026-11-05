@@ -22,10 +22,29 @@
 //
 // La ville : acheter une zone, poser un bâtiment et l'améliorer passent par l'entreprise du joueur comme les autres
 // actions. Les Lingots sont ceux du joueur qui agit : la réponse rend les soldes, la vue les prend.
+//
+// La boutique, le pass et les votes : acheter un article (pour soi ou en cadeau) et réclamer un palier ne passent pas par
+// l'entreprise (le corps n'a que l'acteur) mais suivent la même mécanique : un `requestId` neuf, un seul appel à la fois, et
+// les soldes de la réponse rangés dans la vue (ViewStore.setBalances) sans toucher à son état. Le catalogue, le pass et
+// les votes du jour sont des lectures, comme l'aperçu du prestige.
 
 import type { CoreApi } from "../api";
 import { describeFailure, type ApiResult } from "../http";
-import type { ActionBase, BuildingRotation, BuyAmount, Candidate, PrestigePreview, ShareInput, Xuid } from "../protocol";
+import type {
+  ActionBase,
+  Balances,
+  BuildingRotation,
+  BuyAmount,
+  Candidate,
+  CatalogItem,
+  PassClaimed,
+  PassState,
+  PassTrack,
+  PrestigePreview,
+  ShareInput,
+  VotesToday,
+  Xuid,
+} from "../protocol";
 import { describeError, type Logger } from "../runtime";
 import type { ViewStore, ViewUpdate } from "./etat";
 
@@ -55,6 +74,10 @@ export type ActionOutcome =
   /** Le bâtiment est posé au niveau 1. */
   | { readonly kind: "buildingPlaced" }
   | { readonly kind: "buildingUpgraded" }
+  /** L'article est acheté (`forXuid` : offert à ce joueur) : la vue du joueur a ses soldes à jour. */
+  | { readonly kind: "itemBought"; readonly itemId: string; readonly forXuid?: Xuid }
+  /** Le palier est réclamé : le service a versé la récompense, la vue du joueur a ses soldes à jour. */
+  | { readonly kind: "passClaimed"; readonly claimed: PassClaimed }
   | { readonly kind: "refused"; readonly reason: string; readonly missing?: number }
   | { readonly kind: "failed"; readonly failure: "network" | "error" | "unavailable"; readonly reason: string }
   /** Une action du même joueur est encore en cours : celle-ci est ignorée. */
@@ -67,6 +90,15 @@ export type PreviewOutcome = { readonly kind: "preview"; readonly preview: Prest
 
 /** Ce que rend la lecture des candidats du jour : la liste du service, ou l'échec technique. */
 export type CandidatesOutcome = { readonly kind: "candidates"; readonly candidates: readonly Candidate[] } | FailedOutcome;
+
+/** Ce que rend la lecture du catalogue de la boutique : les articles dans l'ordre du service, ou l'échec technique. */
+export type CatalogOutcome = { readonly kind: "catalog"; readonly items: readonly CatalogItem[] } | FailedOutcome;
+
+/** Ce que rend la lecture du pass de saison : la progression du service, ou l'échec technique. */
+export type PassOutcome = { readonly kind: "pass"; readonly pass: PassState } | FailedOutcome;
+
+/** Ce que rend la lecture des votes du jour : ceux du serveur et ceux du joueur, ou l'échec technique. */
+export type VotesOutcome = { readonly kind: "votes"; readonly votes: VotesToday } | FailedOutcome;
 
 /** Ce que rend la relecture de l'entreprise : la vue du joueur est à jour, ou l'échec technique. */
 export type RefreshOutcome = { readonly kind: "refreshed" } | FailedOutcome;
@@ -106,6 +138,16 @@ export interface Actions {
   upgradeBuilding(xuid: Xuid, buildingId: number): Promise<ActionOutcome>;
   /** Relit l'entreprise du joueur (GET getCompany) : la liste des associés change sans que le joueur n'agisse. */
   refresh(xuid: Xuid): Promise<RefreshOutcome>;
+  /** Achète l'article `itemId` avec les Gemmes du joueur ; avec `forXuid`, l'article va à ce joueur. Le service fixe le prix et juge tout le reste. */
+  buyItem(xuid: Xuid, itemId: string, forXuid?: Xuid): Promise<ActionOutcome>;
+  /** Réclame la récompense du palier `tier` sur la piste `track`. Le service juge les points, la piste et la saison. */
+  claimPass(xuid: Xuid, tier: number, track: PassTrack): Promise<ActionOutcome>;
+  /** Lit le catalogue de la boutique tel que le joueur le voit (GET catalog), à chaque ouverture d'un rayon. */
+  catalog(xuid: Xuid): Promise<CatalogOutcome>;
+  /** Lit la progression du joueur dans le pass (GET getPass). */
+  pass(xuid: Xuid): Promise<PassOutcome>;
+  /** Lit les votes du jour, avec ceux du joueur (GET todayVotes). */
+  votes(xuid: Xuid): Promise<VotesOutcome>;
 }
 
 export interface ActionsDeps {
@@ -128,6 +170,11 @@ export interface ActionsDeps {
     | "buyZone"
     | "placeBuilding"
     | "upgradeBuilding"
+    | "catalog"
+    | "buyItem"
+    | "getPass"
+    | "claimPass"
+    | "todayVotes"
   >;
   readonly views: ViewStore;
   /** Un UUID neuf à chaque appel (runtime.ts, createRequestIdGenerator). */
@@ -145,8 +192,11 @@ interface Plan<T> {
   /** L'entreprise visée, quand ce n'est pas celle du joueur (accepter une invitation). Le joueur y entre : la vue la remplace. */
   readonly joins?: number;
   readonly send: (companyId: number, action: ActionBase) => Promise<ApiResult<T>>;
-  /** Range le corps de la réponse dans le ViewStore et dit ce qui s'est passé. */
-  readonly accept: (body: T) => { readonly update: ViewUpdate; readonly outcome: ActionOutcome };
+  /**
+   * Range le corps de la réponse dans le ViewStore et dit ce qui s'est passé : `update` remplace l'état de la vue (et ses
+   * soldes), `balances` ne range que des soldes, quand la réponse ne rend pas l'entreprise (boutique, pass).
+   */
+  readonly accept: (body: T) => { readonly update?: ViewUpdate; readonly balances?: Partial<Balances>; readonly outcome: ActionOutcome };
 }
 
 export function createActions(deps: ActionsDeps): Actions {
@@ -194,9 +244,12 @@ export function createActions(deps: ActionsDeps): Actions {
       }
 
       if (result.kind === "ok") {
-        const { update, outcome } = plan.accept(result.body);
-        if (plan.joins === undefined) views.apply(xuid, update);
-        else views.switchCompany(xuid, update);
+        const { update, balances, outcome } = plan.accept(result.body);
+        if (update !== undefined) {
+          if (plan.joins === undefined) views.apply(xuid, update);
+          else views.switchCompany(xuid, update);
+        }
+        if (balances !== undefined) views.setBalances(xuid, balances);
         return outcome;
       }
       if (result.kind === "refused") {
@@ -212,7 +265,7 @@ export function createActions(deps: ActionsDeps): Actions {
 
   /**
    * Un échec technique : journalisé, rendu sans détail. Les refus du jeu des actions ne passent pas ici ; seul un
-   * refus de getCompany, de prestigePreview ou de getCandidates (le contrat n'en prévoit pas) y arrive, et il est
+   * refus de getCompany, de prestigePreview, de getCandidates, de catalog, de getPass ou de todayVotes (le contrat n'en prévoit pas) y arrive, et il est
    * traité comme une erreur du service.
    */
   function failure(label: string, result: Exclude<ApiResult<unknown>, { kind: "ok" }>): FailedOutcome {
@@ -338,6 +391,36 @@ export function createActions(deps: ActionsDeps): Actions {
       if (result.kind !== "ok") return failure("getCompany", result);
       views.apply(xuid, { state: result.body });
       return { kind: "refreshed" };
+    },
+    buyItem: (xuid, itemId, forXuid) =>
+      run(xuid, {
+        label: "buyItem",
+        send: (_companyId, action) => api.buyItem(action, itemId, forXuid),
+        accept: (body) => ({
+          balances: body,
+          outcome: forXuid === undefined ? { kind: "itemBought", itemId } : { kind: "itemBought", itemId, forXuid },
+        }),
+      }),
+    claimPass: (xuid, tier, track) =>
+      run(xuid, {
+        label: "claimPass",
+        send: (_companyId, action) => api.claimPass(action, tier, track),
+        accept: (body) => ({ balances: body.balances, outcome: { kind: "passClaimed", claimed: body } }),
+      }),
+    catalog: async (xuid) => {
+      const result = await api.catalog(xuid);
+      if (result.kind === "ok") return { kind: "catalog", items: result.body };
+      return failure("catalog", result);
+    },
+    pass: async (xuid) => {
+      const result = await api.getPass(xuid);
+      if (result.kind === "ok") return { kind: "pass", pass: result.body };
+      return failure("getPass", result);
+    },
+    votes: async (xuid) => {
+      const result = await api.todayVotes(xuid);
+      if (result.kind === "ok") return { kind: "votes", votes: result.body };
+      return failure("todayVotes", result);
     },
   };
 }

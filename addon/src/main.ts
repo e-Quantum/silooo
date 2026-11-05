@@ -42,6 +42,7 @@ import type { Xuid } from "./protocol";
 import { combineHooks, createSessionHandlers, registerSessionEvents, type SessionHooks } from "./session";
 import { createPlayerStore, type PlayerStore } from "./state";
 import { createActions } from "./ui/actions";
+import { createAnnouncements, type Announcements } from "./ui/annonces";
 import { createCityEvents } from "./ui/annonces-ville";
 import { registerMenuItem } from "./ui/boussole";
 import { createLinkState, createViewStore, observeApi, type LinkState, type ViewStore } from "./ui/etat";
@@ -52,6 +53,7 @@ import { createIncidents } from "./ui/incidents";
 import { createMenu } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
 import { BOUSSOLE_TEXTES, CINEMATIQUE_TEXTES } from "./ui/textes";
+import { createVotes } from "./ui/votes";
 
 /** L'objet du menu, tel que le joueur le reçoit : nommé, gardé à la mort, impossible à jeter ou à ranger ailleurs. */
 function newMenuItem(): ItemStack {
@@ -179,6 +181,7 @@ function startScreens(deps: {
   readonly views: ViewStore;
   readonly missions: Missions;
   readonly invitations: Invitations;
+  readonly announcements: Announcements;
   readonly store: PlayerStore;
   readonly link: LinkState;
   readonly busy: (player: Player) => boolean;
@@ -189,7 +192,7 @@ function startScreens(deps: {
   readonly scheduler: Scheduler;
   readonly log: Logger;
 }): void {
-  const { api, views, missions, invitations, store, link, busy, travel, travelCity, where, originOf, scheduler, log } = deps;
+  const { api, views, missions, invitations, announcements, store, link, busy, travel, travelCity, where, originOf, scheduler, log } = deps;
   try {
     const hud = createHud<Player>({
       players: () => world.getAllPlayers(),
@@ -221,6 +224,8 @@ function startScreens(deps: {
           const joined = store.get(xuid);
           return joined === undefined ? [] : [{ xuid, name: joined.gamertag }];
         }),
+      // Les cosmétiques de `join` (le titre Pionnier sous le nom de l'entreprise), plus celui qu'une annonce a appris depuis.
+      cosmetics: (xuid) => announcements.cosmeticsOf(xuid, store.get(xuid)?.join.cosmetics),
       ...(travel === undefined ? {} : { travel }),
       ...(travelCity === undefined ? {} : { travelCity }),
       ...(where === undefined ? {} : { where }),
@@ -274,14 +279,20 @@ function main(): void {
 
     const missions = createMissions({ api, players: store, say: tellPlayer, log });
     const invitations = createInvitations({ clock: systemClock, players: store, say: tellPlayer, log });
+    // Les joueurs présents que le service connaît : ceux dont le `join` a répondu.
+    const online = (): readonly Xuid[] => store.xuids();
+    const votes = createVotes({ api, online, say: tellPlayer, clock: systemClock, log });
+    const announcements = createAnnouncements({ views, online, say: tellPlayer, clock: systemClock, log });
 
     const worldPart = startWorld({ views, scheduler, log });
-    // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu, et ses invitations en attente lui sont dites.
+    // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu, ses invitations en attente et le vote
+    // du jour s'il ne l'a pas fait lui sont dits.
     const hooks = combineHooks<Player>(log, worldPart.hooks, {
       joined: async (player) => {
         const xuid = playerXuid(player);
         await missions.arrive(xuid);
         invitations.arrive(xuid);
+        await votes.arrive(xuid);
       },
     });
     registerSessionEvents(world, createSessionHandlers<Player>({ api, store, log, hooks }), log);
@@ -300,7 +311,8 @@ function main(): void {
     );
 
     // Les écouteurs : l'annonce d'une mission terminée, les incidents d'usine (ouverts, réparés), l'invitation à une entreprise,
-    // l'annonce d'un changement de parts et celles de la ville. Les autres événements du service arrivent plus tard.
+    // l'annonce d'un changement de parts, celles de la ville, les Gemmes reçues, le boost collectif, les votes, le titre de pionnier
+    // et l'alerte « sans courant ». Les autres événements du service arrivent plus tard.
     const listeners = createEventListeners(log);
     listeners.on("ANNONCE", missions.onAnnonce);
     listeners.on("ANNONCE", invitations.onAnnonce);
@@ -310,6 +322,11 @@ function main(): void {
     // La ville : zone achetée, bâtiment posé ou amélioré. Les autres ANNONCE sont lues par missions et invitations, qui ignorent celles-ci.
     const cityEvents = createCityEvents({ api, views, say: tellPlayer, log });
     listeners.on("ANNONCE", cityEvents.onAnnonce);
+    // La boutique : les Gemmes livrées, le boost collectif, puis les ANNONCE des votes, du titre de pionnier et de l'alerte sans courant.
+    listeners.on("GEMMES_RECUES", announcements.onGemmes);
+    listeners.on("BOOST_COLLECTIF", announcements.onBoost);
+    listeners.on("ANNONCE", votes.onAnnonce);
+    listeners.on("ANNONCE", announcements.onAnnonce);
     startEventPolling(
       scheduler,
       createEventPoller({ api, listeners, status: createStatusLog(log, "événements"), log }),
@@ -322,6 +339,7 @@ function main(): void {
       views,
       missions,
       invitations,
+      announcements,
       store,
       link,
       busy: worldPart.busy,

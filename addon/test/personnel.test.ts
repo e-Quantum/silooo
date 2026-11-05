@@ -146,18 +146,19 @@ describe("menu principal, tuile Personnel", () => {
 // ---------------------------------------------------------------- l'écran Personnel
 
 describe("écran Personnel", () => {
-  it("l'Agence d'abord, puis une tuile par équipe qui a du monde (usines dans l'ordre du service, puis sans usine), puis Retour", () => {
+  it("l'Agence et les associés d'abord, puis une tuile par équipe qui a du monde (usines dans l'ordre du service, puis sans usine), puis Retour", () => {
     const screen = personnelScreen(viewOf(TEAM), 0, 8);
     assert.equal(screen.spec.title, PERSONNEL_TEXTES.titre);
     assert.deepEqual(labelsOf(screen), [
       `${ICON.agence} Agence\nLes candidats du jour`,
+      `${ICON.associes} Associés\nInvite des joueurs`,
       `${ICON.usine} Carrière\n2 membres`,
       `${ICON.personnel} Sans usine\n1 membre`,
       "Retour",
     ]);
-    assert.deepEqual(kindsOf(screen), ["go:agence", "go:equipe", "go:equipe", "go:main"]);
-    assert.deepEqual(screen.targets[1], { kind: "go", route: { screen: "equipe", factoryId: "carriere", page: 0 } });
-    assert.deepEqual(screen.targets[2], { kind: "go", route: { screen: "equipe", factoryId: null, page: 0 } });
+    assert.deepEqual(kindsOf(screen), ["go:agence", "go:associes", "go:equipe", "go:equipe", "go:main"]);
+    assert.deepEqual(screen.targets[2], { kind: "go", route: { screen: "equipe", factoryId: "carriere", page: 0 } });
+    assert.deepEqual(screen.targets[3], { kind: "go", route: { screen: "equipe", factoryId: null, page: 0 } });
   });
 
   it("une usine sans personne n'a pas de tuile", () => {
@@ -168,17 +169,17 @@ describe("écran Personnel", () => {
   it("une usine que l'entreprise ne montre pas mais où le service a mis quelqu'un a sa tuile, avant « Sans usine »", () => {
     const view = viewOf({ factories: [CARRIERE], staff: [CHLOE, staffMember({ staffId: 15, factoryId: "usine-neuve" })] });
     const screen = personnelScreen(view, 0, 8);
-    assert.deepEqual(labelsOf(screen).slice(1, 3), [`${ICON.usine} Usine neuve\n1 membre`, `${ICON.personnel} Sans usine\n1 membre`]);
+    assert.deepEqual(labelsOf(screen).slice(2, 4), [`${ICON.usine} Usine neuve\n1 membre`, `${ICON.personnel} Sans usine\n1 membre`]);
   });
 
   it("l'état de l'usine donne le repère de sa tuile : une usine en ruine garde son cadenas", () => {
     const view = viewOf({ factories: [factory({ factoryId: "carriere", state: "EN_RUINE", level: 0 })], staff: [ADELE] });
-    assert.ok(bare(personnelScreen(view, 0, 8).spec.buttons[1] ?? "").startsWith(`${ICON.cadenas} Carrière`));
+    assert.ok(bare(personnelScreen(view, 0, 8).spec.buttons[2] ?? "").startsWith(`${ICON.cadenas} Carrière`));
   });
 
-  it("personne dans l'équipe : la phrase, le mot « personne », l'Agence et Retour", () => {
+  it("personne dans l'équipe : la phrase, le mot « personne », l'Agence, les associés et Retour", () => {
     const screen = personnelScreen(viewOf({ factories: [CARRIERE] }), 0, 8);
-    assert.deepEqual(kindsOf(screen), ["go:agence", "go:main"]);
+    assert.deepEqual(kindsOf(screen), ["go:agence", "go:associes", "go:main"]);
     assert.ok(bare(screen.spec.body).includes(PERSONNEL_TEXTES.vide), screen.spec.body);
   });
 
@@ -187,21 +188,21 @@ describe("écran Personnel", () => {
     assert.ok(bare(screen.spec.body).startsWith("Oooscar [oups] Membre renvoyé.\n\nTon équipe"), screen.spec.body);
   });
 
-  it("des pages : l'Agence reste sur chacune, la navigation vient après les équipes", () => {
+  it("des pages : l'Agence et les associés restent sur chacune, la navigation vient après les équipes", () => {
     const staff = IDS.slice(0, 5).map((factoryId, i) => staffMember({ staffId: 20 + i, factoryId }));
     const view = viewOf({ factories: IDS.slice(0, 5).map((factoryId) => factory({ factoryId })), staff });
-    const premiere = personnelScreen(view, 0, 4);
-    assert.deepEqual(kindsOf(premiere), ["go:agence", "go:equipe", "go:equipe", "go:equipe", "go:personnel", "go:main"]);
-    assert.deepEqual(labelsOf(premiere).slice(4), ["Suite", "Retour"]);
+    const premiere = personnelScreen(view, 0, 5);
+    assert.deepEqual(kindsOf(premiere), ["go:agence", "go:associes", "go:equipe", "go:equipe", "go:equipe", "go:personnel", "go:main"]);
+    assert.deepEqual(labelsOf(premiere).slice(5), ["Suite", "Retour"]);
     assert.ok(bare(premiere.spec.body).includes("Page 1 sur 2"));
-    const seconde = personnelScreen(view, 1, 4);
-    assert.deepEqual(kindsOf(seconde), ["go:agence", "go:equipe", "go:equipe", "go:personnel", "go:main"]);
-    assert.deepEqual(labelsOf(seconde).slice(3), ["Précédent", "Retour"]);
-    assert.deepEqual(seconde.targets[3], { kind: "go", route: { screen: "personnel", page: 0 } });
+    const seconde = personnelScreen(view, 1, 5);
+    assert.deepEqual(kindsOf(seconde), ["go:agence", "go:associes", "go:equipe", "go:equipe", "go:personnel", "go:main"]);
+    assert.deepEqual(labelsOf(seconde).slice(4), ["Précédent", "Retour"]);
+    assert.deepEqual(seconde.targets[4], { kind: "go", route: { screen: "personnel", page: 0 } });
   });
 
   it("une page hors limites est ramenée dans les limites", () => {
-    assert.deepEqual(kindsOf(personnelScreen(viewOf(TEAM), 99, 8)), ["go:agence", "go:equipe", "go:equipe", "go:main"]);
+    assert.deepEqual(kindsOf(personnelScreen(viewOf(TEAM), 99, 8)), ["go:agence", "go:associes", "go:equipe", "go:equipe", "go:main"]);
   });
 });
 
@@ -211,7 +212,7 @@ describe("écran d'une équipe", () => {
   it("un membre par tuile : son nom tel que le service le donne, sa rareté, son rôle, son bonus", () => {
     const screen = must(equipeScreen(viewOf(TEAM), "carriere", 0, 8));
     assert.equal(screen.spec.title, PERSONNEL_TEXTES.equipe.titre);
-    assert.deepEqual(labelsOf(screen), ["Adèle\nCommun · Salarié · +10 %", "Bruno\nRare · Chef · +25 %", "Retour"]);
+    assert.deepEqual(labelsOf(screen), ["Adèle\nOrdinaire · Salarié · +10 %", "Bruno\nRare · Chef · +25 %", "Retour"]);
     assert.deepEqual(screen.targets[0], { kind: "go", route: { screen: "membre", staffId: 11 } });
     assert.deepEqual(screen.targets[1], { kind: "go", route: { screen: "membre", staffId: 12 } });
     assert.deepEqual(screen.targets[2], { kind: "go", route: { screen: "personnel", page: 0 } });
@@ -394,7 +395,7 @@ describe("écran de l'agence", () => {
     const screen = agenceScreen(liste);
     assert.equal(screen.spec.title, AGENCE_TEXTES.titre);
     assert.deepEqual(labelsOf(screen), [
-      "Basile\nCommun · Salarié · +10 %",
+      "Basile\nOrdinaire · Salarié · +10 %",
       "Camille\nRare · Chef · +25 %",
       "Dorian\nDéjà embauché",
       "Retour",
@@ -459,7 +460,7 @@ describe("fiche d'un candidat", () => {
     const screen = must(candidatScreen(liste, 1));
     assert.equal(screen.spec.title, AGENCE_TEXTES.candidat.titre);
     assert.deepEqual(bare(screen.spec.body).split("\n"), [
-      "Commun · Salarié",
+      "Ordinaire · Salarié",
       "Basile",
       "",
       `Bonus +${formatAmount(12.5)} % de production`,
@@ -736,7 +737,7 @@ describe("parcours : renvoyer", () => {
     assert.deepEqual(api.calls, [{ op: "fireStaff", companyId: 7, staffId: 12, action: { requestId: "id-1", actor: XUID } }]);
     assert.ok(bare(presenter.shown[5]?.body ?? "").startsWith("Oooscar [oups] Membre renvoyé."));
     assert.equal(views.get(XUID)?.state.staff?.length, 2);
-    assert.ok(bare(presenter.shown[5]?.buttons[1] ?? "").endsWith("1 membre"), "l'équipe de la Carrière n'a plus que 1 membre");
+    assert.ok(bare(presenter.shown[5]?.buttons[2] ?? "").endsWith("1 membre"), "l'équipe de la Carrière n'a plus que 1 membre");
   });
 
   it("un associé reçoit 403 PAS_LE_PDG : la bulle d'Oooscar, le membre reste, rien n'est calculé côté add-on", async () => {

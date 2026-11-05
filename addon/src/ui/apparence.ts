@@ -43,7 +43,7 @@ export function colored(color: string, text: string): string {
 }
 
 /**
- * Un repère par icône de design/icones/ utilisée. Objectifs, Amis, Silo, Personnel, Agence, Associés et Ville n'ont pas d'icône dans design/ :
+ * Un repère par icône de design/icones/ utilisée. Objectifs, Amis, Silo, Personnel, Agence, Associés, Ville, Boutique, Pass, Palier, Possédé et Cadeau n'ont pas d'icône dans design/ :
  * leur repère est un manque du design system, à dessiner (voir addon/README.md).
  */
 export const ICON = {
@@ -64,6 +64,15 @@ export const ICON = {
   agence: "[R]",
   associes: "[N]",
   ville: "[V]",
+  boutique: "[B]",
+  pass: "[Y]",
+  /** Un palier du pass dont tout ce qui peut l'être est réclamé. */
+  palierFait: "[F]",
+  /** Un palier du pass qui attend d'être réclamé. */
+  palierAReclamer: "[K]",
+  /** Un article que le joueur possède déjà. */
+  possede: "[H]",
+  cadeau: "[Q]",
 } as const;
 
 /**

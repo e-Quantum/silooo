@@ -1,10 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ApiResult } from "../src/http";
-import type { CollectResponse, CompanyUpdated } from "../src/protocol";
+import type { Balances, CollectResponse, CompanyUpdated } from "../src/protocol";
 import { createActions } from "../src/ui/actions";
 import { createViewStore } from "../src/ui/etat";
-import { balances, candidate, companyState, factory, joinResponse, ok, prestigePreview, recordingLogger } from "./helpers";
+import {
+  balances,
+  candidate,
+  companyState,
+  factory,
+  joinResponse,
+  ok,
+  passClaimed,
+  passState,
+  prestigePreview,
+  recordingLogger,
+  shopCatalog,
+  votesToday,
+} from "./helpers";
 import {
   GAMERTAG,
   XUID,
@@ -33,6 +46,11 @@ const INUTILES = {
   buyZone: () => Promise.reject(new Error("inutile")),
   placeBuilding: () => Promise.reject(new Error("inutile")),
   upgradeBuilding: () => Promise.reject(new Error("inutile")),
+  catalog: () => Promise.reject(new Error("inutile")),
+  buyItem: () => Promise.reject(new Error("inutile")),
+  getPass: () => Promise.reject(new Error("inutile")),
+  claimPass: () => Promise.reject(new Error("inutile")),
+  todayVotes: () => Promise.reject(new Error("inutile")),
 };
 
 function setup(script: Script, state = BASE) {
@@ -737,6 +755,11 @@ describe("renvoyer un membre", () => {
       buyZone: () => Promise.reject(new Error("inutile")),
       placeBuilding: () => Promise.reject(new Error("inutile")),
       upgradeBuilding: () => Promise.reject(new Error("inutile")),
+      catalog: () => Promise.reject(new Error("inutile")),
+      buyItem: () => Promise.reject(new Error("inutile")),
+      getPass: () => Promise.reject(new Error("inutile")),
+      claimPass: () => Promise.reject(new Error("inutile")),
+      todayVotes: () => Promise.reject(new Error("inutile")),
       hire: () =>
         new Promise<ApiResult<CompanyUpdated>>((resolve) => {
           envois += 1;
@@ -1067,5 +1090,230 @@ describe("les actions de l'entreprise partagée respectent le verrou du joueur",
     assert.deepEqual(appels, []);
     finir(ok({ collected: 1, offlineHours: 0, state: companyState({ version: 2 }) }));
     assert.equal((await encaissement).kind, "collected");
+  });
+});
+
+// ---------------------------------------------------------------- la boutique, le pass, les votes
+
+describe("acheter en boutique", () => {
+  it("envoie l'article avec un requestId neuf et l'acteur, range les soldes rendus sans toucher à l'état", async () => {
+    const { actions, api, views } = setup({ buyItem: [ok(balances({ lingots: 3, gemmes: 90 }))] });
+    const avant = views.get(XUID);
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "itemBought", itemId: "mvip" });
+    assert.deepEqual(api.calls, [{ op: "buyItem", action: { requestId: "id-1", actor: XUID }, itemId: "mvip", forXuid: undefined }]);
+    const apres = views.get(XUID);
+    assert.deepEqual(apres?.balances, balances({ lingots: 3, gemmes: 90 }));
+    assert.equal(apres?.state, avant?.state);
+    assert.deepEqual(apres?.anchor, avant?.anchor);
+  });
+
+  it("un cadeau envoie le destinataire, et le rapporte", async () => {
+    const { actions, api } = setup({ buyItem: [ok(balances({ gemmes: 40 }))] });
+    assert.deepEqual(await actions.buyItem(XUID, "chat-atelier", "2535428000000003"), {
+      kind: "itemBought",
+      itemId: "chat-atelier",
+      forXuid: "2535428000000003",
+    });
+    assert.deepEqual(api.calls, [
+      { op: "buyItem", action: { requestId: "id-1", actor: XUID }, itemId: "chat-atelier", forXuid: "2535428000000003" },
+    ]);
+  });
+
+  it("un requestId différent pour chaque achat", async () => {
+    const { actions, api } = setup({ buyItem: [ok(balances()), ok(balances())] });
+    await actions.buyItem(XUID, "mvip");
+    await actions.buyItem(XUID, "mvip");
+    const ids = api.calls.flatMap((call) => (call.op === "buyItem" ? [call.action.requestId] : []));
+    assert.deepEqual(ids, ["id-1", "id-2"]);
+  });
+
+  it("PAS_ASSEZ_DE_GEMMES : les Gemmes qui manquent sont rendues, les soldes ne bougent pas, rien n'est rejoué", async () => {
+    const { actions, api, views } = setup({ buyItem: [refused("PAS_ASSEZ_DE_GEMMES", 40)] });
+    const avant = views.get(XUID);
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "refused", reason: "PAS_ASSEZ_DE_GEMMES", missing: 40 });
+    assert.equal(api.calls.length, 1);
+    assert.equal(views.get(XUID), avant);
+  });
+
+  it("DEJA_POSSEDE, GRADE_PRECEDENT_REQUIS et SAISON_INACTIVE sont rendus tels quels, sans champ missing inventé", async () => {
+    const { actions } = setup({
+      buyItem: [refused("DEJA_POSSEDE"), refused("GRADE_PRECEDENT_REQUIS"), refused("SAISON_INACTIVE")],
+    });
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "refused", reason: "DEJA_POSSEDE" });
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "refused", reason: "GRADE_PRECEDENT_REQUIS" });
+    assert.deepEqual(await actions.buyItem(XUID, "pass-premium"), { kind: "refused", reason: "SAISON_INACTIVE" });
+  });
+
+  it("CONFLIT_REESSAYER : recharge l'état, rejoue une fois avec le même requestId, range les soldes du rejeu", async () => {
+    const { actions, api, views } = setup({
+      buyItem: [refused("CONFLIT_REESSAYER"), ok(balances({ gemmes: 70 }))],
+      getCompany: [ok(companyState({ version: 5, donar: 900 }))],
+    });
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "itemBought", itemId: "mvip" });
+    assert.deepEqual(
+      api.calls.map((call) => call.op),
+      ["buyItem", "getCompany", "buyItem"],
+    );
+    const envois = api.calls.flatMap((call) => (call.op === "buyItem" ? [call.action] : []));
+    assert.deepEqual(envois[0], envois[1]);
+    assert.equal(views.get(XUID)?.state.version, 5);
+    assert.equal(views.get(XUID)?.balances.gemmes, 70);
+  });
+
+  it("un second conflit est rendu tel quel : un seul rejeu, jamais de boucle", async () => {
+    const { actions, api } = setup({
+      buyItem: [refused("CONFLIT_REESSAYER"), refused("CONFLIT_REESSAYER")],
+      getCompany: [ok(companyState({ version: 2 }))],
+    });
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "refused", reason: "CONFLIT_REESSAYER" });
+    assert.equal(api.calls.filter((call) => call.op === "buyItem").length, 2);
+  });
+
+  it("réseau coupé et erreur du service : échecs rendus tels quels, journalisés, les soldes ne bougent pas", async () => {
+    const { actions, views, log } = setup({
+      buyItem: [unreachable(), failure(400, "REQUETE_INVALIDE"), failure(501, "PAS_FAIT")],
+    });
+    const avant = views.get(XUID);
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.deepEqual(await actions.buyItem(XUID, "inconnu"), { kind: "failed", failure: "error", reason: "REQUETE_INVALIDE" });
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "failed", failure: "error", reason: "PAS_FAIT" });
+    assert.match(log.warns.join("\n"), /buyItem : réseau/);
+    assert.equal(views.get(XUID), avant);
+  });
+
+  it("un joueur sans réponse de join : indisponible, aucun appel", async () => {
+    const { actions, api } = setup({});
+    assert.deepEqual(await actions.buyItem("999", "mvip"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(await actions.claimPass("999", 1, "GRATUIT"), { kind: "failed", failure: "unavailable", reason: "PAS_DE_REPONSE_JOIN" });
+    assert.deepEqual(api.calls, []);
+  });
+
+  it("un seul appel à la fois : un achat en cours rend « occupé » à l'achat et à la réclamation suivants, sans appel", async () => {
+    const { actions, api } = setup({});
+    let finir: ((resultat: ApiResult<Balances>) => void) | undefined;
+    api.buyItem = (action, itemId, forXuid) => {
+      api.calls.push({ op: "buyItem", action, itemId, forXuid });
+      return new Promise((resolve) => {
+        finir = resolve;
+      });
+    };
+    const premier = actions.buyItem(XUID, "mvip");
+    assert.deepEqual(await actions.buyItem(XUID, "mvip"), { kind: "busy" });
+    assert.deepEqual(await actions.claimPass(XUID, 1, "GRATUIT"), { kind: "busy" });
+    assert.deepEqual(await actions.collect(XUID), { kind: "busy" });
+    assert.equal(api.calls.length, 1);
+    finir?.(ok(balances({ gemmes: 1 })));
+    assert.equal((await premier).kind, "itemBought");
+  });
+});
+
+describe("réclamer un palier du pass", () => {
+  it("envoie le palier et la piste avec un requestId neuf, range les soldes rendus et rapporte la réclamation", async () => {
+    const reclame = passClaimed({ tier: 2, track: "GRATUIT", rewardLingots: 1, balances: balances({ lingots: 9, gemmes: 5 }) });
+    const { actions, api, views } = setup({ claimPass: [ok(reclame)] });
+    const avant = views.get(XUID);
+    assert.deepEqual(await actions.claimPass(XUID, 2, "GRATUIT"), { kind: "passClaimed", claimed: reclame });
+    assert.deepEqual(api.calls, [{ op: "claimPass", action: { requestId: "id-1", actor: XUID }, tier: 2, track: "GRATUIT" }]);
+    assert.deepEqual(views.get(XUID)?.balances, balances({ lingots: 9, gemmes: 5 }));
+    assert.equal(views.get(XUID)?.state, avant?.state);
+  });
+
+  it("la piste premium rapporte le cosmétique donné", async () => {
+    const reclame = passClaimed({ tier: 3, track: "PREMIUM", rewardLingots: 0, cosmeticId: "s1-lanterne" });
+    const { actions, api } = setup({ claimPass: [ok(reclame)] });
+    assert.deepEqual(await actions.claimPass(XUID, 3, "PREMIUM"), { kind: "passClaimed", claimed: reclame });
+    assert.equal(api.calls[0]?.op === "claimPass" && api.calls[0].track, "PREMIUM");
+  });
+
+  it("PALIER_NON_ATTEINT rend les points qui manquent ; PREMIUM_REQUIS et DEJA_RECLAME sont rendus tels quels", async () => {
+    const { actions, views } = setup({
+      claimPass: [refused("PALIER_NON_ATTEINT", 60), refused("PREMIUM_REQUIS"), refused("DEJA_RECLAME")],
+    });
+    const avant = views.get(XUID);
+    assert.deepEqual(await actions.claimPass(XUID, 3, "GRATUIT"), { kind: "refused", reason: "PALIER_NON_ATTEINT", missing: 60 });
+    assert.deepEqual(await actions.claimPass(XUID, 1, "PREMIUM"), { kind: "refused", reason: "PREMIUM_REQUIS" });
+    assert.deepEqual(await actions.claimPass(XUID, 1, "GRATUIT"), { kind: "refused", reason: "DEJA_RECLAME" });
+    assert.equal(views.get(XUID), avant);
+  });
+
+  it("CONFLIT_REESSAYER : recharge l'état, rejoue une fois avec le même requestId", async () => {
+    const reclame = passClaimed();
+    const { actions, api } = setup({
+      claimPass: [refused("CONFLIT_REESSAYER"), ok(reclame)],
+      getCompany: [ok(companyState({ version: 3 }))],
+    });
+    assert.deepEqual(await actions.claimPass(XUID, 2, "GRATUIT"), { kind: "passClaimed", claimed: reclame });
+    assert.deepEqual(
+      api.calls.map((call) => call.op),
+      ["claimPass", "getCompany", "claimPass"],
+    );
+    const envois = api.calls.flatMap((call) => (call.op === "claimPass" ? [call.action] : []));
+    assert.deepEqual(envois[0], envois[1]);
+  });
+
+  it("réseau coupé : échec « network », journalisé", async () => {
+    const { actions, log } = setup({ claimPass: [unreachable()] });
+    assert.deepEqual(await actions.claimPass(XUID, 2, "GRATUIT"), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.match(log.warns.join("\n"), /claimPass : réseau/);
+  });
+});
+
+describe("lire le catalogue, le pass et les votes", () => {
+  it("catalog lit le catalogue du joueur, sans requestId, sans toucher à la vue", async () => {
+    const articles = shopCatalog({ mvip: { owned: true } });
+    const { actions, api, views } = setup({ catalog: [ok(articles)] });
+    const avant = views.get(XUID);
+    assert.deepEqual(await actions.catalog(XUID), { kind: "catalog", items: articles });
+    assert.deepEqual(api.calls, [{ op: "catalog", actor: XUID }]);
+    assert.equal(views.get(XUID), avant);
+  });
+
+  it("pass lit la progression du joueur", async () => {
+    const pass = passState({ points: 40 });
+    const { actions, api } = setup({ getPass: [ok(pass)] });
+    assert.deepEqual(await actions.pass(XUID), { kind: "pass", pass });
+    assert.deepEqual(api.calls, [{ op: "getPass", actor: XUID }]);
+  });
+
+  it("votes lit les votes du jour avec ceux du joueur", async () => {
+    const votes = votesToday({ mine: { votes: 1, streak: 2 } });
+    const { actions, api } = setup({ todayVotes: [ok(votes)] });
+    assert.deepEqual(await actions.votes(XUID), { kind: "votes", votes });
+    assert.deepEqual(api.calls, [{ op: "todayVotes", xuid: XUID }]);
+  });
+
+  it("réseau coupé : échec « network », journalisé avec le nom de la route", async () => {
+    const { actions, log } = setup({ catalog: [unreachable()], getPass: [unreachable()], todayVotes: [unreachable()] });
+    assert.deepEqual(await actions.catalog(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.deepEqual(await actions.pass(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    assert.deepEqual(await actions.votes(XUID), { kind: "failed", failure: "network", reason: "RESEAU" });
+    const journal = log.warns.join("\n");
+    assert.match(journal, /catalog : réseau/);
+    assert.match(journal, /getPass : réseau/);
+    assert.match(journal, /todayVotes : réseau/);
+  });
+
+  it("erreur du service, route pas encore écrite et refus hors contrat : échecs « error » avec le code du service", async () => {
+    const { actions } = setup({
+      catalog: [failure(500, "ERREUR_INTERNE")],
+      getPass: [failure(501, "PAS_FAIT")],
+      todayVotes: [refused("CODE_DU_FUTUR")],
+    });
+    assert.deepEqual(await actions.catalog(XUID), { kind: "failed", failure: "error", reason: "ERREUR_INTERNE" });
+    assert.deepEqual(await actions.pass(XUID), { kind: "failed", failure: "error", reason: "PAS_FAIT" });
+    assert.deepEqual(await actions.votes(XUID), { kind: "failed", failure: "error", reason: "CODE_DU_FUTUR" });
+  });
+
+  it("une lecture n'attend pas l'action en cours du joueur : elle ne prend pas le verrou", async () => {
+    const { actions, api } = setup({ catalog: [ok(shopCatalog())] });
+    let finir: ((resultat: ApiResult<Balances>) => void) | undefined;
+    api.buyItem = () =>
+      new Promise((resolve) => {
+        finir = resolve;
+      });
+    const achat = actions.buyItem(XUID, "mvip");
+    assert.equal((await actions.catalog(XUID)).kind, "catalog");
+    finir?.(ok(balances()));
+    assert.equal((await achat).kind, "itemBought");
   });
 });

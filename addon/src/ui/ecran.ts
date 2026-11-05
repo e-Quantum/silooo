@@ -2,14 +2,21 @@
 // montré (`Screen`), et les petites pièces qui les fabriquent. Aucun écran ici : menu.ts et personnel.ts les
 // dessinent, createMenu les enchaîne. Ce fichier ne calcule rien et n'importe rien de Bedrock.
 
-import { RESTORE_STEP_MAX, type BuildingRotation, type BuyAmount, type Factory, type Xuid } from "../protocol";
+import { RESTORE_STEP_MAX, type BuildingRotation, type BuyAmount, type Factory, type PassTrack, type Xuid } from "../protocol";
 import { COLOR, colored, ICON } from "./apparence";
 import type { ActionFormSpec } from "./formulaires";
 import { formatCount, formatRate } from "./nombres";
+import type { CosmeticCategory } from "../monde/definitions";
 import { incidentTexts, MENU_TEXTES, renderBubble, USINES_TEXTES, type Bubble } from "./textes";
 import type { FactoryStatus } from "./usines";
 
 // ---------------------------------------------------------------- vocabulaire des écrans
+
+/** Un rayon de la boutique : les grades, la liste des catégories de cosmétiques, ou une catégorie. */
+export type ShopShelf = "grades" | "cosmetiques" | CosmeticCategory;
+
+/** D'où l'on vient pour ouvrir un article : un rayon, ou la boutique elle-même (le Pilier et le boost collectif n'ont pas de rayon). */
+export type ArticleShelf = "direct" | "grades" | CosmeticCategory;
 
 /** Où le joueur se trouve. Chaque écran sait quel est son parent : pas de pile à tenir. */
 export type Route =
@@ -51,7 +58,21 @@ export type Route =
   /** Le choix du bâtiment à poser. */
   | { readonly screen: "construire" }
   /** La pose d'un bâtiment sur la parcelle où se tient le joueur, avec la rotation choisie. */
-  | { readonly screen: "poser"; readonly buildingType: string; readonly rotation: BuildingRotation };
+  | { readonly screen: "poser"; readonly buildingType: string; readonly rotation: BuildingRotation }
+  /** La boutique en Gemmes (boutique.ts) : les grades, le Pilier, les cosmétiques, le boost collectif, le pass. */
+  | { readonly screen: "boutique" }
+  /** Un rayon de la boutique, à la page `page` de sa liste. */
+  | { readonly screen: "rayon"; readonly rayon: ShopShelf; readonly page: number }
+  /** La fiche d'un article ; `shelf` et `page` disent d'où l'on vient. */
+  | { readonly screen: "article"; readonly itemId: string; readonly shelf: ArticleShelf; readonly page: number }
+  /** Le choix du joueur à qui l'on offre l'article ; `shelf` et `page` sont ceux de l'article, `choix` la page des joueurs. */
+  | { readonly screen: "offrir"; readonly itemId: string; readonly shelf: ArticleShelf; readonly page: number; readonly choix: number }
+  /** Le pass de saison (pass.ts) : la saison, les points, la piste premium. */
+  | { readonly screen: "pass" }
+  /** Les paliers du pass, une page à la fois. */
+  | { readonly screen: "paliers"; readonly page: number }
+  /** Un palier, avec ses deux pistes ; `page` est celle de la liste d'où l'on vient. */
+  | { readonly screen: "palier"; readonly tier: number; readonly page: number };
 
 /** Ce que fait un bouton. */
 export type Target =
@@ -90,6 +111,12 @@ export type Target =
   | { readonly kind: "upgrade"; readonly buildingId: number }
   /** Pose un bâtiment sur la parcelle où se tient le joueur : la parcelle est lue au moment du clic. */
   | { readonly kind: "place"; readonly buildingType: string; readonly rotation: BuildingRotation }
+  /** Achète l'article `itemId` de la boutique avec les Gemmes du joueur. */
+  | { readonly kind: "buyItem"; readonly itemId: string }
+  /** Offre l'article `itemId` au joueur `forXuid` : c'est encore le joueur qui paie. */
+  | { readonly kind: "giftItem"; readonly itemId: string; readonly forXuid: Xuid }
+  /** Réclame la récompense du palier `tier` sur la piste `track` du pass. */
+  | { readonly kind: "claim"; readonly tier: number; readonly track: PassTrack }
   /** Ferme le menu. */
   | { readonly kind: "end" };
 

@@ -80,7 +80,7 @@ const titleOf = (spec: { title: string }) => spec.title;
 describe("menu principal", () => {
   const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }), missionState());
 
-  it("huit tuiles : Silo, Usines, Carte, Objectifs, Prestige, Personnel et Associés actifs, Ville verrouillée tant que le service ne donne pas de ville", () => {
+  it("huit tuiles : Silo, Usines, Carte, Objectifs, Prestige, Personnel et Boutique actifs, Ville verrouillée tant que le service ne donne pas de ville (les associés sont sous Personnel)", () => {
     assert.equal(screen.spec.title, MENU_TEXTES.titre);
     assert.equal(screen.spec.buttons.length, 8);
     assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
@@ -90,7 +90,7 @@ describe("menu principal", () => {
       "objectifs",
       "prestige",
       "personnel",
-      "associes",
+      "boutique",
       "soon",
     ]);
   });

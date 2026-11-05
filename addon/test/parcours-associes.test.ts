@@ -95,50 +95,50 @@ function updated(version: number, members: Member[], extra: Partial<CompanyState
 
 describe("parcours : la liste des associés", () => {
   it("la tuile ouvre l'écran, qui relit l'entreprise : la liste est celle du service, pas celle de la dernière fois", async () => {
-    const { menu, presenter, api, views } = setup([press("Associés"), close], {
+    const { menu, presenter, api, views } = setup([press("Personnel"), press("Associés"), close], {
       getCompany: [relue({ ...ASSOCIES, members: [{ ...PDG, sharePercent: 50 }, { ...ADA, sharePercent: 50 }] })],
     });
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS"]);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS"]);
     assert.deepEqual(api.calls, [{ op: "getCompany", companyId: 7 }]);
-    assert.ok(bare(presenter.shown[1]?.body ?? "").includes("PDG · Alex · 50 % (toi)"), presenter.shown[1]?.body);
+    assert.ok(bare(presenter.shown[2]?.body ?? "").includes("PDG · Alex · 50 % (toi)"), presenter.shown[2]?.body);
     assert.equal(views.get(XUID)?.state.members?.[0]?.sharePercent, 50);
   });
 
-  it("revient au menu par Retour, et la tuile garde sa ligne d'info", async () => {
-    const { menu, presenter } = setup([press("Associés"), press("Retour"), close], { getCompany: [relue()] });
+  it("revient au Personnel par Retour, et la tuile des associés garde sa ligne d'info", async () => {
+    const { menu, presenter } = setup([press("Personnel"), press("Associés"), press("Retour"), close], { getCompany: [relue()] });
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "MENU"]);
-    assert.ok(presenter.shown[0]?.buttons.some((texte) => bare(texte).includes("Associés") && bare(texte).includes("2 associés")));
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "PERSONNEL"]);
+    assert.ok(presenter.shown[1]?.buttons.some((texte) => bare(texte).includes("Associés") && bare(texte).includes("2 associés")));
   });
 
   it("un associé n'a que la liste et Retour", async () => {
     const membres = [PDG, { ...ADA, xuid: XUID, name: "Alex", role: "ASSOCIE" as const }];
-    const { menu, presenter } = setup([press("Associés"), close], { getCompany: [relue({ ...ASSOCIES, members: [{ ...PDG, xuid: ADA_XUID, name: "Ada" }, membres[1] as Member] })] });
+    const { menu, presenter } = setup([press("Personnel"), press("Associés"), close], { getCompany: [relue({ ...ASSOCIES, members: [{ ...PDG, xuid: ADA_XUID, name: "Ada" }, membres[1] as Member] })] });
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown[1]?.buttons.map(bare), ["Retour"]);
+    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), ["Retour"]);
   });
 
   it("un joueur seul lit qu'il peut inviter, et il a Inviter", async () => {
-    const { menu, presenter } = setup([press("Associés"), close], { getCompany: [relue({ ...ASSOCIES, members: [SEUL] })] }, { ...ASSOCIES, members: [SEUL] });
+    const { menu, presenter } = setup([press("Personnel"), press("Associés"), close], { getCompany: [relue({ ...ASSOCIES, members: [SEUL] })] }, { ...ASSOCIES, members: [SEUL] });
     await menu.open(PLAYER);
-    const body = bare(presenter.shown[1]?.body ?? "");
+    const body = bare(presenter.shown[2]?.body ?? "");
     assert.ok(body.includes("jusqu'à ce que le service refuse"), body);
-    assert.deepEqual(presenter.shown[1]?.buttons.map(bare), ["Inviter", "Retour"]);
-    assert.ok(bare(presenter.shown[0]?.buttons.find((texte) => texte.includes("Associés")) ?? "").endsWith("Invite des joueurs"));
+    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), ["Inviter", "Retour"]);
+    assert.ok(bare(presenter.shown[1]?.buttons.find((texte) => texte.includes("Associés")) ?? "").endsWith("Invite des joueurs"));
   });
 
   it("la relecture échoue : la dernière liste connue reste affichée, Oooscar dit que le service ne répond pas", async () => {
-    const { menu, presenter } = setup([press("Associés"), close], { getCompany: [unreachable()] });
+    const { menu, presenter } = setup([press("Personnel"), press("Associés"), close], { getCompany: [unreachable()] });
     await menu.open(PLAYER);
-    const body = bare(presenter.shown[1]?.body ?? "");
+    const body = bare(presenter.shown[2]?.body ?? "");
     assert.ok(body.startsWith("Oooscar [panique] Le service ne répond pas."), body);
     assert.ok(body.includes("Associé · Ada · 40 %"), body);
   });
 });
 
 describe("parcours : inviter", () => {
-  const VERS_INVITER = [press("Associés"), press("Inviter")];
+  const VERS_INVITER = [press("Personnel"), press("Associés"), press("Inviter")];
 
   it("les joueurs connectés sauf soi ; un appui envoie l'invitation, puis la liste revient avec « Invitation envoyée »", async () => {
     const { menu, presenter, api } = setup([...VERS_INVITER, press("Bea"), close], {
@@ -146,16 +146,16 @@ describe("parcours : inviter", () => {
       invite: [ok(updated(3, [PDG, ADA]))],
     });
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITER", "ASSOCIÉS"]);
-    assert.deepEqual(presenter.shown[2]?.buttons, ["Bea", "Retour"], "le joueur n'est pas dans sa propre liste");
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITER", "ASSOCIÉS"]);
+    assert.deepEqual(presenter.shown[3]?.buttons, ["Bea", "Retour"], "le joueur n'est pas dans sa propre liste");
     assert.deepEqual(api.calls[1], { op: "invite", companyId: 7, action: { requestId: "id-1", actor: XUID }, targetXuid: BEA_XUID });
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [joie] Invitation envoyée."), presenter.shown[3]?.body);
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [joie] Invitation envoyée."), presenter.shown[4]?.body);
   });
 
   it("Retour revient à la liste, sans appel", async () => {
     const { menu, presenter, api } = setup([...VERS_INVITER, press("Retour"), close], { getCompany: [relue(), relue()] });
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITER", "ASSOCIÉS"]);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITER", "ASSOCIÉS"]);
     assert.deepEqual(
       api.calls.map((call) => call.op),
       ["getCompany", "getCompany"],
@@ -173,8 +173,8 @@ describe("parcours : inviter", () => {
     it(`refus : ${quand} ; le joueur reste sur le choix avec la bulle, rien n'est changé`, async () => {
       const { menu, presenter, views } = setup([...VERS_INVITER, press("Bea"), close], { getCompany: [relue()], invite: [reponse] });
       await menu.open(PLAYER);
-      assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITER", "INVITER"]);
-      assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith(bulle), presenter.shown[3]?.body);
+      assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITER", "INVITER"]);
+      assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith(bulle), presenter.shown[4]?.body);
       assert.equal(views.get(XUID)?.state.version, 2, "l'état est celui de la relecture");
     });
   }
@@ -182,19 +182,19 @@ describe("parcours : inviter", () => {
   it("service injoignable : la panique d'Oooscar, le joueur reste sur le choix", async () => {
     const { menu, presenter } = setup([...VERS_INVITER, press("Bea"), close], { getCompany: [relue()], invite: [unreachable()] });
     await menu.open(PLAYER);
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [panique] Le service ne répond pas."));
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [panique] Le service ne répond pas."));
   });
 
   it("personne d'autre en ligne : la phrase le dit", async () => {
     const solo = setup([...VERS_INVITER, close], { getCompany: [relue()] });
     // Même menu, mais seul en ligne : on vérifie la phrase du choix vide par l'écran pur (voir associes.test.ts).
     await solo.menu.open(PLAYER);
-    assert.deepEqual(solo.presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITER"]);
+    assert.deepEqual(solo.presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITER"]);
   });
 });
 
 describe("parcours : les parts", () => {
-  const VERS_PARTS = [press("Associés"), press("Parts")];
+  const VERS_PARTS = [press("Personnel"), press("Associés"), press("Parts")];
 
   it("le formulaire a un champ par membre, rempli avec les parts du service ; l'envoi part tel quel, la liste revient à jour", async () => {
     const apres = updated(3, [{ ...PDG, sharePercent: 70 }, { ...ADA, sharePercent: 30 }]);
@@ -218,8 +218,8 @@ describe("parcours : les parts", () => {
         { xuid: ADA_XUID, percent: 30 },
       ],
     });
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "ASSOCIÉS"]);
-    const body = bare(presenter.shown[2]?.body ?? "");
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "ASSOCIÉS"]);
+    const body = bare(presenter.shown[3]?.body ?? "");
     assert.ok(body.startsWith("Oooscar [joie] Parts enregistrées."), body);
     assert.ok(body.includes("PDG · Alex · 70 % (toi)") && body.includes("Associé · Ada · 30 %"), body);
     assert.equal(views.get(XUID)?.state.version, 3);
@@ -232,7 +232,7 @@ describe("parcours : les parts", () => {
       api.calls.map((call) => call.op),
       ["getCompany"],
     );
-    assert.ok(bare(presenter.shown[2]?.body ?? "").startsWith("Oooscar [oups] Écris un pourcentage entier."), presenter.shown[2]?.body);
+    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Écris un pourcentage entier."), presenter.shown[3]?.body);
   });
 
   it("des parts qui ne font pas 100 partent quand même : l'add-on n'additionne rien, le 400 du service devient la bulle du total", async () => {
@@ -246,7 +246,7 @@ describe("parcours : les parts", () => {
         [90, 90],
       );
     }
-    assert.ok(bare(presenter.shown[2]?.body ?? "").startsWith("Oooscar [oups] Les parts doivent faire 100."), presenter.shown[2]?.body);
+    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Les parts doivent faire 100."), presenter.shown[3]?.body);
     assert.equal(views.get(XUID)?.state.members?.[0]?.sharePercent, 60, "la liste n'a pas bougé");
   });
 
@@ -257,8 +257,8 @@ describe("parcours : les parts", () => {
       api.calls.map((call) => call.op),
       ["getCompany"],
     );
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "ASSOCIÉS"]);
-    assert.ok(!bare(presenter.shown[2]?.body ?? "").includes("Oooscar"), presenter.shown[2]?.body);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "ASSOCIÉS"]);
+    assert.ok(!bare(presenter.shown[3]?.body ?? "").includes("Oooscar"), presenter.shown[3]?.body);
   });
 
   it("Bedrock refuse d'abord le formulaire (un écran est ouvert) : il est réessayé, puis envoyé", async () => {
@@ -288,13 +288,13 @@ describe("parcours : les parts", () => {
       setShares: [{ kind: "refused", status: 403, reason: "PAS_LE_PDG" }],
     }, ASSOCIES, [submit("70", "30")]);
     await menu.open(PLAYER);
-    assert.ok(bare(presenter.shown[2]?.body ?? "").startsWith("Oooscar [oups] Seul le PDG peut le faire."), presenter.shown[2]?.body);
+    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Seul le PDG peut le faire."), presenter.shown[3]?.body);
   });
 
   it("un joueur seul n'a pas de bouton Parts", async () => {
-    const { menu, presenter } = setup([press("Associés"), close], { getCompany: [relue({ ...ASSOCIES, members: [SEUL] })] }, { ...ASSOCIES, members: [SEUL] });
+    const { menu, presenter } = setup([press("Personnel"), press("Associés"), close], { getCompany: [relue({ ...ASSOCIES, members: [SEUL] })] }, { ...ASSOCIES, members: [SEUL] });
     await menu.open(PLAYER);
-    assert.ok(!presenter.shown[1]?.buttons.some((texte) => texte.includes("Parts")));
+    assert.ok(!presenter.shown[2]?.buttons.some((texte) => texte.includes("Parts")));
   });
 });
 
@@ -314,20 +314,20 @@ describe("parcours : une invitation reçue", () => {
   });
 
   it("l'invitation est la première entrée de la liste ; sa fenêtre dit ce que le joueur quitte", async () => {
-    const { menu, presenter, api } = withInvitation([press("Associés"), press("t'invite dans"), close], { getCompany: [relue()] });
+    const { menu, presenter, api } = withInvitation([press("Personnel"), press("Associés"), press("t'invite dans"), close], { getCompany: [relue()] });
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITATION"]);
-    assert.equal(bare(presenter.shown[1]?.buttons[0] ?? ""), "[N] Bea t'invite dans Les Forges");
-    const body = bare(presenter.shown[2]?.body ?? "");
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITATION"]);
+    assert.equal(bare(presenter.shown[2]?.buttons[0] ?? ""), "[N] Bea t'invite dans Les Forges");
+    const body = bare(presenter.shown[3]?.body ?? "");
     assert.ok(body.startsWith("Bea t'invite dans Les Forges"), body);
     assert.ok(body.includes("Tu quittes ton entreprise actuelle."), body);
-    assert.deepEqual(presenter.shown[2]?.buttons, ["Accepter", "Plus tard"]);
+    assert.deepEqual(presenter.shown[3]?.buttons, ["Accepter", "Plus tard"]);
     assert.equal(api.calls.length, 1, "regarder une invitation n'appelle que la relecture");
   });
 
   it("Accepter : l'appel vise l'entreprise qui invite, le joueur change d'entreprise, le HUD est redessiné", async () => {
     const { menu, presenter, api, views, invitations, huds } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), close],
       { getCompany: [relue()], acceptInvite: [ok(rejointe())] },
     );
     await menu.open(PLAYER);
@@ -337,20 +337,20 @@ describe("parcours : une invitation reçue", () => {
     assert.equal(views.get(XUID)?.balances.lingots, 3);
     assert.deepEqual(huds, [XUID]);
     assert.deepEqual(invitations.list(XUID), [], "les invitations du joueur sont périmées");
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
-    const body = bare(presenter.shown[3]?.body ?? "");
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
+    const body = bare(presenter.shown[4]?.body ?? "");
     assert.ok(body.startsWith("Oooscar [joie] Bienvenue dans l'entreprise."), body);
     assert.ok(body.includes("Les Forges") && body.includes("Associé · Alex · 0 % (toi)"), body);
   });
 
   it("la suite se passe dans la nouvelle entreprise : les appels visent l'entreprise 12", async () => {
     const { menu, api } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), press("Retour"), press("Associés"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), press("Retour"), press("Associés"), close],
       { getCompany: [relue(), ok(companyState({ ...AILLEURS, version: 6, members: rejointe().state.members as Member[] }))], acceptInvite: [ok(rejointe())] },
     );
     await menu.open(PLAYER);
     assert.deepEqual(
-      api.calls.map((call) => [call.op, call.companyId]),
+      api.calls.map((call) => [call.op, "companyId" in call ? call.companyId : undefined]),
       [
         ["getCompany", 7],
         ["acceptInvite", 12],
@@ -361,85 +361,85 @@ describe("parcours : une invitation reçue", () => {
 
   it("Plus tard revient à la liste : l'invitation attend encore, rien n'est appelé", async () => {
     const { menu, presenter, api, invitations } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Plus tard"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Plus tard"), close],
       { getCompany: [relue(), relue()] },
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
     assert.deepEqual(
       api.calls.map((call) => call.op),
       ["getCompany", "getCompany"],
       "ni accepter ni refuser : seule la relecture de la liste part",
     );
     assert.equal(invitations.list(XUID).length, 1);
-    assert.equal(bare(presenter.shown[3]?.buttons[0] ?? ""), "[N] Bea t'invite dans Les Forges");
+    assert.equal(bare(presenter.shown[4]?.buttons[0] ?? ""), "[N] Bea t'invite dans Les Forges");
   });
 
   it("l'invitation a expiré côté service (400) : elle disparaît de la liste, Oooscar le dit", async () => {
     const { menu, presenter, invitations, views } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), close],
       { getCompany: [relue()], acceptInvite: [failure(400, "REQUETE_INVALIDE")] },
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Cette invitation a expiré."), presenter.shown[3]?.body);
-    assert.ok(!presenter.shown[3]?.buttons.some((texte) => texte.includes("t'invite dans")));
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [oups] Cette invitation a expiré."), presenter.shown[4]?.body);
+    assert.ok(!presenter.shown[4]?.buttons.some((texte) => texte.includes("t'invite dans")));
     assert.deepEqual(invitations.list(XUID), []);
     assert.equal(views.get(XUID)?.state.companyId, 7);
   });
 
   it("l'entreprise est pleine : la fenêtre reste, l'invitation aussi, avec la bulle", async () => {
     const { menu, presenter, invitations } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), close],
       { getCompany: [relue()], acceptInvite: [refused("ENTREPRISE_PLEINE")] },
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITATION", "INVITATION"]);
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Cette entreprise est pleine."), presenter.shown[3]?.body);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITATION", "INVITATION"]);
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [oups] Cette entreprise est pleine."), presenter.shown[4]?.body);
     assert.equal(invitations.list(XUID).length, 1);
   });
 
   it("l'entreprise du joueur est déjà lancée : la bulle habituelle, il reste dans son entreprise", async () => {
     const { menu, presenter, views } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), close],
       { getCompany: [relue()], acceptInvite: [refused("ENTREPRISE_EN_COURS")] },
     );
     await menu.open(PLAYER);
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Tu as déjà lancé ton entreprise."), presenter.shown[3]?.body);
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [oups] Tu as déjà lancé ton entreprise."), presenter.shown[4]?.body);
     assert.equal(views.get(XUID)?.state.companyId, 7);
   });
 
   it("DEJA_POSSEDE : le joueur est déjà dans cette entreprise, l'invitation ne sert plus", async () => {
     const { menu, presenter, invitations } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), close],
       { getCompany: [relue()], acceptInvite: [refused("DEJA_POSSEDE")] },
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [oups] Tu es déjà associé ici."), presenter.shown[3]?.body);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "INVITATION", "ASSOCIÉS"]);
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [oups] Tu es déjà associé ici."), presenter.shown[4]?.body);
     assert.deepEqual(invitations.list(XUID), []);
   });
 
   it("service injoignable : la panique d'Oooscar, le joueur reste où il est et l'invitation aussi", async () => {
     const { menu, presenter, invitations, views } = withInvitation(
-      [press("Associés"), press("t'invite dans"), press("Accepter"), close],
+      [press("Personnel"), press("Associés"), press("t'invite dans"), press("Accepter"), close],
       { getCompany: [relue()], acceptInvite: [unreachable()] },
     );
     await menu.open(PLAYER);
-    assert.ok(bare(presenter.shown[3]?.body ?? "").startsWith("Oooscar [panique] Le service ne répond pas."));
+    assert.ok(bare(presenter.shown[4]?.body ?? "").startsWith("Oooscar [panique] Le service ne répond pas."));
     assert.equal(invitations.list(XUID).length, 1);
     assert.equal(views.get(XUID)?.state.companyId, 7);
   });
 
   it("une invitation expirée n'est plus dans la liste quand le joueur ouvre l'écran", async () => {
-    const { menu, presenter, clock } = withInvitation([press("Associés"), close], { getCompany: [relue()] });
+    const { menu, presenter, clock } = withInvitation([press("Personnel"), press("Associés"), close], { getCompany: [relue()] });
     clock.advance(25 * 3_600_000);
     await menu.open(PLAYER);
-    assert.ok(!presenter.shown[1]?.buttons.some((texte) => texte.includes("t'invite dans")), JSON.stringify(presenter.shown[1]?.buttons));
+    assert.ok(!presenter.shown[2]?.buttons.some((texte) => texte.includes("t'invite dans")), JSON.stringify(presenter.shown[2]?.buttons));
   });
 
   it("deux invitations : chacune a sa fenêtre, et Accepter vise la bonne entreprise", async () => {
-    const setupResult = setup([press("Associés"), press("Cal t'invite"), press("Accepter"), close], {
+    const setupResult = setup([press("Personnel"), press("Associés"), press("Cal t'invite"), press("Accepter"), close], {
       getCompany: [relue()],
       acceptInvite: [ok({ ...rejointe(), state: { ...rejointe().state, companyId: 13, name: "Mines Unies" } })],
     });
@@ -451,7 +451,7 @@ describe("parcours : une invitation reçue", () => {
   });
 
   it("une invitation périmée entre deux écrans : le joueur revient à la liste, sans appel d'acceptation", async () => {
-    const setupResult = setup([press("Associés"), press("t'invite dans"), close], { getCompany: [relue(), relue()] });
+    const setupResult = setup([press("Personnel"), press("Associés"), press("t'invite dans"), close], { getCompany: [relue(), relue()] });
     setupResult.invitations.onInvitation(invitationEvent(1, XUID));
     // Le joueur appuie sur l'invitation, mais elle est périmée (arrivée de l'événement suivant, réponse d'un autre écran) avant que sa fenêtre s'ouvre.
     const presenterShow = setupResult.presenter.show.bind(setupResult.presenter);
@@ -461,7 +461,7 @@ describe("parcours : une invitation reçue", () => {
       return answer;
     };
     await setupResult.menu.open(PLAYER);
-    assert.deepEqual(setupResult.presenter.shown.map(titleOf), ["MENU", "ASSOCIÉS", "ASSOCIÉS"]);
+    assert.deepEqual(setupResult.presenter.shown.map(titleOf), ["MENU", "PERSONNEL", "ASSOCIÉS", "ASSOCIÉS"]);
     assert.deepEqual(
       setupResult.api.calls.map((call) => call.op),
       ["getCompany", "getCompany"],

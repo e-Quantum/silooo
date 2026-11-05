@@ -16,7 +16,7 @@ aucun solde, prix ni gain ne se calcule ici. Il envoie ce qui se passe (arrivée
 | `src/session.ts`, `src/state.ts` | `join` à la première arrivée, `leave` au départ, état gardé par joueur. |
 | `src/heartbeat.ts`, `src/events.ts` | Heartbeat régulier ; lecture des événements avec un curseur qui part de 0. |
 | `src/config.ts` | Cadences et délais techniques. Aucun chiffre du jeu. |
-| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, réparation, associés, ville, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
+| `src/ui/` | Les écrans : HUD, menu, carte, prestige, objectifs, personnel, agence, réparation, associés, ville, boutique, pass, votes, boussole. Le détail est dans « Les écrans » plus bas. Seul `ui/textes.ts` contient des phrases. |
 | `src/ui/formulaires.ts` | La seule enveloppe de `@minecraft/server-ui`. |
 | `src/monde/` | Le monde : îles des usines, île principale (la ville), arrivée, voyage depuis la carte, cinématique, Oooscar. Le détail est dans « Le monde » plus bas. |
 | `src/monde/bedrock.ts` | L'enveloppe de `@minecraft/server` pour le monde (blocs, caméra, entité, téléportation). Seul `main.ts` l'importe. |
@@ -73,7 +73,7 @@ Appels bêta, tous dans `src/beta.ts` :
 Première tranche de la phase 3 : le HUD, le menu et la fiche d'usine, puis les objectifs (la première mission, celle de
 la mairie). L'add-on n'y calcule rien. Chaque valeur affichée est un champ d'une réponse du service ; seul le compteur
 de Donar avance entre deux réponses (revenu par heure × temps écoulé, jamais sous le solde du service). La phase 4
-y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »), puis les incidents d'usine et leur réparation (voir « Les incidents »), puis les associés (voir « Les associés »), puis la ville et l'île principale (voir « La ville »).
+y ajoute le prestige et la carte des îles (voir « La carte et le prestige » plus bas), puis le personnel et l'agence (voir « Le personnel »), puis les incidents d'usine et leur réparation (voir « Les incidents »), puis les associés (voir « Les associés »), puis la ville et l'île principale (voir « La ville »). La phase 5 y ajoute la boutique en Gemmes, le pass de saison, les votes et les annonces qui vont avec (voir « La boutique, le pass et les votes »).
 
 ```
 boussole ── MENU ─┬─ Silo ───── Encaisser ............ collect
@@ -86,12 +86,19 @@ boussole ── MENU ─┬─ Silo ───── Encaisser ............ colle
                   │                                     (lecture de l'aperçu .......... prestigePreview)
                   ├─ Personnel ─ une équipe par usine ─ un membre ─┬─ Affecter à une usine ... assignStaff
                   │         │                                      └─ Renvoyer, confirmé ..... fireStaff
-                  │         └─ Agence ─ un candidat ─ Embaucher ─ son usine, ou aucune ... hire
-                  │                    (lecture des candidats du jour ........ getCandidates)
-                  ├─ Associés ─ la liste ─┬─ Inviter ─ un joueur connecté .................. invite
-                  │   (relue à chaque     ├─ Parts (PDG) ─ un champ par membre ............ setShares
-                  │    ouverture ........ ├─ Invitation reçue ─ Accepter ... acceptInvite, puis le HUD
-                  │    getCompany)        └─ Retour
+                  │         ├─ Agence ─ un candidat ─ Embaucher ─ son usine, ou aucune ... hire
+                  │         │          (lecture des candidats du jour ........ getCandidates)
+                  │         └─ Associés ─ la liste ─┬─ Inviter ─ un joueur connecté ....... invite
+                  │             (relue à chaque     ├─ Parts (PDG) ─ un champ par membre . setShares
+                  │              ouverture ........ ├─ Invitation reçue ─ Accepter ... acceptInvite, puis le HUD
+                  │              getCompany)        └─ Retour
+                  ├─ Boutique ─ les Gemmes (catalogue, pass et votes relus à l'ouverture .. catalog, getPass, todayVotes)
+                  │         ├─ Grades, Cosmétiques par catégorie ─ un article ─┬─ Acheter, Prolonger ... buyItem
+                  │         │                                                  └─ Offrir ─ un joueur connecté ... buyItem + forXuid
+                  │         ├─ Pilier, Boost collectif ─ un article (le boost ne s'offre pas)
+                  │         └─ Pass de saison ─┬─ Passer premium .................... buyItem (pass-premium)
+                  │              (relu ....... └─ Paliers ─ un palier ─ Réclamer le gratuit, le premium .... claimPass
+                  │               getPass)
                   └─ Ville ──── la ville (relue à chaque ouverture ... getCompany) ─┬─ Acheter la zone ........ buyZone
                                                                                      ├─ Bâtiments ─ un bâtiment ─ Améliorer ... upgradeBuilding
                                                                                      └─ Construire ─ un type ─ Poser ici ...... placeBuilding
@@ -108,17 +115,21 @@ n'en a pas, puis l'utiliser ouvre le menu. Une action tient en deux touches depu
 | `nombres.ts` | La notation des grands nombres : k, M, Md, aa…, trois chiffres significatifs, virgule décimale, espace insécable. |
 | `compteur.ts` | Le compteur de Donar entre deux réponses du service. |
 | `etat.ts` | La dernière vue de chaque joueur (une réponse plus ancienne, ou d'une autre entreprise, est ignorée ; `switchCompany` change d'entreprise) et l'état de la liaison avec le service. |
-| `actions.ts` | Les quatorze actions (encaisser, acheter des niveaux, remettre en état, réparer un incident, prestige, embaucher, affecter, renvoyer, inviter, fixer les parts, accepter une invitation, acheter une zone, poser un bâtiment, améliorer un bâtiment) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige et les candidats du jour sont des lectures : ni verrou ni identifiant. |
+| `actions.ts` | Les seize actions (encaisser, acheter des niveaux, remettre en état, réparer un incident, prestige, embaucher, affecter, renvoyer, inviter, fixer les parts, accepter une invitation, acheter une zone, poser un bâtiment, améliorer un bâtiment, acheter un article de la boutique, réclamer un palier du pass) : un identifiant par action, un seul nouvel essai après `CONFLIT_REESSAYER`, une action à la fois par joueur. Après un encaissement réussi, elle appelle `afterCollect` (la relecture des missions). L'aperçu du prestige, les candidats du jour, le catalogue, le pass et les votes du jour sont des lectures : ni verrou ni identifiant. |
 | `missions.ts` | Les missions de chaque joueur d'après la dernière lecture de `getMissions`, et l'annonce d'une mission terminée. Les trois moments de lecture : l'arrivée, après chaque encaissement, une annonce. |
 | `usines.ts` | La situation d'une usine d'après les champs du contrat, et la prochaine étape de remise en état. |
 | `hud.ts` | Le HUD : rendu pur, puis envoi aux joueurs une fois par seconde. |
 | `ecran.ts` | Le vocabulaire commun des écrans : routes, cibles des boutons, `Screen`, bulle et pages. Aucun écran, aucun import de Bedrock. |
-| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel, associés et ville compris. |
+| `menu.ts` | Le menu, la liste des usines, la fiche, le Silo, les objectifs, la carte, le prestige (avant et après), et le parcours entre tous les écrans, personnel, associés, ville et boutique compris. |
 | `reparation.ts` | Le mini-jeu de réparation : la logique pure (`repairMove`, qui juge un choix et rend l'étape suivante, la même étape après une erreur, ou la fin), l'écran d'une étape, et `playRepair`, qui enchaîne les formulaires et rend `done` ou `back`. Il n'appelle pas le service : c'est `menu.ts` qui appelle `resolveIncident` après la dernière étape réussie. |
 | `incidents.ts` | L'événement `INCIDENT` en phrases pour le tchat (un incident s'ouvre, un incident est réparé, avec la récompense du service), puis la relecture de l'état de l'entreprise pour que la fiche d'usine suive. |
-| `personnel.ts` | Les écrans du personnel et de l'agence, et la ligne d'équipe de la fiche d'usine : des fonctions pures, comme celles de `menu.ts`. |
+| `personnel.ts` | Les écrans du personnel et de l'agence, la porte des associés, et la ligne d'équipe de la fiche d'usine : des fonctions pures, comme celles de `menu.ts`. |
 | `associes.ts` | Les écrans des associés (la liste, le choix du joueur à inviter, l'invitation reçue), le formulaire des parts et la lecture de ses champs : des fonctions pures. |
 | `ville.ts` | Les écrans de la ville : la tuile du menu et celle de la carte, la ville (mairie, bonus, prochaine zone), la liste des bâtiments, la fiche d'un bâtiment, le choix d'un bâtiment à poser, la pose, et la bulle d'Oooscar de chaque refus : des fonctions pures. |
+| `boutique.ts` | Les écrans de la boutique : la tuile du menu, la boutique, un rayon, la fiche d'un article, le choix du joueur à qui l'offrir, la ligne du titre Pionnier, et la bulle d'Oooscar de chaque achat ou refus : des fonctions pures. |
+| `pass.ts` | Les écrans du pass de saison : la porte dans la boutique, le pass, la liste des paliers, la fiche d'un palier avec ses deux pistes, et la bulle d'un palier réclamé : des fonctions pures. |
+| `votes.ts` | Le rappel du vote du jour (le nom des sites de `definitions/vote.json`, la ligne de la boutique, la lecture à l'arrivée du joueur) et les `ANNONCE` `vote` et `voteParty`. |
+| `annonces.ts` | Les événements `GEMMES_RECUES` et `BOOST_COLLECTIF`, les `ANNONCE` `pionnier` et `sansCourant` : une bulle ou une ligne de tchat chacun, et le titre de pionnier retenu pour l'en-tête du menu. |
 | `annonces-ville.ts` | L'événement `ANNONCE` d'un achat de zone, d'une pose ou d'une amélioration : relecture de l'état de l'entreprise, puis une bulle courte dans le tchat. |
 | `invitations.ts` | Les invitations reçues de chaque joueur d'après l'événement `INVITATION` (une par entreprise, jusqu'à `expiresAt`), et l'annonce d'un changement de parts. |
 | `formulaires.ts` | La seule enveloppe de `@minecraft/server-ui` : des écrans à boutons (`show`) et des formulaires à champs de texte (`ask`). Les tests passent un faux présentateur. |
@@ -290,7 +301,7 @@ limite, et ne connaît pas de maximum. Les écrans sont dans `ui/associes.ts` (f
 dans `ui/invitations.ts` ; les phrases dans `ASSOCIES_TEXTES`, toutes à valider par Kr. La liste des membres est
 `CompanyState.members` (le contrat ne la marque pas obligatoire : absente, elle est vide).
 
-**Associés.** La tuile du menu, juste avant « Ville », ouvre l'écran ASSOCIÉS. À chaque ouverture, il relit l'entreprise
+**Associés.** La tuile, sous Personnel (le menu principal n'a que huit places : la Boutique a pris la sienne), juste après l'Agence, ouvre l'écran ASSOCIÉS ; son « Retour » revient à PERSONNEL. À chaque ouverture, il relit l'entreprise
 (`getCompany`) : la liste est celle du service, le PDG en premier, avec le rôle, le nom et la part en pourcent. La ligne du
 joueur porte « (toi) ». Un joueur seul lit qu'il peut inviter « jusqu'à ce que le service refuse » : l'écran ne donne aucun
 chiffre. Le PDG a les boutons « Inviter » et « Parts » (« Parts » seulement quand l'entreprise a au moins deux membres) ;
@@ -381,6 +392,86 @@ un joueur qui a agi depuis une autre session.
 **Verrous.** `buyZone`, `placeBuilding` et `upgradeBuilding` passent par `Actions` comme les autres : un identifiant par
 action, une action à la fois par joueur, un seul nouvel essai après `CONFLIT_REESSAYER` (avec `getCompany` entre les deux).
 
+### La boutique, le pass et les votes
+
+Première tranche de la phase 5 côté add-on. Le service décide de tout : les prix en Gemmes, ce que le joueur possède, ce qu'il
+peut acheter, les paliers du pass et leur état, les votes du jour. L'add-on n'ajoute ni ne retire une Gemme : chaque solde
+affiché est celui de la dernière réponse du service. Les écrans sont dans `ui/boutique.ts`, `ui/pass.ts` et `ui/votes.ts`
+(fonctions pures), les annonces dans `ui/annonces.ts` ; les phrases dans `BOUTIQUE_TEXTES`, `PASS_TEXTES`, `VOTE_TEXTES` et
+`ANNONCES_TEXTES`, toutes à valider par Kr. Le client (`catalog`, `buyItem`, `getPass`, `claimPass`, `todayVotes`) est dans
+`api.ts`, ses chemins et la lecture des réponses dans `protocol.ts`, et un test les confronte à `api/silooo-core.openapi.yaml`.
+
+**Où est la tuile.** Le menu principal n'a que huit places : la tuile Boutique prend celle d'Associés, qui passe sous
+Personnel (l'écran PERSONNEL a deux portes, l'Agence et les Associés, sur chaque page ; « Retour » des associés revient à
+PERSONNEL). Ville reste la huitième. Le pass de saison est une entrée de la boutique, pas une tuile du menu. La ligne d'info
+de la tuile est le solde de Gemmes du service.
+
+**La boutique.** BOUTIQUE relit à chaque ouverture, ensemble, `catalog`, `getPass` et `todayVotes` (des lectures : ni verrou,
+ni identifiant). Elle montre les Gemmes, le rappel du vote du jour (une ligne, seulement quand le service dit zéro vote
+aujourd'hui), puis les portes : Grades (avec le prochain grade à prendre), Pilier, Cosmétiques, Boost collectif, Pass de
+saison (avec le nombre de récompenses à réclamer). Seul l'échec du catalogue est dit par Oooscar ; une relecture qui échoue
+garde la dernière lecture réussie ; sans lecture réussie, il reste les portes des rayons et celle du pass, sans prix. Sans
+Gemme, l'écran dit où en acheter : « Les Gemmes s'achètent sur la boutique du site. » L'add-on n'écrit aucune adresse, et ni le
+contrat ni `definitions/` n'en donnent.
+
+**Les rayons et les articles.** L'ordre est celui du catalogue du service. Les noms, les catégories et les bonus viennent de
+`definitions/boutique.json` (grades, abonnements, cosmétiques, boost collectif) ; le prix, « possédé » et « disponible » du
+catalogue. Une tuile d'article dit son prix, « Possédé » (`[H]`), « En cours » pour un abonnement, ou porte un cadenas et la
+raison (« Grade précédent requis », « Pas en vente »). Les cosmétiques sont rangés par catégorie (la clé `categorie` du JSON,
+six rayons). Le préfixe perso (l'abonnement `perso`) n'est pas montré : il demande de choisir un texte, et l'add-on n'a pas de
+mécanisme de préfixe de tchat. Un article du catalogue que le JSON ne connaît pas n'est pas montré non plus. Les cosmétiques
+qui ne se vendent pas (`pionnier`, ceux du pass) ne sont pas dans le catalogue du service.
+
+**Acheter, prolonger.** La fiche d'un article donne son prix, ce qu'il apporte, les Gemmes du joueur, et « Acheter »
+(« Prolonger » pour un abonnement en cours). L'achat est `buyItem` : un identifiant par action, une action à la fois par
+joueur, un seul nouvel essai après `CONFLIT_REESSAYER` (avec `getCompany` entre les deux). Réussi, les Gemmes affichées sont
+celles que le service rend ; le catalogue est relu (ce que le joueur possède, le prochain grade) ; l'entreprise est relue
+quand l'article change le revenu (un grade, le Pilier, le boost). Oooscar dit « Achat effectué ! », « Abonnement prolongé ! »
+ou « Boost lancé pour tout le serveur. ». Faute de Gemmes (`PAS_ASSEZ_DE_GEMMES`), la bulle dit la somme qui manque et une
+ligne dit où en acheter. Un 400 veut dire que le service ne vend plus l'article.
+
+**Offrir.** La fiche propose aussi « Offrir », sauf pour le boost collectif : le choix liste les joueurs connectés que le
+service connaît, sauf le joueur (comme pour inviter), et l'identifiant part dans `forXuid`. C'est le joueur qui paie. Réussi,
+il revient à la fiche et Oooscar dit « Cadeau envoyé ! ». Deux refus changent de mots : `DEJA_POSSEDE` (« Il l'a déjà. ») et
+`GRADE_PRECEDENT_REQUIS` (« Il lui faut le grade précédent. »). Un 400 veut dire que le service ne connaît pas le
+destinataire (« Je ne connais pas ce joueur. »).
+
+**Le pass.** L'écran PASS, relu à chaque ouverture, donne la saison, ses dates, les points du joueur, l'état de la piste
+premium, « Paliers » et, quand la piste premium est en vente et pas possédée, « Passer premium » avec le prix du catalogue :
+c'est un `buyItem` de `pass-premium`, après quoi le catalogue et le pass sont relus. PALIERS liste les paliers du service
+avec leur état (à réclamer, réclamé, pas atteint, demande le premium). La fiche d'un palier montre les deux pistes, gratuite
+et premium, la récompense de chacune (des Lingots, ou le nom d'un cosmétique) et un bouton par récompense à réclamer.
+« Réclamer » appelle `claimPass` ; la réponse donne les Lingots ou le cosmétique versés (« Reçu : … »), le solde de Lingots
+est celui du service, et le pass est relu pour que la fiche montre l'état du service. Un refus (`PALIER_NON_ATTEINT`,
+`DEJA_RECLAME`, `PREMIUM_REQUIS`, `SAISON_INACTIVE`) relit aussi le pass : la lecture était peut-être périmée.
+
+**Les votes.** À l'arrivée du joueur, après la cinématique, comme les missions et les invitations, l'add-on lit `todayVotes` ;
+si le joueur n'a pas voté aujourd'hui, Oooscar le lui rappelle dans le tchat avec le nom des sites de vote. Ces noms sont les
+`nom` de `definitions/vote.json`, séparés par des virgules : jamais un lien. La même ligne est sur l'écran de la boutique. Un
+`ANNONCE` `vote` (adressé au joueur qui a voté) fait dire à Oooscar « Merci pour ton vote ! » avec les Lingots versés, la
+série et le bonus de série, tels que l'événement les donne ; un `ANNONCE` `voteParty` est dit à tous les joueurs présents,
+une fois, quand son `day` est le jour (UTC) d'aujourd'hui.
+
+**Les annonces.**
+
+- `GEMMES_RECUES` (adressé au joueur qui reçoit les Gemmes) : une bulle d'Oooscar par livraison, avec les Gemmes arrivées et le
+  solde. Le solde de Gemmes affiché ensuite est le `gemmesTotal` de l'événement ; l'état et l'ancrage de la vue ne changent pas.
+- `BOOST_COLLECTIF` : une seule ligne de tchat pour tous les joueurs présents, avec le pseudo de l'acheteur s'il est donné. La
+  durée dite est ce qui reste à courir, lu dans `endsAt` ; un boost fini ne se redit pas.
+- `ANNONCE` `pionnier` : une bulle de bienvenue, une fois par joueur et par chargement du script. Le titre est retenu pour
+  l'en-tête du menu, qui montre « Titre : Pionnier » sous le nom de l'entreprise quand `join` (champ `cosmetics`) le donne,
+  ou quand l'annonce l'a appris. L'objet « Pionnier » n'existe pas côté service : l'add-on ne le donne pas.
+- `ANNONCE` `sansCourant` : une bulle d'Oooscar, puis le nom de l'usine arrêtée faute de courant, au joueur que l'événement vise.
+
+Le service garde les événements, et le curseur de l'add-on repart de 0 quand le script se recharge : les livraisons de Gemmes,
+les votes et le titre de pionnier, qui n'ont pas de date, se redisent alors. Le boost fini et la Vote party d'un autre jour
+sont reconnus par leurs dates et se taisent. Le solde de Gemmes d'une livraison rejouée cède la place au suivant, qui arrive
+dans la même relecture.
+
+**Les raretés du personnel.** `ui/textes.ts` lit le nom de chaque rareté dans `definitions/personnel.json` (clé « nom »), au
+lieu de le recopier ; un test le compare au fichier. Le nom de la plus commune y est « Ordinaire », où le code disait
+« Commun » : le fichier fait foi.
+
 ### Les formulaires
 
 Bedrock refuse d'ouvrir un formulaire quand le joueur a déjà un écran ouvert (le tchat, un autre menu). Le menu
@@ -438,7 +529,7 @@ définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun 
 
 Les noms des usines ne sont pas dans ce tableau : ils viennent de `definitions/usines.json` (clé « nom »), recopiés
 dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoires (`[D] [L] [G] [U] [T] [!] [E] [X]
-[S] [C] [O] [A] [P] [M] [R] [N]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
+[S] [C] [O] [A] [P] [M] [R] [N] [V] [B] [Y] [F] [K] [H] [Q]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
 `ui/apparence.ts` : ce sont des places gardées pour des images, pas des textes.
 
 | Où | Avant | Après |
@@ -612,7 +703,7 @@ charte (`design/README.md`), « Exceptionnel » tient la place. La couleur du no
 | Personnel, tuile de l'agence | rien | Agence, avec la ligne Les candidats du jour |
 | Personnel, équipe des membres sans usine | rien | Sans usine |
 | Personnel, rôles du contrat | rien | Salarié, Chef, Directeur |
-| Personnel, raretés du contrat (le nom de la troisième est à confirmer) | rien | Commun, Rare, Exceptionnel |
+| Personnel, raretés du contrat (les noms viennent de `definitions/personnel.json` ; celui de la troisième est à confirmer) | rien | Ordinaire, Rare, Exceptionnel |
 | Personnel, ligne d'un membre ou d'un candidat dans une liste | rien | `<rareté>` · `<rôle>` · +`<bonus>` % |
 | Personnel, en tête d'une fiche | rien | `<rareté>` · `<rôle>` |
 | Équipe, titre | rien | ÉQUIPE |
@@ -847,6 +938,98 @@ bonus de l'enseigne posée sur chaque bâtiment de l'île principale reprennent 
 Les autres refus (`PAS_ASSEZ_DE_LINGOTS`, `PAS_LE_PDG`, `CONFLIT_REESSAYER`, service injoignable) gardent les bulles déjà dans
 les tableaux plus haut.
 
+La boutique, le pass, les votes et les annonces (phase 5). Les phrases sont dans `BOUTIQUE_TEXTES`, `PASS_TEXTES`, `VOTE_TEXTES`,
+`ANNONCES_TEXTES` et dans la tuile `MENU_TEXTES.boutique`, toutes à valider par Kr. Les noms des grades, du Pilier et des
+cosmétiques viennent de `definitions/boutique.json` (clé « nom »), ceux des sites de vote de `definitions/vote.json` : l'add-on
+les lit, il ne les recopie pas. « Boost collectif » et « Pass de saison » n'ont pas de nom dans les définitions : ils sont dans
+`BOUTIQUE_TEXTES.rayons`. Les chiffres (prix, bonus, durée, points, Lingots, Gemmes) sont ceux du service ou des définitions.
+L'avant est « rien », sauf pour le nom de la rareté du personnel et la place de la tuile Associés.
+
+| Où | Avant | Après |
+|---|---|---|
+| Menu, tuile | rien | Boutique |
+| Menu, tuile Boutique, ligne d'info | rien | Gemmes `<gemmes>` |
+| Menu, sous le nom de l'entreprise, quand `join` donne le titre Pionnier | rien | Titre : `<nom du titre>` |
+| Boutique, titre | rien | BOUTIQUE |
+| Boutique, solde (en tête de la boutique et de chaque fiche) | rien | Gemmes : `<gemmes>` |
+| Boutique, portes | rien | Grades, Cosmétiques, Boost collectif, Pass de saison |
+| Boutique, ligne d'info de la porte Grades | rien | Prochain : `<grade>` |
+| Boutique, même ligne quand tous les grades sont pris | rien | Tous possédés |
+| Boutique, ligne d'info de la porte Pass de saison | rien | Rien à réclamer, 1 récompense à réclamer, `<n>` récompenses à réclamer |
+| Boutique, rappel du vote du jour | rien | Vote du jour : `<sites>` |
+| Boutique et fiche, quand il manque des Gemmes | rien | Les Gemmes s'achètent sur la boutique du site. |
+| Cosmétiques, rayons (la catégorie de `definitions/boutique.json`) | rien | Skins d'usine, Skins de véhicule, Compagnons, Décors, Effets de prestige, Titres |
+| Cosmétiques, ligne d'info d'un rayon | rien | 1 article, puis `<n>` articles |
+| Rayon, titre | rien | RAYON |
+| Rayon, aucun article | rien | Rien en vente ici. |
+| Article, tuile : possédé, abonnement en cours | rien | Possédé, En cours |
+| Article, tuile : cadenas et raison | rien | Grade précédent requis, Pas en vente |
+| Article, tuile : prix | rien | `<gemmes>` Gemmes |
+| Article, titre | rien | ARTICLE |
+| Article, prix | rien | Prix : `<gemmes>` Gemmes |
+| Article, un grade | rien | Grade : +`<bonus>` % de Donar. |
+| Article, un grade, l'ordre | rien | Les grades se prennent dans l'ordre. |
+| Article, un abonnement | rien | Dure `<jours>` jours. Chaque achat les prolonge. |
+| Article, un abonnement, le bonus | rien | +`<bonus>` % de Donar pendant l'abonnement. |
+| Article, un abonnement, les Gemmes rendues | rien | `<gemmes>` Gemmes rendues à chaque achat. |
+| Article, un cosmétique | rien | Cosmétique : `<catégorie>`. |
+| Article, le boost collectif | rien | +`<pourcent>` % de production pour tout le serveur, pendant `<durée>`. |
+| Article, le boost collectif, le pseudo | rien | Ton pseudo est annoncé à tous. |
+| Article, le boost collectif, la suite | rien | Les boosts se suivent, sans s'empiler. |
+| Durée d'un boost, en mots | rien | une heure, `<n>` heures, 1 minute, `<n>` minutes |
+| Article, déjà possédé | rien | Tu l'as. |
+| Article, abonnement en cours | rien | Ton abonnement court. |
+| Article, grade pas encore disponible | rien | Il faut d'abord le grade précédent. |
+| Article, boutons | rien | Acheter, Prolonger, Offrir, Retour |
+| Offrir, titre | rien | OFFRIR |
+| Offrir, phrase | rien | Choisis qui reçoit `<article>` (`<prix>` Gemmes). |
+| Offrir, aucun autre joueur | rien | Aucun autre joueur connecté. |
+| Bulle joie, achat réussi | rien | Achat effectué ! |
+| Bulle joie, abonnement prolongé | rien | Abonnement prolongé ! |
+| Bulle fier, boost collectif lancé | rien | Boost lancé pour tout le serveur. |
+| Bulle joie, cadeau envoyé | rien | Cadeau envoyé ! |
+| Bulle oups, cadeau d'un article que le destinataire a déjà (`DEJA_POSSEDE` en offrant, remplace Tu l'as déjà.) | Tu l'as déjà. | Il l'a déjà. |
+| Bulle oups, cadeau d'un grade qu'il ne peut pas prendre (`GRADE_PRECEDENT_REQUIS` en offrant, remplace Il faut d'abord le grade précédent.) | Il faut d'abord le grade précédent. | Il lui faut le grade précédent. |
+| Bulle oups, le service refuse l'article (400) | rien | Cet article n'est plus en vente. |
+| Pass, titre | rien | PASS |
+| Pass, dates de la saison | rien | Du `<début>` au `<fin>` |
+| Pass, points du joueur | rien | Points : `<points>` |
+| Pass, piste premium | rien | Piste premium active, Piste premium non activée |
+| Pass, bouton | rien | Paliers |
+| Pass, bouton, avec son prix | rien | Passer premium |
+| Pass, retour | rien | Retour |
+| Paliers, titre | rien | PALIERS |
+| Paliers, tuile d'un palier | rien | Palier `<n>` |
+| Paliers, ligne d'info d'un palier : l'état | rien | À réclamer, Réclamé, Demande le premium |
+| Paliers, ligne d'info d'un palier pas atteint | rien | Dès `<points>` points |
+| Palier, titre | rien | PALIER |
+| Palier, seuil | rien | `<points>` points pour l'atteindre |
+| Palier, les deux pistes | rien | Gratuit, Premium |
+| Palier, une ligne par piste | rien | `<piste>` : `<récompense>` |
+| Palier, récompense en Lingots | rien | 1 Lingot, `<n>` Lingots |
+| Palier, état d'une récompense | rien | Réclamé, À réclamer, Pas atteint, Demande le premium, Rien sur cette piste |
+| Palier, boutons | rien | Réclamer le gratuit, Réclamer le premium |
+| Palier, ce que le service a versé | rien | Reçu : `<récompense>` |
+| Bulle joie, palier réclamé | rien | Palier réclamé ! |
+| Bulle joie, pass premium acheté | rien | Pass premium activé ! |
+| Vote, bulle joie à l'arrivée (tchat), pour qui n'a pas voté | rien | Tu n'as pas encore voté aujourd'hui. |
+| Vote, ligne qui suit la bulle (tchat) | rien | Vote sur `<sites>` pour gagner des Lingots. |
+| Vote, bulle joie, vote reçu (tchat) | rien | Merci pour ton vote ! |
+| Vote, Lingots versés (tchat) | rien | +1 Lingot, +`<n>` Lingots |
+| Vote, série (tchat) | rien | Série : 1 jour, Série : `<n>` jours |
+| Vote, bonus de série (tchat) | rien | Dont bonus de série : `<n>` Lingots |
+| Vote party, bulle fier (tchat, à tous les joueurs présents) | rien | La Vote party a lieu ! |
+| Vote party, ligne qui suit la bulle (tchat) | rien | Chaque joueur présent gagne `<n>` Lingots. |
+| Gemmes reçues, bulle joie (tchat) | rien | Tes Gemmes sont arrivées ! |
+| Gemmes reçues, ligne qui suit la bulle (tchat) | rien | Gemmes : +`<gemmes>`, solde `<solde>` |
+| Boost collectif, ligne de tchat pour tout le serveur, avec le pseudo | rien | `<pseudo>` offre un boost de +`<pourcent>` % au serveur pendant `<durée>`. |
+| Boost collectif, même ligne sans le pseudo | rien | Un boost de +`<pourcent>` % court sur le serveur pendant `<durée>`. |
+| Pionnier, bulle fier de bienvenue (tchat, une fois) | rien | Bienvenue parmi les pionniers. |
+| Usine sans courant, bulle oups (tchat) | rien | Il faut une Centrale en marche. |
+| Usine sans courant, ligne qui suit la bulle (tchat) | rien | `<usine>` est arrêtée faute de courant. |
+| Personnel, tuile Associés (elle était dans le menu principal, qui n'a que huit places) | Associés, dans le menu | Associés, dans l'écran PERSONNEL |
+| Personnel, raretés du contrat (le nom vient de `definitions/personnel.json`) | Commun, Rare, Exceptionnel | Ordinaire, Rare, Exceptionnel |
+
 ## Ce qui manque
 
 Au contrat (`api/`, non modifié par cette tranche) :
@@ -948,9 +1131,34 @@ Au contrat (`api/`, non modifié par cette tranche) :
 - Aucun essai en jeu n'a été possible : tout est prouvé sur de faux mondes (voir la section sur ce qui ne se vérifie que sur un
   vrai BDS).
 
+À la tranche de la boutique, du pass et des votes (phase 5) :
+
+- Aucune route ne rend les soldes (`Balances`) : seuls les corps des réponses d'écriture en portent, et `GEMMES_RECUES` pour les
+  Gemmes. Le solde de Lingots du HUD ne suit donc ni un vote, ni la Vote party, ni une mission avant la prochaine réponse qui en
+  porte (un encaissement, un achat, un palier réclamé), et un joueur à qui l'on offre le Pilier ne voit pas les Gemmes rendues
+  avant la sienne.
+- Le payload de `GEMMES_RECUES` (`orderId`, `gemmes`, `gemmesTotal`) n'est décrit que dans `core/README.md`, pas dans l'OpenAPI.
+  Celui de `BOOST_COLLECTIF` (`percent`, `minutes`, `startsAt`, `endsAt`, `buyerName`, sans identifiant du joueur) et ceux des
+  `ANNONCE` `vote`, `voteParty`, `pionnier` et `sansCourant` n'ont pas de schéma non plus : l'add-on lit chaque clé avec
+  prudence et ne dit pas une somme illisible.
+- `join` ne rend les cosmétiques du joueur que comme une liste d'identifiants (`cosmetics`), et aucune route ne permet d'équiper
+  un titre : le menu montre « Pionnier » quand il est dans la liste, rien d'autre. L'objet « Pionnier » n'existe pas côté
+  service ; l'add-on ne le donne pas et n'en invente pas.
+- Les cosmétiques qui ne se vendent pas (`pionnier`, ceux du pass) n'ont pas de prix : le catalogue du service ne les rend pas,
+  l'add-on les nomme d'après `definitions/boutique.json`.
+- Le préfixe perso (l'abonnement `perso`) n'est pas montré : il demande un texte choisi par le joueur, et l'add-on n'a pas de
+  mécanisme de préfixe de tchat. Le service le vend, l'écran ne le propose pas.
+- Ni le boost collectif ni le pass de saison n'ont de nom dans `definitions/` : « Boost collectif » et « Pass de saison » sont
+  écrits dans `BOUTIQUE_TEXTES.rayons`.
+- La boutique du site, où l'on achète les Gemmes, n'a pas d'adresse dans le contrat ni dans `definitions/` : l'écran dit « sur la
+  boutique du site » sans lien.
+- Le curseur des événements repart de 0 quand le script se recharge : les livraisons de Gemmes, les votes et le titre de
+  pionnier, qui n'ont pas de date, se redisent. Un solde de Gemmes rejoué cède la place au suivant, qui arrive dans la même
+  relecture.
+
 Au design system :
 
-- Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence, Associés et Ville (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`, Ville `[V]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
+- Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence, Associés, Ville, Boutique (`[B]`), Pass (`[Y]`), palier réclamé (`[F]`) et à réclamer (`[K]`), article possédé (`[H]`) et cadeau (`[Q]`) (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`, Ville `[V]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
 - Pas d'image d'Oooscar utilisable en jeu : les bulles portent un repère entre crochets.
 - Pas de glyphes dans le pack de ressources pour les icônes qui existent dans `design/icones/`.
 
@@ -999,6 +1207,16 @@ Au design system :
   les marques de la ville (zones et bâtiments) sont dans une seconde propriété dynamique du monde, à côté de celle des
   îles, pour que les deux relevés ne s'écrasent pas.
 
+- Boutique, pass et votes, choix faits sans Kr, à relire : la tuile Boutique est la septième du menu et prend la place d'Associés,
+  qui passe sous Personnel (le menu n'a que huit places, et Ville reste la huitième) ; le pass est une entrée de la boutique, pas
+  une tuile ; le Pilier et le boost collectif sont des portes de la boutique, sans rayon ; les cosmétiques sont rangés en six
+  rayons, un par catégorie de `definitions/boutique.json` ; le rappel du vote du jour est une ligne de l'écran de la boutique et
+  une bulle dans le tchat à l'arrivée ; offrir passe par les joueurs connectés, comme inviter, et le boost collectif ne s'offre
+  pas ; le prix de « Passer premium » est celui du catalogue du service, pas celui de `definitions/pass.json` ; la piste gratuite s'appelle « Gratuit » et l'autre « Premium » ; la rareté la plus commune s'écrit « Ordinaire », le nom
+  de `definitions/personnel.json` ; la ligne de tchat du boost collectif est la même pour tous, sans nom d'acheteur quand
+  l'événement n'en donne pas ; les repères `[B]`, `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]` sont provisoires.
+
+
 ## Ce qui ne se vérifie que sur un vrai BDS
 
 - Le canal de titre : papillotement entre deux envois, durée d'affichage, effet du masquage par le pack.
@@ -1037,6 +1255,11 @@ Au design system :
   à trois lignes, orientation selon la rotation) ; le chargement des bandes d'une plateforme de 128 blocs et la pose à
   plusieurs centaines de blocs du joueur (ticking area, reprises avec attente doublée) ; l'arrivée à deux blocs devant la
   porte de la mairie, le regard sur elle ; le rendu des préfabriqués (toits, étages, lanternes, porte à deux blocs).
+
+- La boutique et le pass : la longueur des formulaires (huit tuiles à deux lignes, la fiche d'un article, la fiche d'un palier
+  de sept lignes), les repères `[B]`, `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]`, une bulle de `GEMMES_RECUES` reçue par un joueur qui
+  vient de se connecter (le curseur des événements repart de 0), la ligne de tchat du boost collectif envoyée à tous, et le
+  rappel du vote à l'arrivée pendant la cinématique.
 
 ## Points ouverts
 

@@ -17,7 +17,7 @@
 import { isSharePercent, type Member, type MemberRole, type ShareInput, type Xuid } from "../protocol";
 import type { ActionOutcome } from "./actions";
 import { COLOR, colored, ICON } from "./apparence";
-import { MAIN, bodyOf, button, go, pageOf, screenOf, type Entry, type Notice, type Screen } from "./ecran";
+import { bodyOf, button, go, pageOf, screenOf, type Entry, type Notice, type Screen } from "./ecran";
 import type { CompanyView } from "./etat";
 import type { ModalFormSpec } from "./formulaires";
 import type { Invitation } from "./invitations";
@@ -31,6 +31,9 @@ export interface OnlinePlayer {
 }
 
 const ASSOCIES_ROUTE = { screen: "associes" } as const;
+
+/** Les associés se trouvent sous Personnel : « Retour » y revient. */
+const PERSONNEL_ROUTE = { screen: "personnel", page: 0 } as const;
 
 /** Les membres tels que le service les donne. Le contrat ne marque pas la liste obligatoire : absente, elle est vide. */
 export function membersOf(view: CompanyView): readonly Member[] {
@@ -79,7 +82,7 @@ export function associesScreen(view: CompanyView, xuid: Xuid, pending: readonly 
   }));
   if (canInvite(view, xuid)) entries.push({ text: texts.inviter, target: go({ screen: "inviter", page: 0 }) });
   if (canSetShares(view, xuid)) entries.push({ text: texts.parts, target: { kind: "parts" } });
-  entries.push({ text: texts.retour, target: go(MAIN) });
+  entries.push({ text: texts.retour, target: go(PERSONNEL_ROUTE) });
   return screenOf(texts.titre, bodyOf(notice, lines), entries);
 }
 
