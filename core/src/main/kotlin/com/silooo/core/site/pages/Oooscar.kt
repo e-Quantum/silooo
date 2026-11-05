@@ -35,6 +35,7 @@ internal object Bulles {
     const val ATTENTE = "On construit. Reviens vite !"
     const val ACCUEIL = "Salut ! Moi, c'est Oooscar."
     const val REJOINDRE = "Je t'attends sur ton île !"
+    const val DISCORD = "Sur Discord aussi, c'est moi."
     const val BOUTIQUE = "Les Gemmes arrivent en jeu."
     const val CLASSEMENTS = "Moi, je vise la salle 1."
     const val INTROUVABLE = "Cette page s'est envolée."

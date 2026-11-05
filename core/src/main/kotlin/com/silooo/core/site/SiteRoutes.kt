@@ -3,11 +3,13 @@ package com.silooo.core.site
 import com.silooo.core.site.pages.PlayersOnline
 import com.silooo.core.site.pages.SiteShell
 import com.silooo.core.site.pages.accueil
+import com.silooo.core.site.pages.actus
+import com.silooo.core.site.pages.actusArticle
 import com.silooo.core.site.pages.attente
 import com.silooo.core.site.pages.boutique
 import com.silooo.core.site.pages.ceQuiSeVend
-import com.silooo.core.site.pages.mentions
-import com.silooo.core.site.pages.misesAJour
+import com.silooo.core.site.pages.discord
+import com.silooo.core.site.pages.legal
 import com.silooo.core.site.pages.rejoindre
 import com.silooo.core.site.pages.vote
 import com.silooo.core.site.pages.wikiIndex
@@ -31,20 +33,26 @@ import kotlinx.html.HTML
 internal fun Route.siteRoutes(
     pages: List<ContentPage>,
     shell: SiteShell,
-    updates: List<UpdateEntry>,
+    articles: List<NewsArticle>,
     wiki: List<ContentPage>,
     direct: SiteDirectSource? = null,
     online: () -> PlayersOnline? = { null },
 ) {
+    val published = NewsArticles.published(articles)
     for (page in pages) {
         // Les routes des pionniers (GET et POST) sont dans PioneerRoutes.kt, celles des classements dans StatsRoutes.kt.
         if (page.name == PIONEERS_PAGE || page.name == RANKING_PAGE) continue
-        val render = renderer(page, shell, updates, wiki, online)
+        val render = renderer(page, shell, articles, wiki, online)
         get(page.url) { call.respondHtml(HttpStatusCode.OK) { render() } }
-        // /mentions mène à /mentions/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.
+        // /cgv mène à /cgv/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.
         if (page.url != "/") {
             get(page.url.trimEnd('/')) { call.respondRedirect(page.url, permanent = true) }
         }
+    }
+    // Les actus : la liste est un contenu (actus.md, dans les deux modes) ; chaque article publié a son adresse.
+    for (article in published) {
+        get(article.url) { call.respondHtml(HttpStatusCode.OK) { actusArticle(shell, article) } }
+        get(article.url.trimEnd('/')) { call.respondRedirect(article.url, permanent = true) }
     }
     staticResources(PUBLIC_PREFIX.trimEnd('/'), "site/public")
     // Référencement : robots.txt et sitemap.xml listent les pages du mode, rien d'autre (une fiche d'entreprise vit avec
@@ -55,7 +63,7 @@ internal fun Route.siteRoutes(
     }
     get("/sitemap.xml") {
         call.response.headers.append(HttpHeaders.CacheControl, "public, max-age=3600")
-        call.respondText(sitemapXml(shell, pages), ContentType.Application.Xml)
+        call.respondText(sitemapXml(shell, pages.map { it.url } + published.map { it.url }), ContentType.Application.Xml)
     }
     // Le bandeau direct : l'état du jeu en JSON, trente secondes de cache (docs/site.md). Dans les deux modes : la
     // réponse ne dit rien de plus que la présence et les votes du jour.
@@ -69,10 +77,11 @@ internal fun Route.siteRoutes(
 
 internal fun robotsTxt(shell: SiteShell): String = "User-agent: *\nAllow: /\nSitemap: ${shell.siteUrl}/sitemap.xml\n"
 
-internal fun sitemapXml(shell: SiteShell, pages: List<ContentPage>): String = buildString {
+/** Le plan du site : les adresses des pages du mode et des articles publiés, telles que le site les sert. */
+internal fun sitemapXml(shell: SiteShell, urls: List<String>): String = buildString {
     append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
     append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n")
-    for (page in pages) append("  <url><loc>").append(xmlText(shell.siteUrl + page.url)).append("</loc></url>\n")
+    for (url in urls) append("  <url><loc>").append(xmlText(shell.siteUrl + url)).append("</loc></url>\n")
     append("</urlset>\n")
 }
 
@@ -82,18 +91,21 @@ private fun xmlText(text: String): String = text.replace("&", "&amp;").replace("
 private fun renderer(
     page: ContentPage,
     shell: SiteShell,
-    updates: List<UpdateEntry>,
+    articles: List<NewsArticle>,
     wiki: List<ContentPage>,
     online: () -> PlayersOnline?,
 ): HTML.() -> Unit = when (page.name) {
-    "attente" -> { { attente(shell, page) } }
+    "attente" -> { { attente(shell, page, NewsArticles.chantier(articles)) } }
     "accueil" -> { { accueil(shell, page, online()) } }
-    "mentions" -> { { mentions(shell, page) } }
+    // Les quatre pages légales (docs/site.md, « Légal ») : des pages de lecture, leur texte est le contenu.
+    "mentions-legales", "cgv", "confidentialite", "parents" -> { { legal(shell, page) } }
+    // La page du Discord (demande de Kr du 5 novembre 2026) : ce qu'on y trouve, et l'invitation quand elle est configurée.
+    "discord" -> { { discord(shell, page) } }
     "rejoindre" -> { { rejoindre(shell, page) } }
     "ce-qui-se-vend" -> { { ceQuiSeVend(shell, page) } }
     "boutique" -> { { boutique(shell, page) } }
     "vote" -> { { vote(shell, page) } }
-    "mises-a-jour" -> { { misesAJour(shell, page, updates) } }
+    "actus" -> { { actus(shell, page, NewsArticles.published(articles)) } }
     WikiContent.INDEX -> { { wikiIndex(shell, page, wiki) } }
     else -> if (page.name.startsWith("wiki/")) { { wikiPage(shell, page) } } else throw SiteContentException("Contenu ${page.name}.md : aucune page ne sait l'afficher")
 }

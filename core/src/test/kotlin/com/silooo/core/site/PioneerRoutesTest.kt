@@ -121,7 +121,7 @@ class PioneerRoutesTest {
     @Test
     @DisplayName("La case des règles mène aux mentions en attente et au wiki en ouvert")
     fun rulesLink() {
-        withRig(SiteMode.ATTENTE) { rig -> assertTrue(rig.page(rig.get("/pionniers/")).contains("""<a href="/mentions/">règles</a>""")) }
+        withRig(SiteMode.ATTENTE) { rig -> assertTrue(rig.page(rig.get("/pionniers/")).contains("""<a href="/mentions-legales/">règles</a>""")) }
         withRig(SiteMode.OUVERT) { rig -> assertTrue(rig.page(rig.get("/pionniers/")).contains("""<a href="/wiki/regles/">règles</a>""")) }
     }
 

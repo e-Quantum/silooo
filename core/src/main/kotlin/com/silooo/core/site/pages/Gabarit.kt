@@ -79,6 +79,13 @@ internal class PageFrame(
     val humeur: Humeur = Humeur.JOIE,
     /** Ce qu'Oooscar dit en arrivant ; `null` : la phrase de l'adresse (voir [Bulles.pour]). */
     val bulle: String? = null,
+    /**
+     * `true` : le contenu vit dans le panneau de fonte de Silooo Atelier. `false` : il se pose sur le ciel, comme les
+     * maquettes SiteAttente et SiteActu, et c'est la page qui dispose ses propres panneaux.
+     */
+    val panneau: Boolean = true,
+    /** Une classe de plus sur `<main>`, quand la page a sa propre mise en page (`attente`, `actu`) ; `null` sinon. */
+    val classe: String? = null,
 )
 
 /**
@@ -132,7 +139,7 @@ internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -
             }
         }
         shell.direct?.let { direct(it) }
-        main(classes = "sa-panneau") {
+        main(classes = listOfNotNull(if (frame.panneau) "sa-panneau" else "ciel", frame.classe).joinToString(" ")) {
             id = "contenu"
             content()
         }
@@ -140,9 +147,14 @@ internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -
         footer(classes = "pied") {
             div(classes = "boite pied__boite") {
                 p(classes = "pied__mojang") { +MOJANG_NOTICE }
+                // Les quatre pages légales du kit (docs/site.md, « Pied de page »), dans les deux modes.
                 p(classes = "pied__liens") {
-                    shell.discordUrl?.let { a(href = it) { +"Discord Silooo" } }
-                    a(href = "/mentions/") { +"Mentions légales" }
+                    // La page du Discord existe dans les deux modes ; c'est elle qui porte l'invitation quand elle est configurée.
+                    a(href = "/discord/") { +"Discord Silooo" }
+                    a(href = "/mentions-legales/") { +"Mentions légales" }
+                    a(href = "/cgv/") { +"CGV" }
+                    a(href = "/confidentialite/") { +"Confidentialité" }
+                    a(href = "/parents/") { +"Parents" }
                 }
                 // Les sites frères, quand leurs adresses sont configurées (SILOOO_SITE_URL_SILENEMC, SILOOO_SITE_URL_HUBYY).
                 val sisters = listOfNotNull(

@@ -40,8 +40,9 @@ class SiteModuleTest {
         assertEquals(1, Regex("<h1[ >]").findAll(html).count(), "$where : il faut exactement un h1")
         assertTrue(Regex("<title>[^<]+</title>").containsMatchIn(html), "$where : title vide")
         assertTrue(Regex("""<meta name="description" content="[^"]+"""").containsMatchIn(html), "$where : meta description vide")
+        // Chaque image dit ce qu'elle est, ou porte alt="" quand elle est décorative (les icônes des rangs : le titre dit déjà tout).
         for (img in Regex("<img[^>]*>").findAll(html)) {
-            assertTrue(Regex("""\balt="[^"]+"""").containsMatchIn(img.value), "$where : image sans alt : ${img.value}")
+            assertTrue(Regex("""\balt="[^"]*"""").containsMatchIn(img.value), "$where : image sans alt : ${img.value}")
         }
         assertOnlySiteScripts(html, where)
     }
@@ -62,58 +63,68 @@ class SiteModuleTest {
         assertEquals("On construit. Reviens vite !", bubble)
         assertFalse(html.substringAfter("<main").contains("ouvre bientôt"))
         assertFalse(html.contains("Le serveur ouvre bientôt !"))
-        assertTrue(html.contains("Un tycoon d&#39;usines dans le ciel") || html.contains("Un tycoon d'usines dans le ciel"))
+        // L'accroche de la maquette, et « tycoon d'usines dans le ciel » dans la description du contenu.
+        assertTrue(html.contains("Produis de jour comme de nuit"))
+        assertTrue(Regex("""tycoon d(&#39;|')usines dans le ciel""").containsMatchIn(html))
         assertFalse(html.contains("play.silooo.com"))
         assertFalse(Regex("""19132|:\d{4,5}\b""").containsMatchIn(html.substringAfter("<main")), "pas de port de serveur")
         assertWellFormedPage(html, "/")
     }
 
     @Test
-    @DisplayName("Le lien Discord n'apparaît que s'il est configuré : bouton de la page, navigation et pied")
+    @DisplayName("Le Discord : la navigation de l'attente et le pied mènent à sa page ; l'invitation n'est pas sur l'accueil")
     fun discordLink() {
-        withSite(SiteMode.ATTENTE) { client -> assertFalse(client.get("/").bodyAsText().contains("Discord")) }
-        withSite(SiteMode.ATTENTE, discordUrl = "https://discord.gg/exemple") { client ->
-            val html = client.get("/").bodyAsText()
-            assertTrue(Regex("""<a href="https://discord.gg/exemple"[^>]*>Rejoins le Discord</a>""").containsMatchIn(html))
-            // La navigation de l'attente porte le même lien, et le pied l'appelle « Discord Silooo ».
-            assertTrue(Regex("""<a href="https://discord.gg/exemple" class="navigation__lien">Discord</a>""").containsMatchIn(html))
-            assertTrue(html.substringAfter("<footer").contains("""<a href="https://discord.gg/exemple">Discord Silooo</a>"""))
-        }
-    }
-
-    @Test
-    @DisplayName("Les mentions répondent dans les deux modes, avec la mention de Mojang")
-    fun mentions() {
-        for (mode in SiteMode.entries) {
-            withSite(mode) { client ->
-                val response = client.get("/mentions/")
-                assertEquals(HttpStatusCode.OK, response.status, mode.word)
-                val html = response.html()
-                assertTrue(html.contains(mojang), mode.word)
-                assertTrue(html.contains("Silooo est un serveur indépendant."), mode.word)
-                assertTrue(html.contains("À compléter par Kr."), mode.word)
-                assertWellFormedPage(html, "/mentions/ ($mode)")
+        for (discordUrl in listOf(null, "https://discord.gg/exemple")) {
+            withSite(SiteMode.ATTENTE, discordUrl = discordUrl) { client ->
+                val html = client.get("/").bodyAsText()
+                // La page du Discord (demande de Kr du 5 novembre 2026) porte l'invitation : l'accueil n'en cite pas l'adresse.
+                assertFalse(html.contains("discord.gg"), "l'invitation est sur /discord/, pas sur l'accueil")
+                assertTrue(Regex("""<a href="/discord/" class="navigation__lien">Discord</a>""").containsMatchIn(html))
+                assertTrue(html.substringAfter("<footer").contains("""<a href="/discord/">Discord Silooo</a>"""))
             }
         }
     }
 
     @Test
-    @DisplayName("Chaque page porte la mention de Mojang dans son pied")
-    fun footerOnEveryPage() = withSite(SiteMode.ATTENTE) { client ->
-        for (path in listOf("/", "/mentions/", "/wiki/")) {
-            val html = client.get(path).bodyAsText()
-            assertTrue(html.substringAfter("<footer").contains(mojang), path)
-            assertTrue(html.substringAfter("<footer").contains("""href="/mentions/""""), path)
-            assertTrue(html.substringAfter("<footer").contains(">Mentions légales</a>"), path)
+    @DisplayName("Les mentions légales répondent dans les deux modes, avec la mention de Mojang et l'hébergeur")
+    fun legalMentions() {
+        for (mode in SiteMode.entries) {
+            withSite(mode) { client ->
+                val response = client.get("/mentions-legales/")
+                assertEquals(HttpStatusCode.OK, response.status, mode.word)
+                val html = response.html()
+                assertTrue(html.contains(mojang), mode.word)
+                assertTrue(html.contains("Silooo est un serveur indépendant."), mode.word)
+                assertTrue(html.contains("OVH SAS"), mode.word)
+                assertTrue(html.contains("À compléter par Kr."), mode.word)
+                assertWellFormedPage(html, "/mentions-legales/ ($mode)")
+            }
         }
     }
 
     @Test
-    @DisplayName("/mentions redirige en 301 vers /mentions/")
+    @DisplayName("Chaque page porte la mention de Mojang et les quatre liens légaux dans son pied")
+    fun footerOnEveryPage() = withSite(SiteMode.ATTENTE) { client ->
+        for (path in listOf("/", "/mentions-legales/", "/cgv/", "/confidentialite/", "/parents/", "/wiki/")) {
+            val html = client.get(path).bodyAsText()
+            val footer = html.substringAfter("<footer")
+            assertTrue(footer.contains(mojang), path)
+            assertTrue(footer.contains("""href="/mentions-legales/""""), path)
+            assertTrue(footer.contains(">Mentions légales</a>"), path)
+            assertTrue(footer.contains("""<a href="/cgv/">CGV</a>"""), path)
+            assertTrue(footer.contains("""<a href="/confidentialite/">Confidentialité</a>"""), path)
+            assertTrue(footer.contains("""<a href="/parents/">Parents</a>"""), path)
+        }
+    }
+
+    @Test
+    @DisplayName("/mentions-legales redirige en 301 vers /mentions-legales/, et de même pour les trois autres pages légales")
     fun redirectsWithoutTrailingSlash() = withSite(SiteMode.ATTENTE) { client ->
-        val response = client.get("/mentions")
-        assertEquals(HttpStatusCode.MovedPermanently, response.status)
-        assertEquals("/mentions/", response.headers[HttpHeaders.Location])
+        for (path in listOf("/mentions-legales", "/cgv", "/confidentialite", "/parents")) {
+            val response = client.get(path)
+            assertEquals(HttpStatusCode.MovedPermanently, response.status, path)
+            assertEquals("$path/", response.headers[HttpHeaders.Location], path)
+        }
     }
 
     @Test
@@ -151,7 +162,7 @@ class SiteModuleTest {
             val xml = sitemap.bodyAsText()
             assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"), xml)
             val locs = locations(xml)
-            for (expected in listOf("https://silooo.com/", "https://silooo.com/mentions/", "https://silooo.com/pionniers/")) assertTrue(expected in locs, "$expected manque : $locs")
+            for (expected in listOf("https://silooo.com/", "https://silooo.com/mentions-legales/", "https://silooo.com/cgv/", "https://silooo.com/confidentialite/", "https://silooo.com/parents/", "https://silooo.com/pionniers/")) assertTrue(expected in locs, "$expected manque : $locs")
             assertTrue(locs.none { it.contains("/wiki/") || it.contains("/classements/") }, "en attente, ni wiki ni classements : $locs")
             assertEquals(locs.size, locs.toSet().size, "chaque adresse une fois")
         }
@@ -198,7 +209,7 @@ class SiteModuleTest {
     @Test
     @DisplayName("Les en-têtes de sécurité et de cache sont posés sur les pages et sur les fichiers")
     fun headers() = withSite(SiteMode.ATTENTE) { client ->
-        for (path in listOf("/", "/mentions/", "/public/site.css", "/wiki/")) {
+        for (path in listOf("/", "/mentions-legales/", "/public/site.css", "/wiki/")) {
             val response = client.get(path)
             assertEquals("nosniff", response.headers["X-Content-Type-Options"], path)
             assertEquals("same-origin", response.headers["Referrer-Policy"], path)
