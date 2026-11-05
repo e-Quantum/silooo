@@ -3,6 +3,7 @@ package com.silooo.core.session
 import com.silooo.core.api.Balances
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Role
+import com.silooo.core.api.Staff
 import com.silooo.core.db.Xuid
 import java.sql.Connection
 import java.time.Instant
@@ -22,6 +23,9 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
     val factories = LinkedHashMap<Long, MutableList<FactoryRecord>>()
     val balances = LinkedHashMap<Xuid, Balances>()
     val zones = LinkedHashMap<Long, List<Int>>()
+
+    /** Le personnel de chaque entreprise, par identifiant croissant (les écritures passent par `InMemoryStaffStore`). */
+    val staff = LinkedHashMap<Long, MutableList<StaffRecord>>()
     val profiles = LinkedHashMap<Xuid, PlayerProfile>()
     val leaves = mutableListOf<Xuid>()
 
@@ -72,6 +76,8 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
 
     override fun loadZones(connection: Connection, companyId: Long): List<Int> = zones[companyId].orEmpty()
 
+    override fun loadStaff(connection: Connection, companyId: Long): List<StaffRecord> = staff[companyId].orEmpty().sortedBy { it.id }
+
     override fun loadBalances(connection: Connection, xuid: Xuid): Balances = balances.getValue(xuid)
 
     override fun loadProfile(connection: Connection, xuid: Xuid): PlayerProfile = profiles[xuid] ?: PlayerProfile(null, null)
@@ -108,8 +114,11 @@ object TestBootstrap : CompanyBootstrap {
     override fun slotOrigin(slotIndex: Int): SlotOrigin = SlotOrigin(slotIndex, 0)
 }
 
-/** Des chiffres d'économie fictifs, reconnaissables, pour vérifier que `join` les recopie sans les calculer. */
-class TestEconomy : EconomyFigures {
+/**
+ * Des chiffres d'économie fictifs, reconnaissables, pour vérifier que `join` les recopie sans les calculer. Avec un faux
+ * dépôt ([sessions]), le personnel de l'entreprise est rendu tel qu'il y est, avec des chiffres fictifs eux aussi.
+ */
+class TestEconomy(private val sessions: InMemorySessionStore? = null) : EconomyFigures {
     /** Un versement demandé au moteur : l'entreprise, le régime, et l'heure de départ précédente que `join` passe. */
     data class Settle(val companyId: Long, val regime: Regime, val playerLastSeenAt: Instant?)
 
@@ -124,6 +133,12 @@ class TestEconomy : EconomyFigures {
         multiplier = 22.0,
         threshold = 33.0,
         factories = factories.associate { it.factoryId to FactoryFigures(ratePerHour = 44.0, nextCost = 55.0, nextMilestone = 66, stoppedNoPower = true) },
+        staff = sessions?.staff?.get(company.id).orEmpty().map {
+            Staff(
+                staffId = it.id, name = it.name, skinId = it.skinId, role = it.role, rarity = it.rarity,
+                bonusPercent = 77.0, salaryPercent = 88.0, salaryPerHour = 99.0, factoryId = it.factoryId,
+            )
+        },
     )
 
     override fun settle(connection: Connection, company: CompanyRecord, regime: Regime, playerLastSeenAt: Instant?): Double {

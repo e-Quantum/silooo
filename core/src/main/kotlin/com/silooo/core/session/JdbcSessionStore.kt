@@ -7,6 +7,8 @@ import com.silooo.core.db.VersionConflict
 import com.silooo.core.db.Xuid
 import com.silooo.core.db.isDuplicateKey
 import com.silooo.core.db.setXuid
+import com.silooo.core.definitions.StaffRarity
+import com.silooo.core.definitions.StaffRole
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.SQLException
@@ -223,6 +225,30 @@ class JdbcSessionStore : SessionStore {
         connection.prepareStatement("SELECT zone_index FROM city_zones WHERE company_id = ? ORDER BY zone_index").use {
             it.setLong(1, companyId)
             it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getInt(1)) } }
+        }
+
+    override fun loadStaff(connection: Connection, companyId: Long): List<StaffRecord> =
+        // `DIRECTEUR` existe dans la colonne mais pas encore dans le jeu : aucune ligne n'en porte, on les écarte par prudence.
+        connection.prepareStatement(
+            "SELECT id, factory_id, name, skin_id, role, rarity FROM staff WHERE company_id = ? AND role IN ('SALARIE', 'CHEF') ORDER BY id",
+        ).use {
+            it.setLong(1, companyId)
+            it.executeQuery().use { rows ->
+                buildList {
+                    while (rows.next()) {
+                        add(
+                            StaffRecord(
+                                id = rows.getLong("id"),
+                                factoryId = rows.getString("factory_id"),
+                                name = rows.getString("name"),
+                                skinId = rows.getString("skin_id"),
+                                role = StaffRole.valueOf(rows.getString("role")),
+                                rarity = StaffRarity.valueOf(rows.getString("rarity")),
+                            ),
+                        )
+                    }
+                }
+            }
         }
 
     override fun loadBalances(connection: Connection, xuid: Xuid): Balances =

@@ -31,6 +31,9 @@ import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionStore
 import com.silooo.core.session.sessionRoutes
+import com.silooo.core.staff.JdbcStaffStore
+import com.silooo.core.staff.StaffStore
+import com.silooo.core.staff.staffRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -42,6 +45,7 @@ import io.ktor.server.application.log
 import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import java.time.Clock
 import java.time.Duration
 
 /**
@@ -65,8 +69,10 @@ class Dependencies(
     val idempotency: Idempotency = Idempotency(database),
     /** Les accès SQL de `join` et `leave` ; déclaré avant [economyFigures], qui y lit les Lingots des membres. */
     val sessionStore: SessionStore = JdbcSessionStore(),
+    /** L'horloge du service : le jour de l'agence d'emploi et le calcul de la production s'y lisent. Un test la remplace pour avancer le temps. */
+    val clock: Clock = Clock.systemUTC(),
     /** Les chiffres de `join` (revenu, multiplicateur, seuil, hors ligne) : le moteur d'économie, sur [definitions]. */
-    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore),
+    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore, clock),
     /** Ce que la création d'une entreprise tire de `definitions/` : usines de départ, plafond hors ligne, grille des îles. */
     val companyBootstrap: CompanyBootstrap = DefinitionsBootstrap(economy, definitions),
     val eventStore: EventStore = JdbcEventStore(),
@@ -74,6 +80,8 @@ class Dependencies(
     val companyStore: CompanyStore = JdbcCompanyStore(),
     /** Les accès SQL des missions (`player_missions`), de leur récompense en Lingots et de leur événement. */
     val missionStore: MissionStore = JdbcMissionStore(),
+    /** Les accès SQL du personnel et de l'agence d'emploi (`staff`, `agency_candidates`). */
+    val staffStore: StaffStore = JdbcStaffStore(),
     /** Durée de garde des lignes de `api_requests` ; `null` : pas de purge (les tests). */
     val apiRequestRetention: Duration? = null,
 )
@@ -111,6 +119,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
             missionRoutes(dependencies)
+            staffRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }
