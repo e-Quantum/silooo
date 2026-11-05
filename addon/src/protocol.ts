@@ -1,6 +1,6 @@
-// Le contrat avec silooo-core pour les quatre opérations de la phase 2 : heartbeat, join, leave et
-// pollEvents. Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui fabriquent les
-// corps et lisent les réponses. Quand le contrat change, il change d'abord dans l'OpenAPI.
+// Le contrat avec silooo-core : heartbeat, join, leave et pollEvents (phase 2), puis getCompany, collect,
+// buyLevels et restoreStep (phase 3). Types écrits d'après api/silooo-core.openapi.yaml, fonctions pures qui
+// fabriquent les corps et lisent les réponses. Quand le contrat change, il change d'abord dans l'OpenAPI.
 
 // ---------------------------------------------------------------- types du contrat
 
@@ -322,4 +322,124 @@ function readEvent(value: unknown): GameEvent {
     kind: str(rec, "kind", "event"),
     payload,
   };
+}
+
+// ---------------------------------------------------------------- phase 3 : l'entreprise et ses usines
+
+/** Les quantités de `buyLevels` (`amount`) : palier = jusqu'au prochain ×2, max = tout ce qu'on peut payer. */
+export const BUY_AMOUNTS = ["1", "10", "palier", "max"] as const;
+
+export type BuyAmount = (typeof BUY_AMOUNTS)[number];
+
+/** Bornes de `step` dans `restoreStep` : les quatre étapes de la remise en état. */
+export const RESTORE_STEP_MIN = 1;
+export const RESTORE_STEP_MAX = 4;
+
+export function isRestoreStep(step: number): boolean {
+  return Number.isInteger(step) && step >= RESTORE_STEP_MIN && step <= RESTORE_STEP_MAX;
+}
+
+/** `ActionBase` : ce que porte toute action d'écriture. */
+export interface ActionBase {
+  /** UUID choisi par l'add-on : le service rend le même résultat si la même action arrive deux fois. */
+  requestId: string;
+  /** Le joueur qui agit. */
+  actor: Xuid;
+}
+
+export interface BuyLevelsBody extends ActionBase {
+  amount: BuyAmount;
+}
+
+export interface RestoreStepBody extends ActionBase {
+  step: number;
+}
+
+/** Réponse 200 de `buyLevels` et `restoreStep` (`CompanyUpdated`). */
+export interface CompanyUpdated {
+  state: CompanyState;
+  balances: Balances;
+}
+
+/** Réponse 200 de `collect`. */
+export interface CollectResponse {
+  /** Donar encaissés. */
+  collected: number;
+  /** Heures hors ligne comptées, plafond appliqué. */
+  offlineHours: number;
+  state: CompanyState;
+}
+
+/** Les gabarits de chemin du contrat. `{companyId}` et `{factoryId}` sont remplacés par `companyPath` et ses voisins. */
+export const COMPANY_PATHS = {
+  company: "/v1/companies/{companyId}",
+  collect: "/v1/companies/{companyId}/collect",
+  levels: "/v1/companies/{companyId}/factories/{factoryId}/levels",
+  restore: "/v1/companies/{companyId}/factories/{factoryId}/restore",
+} as const;
+
+function companySegment(companyId: number): string {
+  if (!Number.isSafeInteger(companyId) || companyId < 0) throw new RangeError(`companyId invalide : ${companyId}`);
+  return String(companyId);
+}
+
+function factorySegment(factoryId: string): string {
+  if (factoryId === "") throw new RangeError("factoryId vide");
+  return encodeURIComponent(factoryId);
+}
+
+export function companyPath(companyId: number): string {
+  return COMPANY_PATHS.company.replace("{companyId}", companySegment(companyId));
+}
+
+export function collectPath(companyId: number): string {
+  return COMPANY_PATHS.collect.replace("{companyId}", companySegment(companyId));
+}
+
+export function levelsPath(companyId: number, factoryId: string): string {
+  return COMPANY_PATHS.levels.replace("{companyId}", companySegment(companyId)).replace("{factoryId}", factorySegment(factoryId));
+}
+
+export function restorePath(companyId: number, factoryId: string): string {
+  return COMPANY_PATHS.restore.replace("{companyId}", companySegment(companyId)).replace("{factoryId}", factorySegment(factoryId));
+}
+
+export function actionBody(action: ActionBase): ActionBase {
+  return { requestId: action.requestId, actor: action.actor };
+}
+
+export function buyLevelsBody(action: ActionBase, amount: BuyAmount): BuyLevelsBody {
+  return { requestId: action.requestId, actor: action.actor, amount };
+}
+
+export function restoreStepBody(action: ActionBase, step: number): RestoreStepBody {
+  return { requestId: action.requestId, actor: action.actor, step };
+}
+
+/** Lit un `CompanyState` seul : le corps 200 de getCompany. */
+export function parseCompanyState(body: unknown): Parsed<CompanyState> {
+  return attempt(() => readCompanyState(body, "company"));
+}
+
+/** Lit le corps 200 de collect. */
+export function parseCollectResponse(body: unknown): Parsed<CollectResponse> {
+  return attempt(() => {
+    const rec = record(body, "collect");
+    return {
+      collected: num(rec, "collected", "collect"),
+      offlineHours: num(rec, "offlineHours", "collect"),
+      state: readCompanyState(rec["state"], "collect.state"),
+    };
+  });
+}
+
+/** Lit le corps 200 de buyLevels et de restoreStep (`CompanyUpdated`). */
+export function parseCompanyUpdated(body: unknown): Parsed<CompanyUpdated> {
+  return attempt(() => {
+    const rec = record(body, "update");
+    return {
+      state: readCompanyState(rec["state"], "update.state"),
+      balances: readBalances(rec["balances"], "update.balances"),
+    };
+  });
 }
