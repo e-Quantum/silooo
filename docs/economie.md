@@ -209,8 +209,8 @@ Le service tranche ainsi, **à valider par Kr** :
 
 La feuille « Synthèse » du tableur compare, pour un joueur type, le temps calculé à une fourchette
 cible pour treize étapes : première amélioration, deuxième usine, première zone de ville, Mine
-profonde, les trois prestiges, puis les six premières étoiles. Les tests dorés de silooo-core,
-écrits en phase 1, rejoueront ces treize étapes ; un chiffre qui sort d'une cible fera échouer la CI. La feuille
+profonde, les trois prestiges, puis les six premières étoiles. Le simulateur de silooo-core (section « Le simulateur »)
+rejoue ces treize étapes ; un chiffre qui sort d'une cible fait échouer la CI. La feuille
 « Paramètres » liste les réglages, dans le même ordre que `economie.json`. Le tableur portait
 encore le nom UrbaFactory : c'est le même fichier.
 
@@ -233,6 +233,130 @@ des JSON dorés et rien d'autre. Pour y arriver, il applique les règles suivant
   `Double.MAX_VALUE`, pour que l'état d'une entreprise reste toujours calculable. **À valider par Kr.**
 - Affichage : trois chiffres au plus, virgule, décimale tronquée (le tableur écrit « 195.5 M », la charte
   veut « 195 M »). Sous 1 000, entier arrondi à l'unité la plus proche.
+
+## Le simulateur
+
+Le simulateur fait jouer de bout en bout le joueur type du tableur et mesure, en heures de jeu, quand arrive chacune
+des treize étapes. Il n'utilise que `EconomyEngine` et `definitions/`. Une étape hors de sa fourchette fait échouer
+`ThirteenTargetsTest`, donc `./gradlew test`, `tools/verifier.sh` et la CI. C'est du code de test
+(`core/src/test/kotlin/com/silooo/core/simulation/`) : le service ne s'en sert pas et l'image Docker ne l'embarque pas.
+
+### Ce qu'il rejoue
+
+Neuf courses, de la première au prestige de la neuvième (la 6e étoile, dernière des treize cibles) :
+
+- les achats de niveaux (prix de `niveaux.croissancePrix`), les paliers ×2, le rachat et la remise en état des usines en
+  ruine, la découverte des usines (clé `decouverte`) ;
+- le prestige au seuil : Lingots, multiplicateur figé pour la course, époque, étoiles ;
+- le régime en ligne (revenu plein, `onlineEarnings`) et, pour le reste de la journée du joueur type, le multiplicateur
+  hors ligne (`dailyOfflineMultiplier`, cellule B8) : les temps sont des heures de jeu, comme les cibles ;
+- les zones de ville payées avec la part des Lingots que le joueur ne garde pas.
+
+Aucun chiffre du jeu n'est écrit dans le simulateur. Les hypothèses du joueur type (heures de jeu par jour, part de
+Lingots gardée, heure de la mission de bienvenue) et son échelle de paliers viennent de `golden/parametres.json` et
+`golden/simulation.json` ; les cibles, leurs fourchettes et leur provenance (le fichier du tableur et son empreinte)
+viennent de `golden/synthese.json`, colonnes A à D de la feuille « Synthèse ». Ces JSON sont tirés du tableur par
+`tools/tableur/extraire.py` : on ne les corrige pas à la main.
+
+### La stratégie du joueur type
+
+Le tableur ne fixe pas de règle : il donne une liste d'achats (feuille « Simulation »), que son auteur décrit comme
+« un joueur qui achète toujours ce qui rapporte le plus vite ». La règle ci-dessous a été retrouvée en la confrontant
+à cette liste. Elle redonne les 956 achats faits avant les neuf prestiges, dans le même ordre (la feuille compte
+965 lignes : il y a en plus, par course, la première ligne que le joueur n'a plus le temps de faire avant son
+prestige). `SimulatorSheetTest` le vérifie à chaque exécution.
+
+1. Le joueur ne vise que les paliers de l'échelle de la feuille (1, 5, 10, 25, 50, 75, 100, 150…) : pour chaque usine,
+   le prochain palier au-dessus de son niveau. Une usine en ruine n'a qu'un achat, le rachat, au prix du niveau où la
+   remise en état la laisse.
+2. Il choisit l'achat qui minimise `prix / revenu + prix / gain de revenu`, c'est-à-dire le temps d'attendre le prix
+   plus le temps que l'achat met à se rembourser. À égalité parfaite, l'usine qui vient la première dans `usines.json`.
+3. Il attend d'avoir exactement le prix, achète, recommence. Son solde est nul avant chaque achat.
+4. Dès que les Donar gagnés atteignent le seuil, il fait son prestige, avant d'avoir fini d'attendre l'achat suivant :
+   il prestige toujours au seuil exact.
+
+### Les interprétations du simulateur, à valider par Kr
+
+- **Découverte.** Les clés de `decouverte` se lisent `depart` (révélée dès le début), `niveau-entreprise-N` (la somme des
+  niveaux atteint N), `epoque-N` (l'époque de la course atteint N) et `apres-<usine>` (l'usine nommée est remise en
+  état). Une usine révélée le reste d'une course à l'autre, comme la ligne gardée par le prestige. Le moteur les lit
+  dans `EconomyEngine.isDiscovered` ; une clé d'une autre forme fait échouer le chargement en nommant l'usine. Le
+  service ne lit pas encore `decouverte` : il ne bloque aucun achat.
+- **Remise en état.** Le simulateur la fait d'un coup, sans durée, après le rachat. Le tableur ne chiffre aucune durée
+  de découverte ni de remise en état : ses temps sont « au plus court ».
+- **Lingots de bienvenue.** Le tableur les compte dans le multiplicateur dès l'heure 0, alors que la mission de
+  bienvenue les verse à l'heure B14. Le simulateur fait comme lui, sinon il ne retrouve pas ses multiplicateurs.
+- **Zones de ville.** La formule de la feuille « Ville » : la première course dont le budget couvre le prix cumulé, puis
+  l'heure à l'intérieur de cette course. Une zone ne se paie pas avant la mission de bienvenue.
+
+### Lancer
+
+```bash
+cd core
+./gradlew test --tests 'com.silooo.core.simulation.*' --console=plain               # le simulateur et ses trois jeux de tests
+./gradlew test --tests 'com.silooo.core.simulation.ThirteenTargetsTest' --console=plain -i   # avec le tableau des treize cibles
+```
+
+Le tableau est aussi dans le rapport `core/build/reports/tests/test/index.html`, à la classe `ThirteenTargetsTest`.
+Une exécution complète (neuf courses) prend moins d'une seconde.
+
+- `ThirteenTargetsTest` : la barrière. Les treize temps contre leurs fourchettes, la valeur du tableur pour chacun
+  (1e-14 en relatif), et des essais à blanc : un `croissancePrix` changé de +1 % ou de -5 % doit faire sortir le
+  premier prestige de sa fourchette, par le haut ou par le bas.
+- `SimulatorSheetTest` : le simulateur contre la feuille, achat par achat (usine, niveaux, prix, revenus, heures), puis
+  course par course et zone par zone.
+- `GameSimulatorTest` : la cohérence d'une partie (le temps avance, le prestige se fait au seuil, le rachat précède la
+  montée, la découverte précède l'achat, les Lingots se reportent, une échelle épuisée échoue).
+
+### Lire un échec
+
+`ThirteenTargetsTest` liste les cibles hors de leur fourchette : l'identifiant, le temps mesuré en heures et en
+minutes, la fourchette, le verdict (« Trop court » ou « Trop long ») et l'écart en heures, les cellules de la feuille,
+puis les neuf courses (durée, fin, nombre d'achats). Par exemple, une ligne `! prestige-1 … mesuré 16,2 h … fourchette
+[10 ; 15] h  Trop long (+1,2 h)  Synthèse!C9:D9`.
+
+1. Regarde d'abord `SimulatorSheetTest`. S'il est rouge aussi, le simulateur ou le moteur ne rejoue plus le tableur :
+   le message nomme le premier achat qui diverge. C'est une erreur de code, pas d'équilibrage ; corrige-la avant tout.
+2. S'il est vert et que seul `ThirteenTargetsTest` est rouge, le simulateur est fidèle et c'est l'équilibrage qui a
+   bougé : un chiffre de `definitions/` (relis la dernière ligne de « Historique des réglages ») ou une formule du
+   moteur. Remets le chiffre dans sa fourchette ; ne touche ni à la fourchette ni à la cible pour faire passer le test.
+3. Une fourchette ne change que dans le tableur, par Kr ; on régénère alors les JSON dorés avec
+   `tools/tableur/extraire.py`, et le message d'échec nomme le fichier et l'empreinte lus.
+4. « Jamais atteint » : la partie n'arrive pas à l'événement. « Échelle épuisée » : le joueur n'a plus de palier à
+   acheter avant le seuil ; l'échelle vient de la feuille « Simulation », il faut lui ajouter des paliers.
+
+Chaque réglage de `definitions/` consigne dans « Historique des réglages » le résultat du simulateur sur les treize
+cibles : `ThirteenTargetsTest` les donne.
+
+### Mesure de référence, le 5 novembre 2026
+
+Sur `definitions/` et le tableur de ce jour, les treize étapes sont dans leur fourchette et le simulateur retrouve la
+valeur du tableur pour chacune.
+
+| Cible | Mesuré | Fourchette |
+| --- | --- | --- |
+| Première amélioration (Carrière niveau 5) | 0,080 h (4,8 min) | 0 à 0,083 h |
+| Deuxième usine (Scierie) | 0,282 h | 0,25 à 0,333 h |
+| Première zone de ville | 1,000 h | 0,75 à 1,5 h |
+| Mine profonde | 2,017 h | 2 à 3 h |
+| 1er prestige | 14,701 h | 10 à 15 h |
+| 2e prestige | 37,508 h | 30 à 40 h |
+| 3e prestige | 82,338 h | 70 à 100 h |
+| Étoiles 1 à 6 (durée de la course) | 22,204 ; 20,981 ; 20,168 ; 20,880 ; 25,977 ; 21,575 h | 20 à 30 h |
+
+La Mine profonde (une minute au-dessus du minimum) et la première amélioration (13 secondes sous le maximum) n'ont
+presque pas de marge : le moindre réglage les fera sortir.
+
+### Ce que le simulateur ne dit pas encore
+
+- **Le rachat n'existe pas dans le service.** Le tableur fait payer à chaque course la première fois qu'une usine est
+  remontée le prix du niveau où la remise en état la laisse. Le service ne vend rien : `restoreStep` est gratuit et donne
+  ce niveau. Essai à blanc, rachat gratuit et immédiat : la Scierie arrive à 0,08 h (cible 0,25 à 0,333 h), la Mine
+  profonde à 0,08 h (2 à 3 h), le 2e prestige à 20,9 h (30 à 40 h), le 3e à 48,5 h (70 à 100 h) et la première étoile à
+  17,5 h (20 à 30 h). Il faut donc un prix ou une durée de remise en état dans `definitions/`, ou une autre façon de
+  tenir ces cibles : décision de Kr, notée dans `docs/passation.md`.
+- Les durées de découverte et de remise en état ne sont pas modélisées, faute de chiffre dans `definitions/`.
+- Un seul joueur type. Marché, personnel, boutique et événements n'entrent pas dans les temps.
 
 ## Les garde-fous du long terme
 
