@@ -28,6 +28,11 @@ export interface Factory {
   stoppedNoPower?: boolean;
 }
 
+export interface IslandOrigin {
+  x: number;
+  z: number;
+}
+
 export interface CompanyState {
   companyId: number;
   name: string;
@@ -41,6 +46,8 @@ export interface CompanyState {
   threshold: number;
   factories: Factory[];
   zonesOwned?: number[];
+  /** Origine de l'archipel de l'entreprise, en blocs. Le service la donne dès qu'il l'a attribuée ; l'add-on la lit, il ne la calcule pas. */
+  island?: IslandOrigin;
   version: number;
 }
 
@@ -236,6 +243,15 @@ function readFactory(value: unknown, path: string): Factory {
   return factory;
 }
 
+function readIslandOrigin(value: unknown, path: string): IslandOrigin {
+  const rec = record(value, path);
+  const x = num(rec, "x", path);
+  const z = num(rec, "z", path);
+  if (!Number.isInteger(x)) throw new ShapeError(`${path}.x : entier attendu`);
+  if (!Number.isInteger(z)) throw new ShapeError(`${path}.z : entier attendu`);
+  return { x, z };
+}
+
 function readCompanyState(value: unknown, path: string): CompanyState {
   const rec = record(value, path);
   const state: CompanyState = {
@@ -260,6 +276,7 @@ function readCompanyState(value: unknown, path: string): CompanyState {
       return zone;
     });
   }
+  if (rec["island"] !== undefined) state.island = readIslandOrigin(rec["island"], `${path}.island`);
   return state;
 }
 
