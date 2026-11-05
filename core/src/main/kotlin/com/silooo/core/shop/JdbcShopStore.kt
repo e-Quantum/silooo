@@ -27,7 +27,11 @@ import kotlinx.serialization.json.JsonObject
  */
 class JdbcShopStore : ShopStore {
     override fun isKnownPlayer(connection: Connection, xuid: Xuid): Boolean =
-        connection.prepareStatement("SELECT 1 FROM players WHERE xuid = ?").use {
+        // LOCK IN SHARE MODE : une lecture verrouillée n'ouvre pas la vue cohérente de la transaction (MariaDB, `innodb_snapshot_isolation`).
+        // Si cette première lecture était une lecture simple, la vue s'ouvrirait ici, et le verrou des soldes pris juste après sur une ligne
+        // qu'une autre transaction vient de changer échouerait en ER_CHECKREAD (`TransientConflict.kt`) : deux appels du même joueur se
+        // suivraient par un conflit à rejouer au lieu de se suivre par le verrou.
+        connection.prepareStatement("SELECT 1 FROM players WHERE xuid = ? LOCK IN SHARE MODE").use {
             it.setXuid(1, xuid)
             it.executeQuery().use { rows -> rows.next() }
         }

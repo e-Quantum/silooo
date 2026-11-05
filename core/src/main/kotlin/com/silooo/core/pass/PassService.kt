@@ -22,7 +22,8 @@ import java.time.ZoneOffset
  *
  * Une réclamation suit le déroulé des autres actions :
  *  1. Les cas de 400 tombent avant toute écriture ([RequestRejected]) : acteur inconnu, palier qui n'existe pas, piste sans récompense
- *     à ce palier.
+ *     à ce palier. La lecture du joueur est verrouillée en partage : elle n'ouvre pas la vue cohérente avant le verrou des soldes
+ *     (voir [PassStore.isKnownPlayer]).
  *  2. Le verrou de la ligne de soldes du joueur, puis celui de son pass : deux réclamations se suivent, et l'ordre des verrous est celui
  *     des actions qui versent des Lingots avant de compter des points.
  *  3. Les refus du jeu (`Refusal`) tombent avant la première écriture : `DEJA_RECLAME`, `PREMIUM_REQUIS`, `PALIER_NON_ATTEINT`.
