@@ -199,7 +199,7 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 - [ ] Phase 5 : Docker publie le port Votifier (`SILOOO_VOTIFIER_PORT`, 8192/tcp) en passant à côté d'ufw : vérifier le pare-feu du VPS et, si possible, n'ouvrir ce port qu'à Hubyy.
 - [ ] Mise en ligne du site : suspendue le 5 novembre 2026 à 15 h 48 par la deuxième direction du site (révision de S0 à S5 contre le kit de Kr, `docs/site-revision.md`, worktree `silooo-site`). Rien n'est demandé à Kr pour le site (DNS, bloc Caddy, variables, mentions) tant que `docs/site-passation.md` ne redit pas « Prêt à mettre en ligne » ; le jeu peut se déployer sans lui (site en `attente`, port non publié). La base `silooo` reste à confirmer.
 - [ ] Site : `PioneerRoutesTest` « Jeton absent, falsifié ou périmé » a échoué dans trois runs de la CI de `main` (69d98b1, ddf698f, 870b196 : 303 au lieu de 400 après onze minutes) puis passé au quatrième (234793f, 17 h 02) sans que le paquet `site/` change : intermittent ; à la direction du site, qui le regarde dans sa révision.
-- [ ] Sur le PC, quand `claude/site-socle` sera sur `main` : `npm ci` à la racine, puis `npx playwright install chromium` (environ 150 Mo ; le disque a 20 Go libres) pour que `tools/verifier.sh` joue l'étape « Site : pages dans Chromium » au lieu de l'ignorer ; la CI la joue de toute façon.
+- [ ] Sur le PC : `npx playwright install chromium` (environ 150 Mo ; le disque a 20 Go libres) pour que `tools/verifier.sh` joue l'étape « Site : pages dans Chromium » au lieu de l'ignorer (`npm ci` à la racine est fait, Playwright 1.62.1) ; la CI la joue de toute façon.
 
 ## Décisions prises sans Kr
 
@@ -961,7 +961,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   dans « À valider par Kr » ; onze fichiers de définitions du jeu (82844d0). Réparé : la phrase des fichiers de
   définitions de l'état portait un `\1` depuis 990dcb5 (un script de 15 h 35), et disait 32 opérations. Les cases
   « definitions » et « docs » de la phase 5 cochées. Lancée : l'add-on de la boutique, du pass et des votes
-  (`claude/phase5-addon`, recette `silooo-ecran`, partie de 99804a1). Vérifier : `git log --oneline -4 origin/main`,
+  (`claude/phase5-addon`, recette `silooo-ecran`, partie de 99804a1). À la poussée, `origin/main` avait encore avancé,
+  par la direction du site cette fois (6b891e3, 06de293, fdbec93 : la révision contre le kit, son socle, Playwright) :
+  fusionné sans conflit, `npm ci` à la racine, vérificateur vert avec l'étape Chromium ignorée sur ce poste.
+  Vérifier : `git log --oneline -4 origin/main`,
   `cd core && ./gradlew test --tests '*Pass*'`.
 - **5 novembre 2026, 17 h 17 : bilan (direction).**
   - Fait depuis le bilan de 15 h : les votes (33 opérations, décision 42) ; Discord réduit à ce que le service publie
