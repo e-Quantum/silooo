@@ -297,7 +297,7 @@ describe("createAnnouncements", () => {
     it("un tchat qui lève est journalisé", () => {
       const { announcements, log } = setup({ sayFails: [XUID] });
       announcements.onAnnonce(sansCourant());
-      assert.match(log.warns.join("\n"), /ANNONCE:sansCourant, message à .*joueur parti/);
+      assert.match(log.warns.join("\n"), /annonce-sansCourant, message à .*joueur parti/);
     });
   });
 });

@@ -144,11 +144,11 @@ export function createAnnouncements(deps: AnnouncementsDeps): Announcements {
       if (action === "pionnier") {
         if (pioneers.has(xuid)) return;
         pioneers.add(xuid);
-        if (online().includes(xuid)) tell(xuid, renderBubble(ANNONCES_TEXTES.pionnier), "ANNONCE:pionnier");
+        if (online().includes(xuid)) tell(xuid, renderBubble(ANNONCES_TEXTES.pionnier), "annonce-pionnier");
         return;
       }
       if (action === "sansCourant") {
-        if (online().includes(xuid)) tell(xuid, sansCourantText(event.payload), "ANNONCE:sansCourant");
+        if (online().includes(xuid)) tell(xuid, sansCourantText(event.payload), "annonce-sansCourant");
       }
     },
     cosmeticsOf(xuid, fromJoin) {
