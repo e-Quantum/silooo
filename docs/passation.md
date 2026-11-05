@@ -45,7 +45,7 @@ Dernière mise à jour : 5 novembre 2026, 19 h 34, bilan final de la session de 
   saison (paquet `pass/`, `pass.json`, `getPass`, `claimPass`, `pass-premium`) , l'add-on de la boutique, du
   pass et des votes (`ui/boutique.ts`, `ui/pass.ts`, `ui/votes.ts`, `ui/annonces.ts`, 74a7ca1) , le curseur des
   événements de l'add-on persistant (`silooo:events-cursor`, 0cee7a5) : la phase 5 est complète, hors les cases de Kr. La direction du Discord a posé D2 sur `main` (`definitions/discord.json`,
-  migration V10) ; le jeu prend V11 et la suite.
+  migration V10). Le site a pris V11 (`V11__comptes_du_site.sql`, `claude/site-comptes`) ; le jeu prend V12 et la suite.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
 

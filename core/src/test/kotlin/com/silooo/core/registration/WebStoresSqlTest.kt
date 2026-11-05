@@ -41,7 +41,8 @@ class WebStoresSqlTest {
     private fun discord(id: String = "413000000000000001") = inTransaction { accounts.createDiscord(it, id, now) }
 
     private fun session(hash: String, accountId: Long, expiresAt: Instant = now.plus(WebSessions.LIFETIME)) =
-        WebSession(hash, accountId, "csrf-$hash", now, expiresAt)
+        // Le jeton anti-CSRF tient dans les 64 caractères de la colonne (le service en écrit 32) : « csrf- » plus un bout de l'empreinte.
+        WebSession(hash, accountId, "csrf-" + hash.take(32), now, expiresAt)
 
     // --- web_accounts
 

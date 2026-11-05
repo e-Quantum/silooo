@@ -439,13 +439,14 @@ corriger, treize à refaire, quatre posées à Kr.
 
 - **Le module** : paquet `com.silooo.core.site`, `Main.kt` démarre un second serveur Ktor sur `SILOOO_SITE_PORT`
   (8081), dans la même JVM que l'API ; `/v1` n'existe pas sur ce port. En-têtes de sécurité posés par le module,
-  politique de sécurité sans script (à ouvrir aux scripts du site). Deux modes, `attente` et `ouvert` (`SiteMode.kt`) ;
-  `beta` manque. Détail : `core/README.md`, section « Le site ».
+  politique de sécurité sans script (à ouvrir aux scripts du site). Trois modes, `attente`, `beta` et `ouvert`
+  (`SiteMode.kt`, depuis `claude/site-comptes`). Détail : `core/README.md`, section « Le site ».
 - **Les pages** sont écrites en Kotlin avec kotlinx.html (`site/pages/`, `Gabarit.kt` pose la page) ; les textes sont
   des contenus Markdown à en-tête (`titre`, `description`, `url`, `modes`) dans `core/src/main/resources/site/contenu/`,
   où un paragraphe `{{nom}}` est remplacé par un bloc rendu par le code (offres, tableaux du wiki, adresse du jeu).
   En `attente` : `/`, `/actus/` et ses articles, `/discord/`, les quatre pages légales (`/mentions-legales/`, `/cgv/`,
-  `/confidentialite/`, `/parents/`), `/pionniers/` et ses sous-pages, le webhook. En `ouvert` s'ajoutent `/rejoindre/`,
+  `/confidentialite/`, `/parents/`), `/connexion/` et ses retours Xbox et Discord, `/pionniers/` (l'inscription), le webhook.
+  En `beta` s'ajoutent `/compte/` et `/compte/lier/` ; en `ouvert` s'ajoutent `/rejoindre/`,
   `/ce-qui-se-vend/`, `/boutique/`, `/vote/`, `/wiki/` et treize pages, `/classements/`,
   `/entreprise/{id}/`. Une page introuvable en page Silooo.
 - **Le style** : `public/site.css` importe `public/atelier/tokens.css` (copie de `design/tokens.css`) et
@@ -455,13 +456,19 @@ corriger, treize à refaire, quatre posées à Kr.
   20 px, texte `fonte-900` sur papier dans le panneau de fonte pour les pages de lecture, mention de Mojang en
   étiquette de 16 px. Le test refuse dans le CSS ce que la charte bannit (arrondis, dégradés, flou, largeur fixe).
 - **Les données** : la table `site_registrations` (migration V7 : gamertag en clé, identifiant Discord facultatif,
-  `pioneer`, `admitted_at`), lue par `join` pour l'admission (`SiteAdmission`, règle `SILOOO_SITE_ADMISSION`) ; les
+  `pioneer`, `admitted_at`), lue par `join` pour l'admission (`SiteAdmission`, règle `SILOOO_SITE_ADMISSION`) ; depuis
+  `claude/site-comptes`, la migration V11 (`web_accounts`, `waitlist`, `discord_links`, `beta_access`, `web_sessions`,
+  dépôts dans `registration/JdbcWebStores.kt`) ; les
   accès de lecture dans `com.silooo.core.sitedata` (`SiteStatsStore` : Lingots de la semaine ISO et fiche
   d'entreprise, cache d'une minute ; `ShopDeliveryStore` : une ligne de `shop_deliveries` par commande du webhook) ;
   les joueurs en ligne lus sur les signaux de vie de `ServerPresence`.
-- **Les pionniers** : formulaire sans script (gamertag, case « J'ai lu les règles », jeton signé), cookie
-  `silooo_pionnier` signé d'une heure sur `/pionniers/`, limite de cinq essais par minute et par adresse, OAuth2
-  Discord `identify` avec l'état dans le cookie, aucun identifiant Discord dans une page ni un journal.
+- **Les comptes** (`site/AccountRoutes.kt`, `claude/site-comptes`) : deux portes, Xbox (`registration/HttpXboxIdentity.kt` :
+  OAuth Microsoft `XboxLive.signin`, jeton Xbox Live puis XSTS, comptes enfants refusés avec la page des parents) et
+  Discord (OAuth2 `identify`, `guilds.join` quand la case est cochée) ; l'état OAuth2 dans un cookie signé de dix minutes,
+  cinq départs par minute et par adresse ; session de trente jours dans `web_sessions` (empreinte SHA-256 du jeton, cookie
+  `silooo_session` `HttpOnly`, `Secure`, `SameSite=Lax`) ; avant l'ouverture, se connecter inscrit sur la liste d'attente
+  avec le Pionnier et écrit `site_registrations` ; `/compte/lier/` donne le code de six caractères (`DiscordLinks`, dix
+  minutes) que le jeu rachètera par `POST /v1/links/discord` ; aucun identifiant Discord ni XUID dans une page ni un journal.
 - **Le webhook PayNow** : `POST /paynow/webhook`, `PayNow-Signature` en HMAC-SHA256 hexadécimal du corps, champs
   `order_id`, `gamertag`, `gemmes` ; 503 sans secret, 401, 400, 413 et 405 selon le cas ; une ligne par `order_id`.
   Le format exact est à confirmer par Kr (tout est dans `PayNowWebhook.kt`).
@@ -469,14 +476,14 @@ corriger, treize à refaire, quatre posées à Kr.
   statistiques) et les tests SQL de `sitedata` (ignorés sans Docker, joués en CI). `SiteRenderToDisk` écrit les
   pages rendues dans `core/build/site-rendu/` à chaque `gradlew test` (Gradle pose `SILOOO_SITE_RENDER_DIR`) ;
   `tools/verifier_site.mjs` les ouvre dans Chromium à 360 et 1 280 px, et `--captures` en tire les captures de relecture.
-- **Les variables** (quinze, toutes facultatives, décrites dans `core/README.md`) : `SILOOO_SITE_PORT`,
+- **Les variables** (dix-sept, toutes facultatives, décrites dans `core/README.md`) : `SILOOO_SITE_PORT`,
   `SILOOO_SITE_MODE`, `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`, `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU`,
   `SILOOO_SITE_URL_BOUTIQUE` (disparaît avec la boutique PayNow), `SILOOO_SITE_SITES_DE_VOTE` (disparaît au profit de
   `definitions/site-votes.json`), `SILOOO_SITE_ADMISSION`, `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`,
   `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET`, et depuis `claude/site-gabarit` `SILOOO_SITE_URL_SILENEMC` et
-  `SILOOO_SITE_URL_HUBYY` (les liens « Voir aussi » du pied).
-- **Ce qui manque** par rapport à ce fichier : les comptes (Xbox, Discord avec code en jeu, sessions), l'espace joueur,
-  l'admin, les actus, trois des quatre pages légales, le bandeau direct, le Panthéon, la jauge et la série du vote, le
+  `SILOOO_SITE_URL_HUBYY` (les liens « Voir aussi » du pied), et depuis `claude/site-comptes` `SILOOO_XBOX_CLIENT_ID` et
+  `SILOOO_XBOX_CLIENT_SECRET` (l'application Azure de la porte Xbox ; `SILOOO_SITE_MODE` accepte `beta`).
+- **Ce qui manque** par rapport à ce fichier : l'espace joueur (sauf `/compte/lier/` et un `/compte/` réduit), l'admin, les actus, trois des quatre pages légales, le bandeau direct, le Panthéon, la jauge et la série du vote, le
   Guide généré, la fenêtre d'achat et la commande PayNow, les quatre animations, la vitrine. Depuis `claude/site-socle`
   (5 novembre 2026) : `robots.txt`, `sitemap.xml`, l'empreinte du gamertag, `tools/verifier_site.mjs`, la copie de
   `design/` par Gradle, `composants.css` dérivé, l'image de partage et la 404 avec Oooscar sont là. Depuis
@@ -492,6 +499,9 @@ corriger, treize à refaire, quatre posées à Kr.
   seul), les quatre pages légales (brouillons à relire par Kr), les actus lues dans des fichiers du jar (`/actus/`,
   `/actus/<slug>/`, le chantier de l'attente ; l'admin et `news_articles` attendent `claude/site-admin`) et la page
   `/discord/` demandée par Kr : l'invitation y vit, la navigation de l'attente et le pied y mènent.
+  Depuis `claude/site-comptes` (5 novembre 2026) : la connexion par Xbox et par Discord, les sessions, l'inscription
+  d'avant l'ouverture (`/pionniers/` avec les deux portes), le mode `beta`, `/compte/` réduit et `/compte/lier/` avec le
+  code tapé en jeu, la migration V11 ; `POST /v1/links/discord` et le refus de `session/join` en bêta restent au jeu.
 
 ## La référence : skyblock.rinaorc.com
 
