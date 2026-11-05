@@ -43,6 +43,9 @@ dependencies {
 
     implementation(libs.logback.classic)
 
+    // Le bot Discord (ADR 0007). Sans le module audio : Oooscar ne parle pas dans les vocaux.
+    implementation(libs.jda) { exclude(group = "club.minnced", module = "opus-java") }
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.ktor.server.test.host)
