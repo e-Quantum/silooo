@@ -106,6 +106,9 @@ interface DiscordServer {
     /** Pose les commandes du bot sur le serveur, à la place des précédentes. */
     suspend fun installCommands(commands: List<CommandSpec>)
 
+    /** Le salon officiel des règles de la communauté, s'il est configuré. */
+    suspend fun rulesChannelId(): String? = null
+
     /** L'accueil guidé tel qu'il est ; un serveur qui n'en a jamais eu rend [OnboardingState.NONE]. */
     suspend fun onboarding(): OnboardingState
 

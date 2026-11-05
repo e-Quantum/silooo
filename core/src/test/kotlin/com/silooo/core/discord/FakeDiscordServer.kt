@@ -79,6 +79,10 @@ class FakeDiscordServer(
     val messagesById = mutableMapOf<Pair<String, String>, ChannelMessage>()
 
     /** L'accueil guidé tel que le faux Discord le garde ; [onboardingWrites] : chaque envoi, dans l'ordre. */
+    var rulesChannel: String? = null
+
+    override suspend fun rulesChannelId(): String? = rulesChannel
+
     var onboarding: OnboardingState = OnboardingState.NONE
     val onboardingWrites = mutableListOf<OnboardingState>()
 

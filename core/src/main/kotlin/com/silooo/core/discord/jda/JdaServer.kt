@@ -122,6 +122,8 @@ class JdaConnection private constructor(
  */
 class JdaServer(private val guild: Guild, private val rest: DiscordRest) : DiscordServer {
 
+    override suspend fun rulesChannelId(): String? = guild.rulesChannel?.id
+
     override suspend fun snapshot(): ServerSnapshot = ServerSnapshot(
         roles = guild.roles.filter { !it.isPublicRole && !it.isManaged }.map { ExistingRole(it.id, it.name, colorOf(it)) },
         categories = guild.categories.map { ExistingCategory(it.id, it.name) },
@@ -157,10 +159,7 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         }
         val privateViewers = channel.viewers ?: if (channel.memberViewers.isEmpty()) null else emptySet()
         val none = EnumSet.noneOf(Permission::class.java)
-        val publicDenied = EnumSet.noneOf(Permission::class.java)
-        if (privateViewers != null) publicDenied.addAll(VIEW)
-        if (channel.writers != null) publicDenied.addAll(WRITE)
-        if (channel.locked) publicDenied.add(Permission.VOICE_CONNECT)
+        val publicDenied = planPublicDenials(privateViewers != null, channel.writers != null, channel.locked)
         if (publicDenied.isNotEmpty()) action.addPermissionOverride(guild.publicRole, none, publicDenied)
         if (privateViewers != null) action.addMemberPermissionOverride(guild.selfMember.idLong, VIEW, none)
         val roleIds = privateViewers.orEmpty() + channel.writers.orEmpty()
@@ -519,3 +518,11 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         val WRITE: EnumSet<Permission> = EnumSet.of(Permission.MESSAGE_SEND, Permission.MESSAGE_SEND_IN_THREADS, Permission.CREATE_PUBLIC_THREADS)
     }
 }
+
+/** Un seul override @everyone cumule les interdictions du plan, sans qu'une écrase l'autre. */
+internal fun planPublicDenials(isPrivate: Boolean, readOnly: Boolean, locked: Boolean): EnumSet<Permission> =
+    EnumSet.noneOf(Permission::class.java).apply {
+        if (isPrivate) add(Permission.VIEW_CHANNEL)
+        if (readOnly) addAll(EnumSet.of(Permission.MESSAGE_SEND, Permission.MESSAGE_SEND_IN_THREADS, Permission.CREATE_PUBLIC_THREADS))
+        if (locked) add(Permission.VOICE_CONNECT)
+    }
