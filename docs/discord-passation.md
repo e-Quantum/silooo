@@ -1,6 +1,6 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 16 h 10, D0 (session Discord).
+Dernière mise à jour : 5 novembre 2026, 16 h 05, D0 (session Discord).
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
@@ -189,7 +189,7 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
    rebase juste avant la fusion. Dites ici si une tranche y travaille.
 2. **Numéros.** ADR 0007 est écrit ; la migration V8 reste réservée par la session Discord (D2 ou D3).
 8. **Le déploiement.** Les quatre variables du bot sont dans `deploy/exemple.env.txt` avec `SILOOO_DISCORD_ACTIF=non`
-   (le test `deploy-compose.mjs` l'exige) ; rien dans `compose.yml`. Au QG (fin de D2), la direction du jeu pose
+   (le test `deploy-compose.mjs` l'exige) et dans le tableau de `docs/deploiement.md` ; rien dans `compose.yml`. Au QG (fin de D2), la direction du jeu pose
    `SILOOO_DISCORD_ACTIF=a-blanc` puis `oui` dans l'environnement du VPS, avec le jeton et l'identifiant donnés par Kr.
 3. **La preuve de liaison en jeu** (D3) : un écran Menu, Mon compte, « Relier Discord » qui montre un code de
    6 caractères valable 10 minutes, lu dans silooo-core. La route sera proposée au contrat par la session Discord, par
@@ -280,10 +280,12 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   bot remplacera), `docs/site-passation.md` (S0 à S5 sur `main`, S4 : pionniers, « Relier Discord », admission), le
   cadrage, le plan et sa critique, les cinq maquettes Discord. Écrit : `docs/discord.md`, ce fichier, une ligne dans
   `docs/README.md` et dans `CLAUDE.md`. Suite : vérificateur, fusion, puis D0.
-- 5 novembre 2026, 15 h 31 à 16 h 10 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d0`).
+- 5 novembre 2026, 15 h 31 à 16 h 05 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d0`).
   D0 : ADR 0007 (JDA 6.7.0), le paquet `discord/` (`BotConfig`, `ServerPlan`, `DiscordServer`, `PlanApplier`,
   `DiscordBot`, `BoundedQueue`, `jda/JdaServer`), le plan du serveur et son schéma, `Config.kt` et `Main.kt`, les tests
   sur le faux Discord, `tools/verifier_plan_discord.mjs` et son étape, `anti_ia.py`, `core/README.md`, les quatre
   variables dans `deploy/exemple.env.txt`. Gradle vert (JDA chargé : 51 Ko de tas, 318 Ko hors tas), outillage vert.
-  Reste de D0 : le serveur de test et la mesure connectée, après Kr. Suite : rebase sur `origin/main` (les votes y sont
-  arrivés), vérificateur complet, fusion, puis D2.
+  Reste de D0 : le serveur de test et la mesure connectée, après Kr. Rebase sur `origin/main` (les votes y sont
+  arrivés : conflits dans `Config.kt` et `core/README.md`, les deux côtés gardés, les votes d'abord), `tools/verifier.sh`
+  vert, les quatre variables ajoutées au tableau de `docs/deploiement.md` comme la direction du jeu le demande
+  (`docs/passation.md`, 15 h 43), second rebase sur les commits du site, fusion en avance rapide sur `main`. Suite : D2.
