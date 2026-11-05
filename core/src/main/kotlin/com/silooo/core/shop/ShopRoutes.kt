@@ -29,12 +29,14 @@ internal const val ITEM_ID_MAX_LENGTH = 48
 /**
  * Domaine « boutique » : ce qui s'achète en Gemmes en jeu.
  *
- *  - `GET /v1/shop/catalog?actor=` (`catalog`) : les grades dans l'ordre, puis le Pilier et le Perso, avec ce que l'acteur en possède.
- *    Un `actor` absent ou mal formé, ou un joueur que le service ne connaît pas : 400 `REQUETE_INVALIDE`. Rien n'est écrit.
+ *  - `GET /v1/shop/catalog?actor=` (`catalog`) : les grades dans l'ordre, le Pilier et le Perso, les cosmétiques en vente, puis le boost
+ *    collectif, avec ce que l'acteur en possède. Un `actor` absent ou mal formé, ou un joueur que le service ne connaît pas : 400
+ *    `REQUETE_INVALIDE`. Rien n'est écrit.
  *  - `POST /v1/shop/purchases` (`buyItem`) : achète un article, pour l'acteur ou en cadeau (`forXuid`). Passe par `call.idempotent` :
  *    un `requestId` rejoué rend la même réponse sans payer deux fois. Les refus du jeu sont des 409 `Refused` (`DEJA_POSSEDE`,
- *    `GRADE_PRECEDENT_REQUIS`, `PAS_ASSEZ_DE_GEMMES`) ; un `itemId` inconnu ou pas encore vendu, un acteur ou un destinataire que le
- *    service ne connaît pas : 400. La réponse est le solde de l'acheteur. Le travail est dans [ShopService].
+ *    `GRADE_PRECEDENT_REQUIS`, `PAS_ASSEZ_DE_GEMMES`) ; un `itemId` inconnu ou pas encore vendu (le titre Pionnier ne se vend pas), le
+ *    boost collectif offert, un acteur ou un destinataire que le service ne connaît pas : 400. La réponse est le solde de l'acheteur.
+ *    Le travail est dans [ShopService].
  */
 fun Route.shopRoutes(dependencies: Dependencies) {
     val service = ShopService(

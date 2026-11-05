@@ -17,7 +17,10 @@ import com.silooo.core.db.PassThroughDatabase
 import com.silooo.core.db.RecordingConnection
 import com.silooo.core.db.Xuid
 import com.silooo.core.economy.EngineFixture
+import com.silooo.core.events.GameEventKind
 import com.silooo.core.session.InMemorySessionStore
+import com.silooo.core.shop.InMemoryShopStore.BoostRow
+import com.silooo.core.shop.InMemoryShopStore.CosmeticRow
 import com.silooo.core.shop.InMemoryShopStore.Movement
 import com.silooo.core.shop.InMemoryShopStore.Purchase
 import com.silooo.core.shop.InMemoryShopStore.RankRow
@@ -35,8 +38,12 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.time.Duration
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -138,12 +145,15 @@ class ShopRoutesTest {
         return SiloooJson.decodeFromString(ListSerializer(CatalogItem.serializer()), body)
     }
 
-    /** Rien n'a été écrit : ni achat, ni mouvement de Gemmes, ni grade, ni abonnement. */
+    /** Rien n'a été écrit : ni achat, ni mouvement de Gemmes, ni grade, ni abonnement, ni cosmétique, ni boost, ni événement. */
     private fun assertNothingWritten(app: Harness) {
         assertTrue(app.shop.purchases.isEmpty(), "achats : ${app.shop.purchases}")
         assertTrue(app.shop.movements.isEmpty(), "mouvements : ${app.shop.movements}")
         assertTrue(app.shop.ranks.values.all { it.isEmpty() }, "grades : ${app.shop.ranks}")
         assertTrue(app.shop.subscriptions.isEmpty(), "abonnements : ${app.shop.subscriptions}")
+        assertTrue(app.shop.cosmetics.values.all { it.isEmpty() }, "cosmétiques : ${app.shop.cosmetics}")
+        assertTrue(app.shop.boosts.isEmpty(), "boosts : ${app.shop.boosts}")
+        assertTrue(app.shop.published.isEmpty(), "événements : ${app.shop.published}")
     }
 
     // --- achat de grade
@@ -273,7 +283,7 @@ class ShopRoutesTest {
     fun unknownItemIsABadRequest() = withApp { app ->
         app.player(kr, "Kr", gemmes = 100_000)
 
-        for ((n, itemId) in listOf("inconnu", "MVIP", "cosmetique-1", "pass-saison", "").withIndex()) {
+        for ((n, itemId) in listOf("inconnu", "MVIP", "cosmetique-1", "pass-saison", ShopRules.PIONEER_TITLE_ID, "").withIndex()) {
             assertBadRequest(buy(itemId, n = n + 1), "article « $itemId »")
         }
 
@@ -501,6 +511,264 @@ class ShopRoutesTest {
         assertTrue(!app.shop.subscriptions.containsKey(kr to perso.id))
     }
 
+    // --- les cosmétiques
+
+    @Test
+    @DisplayName("buyItem d'un cosmétique : il est écrit pour l'acheteur (source boutique), ses Gemmes baissent du prix, l'achat et le mouvement sont notés")
+    fun buyingACosmetic() = withApp { app ->
+        val cosmetic = rules.cosmetics.first()
+        app.player(kr, "Kr", gemmes = cosmetic.gems + 7)
+
+        val balances = balancesOf(buy(cosmetic.id))
+
+        assertEquals(7L, balances.gemmes)
+        assertEquals(listOf(CosmeticRow(cosmetic.id, noon, "boutique")), app.shop.cosmeticsOf(kr))
+        assertEquals(listOf(Purchase(kr, cosmetic.id, cosmetic.gems, null, requestId(1), noon)), app.shop.purchases)
+        assertEquals(listOf(Movement(kr, -cosmetic.gems, "boutique", cosmetic.id)), app.shop.movements)
+        assertTrue(app.shop.published.isEmpty(), "un cosmétique n'annonce rien")
+        assertTrue(app.shop.boosts.isEmpty() && app.shop.ranks.values.all { it.isEmpty() } && app.shop.subscriptions.isEmpty())
+    }
+
+    @Test
+    @DisplayName("buyItem : chaque cosmétique en vente s'achète à son prix, sans grade ni abonnement ; le dernier racheté donne DEJA_POSSEDE")
+    fun buyingEveryCosmetic() = withApp { app ->
+        app.player(kr, "Kr", gemmes = rules.cosmetics.sumOf { it.gems } + 3)
+
+        for ((index, cosmetic) in rules.cosmetics.withIndex()) {
+            val before = app.gemmes(kr)
+            assertEquals(before - cosmetic.gems, balancesOf(buy(cosmetic.id, n = index + 1)).gemmes, cosmetic.id)
+        }
+
+        assertEquals(3L, app.gemmes(kr))
+        assertEquals(rules.cosmetics.map { it.id }, app.shop.cosmeticsOf(kr).map { it.cosmeticId })
+        refusalOf(buy(rules.cosmetics.last().id, n = 100), RefusalCodes.ALREADY_OWNED)
+        assertEquals(3L, app.gemmes(kr))
+    }
+
+    @Test
+    @DisplayName("buyItem : un cosmétique déjà possédé (acheté, ou donné par ailleurs) donne 409 DEJA_POSSEDE, sans rien retirer ni noter")
+    fun ownedCosmeticIsRefused() = withApp { app ->
+        val (bought, given) = rules.cosmetics
+        app.player(kr, "Kr", gemmes = bought.gems * 2 + given.gems)
+        balancesOf(buy(bought.id, n = 1))
+        app.shop.seedCosmetic(kr, given.id, source = "evenement")
+        val gemmesBefore = app.gemmes(kr)
+
+        refusalOf(buy(bought.id, n = 2), RefusalCodes.ALREADY_OWNED)
+        refusalOf(buy(given.id, n = 3), RefusalCodes.ALREADY_OWNED)
+
+        assertEquals(gemmesBefore, app.gemmes(kr))
+        assertEquals(1, app.shop.purchases.size)
+        assertEquals(1, app.shop.movements.size)
+        assertEquals(listOf(bought.id to "boutique", given.id to "evenement"), app.shop.cosmeticsOf(kr).map { it.cosmeticId to it.source })
+    }
+
+    @Test
+    @DisplayName("buyItem d'un cosmétique rejoué avec le même requestId : la même réponse, un seul cosmétique, rien de payé deux fois")
+    fun replayedCosmeticIsPaidOnce() = withApp { app ->
+        val cosmetic = rules.cosmetics.first()
+        app.player(kr, "Kr", gemmes = cosmetic.gems * 2)
+
+        val body = buy(cosmetic.id).bodyAsText()
+        val replay = buy(cosmetic.id)
+
+        assertEquals(HttpStatusCode.OK, replay.status)
+        assertEquals(body, replay.bodyAsText())
+        assertEquals(1, app.shop.cosmeticsOf(kr).size)
+        assertEquals(1, app.shop.movements.size)
+        assertEquals(cosmetic.gems, app.gemmes(kr))
+    }
+
+    @Test
+    @DisplayName("buyItem d'un cosmétique : sans assez de Gemmes, 409 PAS_ASSEZ_DE_GEMMES avec ce qui manque, sans rien écrire")
+    fun cosmeticNeedsItsPrice() = withApp { app ->
+        val cosmetic = rules.cosmetics.first()
+        app.player(kr, "Kr", gemmes = cosmetic.gems - 1)
+
+        val refusal = refusalOf(buy(cosmetic.id), RefusalCodes.NOT_ENOUGH_GEMS)
+
+        assertEquals(1.0, refusal.missing)
+        assertEquals(cosmetic.gems - 1, app.gemmes(kr))
+        assertNothingWritten(app)
+    }
+
+    @Test
+    @DisplayName("buyItem en cadeau d'un cosmétique : l'acheteur paie, le destinataire le reçoit (source boutique), la réponse est le solde de l'acheteur")
+    fun giftingACosmetic() = withApp { app ->
+        val cosmetic = rules.cosmetics.first()
+        app.player(kr, "Kr", gemmes = cosmetic.gems + 4)
+        app.player(friend, "Ami")
+
+        val balances = balancesOf(buy(cosmetic.id, forXuid = friend))
+
+        assertEquals(4L, balances.gemmes)
+        assertEquals(listOf(CosmeticRow(cosmetic.id, noon, "boutique")), app.shop.cosmeticsOf(friend))
+        assertTrue(app.shop.cosmeticsOf(kr).isEmpty(), "l'acheteur ne l'a pas")
+        assertEquals(listOf(Purchase(kr, cosmetic.id, cosmetic.gems, friend, requestId(1), noon)), app.shop.purchases)
+        assertEquals(listOf(Movement(kr, -cosmetic.gems, "boutique", cosmetic.id)), app.shop.movements)
+        assertEquals(0L, app.gemmes(friend))
+    }
+
+    @Test
+    @DisplayName("buyItem en cadeau d'un cosmétique : la vérification porte sur le destinataire, pas sur l'acheteur")
+    fun cosmeticGiftChecksTheRecipient() = withApp { app ->
+        val cosmetic = rules.cosmetics.first()
+        app.player(kr, "Kr", gemmes = cosmetic.gems * 3)
+        app.player(friend, "Ami")
+        app.shop.seedCosmetic(kr, cosmetic.id)
+
+        // L'acheteur l'a déjà : le cadeau passe, c'est l'ami qui compte.
+        balancesOf(buy(cosmetic.id, n = 1, forXuid = friend))
+        assertEquals(listOf(cosmetic.id), app.shop.cosmeticsOf(friend).map { it.cosmeticId })
+
+        // L'ami l'a maintenant : le même cadeau est refusé, et l'acheteur ne paie rien de plus.
+        val after = app.gemmes(kr)
+        refusalOf(buy(cosmetic.id, n = 2, forXuid = friend), RefusalCodes.ALREADY_OWNED)
+        assertEquals(after, app.gemmes(kr))
+        assertEquals(1, app.shop.purchases.size)
+    }
+
+    @Test
+    @DisplayName("buyItem : le titre Pionnier ne s'achète pas, même rempli de Gemmes ni offert : 400, rien d'écrit")
+    fun pioneerTitleIsNotForSale() = withApp { app ->
+        app.player(kr, "Kr", gemmes = 100_000)
+        app.player(friend, "Ami")
+
+        assertBadRequest(buy(ShopRules.PIONEER_TITLE_ID, n = 1), "titre Pionnier")
+        assertBadRequest(buy(ShopRules.PIONEER_TITLE_ID, n = 2, forXuid = friend), "titre Pionnier offert")
+
+        assertNothingWritten(app)
+        assertEquals(100_000L, app.gemmes(kr))
+    }
+
+    // --- le boost collectif
+
+    @Test
+    @DisplayName("buyItem du boost : il commence maintenant et dure dureeMinutes, l'acheteur paie, l'événement BOOST_COLLECTIF part sans xuid avec ses bornes")
+    fun buyingTheBoost() = withApp { app ->
+        val boost = rules.boost
+        app.player(kr, "Kr", gemmes = boost.gems + 7)
+
+        val balances = balancesOf(buy(boost.id))
+
+        assertEquals(7L, balances.gemmes)
+        val window = BoostWindow(noon, noon.plus(Duration.ofMinutes(boost.minutes)))
+        assertEquals(listOf(BoostRow(kr, window, boost.bonusPercent)), app.shop.boosts)
+        assertEquals(listOf(Purchase(kr, boost.id, boost.gems, null, requestId(1), noon)), app.shop.purchases)
+        assertEquals(listOf(Movement(kr, -boost.gems, "boutique", boost.id)), app.shop.movements)
+        val event = app.shop.published.single()
+        assertEquals(GameEventKind.BOOST_COLLECTIF, event.kind)
+        assertNull(event.xuid, "un événement pour tout le serveur")
+        assertEquals(
+            buildJsonObject {
+                put("buyerName", "Kr")
+                put("percent", boost.bonusPercent)
+                put("minutes", boost.minutes)
+                put("startsAt", window.startsAt.toString())
+                put("endsAt", window.endsAt.toString())
+            },
+            event.payload,
+        )
+        assertTrue(app.shop.cosmetics.values.all { it.isEmpty() } && app.shop.ranks.values.all { it.isEmpty() })
+    }
+
+    @Test
+    @DisplayName("buyItem du boost : un boost acheté pendant un autre commence à la fin du dernier réservé, quel que soit l'acheteur ; les boosts ne s'empilent pas")
+    fun boostsFollowEachOther() = withApp { app ->
+        val boost = rules.boost
+        val length = Duration.ofMinutes(boost.minutes)
+        app.player(kr, "Kr", gemmes = boost.gems * 2)
+        app.player(friend, "Ami", gemmes = boost.gems)
+
+        balancesOf(buy(boost.id, n = 1))
+        app.clock.advance(length.dividedBy(6))
+        balancesOf(buy(boost.id, n = 2, actor = friend))
+        app.clock.advance(length.dividedBy(6))
+        balancesOf(buy(boost.id, n = 3))
+
+        val (first, second, third) = app.shop.boosts
+        assertEquals(noon, first.window.startsAt)
+        assertEquals(first.window.endsAt, second.window.startsAt, "le deuxième attend la fin du premier")
+        assertEquals(second.window.endsAt, third.window.startsAt, "le troisième attend la fin du deuxième")
+        assertEquals(listOf(length, length, length), app.shop.boosts.map { Duration.between(it.window.startsAt, it.window.endsAt) })
+        assertEquals(listOf(kr, friend, kr), app.shop.boosts.map { it.boughtBy })
+        // Aucune minute n'est couverte par deux boosts : à chaque instant, au plus un boost court.
+        for (minute in 0L until length.toMinutes() * 3) {
+            val at = noon.plus(Duration.ofMinutes(minute))
+            assertEquals(1, app.shop.boosts.count { !it.window.startsAt.isAfter(at) && it.window.endsAt.isAfter(at) }, "à ${minute} minutes")
+        }
+        // Chaque achat annonce ses propres bornes, à l'achat.
+        assertEquals(
+            app.shop.boosts.map { it.window.startsAt.toString() to it.window.endsAt.toString() },
+            app.shop.published.map { it.payload.getValue("startsAt").jsonPrimitive.content to it.payload.getValue("endsAt").jsonPrimitive.content },
+        )
+        assertEquals(listOf("Kr", "Ami", "Kr"), app.shop.published.map { it.payload.getValue("buyerName").jsonPrimitive.content })
+        assertEquals(3, app.shop.boostLockReads, "un achat de boost lit la fin du dernier boost, une fois")
+    }
+
+    @Test
+    @DisplayName("buyItem du boost : acheté après la fin du dernier (à l'instant même compris), il recommence à l'instant de l'achat")
+    fun boostAfterTheLastOneStartsNow() = withApp { app ->
+        val boost = rules.boost
+        val length = Duration.ofMinutes(boost.minutes)
+        app.player(kr, "Kr", gemmes = boost.gems * 3)
+
+        balancesOf(buy(boost.id, n = 1))
+        app.clock.advance(length)
+        balancesOf(buy(boost.id, n = 2))
+        app.clock.advance(length.multipliedBy(2))
+        balancesOf(buy(boost.id, n = 3))
+
+        assertEquals(
+            listOf(noon, noon.plus(length), noon.plus(length.multipliedBy(3))),
+            app.shop.boosts.map { it.window.startsAt },
+        )
+    }
+
+    @Test
+    @DisplayName("buyItem du boost : sans assez de Gemmes, 409 PAS_ASSEZ_DE_GEMMES avec ce qui manque, ni boost ni événement")
+    fun boostNeedsItsPrice() = withApp { app ->
+        val boost = rules.boost
+        app.player(kr, "Kr", gemmes = boost.gems - 1)
+
+        val refusal = refusalOf(buy(boost.id), RefusalCodes.NOT_ENOUGH_GEMS)
+
+        assertEquals(1.0, refusal.missing)
+        assertEquals(boost.gems - 1, app.gemmes(kr))
+        assertNothingWritten(app)
+    }
+
+    @Test
+    @DisplayName("buyItem du boost rejoué avec le même requestId : la même réponse, un seul boost, un seul événement")
+    fun replayedBoostIsBoughtOnce() = withApp { app ->
+        val boost = rules.boost
+        app.player(kr, "Kr", gemmes = boost.gems * 2)
+
+        val body = buy(boost.id).bodyAsText()
+        val replay = buy(boost.id)
+
+        assertEquals(HttpStatusCode.OK, replay.status)
+        assertEquals(body, replay.bodyAsText())
+        assertEquals(1, app.shop.boosts.size)
+        assertEquals(1, app.shop.published.size)
+        assertEquals(boost.gems, app.gemmes(kr))
+    }
+
+    @Test
+    @DisplayName("buyItem du boost : il ne s'offre pas (un autre destinataire donne 400, rien d'écrit) ; se l'offrir à soi-même est un achat pour soi")
+    fun boostIsNotAGift() = withApp { app ->
+        val boost = rules.boost
+        app.player(kr, "Kr", gemmes = boost.gems * 2)
+        app.player(friend, "Ami")
+
+        assertBadRequest(buy(boost.id, n = 1, forXuid = friend), "boost offert")
+        assertNothingWritten(app)
+
+        balancesOf(buy(boost.id, n = 2, forXuid = kr))
+        assertEquals(listOf(null), app.shop.purchases.map { it.recipient })
+        assertEquals(1, app.shop.boosts.size)
+    }
+
     // --- le journal
 
     @Test
@@ -509,7 +777,7 @@ class ShopRoutesTest {
         app.player(kr, "Kr", gemmes = 100_000)
         app.shop.seedRank(kr, ultimate)
         var n = 0
-        for (item in listOf(grades[0].id, pilier.id, perso.id)) balancesOf(buy(item, n = ++n))
+        for (item in listOf(grades[0].id, pilier.id, perso.id) + rules.cosmetics.map { it.id } + rules.boost.id) balancesOf(buy(item, n = ++n))
 
         assertTrue(app.shop.movements.isNotEmpty())
         assertTrue(app.shop.movements.all { it.reason.length <= 32 && it.refId.length <= 64 }, "${app.shop.movements}")
@@ -554,6 +822,27 @@ class ShopRoutesTest {
         app.shop.seedRank(kr, ultimate)
 
         assertTrue(catalogItems(catalogOf(kr)).single { it.itemId == perso.id }.available)
+    }
+
+    @Test
+    @DisplayName("catalog : un cosmétique acheté passe owned et n'est plus à vendre, le boost ne passe jamais owned et reste à vendre")
+    fun catalogFollowsCosmeticsAndBoost() = withApp { app ->
+        val cosmetic = rules.cosmetics.first()
+        app.player(kr, "Kr", gemmes = cosmetic.gems + rules.boost.gems)
+        app.player(friend, "Ami")
+
+        balancesOf(buy(cosmetic.id, n = 1))
+        balancesOf(buy(rules.boost.id, n = 2))
+
+        val mine = catalogItems(catalogOf(kr))
+        assertTrue(mine.single { it.itemId == cosmetic.id }.let { it.owned && !it.available })
+        assertTrue(mine.single { it.itemId == ShopRules.BOOST_ID }.let { !it.owned && it.available })
+        assertEquals(
+            rules.catalog(Holdings(emptySet(), emptyMap(), cosmetics = setOf(cosmetic.id)), noon),
+            mine,
+        )
+        // Ni le cosmétique d'un joueur ni le boost de tout le serveur ne changent ce que les autres possèdent.
+        assertTrue(catalogItems(catalogOf(friend)).none { it.owned })
     }
 
     @Test

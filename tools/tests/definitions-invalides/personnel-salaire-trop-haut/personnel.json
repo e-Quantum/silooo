@@ -54,18 +54,21 @@
   },
   "raretes": {
     "COMMUN": {
+      "nom": "Ordinaire",
       "repartitionPourcent": 75,
       "bonusProductionPourcent": 10,
       "salairePourcent": 10,
       "coutHeuresDeRevenu": 1
     },
     "RARE": {
+      "nom": "Rare",
       "repartitionPourcent": 20,
       "bonusProductionPourcent": 25,
       "salairePourcent": 6,
       "coutHeuresDeRevenu": 4
     },
     "EPIQUE": {
+      "nom": "Exceptionnel",
       "repartitionPourcent": 5,
       "bonusProductionPourcent": 60,
       "salairePourcent": 15,

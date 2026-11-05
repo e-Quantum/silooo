@@ -13,8 +13,8 @@ import kotlinx.serialization.json.JsonObject
 data class PendingDelivery(val orderId: String, val gamertag: String, val xuid: Xuid?, val gemmes: Long)
 
 /**
- * Les accès SQL de la boutique (`shop_deliveries`, `shop_purchases`, `player_ranks`, `player_subscriptions`) et les mouvements de
- * Gemmes, derrière une interface : les tests de route tournent avec un faux en mémoire, le SQL avec la vraie base (Testcontainers,
+ * Les accès SQL de la boutique (`shop_deliveries`, `shop_purchases`, `player_ranks`, `player_subscriptions`, `player_cosmetics`,
+ * `server_boosts`, et `site_registrations` en lecture pour le titre Pionnier) et les mouvements de Gemmes, derrière une interface : les tests de route tournent avec un faux en mémoire, le SQL avec la vraie base (Testcontainers,
  * `ShopSqlTest`). Les soldes se lisent par `SessionStore.loadBalances`.
  *
  * Tout ce qui écrit passe par la transaction de la [Connection] reçue : un achat ou une livraison part en entier ou pas du tout.
@@ -25,10 +25,13 @@ interface ShopStore {
     /** Vrai si [xuid] a une ligne `players` : un joueur que le service connaît (il est déjà passé par `join`). */
     fun isKnownPlayer(connection: Connection, xuid: Xuid): Boolean
 
-    /** Les grades et les abonnements de [xuid], les abonnements échus compris (voir [Holdings]). */
+    /** Les grades, les abonnements (échus compris) et les cosmétiques de [xuid] (voir [Holdings]). */
     fun loadHoldings(connection: Connection, xuid: Xuid): Holdings
 
-    /** Les mêmes possessions du PDG de l'entreprise [companyId] (`company_members.role = 'PDG'`) : la matière des bonus de Donar. */
+    /**
+     * Les grades et les abonnements du PDG de l'entreprise [companyId] (`company_members.role = 'PDG'`) : la matière des bonus de Donar.
+     * Ses cosmétiques ne comptent pour aucun bonus : ils ne sont pas lus.
+     */
     fun ceoHoldings(connection: Connection, companyId: Long): Holdings
 
     /** L'abonnement [subscriptionId] de [xuid], ou `null` s'il n'en a jamais eu. La ligne est verrouillée : deux achats se suivent. */
@@ -42,6 +45,30 @@ interface ShopStore {
 
     /** Crée l'abonnement [subscriptionId] de [xuid] ou remplace celui qu'il a (une ligne par joueur et abonnement). */
     fun saveSubscription(connection: Connection, xuid: Xuid, subscriptionId: String, term: SubscriptionTerm)
+
+    /**
+     * Donne le cosmétique [cosmeticId] à [xuid] à l'instant [at], avec la source [source] (`player_cosmetics.source` : `boutique`,
+     * `site`). Rend faux si le joueur l'a déjà (deux achats, ou deux arrivées, en même temps : le second n'écrit rien).
+     */
+    fun grantCosmetic(connection: Connection, xuid: Xuid, cosmeticId: String, source: String, at: Instant): Boolean
+
+    /** Le gamertag que le service connaît pour [xuid] (`players.gamertag`) ; [xuid] est un joueur connu. */
+    fun gamertagOf(connection: Connection, xuid: Xuid): String
+
+    // ---------------------------------------------------------------- boost collectif
+
+    /**
+     * La fin du dernier boost réservé qui n'est pas échu à l'instant [now] (en cours ou en attente), `null` s'il n'y en a pas. La lecture
+     * VERROUILLE cette fin (`FOR UPDATE`) : deux achats en même temps se suivent, ou l'un d'eux reçoit un conflit transitoire et
+     * l'appelant le rejoue ; les boosts ne se chevauchent jamais.
+     */
+    fun lastBoostEnd(connection: Connection, now: Instant): Instant?
+
+    /** Écrit un boost acheté par [boughtBy] sur [window], de [bonusPercent] pourcents. */
+    fun insertBoost(connection: Connection, boughtBy: Xuid, window: BoostWindow, bonusPercent: Int)
+
+    /** Les pourcents du boost qui court à l'instant [now] (début inclus, fin exclue), 0 s'il n'y en a pas. Lecture seule. */
+    fun activeBoostPercent(connection: Connection, now: Instant): Int
 
     // ---------------------------------------------------------------- achats
 
@@ -75,12 +102,15 @@ interface ShopStore {
      */
     fun pendingDeliveries(connection: Connection, limit: Int): List<PendingDelivery>
 
-    /** Les livraisons pas encore versées qui visent [xuid] ou le pseudo [gamertag], les plus anciennes d'abord. */
+    /**
+     * Les livraisons pas encore versées qui visent [xuid] ou le pseudo [gamertag], les plus anciennes d'abord. Les pseudos se comparent
+     * par leur clé (`SiteRegistrations.key`) : sans tenir compte de la casse ni des espaces des bords, espaces du milieu réduits à un.
+     */
     fun pendingDeliveriesFor(connection: Connection, xuid: Xuid, gamertag: String): List<PendingDelivery>
 
     /**
-     * Le joueur à qui revient [delivery] : son XUID s'il est rempli et connu de `players`, sinon le joueur de ce pseudo vu en dernier ;
-     * `null` si personne ne correspond (la livraison reste en attente).
+     * Le joueur à qui revient [delivery] : son XUID s'il est rempli et connu de `players`, sinon le joueur de ce pseudo (même clé que
+     * ci-dessus) vu en dernier ; `null` si personne ne correspond (la livraison reste en attente).
      */
     fun recipientOf(connection: Connection, delivery: PendingDelivery): Xuid?
 
@@ -89,6 +119,11 @@ interface ShopStore {
      * n'a pas été touchée (déjà versée par un autre passage) : l'appelant ne verse alors rien.
      */
     fun markDelivered(connection: Connection, orderId: String, xuid: Xuid, at: Instant): Boolean
+
+    // ---------------------------------------------------------------- pionniers
+
+    /** Vrai si le site a inscrit ce gamertag comme pionnier (`site_registrations.pioneer`) ; [key] est celui de `SiteRegistrations.key`. */
+    fun isPioneer(connection: Connection, key: String): Boolean
 
     // ---------------------------------------------------------------- événements
 

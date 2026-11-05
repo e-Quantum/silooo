@@ -1,6 +1,10 @@
 package com.silooo.core.economy
 
 import com.silooo.core.api.FactoryState
+import com.silooo.core.city.CityFigures
+import com.silooo.core.city.CityRules
+import com.silooo.core.city.InMemoryCityStore
+import com.silooo.core.db.Xuid
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.session.CompanyFigures
 import com.silooo.core.session.CompanyRecord
@@ -18,9 +22,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /**
- * La boutique dans les chiffres que [EngineFigures] rend : le bonus de Donar du plus haut grade à vie du PDG et de son Pilier, sur le
- * multiplicateur global de l'entreprise, et la règle qui tient tout ensemble : sans grade ni Pilier, ou sans source de boutique, rien ne
- * change, bit pour bit. Les valeurs attendues sortent du moteur et de `definitions/boutique.json`, jamais d'un littéral.
+ * La boutique dans les chiffres que [EngineFigures] rend : le bonus de Donar du plus haut grade à vie du PDG, de son Pilier et du boost
+ * collectif qui court pour tout le serveur, sur le multiplicateur global de l'entreprise, et la règle qui tient tout ensemble : sans
+ * grade, Pilier ni boost, ou sans source de boutique, rien ne change, bit pour bit. Les valeurs attendues sortent du moteur et de `definitions/boutique.json`, jamais d'un littéral.
  */
 class EngineFiguresShopTest {
     private val fx = EngineFixture()
@@ -57,7 +61,7 @@ class EngineFiguresShopTest {
     // --- sans bonus : rien ne change
 
     @Test
-    @DisplayName("Sans grade ni Pilier, avec une source de boutique : les chiffres d'avant, bit pour bit, revenu, usines et production versée")
+    @DisplayName("Sans grade, Pilier ni boost, avec une source de boutique : les chiffres d'avant, bit pour bit, revenu, usines et production versée")
     fun noGradeNoPilierChangesNothing() {
         val company = twoFactories()
         val plain = plainFigures(company)
@@ -88,6 +92,18 @@ class EngineFiguresShopTest {
         }
         assertThrows(IllegalArgumentException::class.java) { engine.withShopBonuses(2.0, -1, 0) }
         assertThrows(IllegalArgumentException::class.java) { engine.withShopBonuses(2.0, 0, -1) }
+        assertThrows(IllegalArgumentException::class.java) { engine.withShopBonuses(2.0, 0, 0, -1) }
+    }
+
+    @Test
+    @DisplayName("Le moteur : le boost multiplie comme un autre bonus, et un boost à zéro n'est pas appliqué")
+    fun engineBoostPlaysLikeTheOthers() {
+        val boost = rules.boost.bonusPercent
+        for (multiplier in listOf(1.0, 3.7, 123_456.789)) {
+            assertEquals(multiplier, engine.withShopBonuses(multiplier, 0, 0, 0))
+            assertEquals(multiplier * factor(boost), engine.withShopBonuses(multiplier, 0, 0, boost))
+            assertEquals(multiplier * factor(7) * factor(boost), engine.withShopBonuses(multiplier, 7, 0, boost))
+        }
     }
 
     // --- le grade
@@ -173,6 +189,142 @@ class EngineFiguresShopTest {
 
         assertEquals(engine.withShopBonuses(plain.multiplier, grade, pilier.donarBonusPercent), figures.multiplier)
         assertGolden(plain.multiplier * factor(grade) * factor(pilier.donarBonusPercent), figures.multiplier, "multiplicateur")
+    }
+
+    // --- le boost collectif
+
+    private val boost = rules.boost
+
+    /** Un boost qui court en ce moment, acheté par [buyer] : commencé depuis une minute, jusqu'à dans une heure. */
+    private fun runningBoost(buyer: Xuid = kr) {
+        val now = fx.clock.instant()
+        shopStore.seedBoost(buyer, now.minusSeconds(60), now.plusSeconds(3600), boost.bonusPercent)
+    }
+
+    @Test
+    @DisplayName("Le boost multiplie le multiplicateur global : le revenu de l'entreprise et de chaque usine suit, la somme des usines redonne le total")
+    fun boostMultipliesTheGlobalMultiplier() {
+        val company = twoFactories()
+        val plain = plainFigures(company)
+        assertTrue(boost.bonusPercent > 0)
+        runningBoost()
+
+        val figures = shopFigures(company)
+
+        assertEquals(engine.withShopBonuses(plain.multiplier, 0, 0, boost.bonusPercent), figures.multiplier)
+        assertGolden(plain.multiplier * factor(boost.bonusPercent), figures.multiplier, "multiplicateur")
+        assertGolden(plain.ratePerHour * factor(boost.bonusPercent), figures.ratePerHour, "revenu de l'entreprise")
+        for (factory in listOf(fx.starting.factoryId, second)) {
+            assertGolden(plain.forFactory(factory).ratePerHour * factor(boost.bonusPercent), figures.forFactory(factory).ratePerHour, factory)
+        }
+        assertGolden(
+            figures.forFactory(fx.starting.factoryId).ratePerHour + figures.forFactory(second).ratePerHour,
+            figures.ratePerHour,
+            "la somme des usines",
+        )
+    }
+
+    @Test
+    @DisplayName("Le boost est pour tout le serveur : toutes les entreprises le reçoivent, celle de l'acheteur comme les autres, sans grade ni Pilier")
+    fun boostIsForEveryCompany() {
+        val krs = twoFactories()
+        val others = fx.newCompany(owner = other)
+        val plainKrs = plainFigures(krs)
+        val plainOthers = plainFigures(others)
+        runningBoost(buyer = other)
+
+        assertEquals(engine.withShopBonuses(plainKrs.multiplier, 0, 0, boost.bonusPercent), shopFigures(krs).multiplier)
+        assertEquals(engine.withShopBonuses(plainOthers.multiplier, 0, 0, boost.bonusPercent), shopFigures(others).multiplier)
+        assertTrue(shopFigures(others).multiplier > plainOthers.multiplier)
+    }
+
+    @Test
+    @DisplayName("Le boost ne compte que de son début (inclus) à sa fin (exclue) : avant, rien ; pendant, la hausse ; à la fin, rien")
+    fun boostCountsOnlyWhileItRuns() {
+        val company = twoFactories()
+        val plain = plainFigures(company)
+        val start = fx.clock.instant().plusSeconds(60)
+        val end = start.plus(Duration.ofMinutes(boost.minutes))
+        shopStore.seedBoost(kr, start, end, boost.bonusPercent)
+
+        assertEquals(plain.multiplier, shopFigures(company).multiplier, "pas encore commencé")
+
+        fx.clock.advance(Duration.ofSeconds(60))
+        assertEquals(engine.withShopBonuses(plain.multiplier, 0, 0, boost.bonusPercent), shopFigures(company).multiplier, "à l'instant de début")
+
+        fx.clock.advance(Duration.ofMinutes(boost.minutes).minusSeconds(1))
+        assertEquals(engine.withShopBonuses(plain.multiplier, 0, 0, boost.bonusPercent), shopFigures(company).multiplier, "une seconde avant la fin")
+
+        fx.clock.advance(Duration.ofSeconds(1))
+        assertEquals(end, fx.clock.instant())
+        assertEquals(plain.multiplier, shopFigures(company).multiplier, "à l'instant de la fin")
+    }
+
+    @Test
+    @DisplayName("Des boosts qui se suivent ne s'empilent pas : à chaque instant un seul court, la hausse est celle d'un boost, jamais deux")
+    fun queuedBoostsDoNotStack() {
+        val company = twoFactories()
+        val plain = plainFigures(company)
+        val now = fx.clock.instant()
+        val length = Duration.ofMinutes(boost.minutes)
+        shopStore.seedBoost(kr, now.minusSeconds(60), now.minusSeconds(60).plus(length), boost.bonusPercent)
+        shopStore.seedBoost(other, now.minusSeconds(60).plus(length), now.minusSeconds(60).plus(length.multipliedBy(2)), boost.bonusPercent)
+
+        val oneBoost = engine.withShopBonuses(plain.multiplier, 0, 0, boost.bonusPercent)
+        assertEquals(oneBoost, shopFigures(company).multiplier, "le premier court, le second attend")
+
+        fx.clock.advance(length)
+        assertEquals(oneBoost, shopFigures(company).multiplier, "le second court, le premier est fini")
+        assertTrue(oneBoost < engine.withShopBonuses(plain.multiplier, 0, 0, boost.bonusPercent * 2), "deux boosts n'auraient pas la même hausse")
+    }
+
+    @Test
+    @DisplayName("Le boost se combine avec le grade, le Pilier et la ville : le multiplicateur est multiplié par chacun")
+    fun boostCombinesWithGradePilierAndCity() {
+        val company = twoFactories()
+        val plain = plainFigures(company)
+        val cityStore = InMemoryCityStore(fx.store)
+        cityStore.seedBuilding(company.id, "commerce", 2, zoneIndex = 1, x = 0, z = 0)
+        val cityPercent = checkNotNull(fx.definitions.city.building("commerce")!!.level(2).bonus)
+        assertTrue(cityPercent > 0.0)
+        ranks(rules.grades.size)
+        shopStore.seedSubscription(kr, pilier.id, fx.clock.instant(), fx.clock.instant().plus(Duration.ofDays(pilier.days.toLong())))
+        runningBoost()
+        val grade = gradePercent(rules.grades.size)
+        val everything = EngineFigures(
+            engine,
+            fx.store,
+            fx.clock,
+            city = CityFigures(CityRules(fx.definitions), fx.store, cityStore),
+            shop = ShopFigures(rules, shopStore, fx.clock),
+        )
+
+        val figures = everything.forCompany(fx.connection, fx.store.loadCompany(fx.connection, company.id), fx.store.loadFactories(fx.connection, company.id))
+
+        assertEquals(
+            engine.withShopBonuses(engine.withCityBonus(plain.multiplier, cityPercent), grade, pilier.donarBonusPercent, boost.bonusPercent),
+            figures.multiplier,
+        )
+        assertGolden(
+            plain.multiplier * (1.0 + cityPercent / 100.0) * factor(grade) * factor(pilier.donarBonusPercent) * factor(boost.bonusPercent),
+            figures.multiplier,
+            "multiplicateur",
+        )
+    }
+
+    @Test
+    @DisplayName("En ligne comme hors ligne, la production versée porte le bonus du boost qui court, sans changer les heures comptées")
+    fun boostIsPaid() {
+        val company = twoFactories()
+        runningBoost()
+        fx.clock.advance(hours(0.5))
+
+        for (regime in Regime.entries) {
+            val plain = pending(fx.figures, company, regime)
+            val boosted = pending(withShop, company, regime)
+            assertGolden(plain.earned * factor(boost.bonusPercent), boosted.earned, "régime $regime")
+            assertEquals(plain.countedHours, boosted.countedHours, "régime $regime : les heures ne changent pas")
+        }
     }
 
     // --- le PDG

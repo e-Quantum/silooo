@@ -186,6 +186,8 @@ data class JoinResponse(
     val balances: Balances,
     val state: CompanyState,
     val offlineCollected: Double,
+    /** Les identifiants des cosmétiques que le joueur possède, titre Pionnier compris (`player_cosmetics`). */
+    val cosmetics: List<String> = emptyList(),
 )
 
 /** Réponse `CompanyUpdated` de l'OpenAPI : l'état de l'entreprise après l'action, et les soldes de celui qui agit. */

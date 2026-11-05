@@ -444,6 +444,8 @@ ancienne valeur, nouvelle valeur, pourquoi, et le résultat du simulateur sur le
 | 5 nov. 2026 | `incidents.json` : `frequence` (`creneauMinutes`, `chancePourcent`), `sortes[]` (`id`, `ralentissement`, `poids`), `recompense.minutesDeRevenu`, `electricite` (`aPartirDeEpoque`, `usineCentrale`) | fichier absent | créneau de `30` minutes, `20` % de chances, incendie x`0,5` (poids `1`), panne x`0,6` (poids `2`), courroie x`0,7` (poids `2`), `10` minutes de revenu, électricité dès l'époque `3`, Centrale `centrale` | Le contrat décrit l'incident (ralentit, réparation par mini-jeu, récompense en Donar) et l'électricité (époque 3 et plus, Centrale) sans chiffres : le service en a besoin pour tirer, ralentir et payer. Valeurs de départ au plus simple (voir la section Les incidents d'usine). **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le simulateur ne joue pas les incidents). |
 | 5 nov. 2026 | `ville.json` : `ile`, `zones` (`colonnes`, `tailleChunks`, `premiere`, `ordre[]`), `mairie.emplacementDepart`, `logement.reductionSalairePourcent`, `plafonds`, `batiments[]` | fichier absent (`ville.zonesPrixLingots` seule, pour les prix des zones) | île de 4 x 4 zones de 8 chunks, parcelle d'un chunk ; première zone dès `2` usines actives ; mairie posée en (192, 192) ; salaire d'un logé `-20` % ; plafonds `60` places, `10` % de production, `40` % de vitesse ; mairie de `16` niveaux, route, maison, immeuble, commerce et garage (prix, mairie requise et bonus par niveau dans la section La ville côté service) | Le contrat décrit `buyZone`, `placeBuilding` et `upgradeBuilding` et le game design promet des bonus « visibles, petits, plafonnés », sans chiffre. Le service en a besoin pour décider. Valeurs de départ au plus simple, aucune ne donne de Lingots. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'achète aucune zone ni aucun bâtiment, donc aucun bonus). |
 | 5 nov. 2026 | `vote.json` : `recompense.lingotsParVote`, `serie` (`jours`, `lingotsEnPlus`), `voteParty` (`votesParJour`, `lingotsParJoueur`), `sites[]` (`id`, `nom`) | fichier absent | `1`, `7` et `2`, `10` et `1`, un site `hubyy` (Hubyy) | Le game design promet une récompense par vote et une Vote party sans règle ni chiffre ; le service en a besoin pour décider (section Les votes). Valeurs de départ au plus simple, versées en Lingots hors prestige. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type ne vote pas). |
+| 5 nov. 2026 | `boutique.json` : `cosmetiques[]` (`id`, `nom`, `categorie`, `prixGemmes`, `achetable`), `boostCollectif` (`prixGemmes`, `bonusPourcent`, `dureeMinutes`), `abonnements[].nom` | absents | seize cosmétiques (quinze en vente, de `50` à `800` Gemmes ; `pionnier` à `0`, hors vente), boost à `150` Gemmes, `25` % et `60` minutes, noms `Pilier` et `Préfixe perso` | La boutique vend maintenant les cosmétiques et le boost collectif ; le game design et le plan n'en donnent ni liste ni prix. Valeurs de départ, du même ordre de grandeur que les grades. **À valider par Kr.** Treize cibles : inchangées, `ThirteenTargetsTest` reste vert (le joueur type n'achète rien dans la boutique). |
+| 5 nov. 2026 | `personnel.json` : `raretes.*.nom` | absent | `Ordinaire`, `Rare`, `Exceptionnel` | Le contrat laissait le nom affiché des raretés « à confirmer par Kr » ; il sort maintenant des définitions, et l'add-on le lit dans les types générés. **À valider par Kr.** Aucun chiffre de jeu ne change. |
 
 ## Les commandes du jour et le Carnet
 
@@ -656,13 +658,13 @@ acheter, poser et améliorer, et paie avec ses propres Lingots.** Les Lingots du
   service rend `ZONE_VERROUILLEE` et `DEJA_POSSEDE`, faute de mieux.
 - Le bonus de vitesse des livraisons est calculé et montré, mais aucun camion ne l'utilise encore.
 
-## La boutique : Gemmes, grades et Pilier
+## La boutique : Gemmes, grades, Pilier, cosmétiques et boost
 
 Les Gemmes s'achètent en euros sur le site de SileneMC (PayNow) et se dépensent en jeu. Le service décide de tout : ce qu'un joueur
 peut acheter, ce que ça coûte, ce que ça donne ; l'add-on n'affiche que ce qu'il lui rend (`catalog`, le solde de `buyItem`). Les
 chiffres sont dans `definitions/boutique.json` (les nombres de SileneMC, relevés le 4 novembre 2026) ; les tableaux ci-dessous sont
-recopiés le 5 novembre 2026 : le JSON fait foi. Cette tranche ne vend que les grades et les deux abonnements ; les cosmétiques, les
-boosts collectifs et le pass viendront avec leurs propres articles.
+recopiés le 5 novembre 2026 : le JSON fait foi. La boutique vend les grades, les deux abonnements, les cosmétiques et le boost
+collectif ; le pass de saison viendra avec son propre article.
 
 ### Les grades à vie
 
@@ -698,18 +700,92 @@ Six grades, à prendre dans l'ordre (`regleGrades`, comme sur SileneMC). Un grad
 - **Dans le catalogue**, un abonnement est `owned` tant qu'il court, et `available` dès que le grade qu'il demande est possédé
   (toujours pour le Pilier).
 
+### Les cosmétiques
+
+Seize cosmétiques dans `boutique.json` (`cosmetiques[]` : `id`, `nom` que les joueurs voient, `categorie`, `prixGemmes`, `achetable`).
+Quinze sont en vente ; le seizième, le titre Pionnier, ne se vend pas (voir plus bas). Les noms et les prix sont des valeurs de
+départ, **à valider par Kr**.
+
+| Catégorie (`categorie`) | Cosmétique (`id`) | Prix (Gemmes) |
+|---|---|---|
+| Aspect d'usine (`skinUsine`) | Usine de brique (`usine-brique`) | 150 |
+| | Usine d'acier (`usine-acier`) | 250 |
+| | Usine de verre (`usine-verre`) | 400 |
+| Aspect de véhicule (`skinVehicule`) | Camion rouillé (`camion-rouille`) | 200 |
+| | Camion bleu de travail (`camion-bleu`) | 350 |
+| | Camion doré (`camion-dore`) | 600 |
+| Compagnon (`pet`) | Chat d'atelier (`chat-atelier`) | 300 |
+| | Corbeau du silo (`corbeau-silo`) | 500 |
+| | Renard de la ferraille (`renard-ferraille`) | 800 |
+| Décor (`decor`) | Lampadaire d'usine (`lampadaire`) | 50 |
+| | Bac à fleurs (`bac-fleurs`) | 100 |
+| | Fontaine de cour (`fontaine-cour`) | 300 |
+| Effet de prestige (`effetPrestige`) | Étincelles (`etincelles`) | 250 |
+| | Pluie de rivets (`pluie-rivets`) | 250 |
+| Titre (`titre`) | Contremaître (`contremaitre`) | 120 |
+| | Pionnier (`pionnier`) | 0, hors vente |
+
+- **Un cosmétique s'achète une fois** (`DEJA_POSSEDE` ensuite), pour soi ou en cadeau ; les vérifications de possession portent sur le
+  destinataire. Il s'écrit dans `player_cosmetics` du destinataire avec la source `boutique`, cadeau compris. La clé primaire
+  (joueur, cosmétique) fait qu'à deux achats en même temps, un seul s'écrit et l'autre est annulé tout entier.
+- **Dans le catalogue**, un cosmétique en vente est `owned` si le joueur l'a, `available` sinon. Un cosmétique qui ne se vend pas
+  n'y est pas.
+- **Un cosmétique ne change aucun chiffre du jeu** : ni production, ni prix, ni bonus. Le service garde l'identifiant ; l'add-on
+  décide ce qu'il montre. `join` rend la liste `cosmetics` du joueur, dans l'ordre où il les a obtenus. L'effet de prestige est un
+  cosmétique comme les autres côté service : c'est l'add-on qui le jouera au prestige.
+- **Aucun hasard payant** : pas de coffre ni de tirage, chaque cosmétique a un prix fixe.
+
+### Le boost collectif
+
+`boostCollectif` dit tout : `prixGemmes` (150), `bonusPourcent` (25) et `dureeMinutes` (60). Valeurs de départ, **à valider par Kr**.
+
+- **Il profite à tout le serveur** : le multiplicateur de toutes les entreprises monte, celle de l'acheteur comme les autres, et celles
+  qui n'ont ni grade ni Pilier. Il se multiplie avec le reste, après le grade et le Pilier : `x (1 + boost / 100)`. Un boost à zéro
+  n'est pas appliqué.
+- **Il ne s'offre pas** : un achat avec `forXuid` donne 400, rien n'est écrit. L'acheteur paie avec ses Gemmes, motif `boutique`.
+- **Il s'achète à volonté, mais les boosts ne s'empilent jamais.** Un boost acheté pendant un autre commence à la fin du dernier boost
+  réservé, en cours ou en attente : à chaque instant, un seul court, avec sa hausse. Sinon il commence à l'achat. La fenêtre va de
+  `starts_at` (inclus) à `ends_at` (exclu).
+- **Une ligne de `server_boosts`** (migration V9) garde l'acheteur, la fenêtre et le pourcentage figé à l'achat : changer
+  `bonusPourcent` plus tard ne touche pas un boost déjà payé. Deux achats en même temps se suivent : la lecture de la fin du dernier
+  boost verrouille cette fin, et si la base rend un conflit transitoire, l'appel rend `CONFLIT_REESSAYER` et le jeu le rejoue avec le
+  même `requestId` (rien n'a été payé).
+- **L'événement `BOOST_COLLECTIF`** (sans joueur : `buyerName`, `percent`, `minutes`, `startsAt`, `endsAt`) est écrit dans la même
+  transaction que l'achat, pour l'annoncer au serveur et au bot Discord. Il part à l'achat, y compris pour un boost qui n'a pas encore
+  commencé.
+- **Le boost qui court au règlement s'applique à toute la période réglée**, hors ligne comprise, comme le grade et le Pilier : un joueur
+  absent pendant un boost en profite à son retour, dans la limite du plafond hors ligne. Approximation la plus simple, **à valider
+  par Kr**.
+- **Le catalogue le montre toujours `available`, jamais `owned`.** Aucune route ne rend le boost en cours : le jeu l'apprend par
+  l'événement.
+
+### Le titre Pionnier
+
+Le site écrit `site_registrations` quand un visiteur s'inscrit avant l'ouverture ([base-de-donnees.md](base-de-donnees.md)). Le jeu
+donne le titre au `join`, pas le site.
+
+- **Qui** : le joueur dont le gamertag a une inscription `pioneer` (même clé que le site : casse, espaces des bords et espaces
+  doublés sans effet) et qui n'a pas encore le cosmétique `pionnier`.
+- **Quoi** : une ligne de `player_cosmetics` (source `site`) et un événement `ANNONCE` adressé à ce joueur (`payload.action` =
+  `pionnier`, `cosmeticId`), dans la transaction du `join`. La réponse du `join` montre le titre dans `cosmetics`.
+- **Une seule fois** : l'écriture est une insertion à clé primaire et l'annonce ne part que si cet appel a écrit la ligne. Dix `join`
+  de suite, ou deux en même temps, n'écrivent et n'annoncent qu'une fois.
+- **Il ne s'achète pas** : `achetable` est faux et le prix 0. Acheter `pionnier` donne 400, comme un article inconnu.
+
 ### Qui paie, qui reçoit
 
 - **L'acheteur paie avec ses propres Gemmes**, sur son solde personnel (`PAS_ASSEZ_DE_GEMMES` avec la somme qui manque, sans rien
   écrire). Motif du journal : `boutique`, référence : l'article.
-- **Un cadeau** (`forXuid`) : l'acheteur paie, le destinataire reçoit le grade ou l'abonnement, et les Gemmes rendues du Pilier.
+- **Un cadeau** (`forXuid`) : l'acheteur paie, le destinataire reçoit le grade, l'abonnement ou le cosmétique, et les Gemmes rendues du
+  Pilier. Seul le boost collectif ne s'offre pas.
   Les vérifications de possession (`DEJA_POSSEDE`, `GRADE_PRECEDENT_REQUIS`) portent sur le destinataire. Un cadeau à soi-même est
   un achat pour soi.
 - **Un `requestId` ne sert qu'à un achat.** Rejoué, il rend la même réponse sans payer deux fois (`api_requests`), et
   `shop_purchases.request_id` est unique en base.
 - **Un article inconnu ou pas encore vendu, un acheteur ou un destinataire que le service ne connaît pas** (jamais passé par `join`) :
   400, rien d'écrit.
-- **Aucun événement n'est écrit pour un achat.** `GEMMES_RECUES` est celui d'une livraison de commande.
+- **Un achat n'écrit aucun événement, sauf le boost collectif** (`BOOST_COLLECTIF`). `GEMMES_RECUES` est celui d'une livraison de
+  commande.
 
 ### Le bonus de Donar
 
@@ -720,10 +796,10 @@ revenu de chaque usine et sur la production versée, en ligne comme hors ligne.
   membres. Le grade ou le Pilier d'un associé ne change rien ; ceux du PDG profitent à toute l'entreprise.
 - **Un seul grade compte : le plus haut**, jamais la somme des grades. Un PDG Ultime a +50 %, pas +95 %.
 - **Le Pilier compte tant qu'il court**, en plus du grade. Le Perso ne compte pas.
-- **Les bonus se multiplient comme celui de la ville** : `multiplicateur x (1 + grade / 100) x (1 + Pilier / 100)`, après le bonus de
-  la ville (`EconomyEngine.withShopBonuses`). Ultime et Pilier font donc x1,5 puis x1,1, soit x1,65. Un bonus à zéro n'est pas
-  appliqué.
-- **Sans grade ni Pilier, rien ne change** : multiplicateur, revenu, salaires et production versée sont ceux d'avant, bit pour bit.
+- **Les bonus se multiplient comme celui de la ville** : `multiplicateur x (1 + grade / 100) x (1 + Pilier / 100) x (1 + boost / 100)`,
+  après le bonus de la ville (`EconomyEngine.withShopBonuses`). Ultime et Pilier font donc x1,5 puis x1,1, soit x1,65. Un bonus à
+  zéro n'est pas appliqué. Le boost collectif n'est pas celui du PDG : c'est le même pour toutes les entreprises (voir plus haut).
+- **Sans grade, Pilier ni boost, rien ne change** : multiplicateur, revenu, salaires et production versée sont ceux d'avant, bit pour bit.
   Treize cibles du tableur : inchangées, le joueur type n'achète rien dans la boutique.
 - **Un achat ne règle pas la production en attente.** Le nouveau bonus s'applique au prochain règlement, sur tout le temps écoulé
   depuis le précédent, hors ligne comprise (le plafond d'heures hors ligne reste le même). Un grade acheté juste avant de se
@@ -757,7 +833,15 @@ Tous ces choix sont les plus simples que les définitions et le contrat permetta
 - Le grade et le Pilier se multiplient entre eux et avec la ville ; la feuille « Courses » du tableur (colonne « Multiplicateur
   global ») est la référence à confirmer.
 - Un achat ne règle pas la production en attente : le bonus profite à toute la période depuis le dernier règlement.
-- Un achat n'écrit aucun événement ; seule une livraison écrit `GEMMES_RECUES`.
+- Un achat n'écrit aucun événement, sauf le boost collectif (`BOOST_COLLECTIF`) ; une livraison écrit `GEMMES_RECUES`.
+- Les noms, les catégories et les prix des seize cosmétiques, et les trois chiffres du boost (150 Gemmes, +25 %, 60 minutes), sont des
+  valeurs de départ. Les noms des raretés du personnel (`Ordinaire`, `Rare`, `Exceptionnel`) et des abonnements (`Pilier`,
+  `Préfixe perso`) sont ceux de `definitions/` ; aucun n'a encore été relu par Kr.
+- Un cosmétique s'achète une fois et s'offre. Le boost s'achète à volonté, ne s'offre pas, et les boosts se suivent sans s'empiler.
+- Le boost qui court au règlement s'applique à toute la période réglée, hors ligne comprise.
+- Le titre Pionnier va à toute inscription marquée `pioneer`, au premier `join`, sans condition de date ni d'ouverture. Le site
+  n'écrit pas `pioneer` : la colonne prend sa valeur par défaut, vrai, pour toute inscription, avant comme après l'ouverture. C'est à la
+  direction du site de dire qui garde le titre.
 - Une livraison sans joueur connu attend sans limite de temps.
 - L'intervalle du relevé (30 secondes) est un réglage technique, pas un chiffre du jeu.
 

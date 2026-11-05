@@ -51,6 +51,7 @@ import com.silooo.core.session.TestBootstrap
 import com.silooo.core.session.TestEconomy
 import com.silooo.core.shop.InMemoryShopStore
 import com.silooo.core.shop.ITEM_ID_MAX_LENGTH
+import com.silooo.core.shop.PioneerTitle
 import com.silooo.core.shop.ShopRules
 import com.silooo.core.siloooModule
 import com.silooo.core.staff.InMemoryStaffStore
@@ -68,6 +69,7 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.lang.reflect.Modifier
 import java.net.URLEncoder
+import java.time.Duration
 import java.time.Instant
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -165,6 +167,7 @@ class ContractTest {
             memberStore = members,
             cityStore = city,
             shopStore = shop,
+            pendingTitles = PioneerTitle(shop),
             voteStore = votes,
             voteService = VoteService(TestDefinitions.loaded, votes, clock) { emptySet() },
         )
@@ -1241,11 +1244,12 @@ class ContractTest {
     }
 
     @Test
-    @DisplayName("catalog : les grades dans l'ordre puis le Pilier et le Perso, aux prix de boutique.json ; seul le premier grade est à vendre, le Perso attend Ultime")
+    @DisplayName("catalog : les grades dans l'ordre, le Pilier et le Perso, les cosmétiques puis le boost, aux prix de boutique.json ; seul le premier grade est à vendre, le Perso attend Ultime")
     fun catalog() {
         val rules = ShopRules(TestDefinitions.loaded)
         val schema = operations.single { it.id == "catalog" }.responses.getValue(200)!!
-        val ids = (rules.grades + rules.subscriptions).map { it.id }
+        val sold = rules.grades + rules.subscriptions + rules.cosmetics + rules.boost
+        val ids = sold.map { it.id }
         val pilier = rules.subscriptions.single { it.id == ShopRules.PILIER_ID }
         val perso = rules.subscriptions.single { it.requiredGradeId != null }
         val kr = Xuid.parse(krXuid)!!
@@ -1259,10 +1263,15 @@ class ContractTest {
             assertEquals(200, response.status.value, body)
             assertConforms(schema, body, "catalog")
             val items = parsed(body)
-            assertEquals(ids, items.map { it.getValue("itemId").jsonPrimitive.content }, "l'ordre : les grades, puis les abonnements")
-            assertEquals((rules.grades + rules.subscriptions).map { it.gems }, items.map { it.getValue("gemmes").jsonPrimitive.content.toLong() }, "les prix de boutique.json")
+            assertEquals(ids, items.map { it.getValue("itemId").jsonPrimitive.content }, "l'ordre : les grades, les abonnements, les cosmétiques, puis le boost")
+            assertEquals(sold.map { it.gems }, items.map { it.getValue("gemmes").jsonPrimitive.content.toLong() }, "les prix de boutique.json")
             assertTrue(items.none { flag(it, "owned") }, "un joueur neuf ne possède rien")
-            assertEquals(listOf(rules.grades.first().id, pilier.id), items.filter { flag(it, "available") }.map { it.getValue("itemId").jsonPrimitive.content }, "le premier grade et le Pilier")
+            assertEquals(
+                listOf(rules.grades.first().id, pilier.id) + rules.cosmetics.map { it.id } + rules.boost.id,
+                items.filter { flag(it, "available") }.map { it.getValue("itemId").jsonPrimitive.content },
+                "le premier grade, le Pilier, chaque cosmétique vendu et le boost",
+            )
+            assertTrue(ShopRules.PIONEER_TITLE_ID !in ids, "le titre Pionnier n'est pas vendu : il n'est pas au catalogue")
         }
         val noon = Instant.parse("2026-11-05T12:00:00Z")
         withService(
@@ -1270,6 +1279,7 @@ class ContractTest {
             shopSeed = {
                 it.seedRanks(kr, *rules.grades.map { grade -> grade.id }.toTypedArray())
                 it.seedSubscription(kr, pilier.id, noon.minusSeconds(3600), noon.plusSeconds(3600))
+                it.seedCosmetic(kr, rules.cosmetics.first().id)
             },
         ) {
             val items = parsed(send("GET", "/v1/shop/catalog?actor=$krXuid").bodyAsText())
@@ -1277,6 +1287,10 @@ class ContractTest {
             assertTrue(rules.grades.all { flag(byId.getValue(it.id), "owned") && !flag(byId.getValue(it.id), "available") }, "tous les grades possédés, plus rien à vendre")
             assertTrue(flag(byId.getValue(pilier.id), "owned") && flag(byId.getValue(pilier.id), "available"), "le Pilier qui court se prolonge")
             assertTrue(!flag(byId.getValue(perso.id), "owned") && flag(byId.getValue(perso.id), "available"), "le Perso s'ouvre avec Ultime")
+            val owned = byId.getValue(rules.cosmetics.first().id)
+            assertTrue(flag(owned, "owned") && !flag(owned, "available"), "le cosmétique possédé n'est plus à vendre")
+            assertTrue(rules.cosmetics.drop(1).all { !flag(byId.getValue(it.id), "owned") && flag(byId.getValue(it.id), "available") }, "les autres restent à vendre")
+            assertTrue(!flag(byId.getValue(rules.boost.id), "owned") && flag(byId.getValue(rules.boost.id), "available"), "le boost ne se possède pas : on en rachète quand on veut")
         }
     }
 
@@ -1329,6 +1343,150 @@ class ContractTest {
             assertEquals(listOf(first.id), shop!!.ranksOf(friend).map { it.rankId }, "le destinataire a le grade")
             assertTrue(shop!!.ranksOf(kr).isEmpty(), "l'acheteur ne l'a pas")
             assertEquals(listOf("cadeau"), shop!!.ranksOf(friend).map { it.source })
+        }
+    }
+
+    @Test
+    @DisplayName("buyItem d'un cosmétique : les soldes de l'acheteur, player_cosmetics du destinataire (cadeau compris), DEJA_POSSEDE ensuite ; le titre Pionnier ne se vend pas")
+    fun buyItemCosmetic() {
+        val rules = ShopRules(TestDefinitions.loaded)
+        val (first, second) = rules.cosmetics
+        val kr = Xuid.parse(krXuid)!!
+        val friend = Xuid.parse(other)!!
+        val url = "/v1/shop/purchases"
+        val spare = 7L
+        fun request(n: Int, item: String, gift: String? = null) =
+            """{"requestId":"${id(n)}","actor":"$krXuid","itemId":"$item"${gift?.let { ""","forXuid":"$it"""" }.orEmpty()}}"""
+        fun gemmesOf(body: String) = parse(body).jsonObject.getValue("gemmes").jsonPrimitive.content.toLong()
+
+        var shop: InMemoryShopStore? = null
+        withService(
+            "buyItem",
+            extraSeed = {
+                seedPlayer(it, other, "Patron")
+                it.balances[kr] = Balances(0, first.gems + second.gems + spare, 0, 0)
+            },
+            shopSeed = { shop = it },
+        ) {
+            val bought = send("POST", url, request(41, first.id))
+            val body = bought.bodyAsText()
+            assertEquals(200, bought.status.value, body)
+            assertConforms(contract.schema("Balances"), body, "buyItem (cosmétique)")
+            assertEquals(second.gems + spare, gemmesOf(body), "le prix du cosmétique est retiré des Gemmes")
+            assertEquals(listOf(first.id to "boutique"), shop!!.cosmeticsOf(kr).map { it.cosmeticId to it.source })
+            assertEquals(body, send("POST", url, request(41, first.id)).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+            assertEquals(1, shop!!.purchases.size, "rejoué : un seul achat")
+
+            assertRefusal(send("POST", url, request(42, first.id)), RefusalCodes.ALREADY_OWNED)
+            assertEquals(second.gems + spare, shop!!.gemmes(kr), "un refus ne retire rien")
+
+            val gift = send("POST", url, request(43, second.id, gift = other))
+            assertEquals(200, gift.status.value, gift.bodyAsText())
+            assertEquals(spare, gemmesOf(gift.bodyAsText()), "l'acheteur a payé le cadeau")
+            assertEquals(listOf(second.id), shop!!.cosmeticsOf(friend).map { it.cosmeticId }, "le destinataire a le cosmétique")
+            assertEquals(listOf(first.id), shop!!.cosmeticsOf(kr).map { it.cosmeticId }, "l'acheteur n'a pas celui qu'il a offert")
+
+            // Un article que le jeu ne vend pas : le titre Pionnier est donné par le site, jamais acheté.
+            val title = send("POST", url, request(44, ShopRules.PIONEER_TITLE_ID))
+            assertEquals(400, title.status.value, title.bodyAsText())
+            assertEquals(ErrorCodes.BAD_REQUEST, reason(parse(title.bodyAsText())))
+            assertEquals(spare, shop!!.gemmes(kr))
+        }
+    }
+
+    @Test
+    @DisplayName("buyItem du boost collectif : une ligne de boost, l'événement BOOST_COLLECTIF conforme à GameEvent, le second boost à la suite du premier ; il ne s'offre pas")
+    fun buyItemBoost() {
+        val rules = ShopRules(TestDefinitions.loaded)
+        val boost = rules.boost
+        val kr = Xuid.parse(krXuid)!!
+        val url = "/v1/shop/purchases"
+        val spare = 3L
+        fun request(n: Int, gift: String? = null) =
+            """{"requestId":"${id(n)}","actor":"$krXuid","itemId":"${boost.id}"${gift?.let { ""","forXuid":"$it"""" }.orEmpty()}}"""
+        fun gemmesOf(body: String) = parse(body).jsonObject.getValue("gemmes").jsonPrimitive.content.toLong()
+
+        var shop: InMemoryShopStore? = null
+        withService(
+            "buyItem",
+            extraSeed = {
+                seedPlayer(it, other, "Patron")
+                it.balances[kr] = Balances(0, boost.gems * 2 + spare, 0, 0)
+            },
+            shopSeed = { shop = it },
+        ) {
+            val bought = send("POST", url, request(51))
+            val body = bought.bodyAsText()
+            assertEquals(200, bought.status.value, body)
+            assertConforms(contract.schema("Balances"), body, "buyItem (boost)")
+            assertEquals(boost.gems + spare, gemmesOf(body))
+            val row = shop!!.boosts.single()
+            assertEquals(boost.bonusPercent, row.bonusPercent)
+            assertEquals(Duration.ofMinutes(boost.minutes), Duration.between(row.window.startsAt, row.window.endsAt), "la durée de boutique.json")
+
+            val event = shop!!.published.single()
+            assertEquals(GameEventKind.BOOST_COLLECTIF, event.kind)
+            assertEquals(null, event.xuid, "un événement pour tout le serveur")
+            assertEquals(setOf("buyerName", "percent", "minutes", "startsAt", "endsAt"), event.payload.keys, "les champs décrits dans l'OpenAPI")
+            assertEquals("Kr", event.payload.getValue("buyerName").jsonPrimitive.content)
+            assertEquals(boost.bonusPercent, event.payload.getValue("percent").jsonPrimitive.content.toInt())
+            assertEquals(boost.minutes, event.payload.getValue("minutes").jsonPrimitive.content.toLong())
+            assertEquals(row.window.startsAt, Instant.parse(event.payload.getValue("startsAt").jsonPrimitive.content))
+            assertEquals(row.window.endsAt, Instant.parse(event.payload.getValue("endsAt").jsonPrimitive.content))
+            assertConforms(
+                contract.schema("GameEvent"),
+                SiloooJson.encodeToString(GameEvent.serializer(), GameEvent(1, null, event.kind.name, event.payload)),
+                "BOOST_COLLECTIF",
+            )
+
+            // Un second boost acheté pendant le premier suit le premier : ils ne s'empilent pas.
+            assertEquals(200, send("POST", url, request(52)).status.value)
+            val (earlier, later) = shop!!.boosts
+            assertEquals(earlier.window.endsAt, later.window.startsAt, "le second commence à la fin du premier")
+            assertEquals(Duration.ofMinutes(boost.minutes), Duration.between(later.window.startsAt, later.window.endsAt))
+            assertRefusal(send("POST", url, request(53)), RefusalCodes.NOT_ENOUGH_GEMS)
+            assertEquals(2, shop!!.boosts.size, "un refus ne réserve rien")
+
+            // Un boost est pour tout le serveur : l'offrir à un autre joueur est une requête invalide.
+            val gift = send("POST", url, request(54, gift = other))
+            assertEquals(400, gift.status.value, gift.bodyAsText())
+            assertEquals(2, shop!!.boosts.size)
+        }
+    }
+
+    @Test
+    @DisplayName("join : un pionnier inscrit sur le site reçoit son titre une seule fois (JoinResponse.cosmetics) et l'ANNONCE pionnier suit GameEvent ; un autre joueur ne reçoit rien")
+    fun joinGivesThePioneerTitle() {
+        var shop: InMemoryShopStore? = null
+        withService(shopSeed = {
+            shop = it
+            it.seedPioneer("  KR ")
+        }) {
+            val request = """{"xuid":"$krXuid","gamertag":"Kr"}"""
+            val first = send("POST", "/v1/session/join", request).bodyAsText()
+            assertConforms(contract.schema("JoinResponse"), first, "join (pionnier)")
+            assertEquals(listOf(ShopRules.PIONEER_TITLE_ID), parse(first).jsonObject.getValue("cosmetics").jsonArray.map { it.jsonPrimitive.content })
+            assertEquals(listOf(ShopRules.PIONEER_TITLE_ID to "site"), shop!!.cosmeticsOf(Xuid.parse(krXuid)!!).map { it.cosmeticId to it.source })
+
+            val announcement = shop!!.published.single()
+            assertEquals(GameEventKind.ANNONCE, announcement.kind)
+            assertEquals(krXuid, announcement.xuid?.text, "adressée au joueur")
+            assertEquals("pionnier", announcement.payload.getValue("action").jsonPrimitive.content)
+            assertEquals(ShopRules.PIONEER_TITLE_ID, announcement.payload.getValue("cosmeticId").jsonPrimitive.content)
+            assertConforms(
+                contract.schema("GameEvent"),
+                SiloooJson.encodeToString(GameEvent.serializer(), GameEvent(1, krXuid, announcement.kind.name, announcement.payload)),
+                "ANNONCE pionnier",
+            )
+
+            val again = send("POST", "/v1/session/join", request).bodyAsText()
+            assertEquals(listOf(ShopRules.PIONEER_TITLE_ID), parse(again).jsonObject.getValue("cosmetics").jsonArray.map { it.jsonPrimitive.content })
+            assertEquals(1, shop!!.published.size, "un second join n'annonce rien")
+
+            val stranger = send("POST", "/v1/session/join", """{"xuid":"$other","gamertag":"Passant"}""").bodyAsText()
+            assertConforms(contract.schema("JoinResponse"), stranger, "join (sans titre)")
+            assertEquals(0, parse(stranger).jsonObject.getValue("cosmetics").jsonArray.size)
+            assertEquals(1, shop!!.published.size)
         }
     }
 

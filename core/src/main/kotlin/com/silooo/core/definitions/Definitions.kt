@@ -42,7 +42,7 @@ class Definitions(
     val resources: List<String> = factories.factories.flatMap { it.products }.distinct()
 
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel, incidents, city, vote)
+        val problems = DefinitionsChecks.problems(economy, factories, shop, world, missions, personnel, incidents, city, vote)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -98,6 +98,7 @@ internal object DefinitionsChecks {
     fun problems(
         economy: EconomyDefinitions,
         factories: FactoriesDefinitions,
+        shop: ShopDefinitions,
         world: WorldDefinitions,
         missions: MissionsDefinitions,
         personnel: PersonnelDefinitions,
@@ -193,6 +194,7 @@ internal object DefinitionsChecks {
             }
         }
 
+        shopProblems(shop, ::check)
         personnelProblems(personnel, ::check)
         incidentsProblems(incidents, factories, ::check)
         cityProblems(city, economy, ::check)
@@ -292,6 +294,53 @@ internal object DefinitionsChecks {
     /** La longueur de `server_votes.site`. */
     const val VOTE_SITE_MAX_LENGTH = 32
 
+    /** La longueur de `player_cosmetics.cosmetic_id`. */
+    const val COSMETIC_ID_MAX_LENGTH = 48
+
+    /** La longueur d'un nom que les joueurs voient (cosmétique, abonnement). */
+    const val DISPLAY_NAME_MAX_LENGTH = 40
+
+    /** La longueur du nom d'une rareté du personnel (`personnel.json` : `raretes.*.nom`). */
+    const val RARITY_NAME_MAX_LENGTH = 24
+
+    /** Les contrôles de sens de boutique.json : ce que le schéma ne dit pas (le vérificateur de `tools/` en fait autant). */
+    private fun shopProblems(shop: ShopDefinitions, check: (Boolean, () -> String) -> Unit) {
+        check(shop.subscriptions.all { it.name.isNotBlank() && it.name.length <= DISPLAY_NAME_MAX_LENGTH }) {
+            "boutique.json : abonnements[].nom doit avoir de 1 à $DISPLAY_NAME_MAX_LENGTH caractères"
+        }
+        val taken = mutableMapOf(ShopDefinitions.BOOST_ID to "le boost collectif")
+        shop.grades.forEach { taken[it.id] = "un grade" }
+        shop.subscriptions.forEach { taken[it.id] = "un abonnement" }
+        val seen = mutableSetOf<String>()
+        val names = mutableSetOf<String>()
+        shop.cosmetics.forEachIndexed { index, cosmetic ->
+            check(MISSION_ID.matches(cosmetic.id) && cosmetic.id.length <= COSMETIC_ID_MAX_LENGTH) {
+                "boutique.json : cosmetiques[$index].id « ${cosmetic.id} » doit être en kebab-case, $COSMETIC_ID_MAX_LENGTH caractères au plus"
+            }
+            check(seen.add(cosmetic.id)) { "boutique.json : deux cosmétiques ont le même id « ${cosmetic.id} »" }
+            check(cosmetic.id !in taken) {
+                "boutique.json : cosmetiques[$index].id « ${cosmetic.id} » désigne déjà ${taken[cosmetic.id]} : un article, un identifiant"
+            }
+            check(cosmetic.name.isNotBlank() && cosmetic.name.length <= DISPLAY_NAME_MAX_LENGTH) {
+                "boutique.json : cosmetiques[$index].nom doit avoir de 1 à $DISPLAY_NAME_MAX_LENGTH caractères"
+            }
+            check(names.add(cosmetic.name.trim().lowercase())) { "boutique.json : deux cosmétiques portent le nom « ${cosmetic.name} »" }
+            if (cosmetic.purchasable) {
+                check(cosmetic.gems >= 1) { "boutique.json : cosmetiques[$index].prixGemmes d'un cosmétique achetable doit être au moins 1" }
+            } else {
+                check(cosmetic.gems == 0L) { "boutique.json : cosmetiques[$index].prixGemmes d'un cosmétique qui n'est pas vendu doit être 0" }
+            }
+        }
+        val pioneer = shop.cosmetics.firstOrNull { it.id == ShopDefinitions.PIONEER_TITLE_ID }
+        check(pioneer != null && pioneer.category == CosmeticCategory.TITLE && !pioneer.purchasable) {
+            "boutique.json : cosmetiques doit contenir le titre « ${ShopDefinitions.PIONEER_TITLE_ID} », de catégorie titre et non achetable"
+        }
+        val boost = shop.collectiveBoost
+        check(boost.gems >= 1) { "boutique.json : boostCollectif.prixGemmes doit être au moins 1" }
+        check(boost.bonusPercent in 1..100) { "boutique.json : boostCollectif.bonusPourcent doit être entre 1 et 100" }
+        check(boost.durationMinutes >= 1) { "boutique.json : boostCollectif.dureeMinutes doit être au moins 1" }
+    }
+
     /** La longueur du nom d'un site de vote (`serviceName`) ; c'est son `id` qui s'écrit dans `server_votes.site`. */
     const val VOTE_SITE_NAME_MAX_LENGTH = 64
 
@@ -378,8 +427,14 @@ internal object DefinitionsChecks {
         check(kotlin.math.abs(total - 100.0) <= PERCENT_TOLERANCE) {
             "personnel.json : les parts raretes.*.repartitionPourcent doivent faire 100, elles font $total"
         }
+        check(personnel.rarities.values.map { it.name.trim().lowercase() }.let { it.size == it.toSet().size }) {
+            "personnel.json : deux raretés portent le même nom"
+        }
         for (rarity in StaffRarity.entries) {
             val definition = personnel.rarities[rarity] ?: continue
+            check(definition.name.isNotBlank() && definition.name.length <= RARITY_NAME_MAX_LENGTH) {
+                "personnel.json : raretes.$rarity.nom doit avoir de 1 à $RARITY_NAME_MAX_LENGTH caractères"
+            }
             check(definition.sharePercent.isFinite() && definition.sharePercent in 0.0..100.0) {
                 "personnel.json : raretes.$rarity.repartitionPourcent doit être entre 0 et 100"
             }
