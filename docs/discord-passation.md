@@ -165,10 +165,12 @@ Critère de fin : le plan s'applique au faux Discord, puis au serveur Silooo (à
   (`DiscordMemoryTest`, chiffre écrit dans `core/build/mesure-memoire-discord.txt`), loin du budget de 96 Mo
 - [ ] La mémoire connectée : la JVM mesurée avec le bot sur le serveur Silooo, à blanc, chiffre ici (**après Kr**)
 - [x] Le plan appliqué au faux Discord (`PlanApplierTest` : attente, bêta après attente, à blanc, refus isolé, dérive)
-- [ ] Le plan appliqué au serveur Silooo, à blanc puis pour de vrai (**après Kr** : les intentions privilégiées et les
+- [x] Le plan appliqué au serveur Silooo, à blanc puis pour de vrai (**après Kr** : les intentions privilégiées et les
   droits du bot sur le serveur Silooo, le mode Communauté ; puis le compte rendu à blanc lu dans `#📒・journal-du-bot`)
   - À blanc : fait le 5 novembre 2026 vers 21 h 30, compte rendu lu par Kr (19 rôles, 8 catégories et 21 salons
-    manquants, rien de changé sauf le salon du journal). Pour de vrai : au prochain lancement de Kr en `-Mode oui`.
+    manquants, rien de changé sauf le salon du journal). Pour de vrai : fait vers 21 h 55, en `-Mode oui` depuis le PC
+    de Kr ; la base locale montre les sept cartes posées (voir « Essais à nettoyer avant l'ouverture »). Le compte rendu
+    de ce lancement (refus de Discord, mode Communauté) reste à lire par Kr dans `#📒・journal-du-bot`.
 
 ### D1 : les visuels
 
@@ -420,6 +422,11 @@ AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
   `#📒・journal-du-bot` (sans catégorie Staff, elle n'existait pas) et y a écrit son compte rendu. À garder. Un premier
   lancement en mode `oui`, un peu plus tôt, s'était arrêté avant de rien créer (intention `GUILD_EXPRESSIONS` manquante,
   corrigée en 306f292).
+- 5 novembre 2026, vers 21 h 55, en mode `oui` depuis le PC de Kr : le plan de la phase `attente` appliqué (rôles,
+  catégories, salons, règles AutoMod), et sept cartes posées par le bot (`bienvenue`, `chantier`, `monte-charge`,
+  `pantheon-aide`, `pantheon-reactions`, `pantheon-records`, `tickets-menu`), dont les identifiants vivent dans la base
+  locale du PC (`discord_bot_messages`) : à la passation au VPS, soit cette base est recopiée, soit le bot repose les
+  cartes et les anciennes sont à supprimer à la main. Le détail des refus de Discord est dans `#📒・journal-du-bot`.
 
 ## Décisions de Kr
 
