@@ -649,9 +649,8 @@ par Kr**). La boutique vend les grades, les deux abonnements, les cosmétiques e
   court) : `EconomyEngine.withShopBonuses`, qui rend exactement le calcul d'avant quand les trois sont nuls. C'est le PDG de l'entreprise qui compte (`JdbcShopStore.ceoHoldings`).
   Un achat ne règle pas la production en attente : voir `docs/economie.md`.
 - **Une migration, V9** (`V9__boosts_collectifs.sql`) : la table `server_boosts`. V1 a déjà `shop_deliveries`, `shop_purchases`,
-  `player_ranks`, `player_subscriptions` et `player_cosmetics` ; V7 a `site_registrations`. **V8 est réservé au bot Discord** : tant qu'il
-  n'est pas fusionné, V9 passe seule (Flyway accepte un trou), mais V8, ajoutée après que la base a reçu V9, serait refusée à la
-  validation (Flyway sans `outOfOrder`). La direction doit ordonner les deux fusions ou renuméroter.
+  `player_ranks`, `player_subscriptions` et `player_cosmetics` ; V7 a `site_registrations`. **Le bot Discord a pris V10** (`V10__discord.sql`, ses tables `discord_*`) : V8, réservée au départ, reste un trou, parce que V9 est
+  partie sur `main` avant elle et que Flyway, sans `outOfOrder`, aurait refusé V8 après V9.
 - **Les tests** : `shop/ShopRulesTest` (26 : ordre, catalogue, refus, prolongation, bonus, enchaînement des boosts), `shop/ShopRoutesTest`
   (46, sans base : les deux routes, cosmétiques, boost, refus, 400, rejeu, cadeau), `shop/PioneerTitleTest` (9 : à qui, une fois, ce que
   `join` montre), `shop/DeliveryReliefTest` (18 : à qui revient une livraison, la clé du pseudo, ce qui reste en attente, versement

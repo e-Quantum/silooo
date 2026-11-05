@@ -30,9 +30,9 @@ est recopiée sous l'étape qu'elle touche.
   `jda/JdaMessages` et `jda/JdaEvents` (intentions membres, messages, contenu, réactions, vocaux ; cache des 500
   derniers membres et des membres en vocal). Le bot ne boucle que si des fonctions lui sont données et hors `a-blanc`.
   Aucune fonction du QG n'existe encore : elles viennent case par case, avec `definitions/discord.json` pour leurs
-  chiffres et la migration V8 pour leurs tables.
-- Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V8**
-  est prise (`V8__discord.sql`, toutes les tables du QG). Le jeu prend V9 et la suite ; une table du Discord qui change
+  chiffres et la migration V10 pour leurs tables.
+- Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
+  est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
   prendra le prochain numéro libre, annoncé ici.
 
 ## Les étapes
@@ -105,7 +105,7 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
   pour les tests (`FakeConnection`, `FakeReply`, `FakeTimer`), 11 tests de plus, vérificateur vert
 - [x] Les chiffres du Discord dans `definitions/discord.json` et son schéma (accueil, statut, vocaux d'info, coulisses,
   XP, tableaux, monte-charge, rapport du lundi, rappels, giveaways, concours, Aides ; à valider par Kr), lus par
-  `DiscordDefinitions` à part du jeu et vérifiés contre le plan ; la migration **V8** (`V8__discord.sql`) : membres,
+  `DiscordDefinitions` à part du jeu et vérifiés contre le plan ; la migration **V10** (`V10__discord.sql`, V8 au départ) : membres,
   messages vivants du bot, XP, spoils, réactions, meilleurs moments, aide du mois, petits jeux et records, giveaways
   et lots, tickets, admissions, compteurs du rapport. SQL non joué sur le PC (Docker éteint) : la CI le joue
 - [ ] Les salons et les rôles de la phase `attente` dans le plan, l'accueil guidé (deux questions, rôles de plateforme
@@ -204,7 +204,7 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
    variables, une ligne « Où est quoi », une section « Le Discord »), `tools/anti_ia.py`, `tools/verifier.sh`,
    `tools/tests/run.sh`, et le paquet `discord/` est à la session. `Application.kt` n'est pas touché. Petits commits,
    rebase juste avant la fusion. Dites ici si une tranche y travaille.
-2. **Numéros.** ADR 0007 est écrit ; la migration V8 reste réservée par la session Discord (D2 ou D3).
+2. **Numéros.** ADR 0007 est écrit ; la migration du Discord est V10 (V8, réservée au départ, est restée un trou : V9 est partie avant ; Flyway sans `outOfOrder` aurait refusé V8 après V9).
 8. **Le déploiement.** Les quatre variables du bot sont dans `deploy/exemple.env.txt` avec `SILOOO_DISCORD_ACTIF=non`
    (le test `deploy-compose.mjs` l'exige) et dans le tableau de `docs/deploiement.md` ; rien dans `compose.yml`. Au QG (fin de D2), la direction du jeu pose
    `SILOOO_DISCORD_ACTIF=a-blanc` puis `oui` dans l'environnement du VPS, avec le jeton et l'identifiant donnés par Kr.
