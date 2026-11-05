@@ -70,7 +70,7 @@ class SiteModuleTest {
         withSite(SiteMode.ATTENTE) { client -> assertFalse(client.get("/").bodyAsText().contains("Discord")) }
         withSite(SiteMode.ATTENTE, discordUrl = "https://discord.gg/exemple") { client ->
             val html = client.get("/").bodyAsText()
-            assertTrue(html.contains("""<a href="https://discord.gg/exemple">Rejoins le Discord</a>"""))
+            assertTrue(Regex("""<a href="https://discord.gg/exemple"[^>]*>Rejoins le Discord</a>""").containsMatchIn(html))
         }
     }
 
@@ -164,7 +164,7 @@ class SiteModuleTest {
             assertEquals("same-origin", response.headers["Referrer-Policy"], path)
             val csp = response.headers["Content-Security-Policy"] ?: ""
             assertEquals(
-                "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; frame-ancestors 'none'",
+                "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'",
                 csp,
                 path,
             )
