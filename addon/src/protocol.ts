@@ -180,6 +180,10 @@ export const REFUSAL_REASONS = [
   "GRADE_PRECEDENT_REQUIS",
   "CONFLIT_REESSAYER",
   "ENTREPRISE_EN_COURS",
+  "PALIER_NON_ATTEINT",
+  "DEJA_RECLAME",
+  "PREMIUM_REQUIS",
+  "SAISON_INACTIVE",
 ] as const;
 
 export type RefusalReason = (typeof REFUSAL_REASONS)[number];

@@ -9,7 +9,7 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | --- | --- | --- |
 | Toute tâche | `CLAUDE.md`, puis [passation.md](passation.md) | |
 | Piloter les autres sessions | [direction.md](direction.md) | |
-| Piloter le chantier du site `silooo.com` | [site-direction.md](site-direction.md), puis [site-passation.md](site-passation.md) | |
+| Piloter le chantier du site `silooo.com` | [site-direction.md](site-direction.md), puis [site-passation.md](site-passation.md) et [site-revision.md](site-revision.md) | |
 | Construire le Discord (bot Oooscar, serveur, visuels) | [discord.md](discord.md), puis [discord-passation.md](discord-passation.md) | `silenemc-contenu` pour les rendus |
 | Comprendre le jeu | [vision.md](vision.md), [game-design.md](game-design.md), [glossaire.md](glossaire.md) | |
 | Lire un mot du jeu inconnu | [glossaire.md](glossaire.md) | |
@@ -34,9 +34,10 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 | --- | --- |
 | [passation.md](passation.md) | L'état du chantier, la phase en cours et ses cases, « À faire par Kr », le journal des sessions |
 | [direction.md](direction.md) | Comment la session de direction pilote les autres sessions et quand elle s'arrête |
-| [site.md](site.md) | Le site `silooo.com` : ses pages, ses règles, la référence Rinaorc, comment il se construit |
-| [site-direction.md](site-direction.md) | Comment la session de direction du site pilote son chantier et quand elle s'arrête |
-| [site-passation.md](site-passation.md) | L'état du chantier du site, les étapes S0 à S5, « À faire par Kr », le journal |
+| [site.md](site.md) | Le site `silooo.com` : le kit de Kr (pages, comptes, animations, style), où en est `main`, la référence Rinaorc |
+| [site-direction.md](site-direction.md) | Comment la session de direction du site pilote son chantier, en local, et quand elle s'arrête |
+| [site-passation.md](site-passation.md) | L'état du chantier du site, la file des écarts à corriger, « À faire par Kr », le journal |
+| [site-revision.md](site-revision.md) | La révision de `main` contre le kit de Kr : chaque écart, sa preuve, son verdict |
 | [discord.md](discord.md) | Le Discord de Silooo : le cadrage condensé, le plan du serveur, Oooscar, ce que la critique corrige |
 | [discord-passation.md](discord-passation.md) | L'état du chantier du Discord, les étapes D0 à D6, « À faire par Kr », le journal |
 | [discord-guide.md](discord-guide.md) | Le Guide du serveur Discord, que l'API ne règle pas : le mode Communauté, le mot d'accueil, les tâches, les trois rubriques et leurs images, à poser par Kr |
@@ -57,7 +58,7 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 
 ## Le socle, hors de `docs/`
 
-- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles et les bornes de l'entreprise partagée, iles : la forme des mini-îles et la cinématique, personnel : l'agence, les raretés et les salaires, incidents : les pannes et l'électricité, ville : les zones, la mairie et les bâtiments ; vote : la récompense par vote, la série et la Vote party ; discord : les chiffres du Discord, tenus par le bot Oooscar) et leurs schémas dans `definitions/schemas/`.
+- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles et les bornes de l'entreprise partagée, iles : la forme des mini-îles et la cinématique, personnel : l'agence, les raretés et les salaires, incidents : les pannes et l'électricité, ville : les zones, la mairie et les bâtiments ; vote : la récompense par vote, la série et la Vote party ; pass : la saison, ses points et ses paliers ; discord : les chiffres du Discord, tenus par le bot Oooscar) et leurs schémas dans `definitions/schemas/`.
 - `api/silooo-core.openapi.yaml` : le contrat entre l'add-on et silooo-core, 33 opérations.
 - `core/src/main/resources/db/migration/` : les migrations Flyway, V1 en tête.
 - `design/` : le design system Silooo Atelier (charte, composants, textures, icônes, Oooscar, logo).
@@ -69,4 +70,5 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 - `deploy/` : images, `compose.yml`, scripts de déploiement et de sauvegarde ; `deploy/README.md` et
   [deploiement.md](deploiement.md).
 - `tools/` : `verifier.sh` et les contrôles qu'il enchaîne (`verifier_definitions.mjs`, `generer_types.mjs`,
-  `anti_ia.py`, `verifier_pack.mjs`), leurs tests dans `tools/tests/`.
+  `anti_ia.py`, `verifier_pack.mjs`, `verifier_site.mjs` : les pages du site dans Chromium), leurs tests dans `tools/tests/` ;
+  `tools/partage/` refait l'image de partage du site.

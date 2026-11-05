@@ -376,6 +376,45 @@ printf '%s\n' 'export type GradeId = "ultime";' > "$TMP/addon/src/generated/ids.
 sortie="$(anti_ia --tout --racine "$TMP_NATIF" 2>&1)"
 if ! printf '%s\n' "$sortie" | grep -q "generated/"; then ok "anti_ia.py --tout ignore addon/src/generated/"; else ko "anti_ia.py --tout ne devrait pas lire generated/" "$sortie"; fi
 
+# ------------------------------------------------------------------ verifier_site.mjs : les pages dans Chromium
+echo "verifier_site.mjs : pages dans Chromium"
+SONDE=0
+node tools/verifier_site.mjs --sonder >/dev/null 2>&1 || SONDE=$?
+if [ "$SONDE" -eq 3 ]; then
+  echo "  (ignoré : Chromium de Playwright absent, npx playwright install chromium)"
+else
+  # Un faux site : une page propre, puis trois pages fautives (un bloc de 2 000 px, une image sans alt, une feuille absente).
+  pixel='data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
+  page_html() {
+    printf '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Essai</title>%s</head><body>%s</body></html>\n' "$1" "$2"
+  }
+  mkdir -p "$TMP/site/propre" "$TMP/site/public" "$TMP/site-ko/deborde" "$TMP/site-ko/sans-alt" "$TMP/site-ko/css-absente"
+  printf 'body { margin: 0; }\n' > "$TMP/site/public/site.css"
+  page_html '<link rel="stylesheet" href="/public/site.css">' "<h1>Propre</h1><img src=\"$pixel\" alt=\"Un pixel\">" > "$TMP/site/propre/index.html"
+  cp -r "$TMP/site/propre" "$TMP/site/public" "$TMP/site-ko/"
+  page_html '' '<div style="width: 2000px">Large</div>' > "$TMP/site-ko/deborde/index.html"
+  page_html '' "<img src=\"$pixel\">" > "$TMP/site-ko/sans-alt/index.html"
+  page_html '<link rel="stylesheet" href="/public/absente.css">' '<p>Sans feuille</p>' > "$TMP/site-ko/css-absente/index.html"
+  sortie="$(node tools/verifier_site.mjs "$TMP_NATIF/site" 2>&1)"
+  code=$?
+  if [ "$code" -eq 0 ] && printf '%s\n' "$sortie" | grep -q "0 écart"; then ok "un site propre passe (code 0)"; else ko "un site propre devrait passer (code $code)" "$sortie"; fi
+  sortie="$(node tools/verifier_site.mjs --captures "$TMP_NATIF/captures" "$TMP_NATIF/site-ko" 2>&1)"
+  code=$?
+  # La marge du corps s'ajoute aux 2 000 px du bloc : on lit la largeur du coupable, pas celle du défilement.
+  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -q "/deborde/ à 360 px : déborde (.* px pour 360) : div (2000 px"; then
+    ok "un bloc de 2 000 px est signalé, avec son coupable (code 1)"
+  else
+    ko "le débordement devrait être signalé avec « div » (code $code)" "$sortie"
+  fi
+  if printf '%s\n' "$sortie" | grep -q "/sans-alt/ à 360 px : image sans alt"; then ok "une image sans alt est signalée"; else ko "l'image sans alt devrait être signalée" "$sortie"; fi
+  if printf '%s\n' "$sortie" | grep -q "/css-absente/ à 360 px : réponse 404 : .*/public/absente.css"; then ok "une feuille absente est signalée (réponse 404)"; else ko "la feuille absente devrait être signalée" "$sortie"; fi
+  if ! printf '%s\n' "$sortie" | grep -q "/propre/ à"; then ok "la page propre du même site n'est pas signalée"; else ko "la page propre ne devrait pas être signalée" "$sortie"; fi
+  if [ -f "$TMP/captures/deborde-360.jpg" ] && [ -f "$TMP/captures/propre-1280.jpg" ]; then ok "--captures écrit une image par page et par largeur"; else ko "--captures devrait écrire deborde-360.jpg et propre-1280.jpg" "$(ls "$TMP/captures" 2>&1)"; fi
+  sortie="$(node tools/verifier_site.mjs "$TMP_NATIF/nulle-part" 2>&1)"
+  code=$?
+  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -q "n'est pas un dossier"; then ok "un dossier absent échoue en le disant"; else ko "un dossier absent devrait échouer (code $code)" "$sortie"; fi
+fi
+
 echo
 echo "Tests de l'outillage : $REUSSIS réussi(s), $ECHECS en échec."
 if [ "$ECHECS" -gt 0 ]; then exit 1; fi

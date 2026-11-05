@@ -94,7 +94,7 @@ class EngineDiscoveryTest {
     private fun engineWithDiscovery(key: String): EconomyEngine {
         val first = definitions.factories.factories.first()
         val changed = definitions.factories.copy(factories = listOf(first.copy(discovery = key)) + definitions.factories.factories.drop(1))
-        return EconomyEngine(Definitions(definitions.economy, changed, definitions.shop, definitions.world, definitions.missions, definitions.personnel, definitions.incidents, definitions.city, definitions.vote))
+        return EconomyEngine(Definitions(definitions.economy, changed, definitions.shop, definitions.world, definitions.missions, definitions.personnel, definitions.incidents, definitions.city, definitions.vote, definitions.pass))
     }
 
     @Test

@@ -19,6 +19,9 @@ COPY core/gradle gradle
 RUN sh ./gradlew --no-daemon --console=plain --version
 
 COPY core/src src
+# Le site tire ses jetons, textures, icônes, Oooscar et logos de design/ : Gradle les copie dans les ressources à la
+# construction (core/build.gradle.kts), d'où design/ à côté de core/, comme dans le dépôt.
+COPY design /src/design
 # Les tests tournent ailleurs (job « verifier » de la CI) ; l'image ne contient que le code. definitions/
 # n'est pas copié ici : le code ne le lit qu'au démarrage, et un chiffre du jeu qui change ne doit pas
 # refaire la compilation.

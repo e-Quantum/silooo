@@ -40,13 +40,25 @@ object RefusalCodes {
     /** L'entreprise d'un joueur est déjà lancée : elle ne peut pas rejoindre une autre entreprise (`invite`, `acceptInvite`). */
     const val ENTERPRISE_UNDERWAY = "ENTREPRISE_EN_COURS"
 
+    /** Le total de points du joueur est sous le seuil du palier (`missing` : les points qui manquent) (`claimPass`). */
+    const val TIER_NOT_REACHED = "PALIER_NON_ATTEINT"
+
+    /** Ce palier de cette piste a déjà été réclamé (`claimPass`). */
+    const val ALREADY_CLAIMED = "DEJA_RECLAME"
+
+    /** La piste premium du pass n'a pas été achetée pour la saison (`claimPass`). */
+    const val PREMIUM_REQUIRED = "PREMIUM_REQUIS"
+
+    /** Aucune saison ne court : la piste premium ne s'achète pas (`buyItem`, article `pass-premium`). */
+    const val SEASON_INACTIVE = "SAISON_INACTIVE"
+
     /** L'écriture a perdu contre une autre (version dépassée, même requête en cours) : l'add-on relit et rejoue. */
     const val CONFLICT_RETRY = "CONFLIT_REESSAYER"
 
     val ALL: Set<String> = setOf(
         NOT_ENOUGH_DONAR, NOT_ENOUGH_LINGOTS, NOT_ENOUGH_GEMS, NOT_THE_CEO, THRESHOLD_NOT_REACHED,
         FACTORY_LOCKED, ZONE_LOCKED, SPOT_TAKEN, COMPANY_FULL, ALREADY_OWNED, PREVIOUS_RANK_REQUIRED,
-        CONFLICT_RETRY, ENTERPRISE_UNDERWAY,
+        CONFLICT_RETRY, ENTERPRISE_UNDERWAY, TIER_NOT_REACHED, ALREADY_CLAIMED, PREMIUM_REQUIRED, SEASON_INACTIVE,
     )
 }
 

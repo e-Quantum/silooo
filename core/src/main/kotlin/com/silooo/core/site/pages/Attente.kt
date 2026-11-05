@@ -13,6 +13,10 @@ import kotlinx.html.p
 internal const val OOOSCAR_JOIE = "/public/atelier/oooscar/oooscar-joie.png"
 internal const val OOOSCAR_ALT = "Oooscar, la mascotte de Silooo, content"
 internal const val OOOSCAR_BULLE = "Le serveur ouvre bientôt !"
+/** Le visage « oups » de la charte, pour la page introuvable ; la bulle est celle du kit de Kr. */
+internal const val OOOSCAR_OUPS = "/public/atelier/oooscar/oooscar-oups.png"
+internal const val OOOSCAR_OUPS_ALT = "Oooscar, la mascotte de Silooo, surpris"
+internal const val OOOSCAR_OUPS_BULLE = "Cette page s'est envolée."
 
 /** Le logo, le nom sur une plaque, le texte du contenu : la présentation, commune à l'attente et à l'accueil minimal. */
 internal fun MAIN.presentation(page: ContentPage, shell: SiteShell) {
@@ -28,14 +32,17 @@ internal fun MAIN.presentation(page: ContentPage, shell: SiteShell) {
     }
 }
 
-/** Oooscar en bas de page avec sa bulle : une image lisse (une illustration, pas du pixel art) et six mots au plus. */
-internal fun FlowContent.oooscar() {
+/**
+ * Oooscar en bas de page avec sa bulle : une image lisse (une illustration, pas du pixel art) et six mots au plus.
+ * [width] est la largeur à 120 px de haut du visage choisi (les PNG de design/mascotte/ font 512 px de haut).
+ */
+internal fun FlowContent.oooscar(image: String = OOOSCAR_JOIE, alt: String = OOOSCAR_ALT, bulle: String = OOOSCAR_BULLE, width: String = "109") {
     div(classes = "oooscar") {
-        img(src = OOOSCAR_JOIE, alt = OOOSCAR_ALT, classes = "sa-oooscar") {
-            width = "109"
+        img(src = image, alt = alt, classes = "sa-oooscar") {
+            this.width = width
             height = "120"
         }
-        p(classes = "sa-bulle") { +OOOSCAR_BULLE }
+        p(classes = "sa-bulle") { +bulle }
     }
 }
 
