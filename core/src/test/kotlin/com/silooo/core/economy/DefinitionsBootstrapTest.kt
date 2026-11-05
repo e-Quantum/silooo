@@ -31,6 +31,7 @@ class DefinitionsBootstrapTest {
             TestDefinitions.text(DefinitionsLoader.SHOP_FILE),
             worldJson,
             TestDefinitions.text(DefinitionsLoader.MISSIONS_FILE),
+            TestDefinitions.text(DefinitionsLoader.PERSONNEL_FILE),
         )
         return DefinitionsBootstrap(engine, changed)
     }

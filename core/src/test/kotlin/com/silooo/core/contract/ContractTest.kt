@@ -1,6 +1,7 @@
 package com.silooo.core.contract
 
 import com.silooo.core.Dependencies
+import com.silooo.core.MutableClock
 import com.silooo.core.TestDefinitions
 import com.silooo.core.api.Balances
 import com.silooo.core.api.ErrorCodes
@@ -15,9 +16,13 @@ import com.silooo.core.db.InMemoryApiRequestStore
 import com.silooo.core.db.RecordingConnection
 import com.silooo.core.db.RecordingDatabase
 import com.silooo.core.db.Xuid
+import com.silooo.core.definitions.DefinitionsChecks
+import com.silooo.core.definitions.StaffRarity
+import com.silooo.core.definitions.StaffRole
 import com.silooo.core.economy.BuyAmount
 import com.silooo.core.economy.CompanyService
 import com.silooo.core.economy.EconomyEngine
+import com.silooo.core.economy.FACTORY_ID_MAX_LENGTH
 import com.silooo.core.economy.InMemoryCompanyStore
 import com.silooo.core.events.EVENTS_DEFAULT_LIMIT
 import com.silooo.core.events.EVENTS_MAX_LIMIT
@@ -29,9 +34,11 @@ import com.silooo.core.session.GAMERTAG_MAX_LENGTH
 import com.silooo.core.session.InMemorySessionStore
 import com.silooo.core.session.Membership
 import com.silooo.core.session.Production
+import com.silooo.core.session.StaffRecord
 import com.silooo.core.session.TestBootstrap
 import com.silooo.core.session.TestEconomy
 import com.silooo.core.siloooModule
+import com.silooo.core.staff.InMemoryStaffStore
 import io.ktor.client.request.header
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
@@ -88,6 +95,12 @@ class ContractTest {
 
     private val krXuid = "2535428000000001"
 
+    /** Un joueur qui n'est membre d'aucune entreprise. */
+    private val stranger = "2535428000000099"
+
+    /** Un `requestId` bien formé, différent de [ID] et d'un numéro à l'autre : une action par numéro, jamais un rejeu par hasard. */
+    private fun id(n: Int): String = "6f1c2b7e-0d4a-4a53-9c1e-3f6a8d2b5e%02d".format(n)
+
     /** Les événements que `pollEvents` trouve : l'un pour un joueur, l'autre pour tout le serveur. */
     private val events = listOf(
         GameEvent(1, krXuid, GameEventKind.GEMMES_RECUES.name, buildJsonObject { put("gemmes", 50) }),
@@ -112,6 +125,8 @@ class ContractTest {
             eventStore = InMemoryEventStore(events),
             companyStore = InMemoryCompanyStore(sessions),
             missionStore = missions,
+            clock = MutableClock(sessions.now),
+            staffStore = InMemoryStaffStore(sessions),
         )
     }
 
@@ -126,7 +141,7 @@ class ContractTest {
         block: suspend ApplicationTestBuilder.() -> Unit,
     ) = testApplication {
         val sessions = InMemorySessionStore()
-        val economy = TestEconomy()
+        val economy = TestEconomy(sessions)
         if (operationId != null) seedFor(operationId, sessions, economy)
         extraSeed(sessions)
         val missions = InMemoryMissionStore(sessions)
@@ -146,7 +161,7 @@ class ContractTest {
             sessions.enterPlayer(RecordingConnection().connection, Xuid.parse(krXuid)!!, "Kr")
             return
         }
-        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige")
+        val onCompany = operationId in setOf("getCompany", "collect", "buyLevels", "restoreStep", "prestigePreview", "prestige", "getCandidates", "hire", "assignStaff", "fireStaff")
         if (!onCompany) return
         val owner = Xuid.parse(krXuid)!!
         val connection = RecordingConnection().connection
@@ -162,6 +177,17 @@ class ContractTest {
                 sessions.companies[companyId] = sessions.companies.getValue(companyId).copy(donar = price)
             }
             "restoreStep" -> sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.EN_RUINE, 0, 0, null))
+            // Assez de Donar pour n'importe quelle embauche au revenu fictif de TestEconomy ; l'usine d'exemple du contrat est
+            // active, avec un poste libre : la requête minimale n'en demande aucune, les tests qui affectent s'en servent.
+            "hire" -> {
+                sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
+                sessions.companies[companyId] = sessions.companies.getValue(companyId).copy(donar = RICH)
+            }
+            // Le membre 1, sans usine, que `assignStaff` envoie à l'usine d'exemple et que `fireStaff` renvoie.
+            "assignStaff", "fireStaff" -> {
+                sessions.putFactory(companyId, FactoryRecord(factoryId, FactoryState.ACTIVE, 0, 1, null))
+                sessions.staff[companyId] = mutableListOf(StaffRecord(1, null, "Membre de test", "ouvrier-casque", StaffRole.SALARIE, StaffRarity.COMMUN))
+            }
             // Le seuil de la course 1 vient du moteur ; un multiple le dépasse sans en dépendre au centime.
             "prestigePreview", "prestige" -> sessions.companies[companyId] = sessions.companies.getValue(companyId)
                 .copy(donarEarned = EconomyEngine(TestDefinitions.loaded).prestigeThreshold(1) * 4)
@@ -250,6 +276,9 @@ class ContractTest {
         assertEquals(contract.enumOf(contract.schema("GameEvent"), "kind"), GameEventKind.entries.map { it.name }.toSet(), "GameEventKind et GameEvent.kind")
         assertEquals(contract.enumOf(contract.schema("Factory"), "state"), FactoryState.entries.map { it.name }.toSet(), "FactoryState et Factory.state")
         assertEquals(contract.enumOf(contract.schema("JoinResponse"), "role"), Role.entries.map { it.name }.toSet(), "Role et JoinResponse.role")
+        assertEquals(contract.enumOf(contract.schema("Staff"), "rarity"), StaffRarity.entries.map { it.name }.toSet(), "StaffRarity et Staff.rarity")
+        // Le contrat connaît aussi DIRECTEUR, que le jeu ne fait pas encore embaucher : tous les rôles du service y sont, pas l'inverse.
+        assertTrue(contract.enumOf(contract.schema("Staff"), "role").containsAll(StaffRole.entries.map { it.name }), "StaffRole dans Staff.role")
     }
 
     @Test
@@ -268,6 +297,10 @@ class ContractTest {
         assertEquals(CompanyService.LAST_RESTORE_STEP, (contract.propertyOf(restore, "step")["maximum"] as Number).toInt(), "restoreStep : la dernière étape")
         val levels = operations.single { it.id == "buyLevels" }.body!!
         assertEquals(contract.enumOf(levels, "amount"), BuyAmount.entries.map { it.wire }.toSet(), "buyLevels : les valeurs de amount")
+
+        val slot = operations.single { it.id == "hire" }.pathParameters.single { it.name == "slot" }.schema
+        assertEquals(1, (slot["minimum"] as Number).toInt(), "hire : la première place")
+        assertEquals(DefinitionsChecks.AGENCY_SLOTS_MAX, (slot["maximum"] as Number).toInt(), "hire : la dernière place")
     }
 
     @Test
@@ -406,17 +439,51 @@ class ContractTest {
                 "{}", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"$krXuid","step":0}""",
                 """{"requestId":"$ID","actor":"$krXuid","step":5}""", """{"requestId":"$ID","actor":"$krXuid","step":"un"}""",
             ),
+            "hire" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID"}""", """{"actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid"}""", """{"requestId":"$ID","actor":"abc"}""",
+                """{"requestId":"$ID","actor":"$krXuid","factoryId":""}""",
+                """{"requestId":"$ID","actor":"$krXuid","factoryId":"${"x".repeat(FACTORY_ID_MAX_LENGTH + 1)}"}""",
+                """{"requestId":"$ID","actor":"$krXuid","factoryId":12}""",
+                """{"requestId":"$ID","actor":"$krXuid","factoryId":"usine-inconnue"}""",
+                """{"requestId":"$ID","actor":"$stranger"}""",
+            ),
+            "assignStaff" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""",
+                """{"requestId":"abc","actor":"$krXuid","factoryId":"scierie"}""", """{"requestId":"$ID","actor":"abc","factoryId":"scierie"}""",
+                """{"requestId":"$ID","actor":"$krXuid","factoryId":""}""", """{"requestId":"$ID","actor":"$krXuid","factoryId":3}""",
+                """{"requestId":"$ID","actor":"$krXuid","factoryId":"usine-inconnue"}""",
+                """{"requestId":"$ID","actor":"$stranger","factoryId":"scierie"}""",
+            ),
         )
         // getCompany n'a pas de corps : ses requêtes hors contrat sont dans l'URL, ou visent une entreprise qui n'existe pas.
         val badCompanyUrls = listOf("/v1/companies/0", "/v1/companies/-1", "/v1/companies/abc", "/v1/companies/99")
         // Un XUID mal formé, trop long, ou d'un joueur que le service ne connaît pas.
         val badMissionUrls = listOf("/v1/players/abc/missions", "/v1/players/-1/missions", "/v1/players/123456789012345678901/missions", "/v1/players/$krXuid/missions")
+        // Le personnel : une place hors 1 à 5, un membre ou une entreprise qui n'existent pas, un acteur étranger, un paramètre qui manque.
+        val hireBody = """{"requestId":"$ID","actor":"$krXuid"}"""
+        val assignBody = """{"requestId":"$ID","actor":"$krXuid","factoryId":"scierie"}"""
+        val fireQuery = "requestId=$ID&actor=$krXuid"
+        val staffRequests: List<Triple<String, String, String?>> =
+            badCompanyUrls.map { Triple("getCandidates", "$it/agency", null) } +
+                listOf("0", "6", "-1", "abc", "1.5").map { Triple("hire", "/v1/companies/1/agency/$it/hire", hireBody) } +
+                listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("hire", "$it/agency/1/hire", hireBody) } +
+                listOf("0", "-1", "abc", "99").map { Triple("assignStaff", "/v1/companies/1/staff/$it", assignBody) } +
+                listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("assignStaff", "$it/staff/1", assignBody) } +
+                listOf("0", "-1", "abc", "99").map { Triple("fireStaff", "/v1/companies/1/staff/$it?$fireQuery", null) } +
+                listOf("/v1/companies/0", "/v1/companies/abc", "/v1/companies/99").map { Triple("fireStaff", "$it/staff/1?$fireQuery", null) } +
+                listOf("", "?requestId=$ID", "?actor=$krXuid", "?requestId=abc&actor=$krXuid", "?requestId=$ID&actor=abc", "?requestId=$ID&actor=$stranger")
+                    .map { Triple("fireStaff", "/v1/companies/1/staff/1$it", null) }
         val queries = listOf("", "?limit=10", "?after=abc", "?after=-1", "?after=0&limit=0", "?after=0&limit=${EVENTS_MAX_LIMIT + 1}", "?after=0&limit=abc")
 
+        // Le personnel a son état posé : un 400 vient alors de la requête, jamais d'une entreprise absente.
+        val seeded = setOf("hire", "assignStaff")
         return operations.filter { it.id in bad }.flatMap { op ->
             bad.getValue(op.id).map { body ->
-                dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body) }
+                dynamicTest("${op.id} : ${body.take(50)}") { assertBadRequest(op, urlFor(op), body, seed = op.id.takeIf { it in seeded }) }
             }
+        } + staffRequests.map { (opId, url, body) ->
+            dynamicTest("$opId : $url ${body.orEmpty().take(40)}") { assertBadRequest(operations.single { it.id == opId }, url, body, seed = opId) }
         } + badCompanyUrls.map { url ->
             dynamicTest("getCompany : $url") { assertBadRequest(operations.single { it.id == "getCompany" }, url, null) }
         } + badCompanyUrls.map { url ->
@@ -428,7 +495,7 @@ class ContractTest {
         }
     }
 
-    private fun assertBadRequest(op: OpenApi.Operation, url: String, body: String?) = withService {
+    private fun assertBadRequest(op: OpenApi.Operation, url: String, body: String?, seed: String? = null) = withService(seed) {
         val response = send(op.method, url, body)
         val answer = response.bodyAsText()
         assertEquals(400, response.status.value, "$op avec « $body » ($url) : $answer")
@@ -599,6 +666,92 @@ class ContractTest {
     }
 
     @Test
+    @DisplayName("getCandidates : le corps suit Staff, une place par candidat du jour, un prix pour chaque candidat libre, la même liste à chaque lecture")
+    fun candidates() = withService("getCandidates") {
+        val response = send("GET", "/v1/companies/1/agency")
+        val body = response.bodyAsText()
+        assertEquals(200, response.status.value, body)
+        assertConforms(operations.single { it.id == "getCandidates" }.responses.getValue(200)!!, body, "getCandidates")
+        val list = parse(body).jsonArray.map { it.jsonObject }
+        assertEquals((1..TestDefinitions.loaded.personnel.agency.candidatesPerDay).toList(), list.map { it.getValue("slot").jsonPrimitive.content.toInt() })
+        assertTrue(list.all { "hireCost" in it && "staffId" !in it }, "des candidats libres : un prix, pas d'identifiant d'embauche")
+        assertEquals(body, send("GET", "/v1/companies/1/agency").bodyAsText(), "lue deux fois : la même liste, rien n'est écrit")
+    }
+
+    @Test
+    @DisplayName("hire : CompanyUpdated avec le membre affecté, rejoué à l'identique ; la place garde son staffId dans la liste ; la reprendre donne 409 DEJA_POSSEDE ; sans Donar 409 PAS_ASSEZ_DE_DONAR")
+    fun hire() {
+        val url = "/v1/companies/1/agency/1/hire"
+        val request = """{"requestId":"${id(1)}","actor":"$krXuid","factoryId":"scierie"}"""
+        withService("hire") {
+            val hired = send("POST", url, request)
+            val body = hired.bodyAsText()
+            assertEquals(200, hired.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "hire")
+            val member = parse(body).jsonObject.getValue("state").jsonObject.getValue("staff").jsonArray.single().jsonObject
+            assertEquals("scierie", member.getValue("factoryId").jsonPrimitive.content)
+            assertEquals(body, send("POST", url, request).bodyAsText(), "rejoué avec le même requestId : la même réponse")
+
+            val slotOne = parse(send("GET", "/v1/companies/1/agency").bodyAsText()).jsonArray.first().jsonObject
+            assertEquals(member.getValue("staffId"), slotOne.getValue("staffId"), "la place embauchée porte le staffId du membre")
+            assertFalse("hireCost" in slotOne, "un candidat embauché n'a plus de prix")
+
+            val again = send("POST", url, """{"requestId":"${id(2)}","actor":"$krXuid"}""")
+            val answer = again.bodyAsText()
+            assertEquals(409, again.status.value, answer)
+            assertConforms(refused, answer, "hire (409)")
+            assertEquals(RefusalCodes.ALREADY_OWNED, reason(parse(answer)))
+        }
+        withService("getCompany") {
+            val poor = send("POST", url, """{"requestId":"${id(3)}","actor":"$krXuid"}""")
+            val body = poor.bodyAsText()
+            assertEquals(409, poor.status.value, body)
+            assertConforms(refused, body, "hire (409)")
+            assertEquals(RefusalCodes.NOT_ENOUGH_DONAR, reason(parse(body)))
+            assertTrue(parse(body).jsonObject.getValue("missing").jsonPrimitive.content.toDouble() > 0.0, "la somme qui manque")
+        }
+    }
+
+    @Test
+    @DisplayName("assignStaff : le membre part dans l'usine, 409 USINE_VERROUILLEE pour une usine qui n'est pas à l'entreprise ; fireStaff : le PDG renvoie, un associé reçoit 403 PAS_LE_PDG")
+    fun assignAndFire() {
+        val url = "/v1/companies/1/staff/1"
+        withService("assignStaff") {
+            val assigned = send("PATCH", url, """{"requestId":"${id(4)}","actor":"$krXuid","factoryId":"scierie"}""")
+            val body = assigned.bodyAsText()
+            assertEquals(200, assigned.status.value, body)
+            assertConforms(contract.responseSchema("CompanyUpdated"), body, "assignStaff")
+            val member = parse(body).jsonObject.getValue("state").jsonObject.getValue("staff").jsonArray.single().jsonObject
+            assertEquals("scierie", member.getValue("factoryId").jsonPrimitive.content)
+
+            val notOwned = EconomyEngine(TestDefinitions.loaded).factoryIds().first { it != "scierie" }
+            val locked = send("PATCH", url, """{"requestId":"${id(5)}","actor":"$krXuid","factoryId":"$notOwned"}""")
+            val refusal = locked.bodyAsText()
+            assertEquals(409, locked.status.value, refusal)
+            assertConforms(refused, refusal, "assignStaff (409)")
+            assertEquals(RefusalCodes.FACTORY_LOCKED, reason(parse(refusal)))
+
+            val fired = send("DELETE", "$url?requestId=${id(6)}&actor=$krXuid")
+            val left = fired.bodyAsText()
+            assertEquals(200, fired.status.value, left)
+            assertConforms(contract.responseSchema("CompanyUpdated"), left, "fireStaff")
+            assertEquals(0, parse(left).jsonObject.getValue("state").jsonObject.getValue("staff").jsonArray.size)
+            assertEquals(400, send("DELETE", "$url?requestId=${id(7)}&actor=$krXuid").status.value, "renvoyé : le membre n'existe plus")
+        }
+        val partner = "2535428000000002"
+        withService("fireStaff", extraSeed = { sessions ->
+            sessions.members[Xuid.parse(partner)!!] = Membership(1, Role.ASSOCIE)
+            sessions.balances[Xuid.parse(partner)!!] = Balances(0, 0, 0, 0)
+        }) {
+            val notCeo = send("DELETE", "$url?requestId=${id(8)}&actor=$partner")
+            val body = notCeo.bodyAsText()
+            assertEquals(403, notCeo.status.value, body)
+            assertConforms(refused, body, "fireStaff (403)")
+            assertEquals(RefusalCodes.NOT_THE_CEO, reason(parse(body)))
+        }
+    }
+
+    @Test
     @DisplayName("Une route qui n'existe pas dans le contrat répond 501 PAS_FAIT avec la clé, 401 sans elle")
     fun unknownRoutes() = withService {
         val with = send("GET", "/v1/nulle-part")
@@ -618,7 +771,11 @@ class ContractTest {
             "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
+            "getCandidates" to 200, "hire" to 200, "assignStaff" to 200, "fireStaff" to 200,
         )
+
+        /** Plus de Donar que n'importe quelle embauche n'en coûte au revenu fictif de `TestEconomy` (11 par heure). */
+        const val RICH = 1.0e6
 
         /**
          * Les opérations qui peuvent répondre 409 CONFLIT_REESSAYER sans le déclarer dans le contrat. Les six trous

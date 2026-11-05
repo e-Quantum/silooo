@@ -12,7 +12,7 @@ import kotlinx.serialization.json.longOrNull
 class DefinitionsException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions. Chargé une fois au
+ * Tout ce que dit definitions/ : l'économie, les usines, la boutique, le monde, les missions, le personnel. Chargé une fois au
  * démarrage ([DefinitionsLoader]) puis passé aux services ; jamais relu pendant que le service tourne.
  *
  * Une instance est toujours cohérente : le constructeur refuse les chiffres impossibles (croissance de
@@ -25,6 +25,7 @@ class Definitions(
     val shop: ShopDefinitions,
     val world: WorldDefinitions,
     val missions: MissionsDefinitions,
+    val personnel: PersonnelDefinitions,
 ) {
     /**
      * Les Lingots de chaque mission, par identifiant : le nombre que son `recompense` désigne dans economie.json. Le
@@ -35,7 +36,7 @@ class Definitions(
     }.toMap()
 
     init {
-        val problems = DefinitionsChecks.problems(economy, factories, world, missions)
+        val problems = DefinitionsChecks.problems(economy, factories, world, missions, personnel)
         if (problems.isNotEmpty()) {
             throw DefinitionsException("Définitions incohérentes :\n" + problems.joinToString("\n") { "  - $it" })
         }
@@ -64,7 +65,22 @@ internal object DefinitionsChecks {
         return whole?.toLong()
     }
 
-    fun problems(economy: EconomyDefinitions, factories: FactoriesDefinitions, world: WorldDefinitions, missions: MissionsDefinitions): List<String> {
+    /** La plus grande place de la liste du jour que le contrat (`hire`, chemin `slot`) connaît. */
+    const val AGENCY_SLOTS_MAX = 5
+
+    /** Les longueurs de `staff.name` et `staff.skin_id`. */
+    const val STAFF_NAME_MAX_LENGTH = 32
+    const val STAFF_SKIN_MAX_LENGTH = 48
+
+    private const val PERCENT_TOLERANCE = 1e-9
+
+    fun problems(
+        economy: EconomyDefinitions,
+        factories: FactoriesDefinitions,
+        world: WorldDefinitions,
+        missions: MissionsDefinitions,
+        personnel: PersonnelDefinitions,
+    ): List<String> {
         val problems = mutableListOf<String>()
         fun check(ok: Boolean, message: () -> String) {
             if (!ok) problems += message()
@@ -136,6 +152,70 @@ internal object DefinitionsChecks {
                 "missions.json : ${mission.id}.recompense « ${mission.reward} » ne mène pas à un nombre entier de Lingots dans economie.json"
             }
         }
+
+        personnelProblems(personnel, ::check)
         return problems
+    }
+
+    private fun personnelProblems(personnel: PersonnelDefinitions, check: (Boolean, () -> String) -> Unit) {
+        val agency = personnel.agency
+        check(agency.candidatesPerDay in 1..AGENCY_SLOTS_MAX) { "personnel.json : agence.candidatsParJour doit être entre 1 et $AGENCY_SLOTS_MAX" }
+        check(agency.rolesPerSlot.size == agency.candidatesPerDay) {
+            "personnel.json : agence.rolesParPlace doit avoir une entrée par place (${agency.candidatesPerDay}), il en a ${agency.rolesPerSlot.size}"
+        }
+        check(agency.names.size == agency.names.toSet().size && agency.names.size >= agency.candidatesPerDay) {
+            "personnel.json : agence.noms doit lister au moins ${agency.candidatesPerDay} noms, tous différents"
+        }
+        check(agency.names.all { it.isNotBlank() && it.length <= STAFF_NAME_MAX_LENGTH }) {
+            "personnel.json : agence.noms ne contient que des noms de 1 à $STAFF_NAME_MAX_LENGTH caractères"
+        }
+        for (role in agency.rolesPerSlot.toSet()) {
+            val skins = agency.appearances[role].orEmpty()
+            check(skins.isNotEmpty() && skins.size == skins.toSet().size) {
+                "personnel.json : agence.apparences.$role doit lister au moins une apparence, sans doublon"
+            }
+            check(skins.all { MISSION_ID.matches(it) && it.length <= STAFF_SKIN_MAX_LENGTH }) {
+                "personnel.json : agence.apparences.$role ne contient que des identifiants en kebab-case de $STAFF_SKIN_MAX_LENGTH caractères au plus"
+            }
+            check(personnel.roles.containsKey(role)) { "personnel.json : roles.$role manque alors que l'agence le propose" }
+        }
+
+        check(personnel.rarities.keys == StaffRarity.entries.toSet()) { "personnel.json : raretes doit avoir exactement ${StaffRarity.entries.joinToString(", ")}" }
+        val total = personnel.rarities.values.sumOf { it.sharePercent }
+        check(kotlin.math.abs(total - 100.0) <= PERCENT_TOLERANCE) {
+            "personnel.json : les parts raretes.*.repartitionPourcent doivent faire 100, elles font $total"
+        }
+        for (rarity in StaffRarity.entries) {
+            val definition = personnel.rarities[rarity] ?: continue
+            check(definition.sharePercent.isFinite() && definition.sharePercent in 0.0..100.0) {
+                "personnel.json : raretes.$rarity.repartitionPourcent doit être entre 0 et 100"
+            }
+            check(definition.productionBonusPercent.isFinite() && definition.productionBonusPercent > 0.0) {
+                "personnel.json : raretes.$rarity.bonusProductionPourcent doit être positif"
+            }
+            check(definition.salaryPercent.isFinite() && definition.salaryPercent >= 0.0) {
+                "personnel.json : raretes.$rarity.salairePourcent ne peut pas être négatif"
+            }
+            check(definition.hireCostHours.isFinite() && definition.hireCostHours > 0.0) {
+                "personnel.json : raretes.$rarity.coutHeuresDeRevenu doit être positif"
+            }
+            for ((role, factors) in personnel.roles) {
+                check(definition.salaryPercent * factors.salaryFactor < definition.productionBonusPercent) {
+                    "personnel.json : raretes.$rarity : le salaire d'un $role doit rester sous son bonus de production"
+                }
+            }
+        }
+        for ((role, factors) in personnel.roles) {
+            check(factors.costFactor.isFinite() && factors.costFactor > 0.0) { "personnel.json : roles.$role.coutFacteur doit être positif" }
+            check(factors.salaryFactor.isFinite() && factors.salaryFactor >= 0.0) { "personnel.json : roles.$role.salaireFacteur ne peut pas être négatif" }
+        }
+        check(personnel.roles.keys == StaffRole.entries.toSet()) { "personnel.json : roles doit avoir exactement ${StaffRole.entries.joinToString(", ")}" }
+
+        check(personnel.posts.baseEmployees >= 0) { "personnel.json : postes.salariesBase ne peut pas être négatif" }
+        check(personnel.posts.levelsPerPost >= 1) { "personnel.json : postes.niveauxParPoste doit être au moins 1" }
+        check(personnel.posts.leadersPerFactory >= 0) { "personnel.json : postes.chefsParUsine ne peut pas être négatif" }
+        check(personnel.teamLeader.offlineCapBonusHours.isFinite() && personnel.teamLeader.offlineCapBonusHours >= 0.0) {
+            "personnel.json : chefEquipe.plafondHorsLigneBonusHeures ne peut pas être négatif"
+        }
     }
 }

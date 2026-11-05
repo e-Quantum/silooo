@@ -230,6 +230,13 @@ paths:
   /v1/companies/{companyId}/agency:
     get:
       summary: Les 5 candidats du jour à l'agence d'emploi
+      description: |
+        La liste est celle du jour (jour UTC) et de l'entreprise : le service la tire d'après la date et l'entreprise,
+        donc la même toute la journée et à chaque lecture, sans rien écrire. Les raretés suivent une répartition fixe
+        (`definitions/personnel.json`). Il n'y a ni tirage payant ni nouvelle liste contre du Donar. `slot` va de 1 à 5 :
+        c'est le numéro que `hire` prend dans son chemin, et il fixe aussi le rôle proposé. Un candidat déjà embauché
+        reste dans la liste et porte alors `staffId` (et `factoryId` s'il est affecté) ; un candidat libre n'a ni l'un ni
+        l'autre. `bonusPercent` est le gain de production de sa rareté. Une entreprise inconnue donne 400.
       operationId: getCandidates
       parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
       responses:
@@ -248,6 +255,16 @@ paths:
   /v1/companies/{companyId}/agency/{slot}/hire:
     post:
       summary: Embauche un candidat du jour
+      description: |
+        Embauche le candidat de la place `slot` de la liste du jour (voir `getCandidates`) et le paie en Donar sur
+        le compte de l'entreprise. Le prix est un nombre d'heures du revenu de l'entreprise (`definitions/personnel.json`),
+        jamais un chiffre fixe. Un membre de l'entreprise, PDG ou associé, peut embaucher. Avec `factoryId`, le candidat
+        est affecté à cette usine dans la même écriture ; sans lui, il reste sans usine (il ne coûte rien et ne rapporte
+        rien). Refus 409 : `PAS_ASSEZ_DE_DONAR` (avec `missing`), `DEJA_POSSEDE` (ce candidat est déjà embauché),
+        `USINE_VERROUILLEE` (l'usine n'est pas à l'entreprise ou n'est pas encore active), `EMPLACEMENT_OCCUPE` (l'usine
+        n'a plus de poste libre pour ce rôle), `CONFLIT_REESSAYER` (l'entreprise a changé entre-temps). Une place hors
+        1 à 5, une entreprise inconnue ou un acteur qui n'en est pas membre donnent 400. L'embauche publie un événement
+        `ANNONCE` dont `payload.action` vaut `hire`.
       operationId: hire
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -261,7 +278,7 @@ paths:
                 - $ref: '#/components/schemas/ActionBase'
                 - type: object
                   properties:
-                    factoryId: { type: string, description: usine où l'affecter tout de suite }
+                    factoryId: { type: string, example: scierie, description: usine où l'affecter tout de suite }
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
         '401': { $ref: '#/components/responses/Erreur' }
@@ -273,6 +290,12 @@ paths:
   /v1/companies/{companyId}/staff/{staffId}:
     patch:
       summary: Affecte un membre du personnel à une autre usine
+      description: |
+        Change l'usine d'un membre du personnel de l'entreprise, sans frais. L'usine doit être à l'entreprise et active
+        (`USINE_VERROUILLEE` sinon) et avoir un poste libre pour son rôle (`EMPLACEMENT_OCCUPE` sinon) ; l'affecter à
+        l'usine où il est déjà ne change rien. Un `staffId` inconnu ou d'une autre entreprise, comme un acteur qui n'est
+        pas membre, donnent 400. 409 `CONFLIT_REESSAYER` si l'entreprise a changé entre-temps. L'affectation publie un
+        événement `ANNONCE` dont `payload.action` vaut `assignStaff`.
       operationId: assignStaff
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -287,7 +310,7 @@ paths:
                 - type: object
                   required: [factoryId]
                   properties:
-                    factoryId: { type: string }
+                    factoryId: { type: string, example: scierie }
       responses:
         '400': { $ref: '#/components/responses/Erreur' }
         '401': { $ref: '#/components/responses/Erreur' }
@@ -297,6 +320,12 @@ paths:
         '200': { $ref: '#/components/responses/CompanyUpdated' }
     delete:
       summary: Renvoie un membre du personnel (seul cas où il part)
+      description: |
+        Le PDG seulement : un associé reçoit 403 `PAS_LE_PDG`. Le renvoi est définitif et sans remboursement : le
+        membre disparaît de l'entreprise et son poste se libère. S'il figure encore dans la liste du jour, sa place se
+        libère aussi : il redevient embauchable, au même prix. Un `staffId` inconnu ou d'une autre entreprise,
+        comme un acteur qui n'est pas membre, donnent 400. 409 `CONFLIT_REESSAYER` si l'entreprise a changé entre-temps.
+        Le renvoi publie un événement `ANNONCE` dont `payload.action` vaut `fireStaff`.
       operationId: fireStaff
       parameters:
         - { $ref: '#/components/parameters/CompanyId' }
@@ -308,6 +337,7 @@ paths:
         '401': { $ref: '#/components/responses/Erreur' }
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
+        '403': { $ref: '#/components/responses/Refused' }
         '409': { $ref: '#/components/responses/Refused' }
         '200': { $ref: '#/components/responses/CompanyUpdated' }
 
@@ -803,11 +833,15 @@ components:
         donarEarned: { $ref: '#/components/schemas/Donar' }
         ratePerHour:
           allOf: [ { $ref: '#/components/schemas/Donar' } ]
-          description: l'add-on fait défiler le compteur à partir de ce revenu, sans rappeler le service
+          description: "l'add-on fait défiler le compteur à partir de ce revenu, sans rappeler le service ; net des salaires du personnel, bonus de production compris"
         multiplier: { type: number, description: 'Lingots, grade, Pilier, étoiles, bâtiments, boosts' }
         threshold: { $ref: '#/components/schemas/Donar' }
         factories: { type: array, items: { $ref: '#/components/schemas/Factory' } }
         zonesOwned: { type: array, items: { type: integer } }
+        staff:
+          type: array
+          description: "le personnel embauché de l'entreprise, affecté ou non : l'add-on y lit l'équipe de chaque usine, il ne la calcule pas"
+          items: { $ref: '#/components/schemas/Staff' }
         island:
           type: object
           description: "origine de l'archipel de l'entreprise, en blocs (archipelago_slots) : l'add-on y pose l'île et les usines, il ne la calcule pas"
@@ -832,6 +866,14 @@ components:
         offlineCollected: { $ref: '#/components/schemas/Donar' }
     Staff:
       type: object
+      description: |
+        Un candidat du jour ou un membre du personnel. `staffId` n'existe qu'une fois embauché ; `slot` n'existe que
+        pour un candidat du jour ; `factoryId` est nul tant que le membre n'a pas d'usine. `bonusPercent` est le gain
+        de production de la rareté, en pourcent de la production de l'usine où il travaille. `salaryPercent` est son
+        salaire, en pourcent du revenu de cette usine ; `salaryPerHour` est ce que ce salaire coûte à l'entreprise en
+        Donar par heure, maintenant (zéro tant que le membre n'a pas d'usine active). `hireCost` est le prix d'embauche
+        d'un candidat libre, en Donar, au revenu de l'entreprise de maintenant. `EPIQUE` est la troisième rareté
+        (« légendaire » du game design) : le nom affiché est à confirmer par Kr.
       required: [name, role, rarity, bonusPercent, skinId]
       properties:
         staffId: { type: integer, format: int64 }
@@ -841,6 +883,9 @@ components:
         role: { type: string, enum: [SALARIE, CHEF, DIRECTEUR] }
         rarity: { type: string, enum: [COMMUN, RARE, EPIQUE] }
         bonusPercent: { type: number }
+        salaryPercent: { type: number }
+        salaryPerHour: { $ref: '#/components/schemas/Donar' }
+        hireCost: { $ref: '#/components/schemas/Donar' }
         factoryId: { type: string, nullable: true }
     PrestigePreview:
       type: object

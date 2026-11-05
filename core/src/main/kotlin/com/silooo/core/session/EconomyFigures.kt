@@ -1,17 +1,23 @@
 package com.silooo.core.session
 
+import com.silooo.core.api.Staff
 import java.sql.Connection
 import java.time.Instant
 
 /** Les chiffres d'une usine que le contrat demande (schéma `Factory`). */
 data class FactoryFigures(val ratePerHour: Double, val nextCost: Double, val nextMilestone: Int, val stoppedNoPower: Boolean = false)
 
-/** Les chiffres d'une entreprise (schéma `CompanyState`), avec ceux de chacune de ses usines. */
+/**
+ * Les chiffres d'une entreprise (schéma `CompanyState`), avec ceux de chacune de ses usines et de son personnel.
+ * [ratePerHour] est net des salaires et bonus de production compris ; [staff] est le personnel embauché, avec ses
+ * chiffres (salaire, bonus) déjà calculés par le moteur.
+ */
 class CompanyFigures(
     val ratePerHour: Double,
     val multiplier: Double,
     val threshold: Double,
     private val factories: Map<String, FactoryFigures>,
+    val staff: List<Staff> = emptyList(),
 ) {
     /** Les chiffres de l'usine [factoryId]. Une usine que le moteur ne connaît pas n'a pas de chiffres : zéro. */
     fun forFactory(factoryId: String): FactoryFigures = factories[factoryId] ?: FactoryFigures(0.0, 0.0, 0)

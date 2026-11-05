@@ -2,6 +2,14 @@ package com.silooo.core.economy
 
 import com.silooo.core.definitions.Definitions
 import com.silooo.core.definitions.FactoryDefinition
+import com.silooo.core.definitions.StaffRarity
+import com.silooo.core.definitions.StaffRole
+
+/**
+ * Un membre du personnel qui travaille dans une usine active : ce que le moteur a besoin d'en savoir pour le revenu
+ * (son rôle et sa rareté, rien de son nom ni de son apparence).
+ */
+data class CrewMember(val role: StaffRole, val rarity: StaffRarity)
 
 /**
  * Le moteur d'économie : les formules du jeu, rien d'autre. Pas de base, pas d'horloge, pas de
@@ -25,6 +33,7 @@ class EconomyEngine(private val definitions: Definitions) {
     private val levelRules = definitions.economy.levels
     private val offlineRules = definitions.economy.offline
     private val prestigeRules = definitions.economy.prestige
+    private val personnel = definitions.personnel
     private val factoryList: List<FactoryDefinition> = definitions.factories.factories
     private val factoriesById: Map<String, FactoryDefinition> = factoryList.associateBy { it.id }
 
@@ -182,23 +191,96 @@ class EconomyEngine(private val definitions: Definitions) {
         StrictMath.scalb(factory.productionPerLevel * level, doublings(level))
 
     /**
+     * La production de `factoryId` au niveau `level` avec son équipe [crew], avant multiplicateur : celle de
+     * [factoryRate] plus le net de l'équipe ([crewNetPercent]), en pourcent de cette production. Sans équipe, exactement
+     * [factoryRate].
+     */
+    fun factoryRate(factoryId: String, level: Int, crew: List<CrewMember>): Double = withCrew(factoryRate(factory(factoryId), level), crew)
+
+    private fun withCrew(rate: Double, crew: List<CrewMember>): Double =
+        if (crew.isEmpty()) rate else rate + rate * crewNetPercent(crew) / PERCENT
+
+    /**
      * La production de toutes les usines, en Donar par heure de jeu, avant multiplicateur. `levels` donne
      * le niveau de chaque usine par identifiant ; une usine absente est à zéro. La somme se fait dans
-     * l'ordre d'usines.json, donc au même résultat bit pour bit à chaque appel.
+     * l'ordre d'usines.json, donc au même résultat bit pour bit à chaque appel. `crews` donne l'équipe de chaque
+     * usine par identifiant (bonus de production moins salaires, voir [crewNetPercent]) ; une usine absente de `crews`
+     * n'a personne, et sans aucune équipe le résultat est celui d'avant le personnel, bit pour bit.
      */
-    fun baseRate(levels: Map<String, Int>): Double {
+    fun baseRate(levels: Map<String, Int>, crews: Map<String, List<CrewMember>> = emptyMap()): Double {
         val unknown = levels.keys.firstOrNull { it !in factoriesById }
         require(unknown == null) { "Usine inconnue : $unknown" }
         var total = 0.0
         for (factory in factoryList) {
             val level = levels[factory.id] ?: 0
-            if (level > 0) total += factoryRate(factory, level)
+            if (level > 0) {
+                val rate = factoryRate(factory, level)
+                total += rate
+                val crew = crews[factory.id]
+                if (!crew.isNullOrEmpty()) total += rate * crewNetPercent(crew) / PERCENT
+            }
         }
         return total
     }
 
-    /** Le revenu en Donar par heure de jeu : [baseRate] fois `multiplier` (voir [globalMultiplier]). */
-    fun ratePerHour(levels: Map<String, Int>, multiplier: Double): Double = multiplier * baseRate(levels)
+    /**
+     * Le revenu en Donar par heure de jeu : [baseRate] fois `multiplier` (voir [globalMultiplier]). Avec des équipes
+     * ([baseRate]), c'est le revenu net : bonus de production en plus, salaires en moins.
+     */
+    fun ratePerHour(levels: Map<String, Int>, multiplier: Double, crews: Map<String, List<CrewMember>> = emptyMap()): Double =
+        multiplier * baseRate(levels, crews)
+
+    // ---------------------------------------------------------------- personnel
+
+    /** Le gain de production d'un membre de rareté [rarity], en pourcent de la production de son usine (`raretes.*.bonusProductionPourcent`). */
+    fun staffBonusPercent(rarity: StaffRarity): Double = personnel.rarity(rarity).productionBonusPercent
+
+    /**
+     * Le salaire d'un membre, en pourcent de la production de son usine par heure : le salaire de sa rareté fois le facteur
+     * de son rôle. Aucune règle n'en fait une somme fixe : il suit la production, donc il ne dépasse jamais son bonus
+     * (`DefinitionsChecks` le garantit sur les chiffres de personnel.json).
+     */
+    fun staffSalaryPercent(role: StaffRole, rarity: StaffRarity): Double = personnel.rarity(rarity).salaryPercent * personnel.role(role).salaryFactor
+
+    /**
+     * Le net d'une équipe, en pourcent de la production de son usine : la somme des bonus moins la somme des salaires. Chaque
+     * membre compte pour lui seul, en pourcent de la production SANS équipe : deux membres rapportent la somme de ce que
+     * chacun rapporterait seul. **À valider par Kr** (aucun texte ne dit comment les bonus se cumulent).
+     */
+    fun crewNetPercent(crew: List<CrewMember>): Double {
+        var net = 0.0
+        for (member in crew) net += staffBonusPercent(member.rarity) - staffSalaryPercent(member.role, member.rarity)
+        return net
+    }
+
+    /**
+     * Ce que le salaire d'un membre coûte par heure de jeu, en Donar : son pourcent de la production de l'usine
+     * `factoryId` au niveau `level` (sans équipe), fois `multiplier`. Le revenu net ([ratePerHour]) l'a déjà retiré ; ce
+     * chiffre sert à l'afficher.
+     */
+    fun salaryPerHour(factoryId: String, level: Int, role: StaffRole, rarity: StaffRarity, multiplier: Double): Double =
+        multiplier * factoryRate(factory(factoryId), level) * staffSalaryPercent(role, rarity) / PERCENT
+
+    /**
+     * Le prix d'embauche : un nombre d'heures du revenu de l'entreprise (`raretes.*.coutHeuresDeRevenu`) fois le facteur du
+     * rôle, au revenu `revenuePerHour` de maintenant (net, multiplicateur compris). **À valider par Kr.**
+     */
+    fun hireCost(role: StaffRole, rarity: StaffRarity, revenuePerHour: Double): Double {
+        require(revenuePerHour >= 0.0) { "Un revenu n'est pas négatif : $revenuePerHour" }
+        return revenuePerHour * personnel.rarity(rarity).hireCostHours * personnel.role(role).costFactor
+    }
+
+    /**
+     * Les postes d'un rôle dans une usine de niveau `factoryLevel` : un salarié de base plus un par `niveauxParPoste`
+     * niveaux, un chef d'équipe par usine (`postes`). **À valider par Kr.**
+     */
+    fun staffPosts(role: StaffRole, factoryLevel: Int): Int {
+        require(factoryLevel >= 0) { "Un niveau n'est pas négatif : $factoryLevel" }
+        return when (role) {
+            StaffRole.SALARIE -> personnel.posts.baseEmployees + factoryLevel / personnel.posts.levelsPerPost
+            StaffRole.CHEF -> personnel.posts.leadersPerFactory
+        }
+    }
 
     /**
      * Le prix d'un achat de niveaux pour `factoryId` au niveau `level` avec `balance` Donar en poche.
@@ -297,6 +379,20 @@ class EconomyEngine(private val definitions: Definitions) {
         ratePerHour * offlineHours(awayHours, capHours) * offlineRules.efficiency
 
     /**
+     * Le plafond hors ligne des usines qui ont un chef d'équipe : [capHours] et les heures de `chefEquipe.plafondHorsLigneBonusHeures`.
+     */
+    fun leaderCapHours(capHours: Double): Double = capHours + personnel.teamLeader.offlineCapBonusHours
+
+    /**
+     * Le Donar gagné pendant l'absence quand certaines usines ont un chef d'équipe : les usines sans chef au plafond
+     * `capHours` ([offlineEarnings]), celles qui en ont un au plafond relevé ([leaderCapHours]). `othersRatePerHour` et
+     * `ledRatePerHour` sont les revenus (net, multiplicateur compris) des deux groupes. Sans usine à chef, c'est
+     * exactement [offlineEarnings] du premier groupe.
+     */
+    fun offlineEarningsWithLeaders(othersRatePerHour: Double, ledRatePerHour: Double, awayHours: Double, capHours: Double): Double =
+        offlineEarnings(othersRatePerHour, awayHours, capHours) + offlineEarnings(ledRatePerHour, awayHours, leaderCapHours(capHours))
+
+    /**
      * Le multiplicateur hors ligne moyen d'un joueur qui joue `playHoursPerDay` heures par jour et dont les
      * autres heures rapportent à l'efficacité hors ligne, plafonnées : `1 + min(plafond, 24 - h) × efficacité / h`.
      * C'est la cellule B8 du tableur (joueur type). Le service n'en a pas besoin pour payer un joueur : il
@@ -383,6 +479,9 @@ class EconomyEngine(private val definitions: Definitions) {
     companion object {
         /** Une journée : constante de la nature, pas un chiffre d'équilibrage. */
         const val HOURS_PER_DAY = 24.0
+
+        /** Un pourcent est un centième : constante de la nature. */
+        private const val PERCENT = 100.0
 
         /**
          * L'écart relatif sous lequel un résultat flottant compte pour l'entier voisin. 1e-9 est loin au-dessus

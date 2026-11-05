@@ -270,7 +270,49 @@ function controlesMissions(fichier, d, dossier) {
   });
 }
 
-const CONTROLES = { usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions };
+function controlesPersonnel(fichier, d) {
+  const agence = d.agence ?? {};
+  // Une place de la liste du jour, un rôle : les deux tableaux se suivent.
+  const places = agence.candidatsParJour;
+  const roles = liste(agence.rolesParPlace);
+  if (Number.isInteger(places) && roles.length !== places) {
+    signaler(fichier, "$.agence.rolesParPlace", `une entrée par place : ${places} attendues (candidatsParJour), ${roles.length} reçues`);
+  }
+  // Le tirage se fait sans remise : il faut au moins un nom par place.
+  if (Number.isInteger(places) && liste(agence.noms).length < places) {
+    signaler(fichier, "$.agence.noms", `au moins ${places} noms (candidatsParJour) pour que deux candidats du jour n'en partagent pas un`);
+  }
+  // Les parts de rareté font 100, le bonus monte avec la rareté, et un membre rapporte plus qu'il ne coûte en salaire.
+  const raretes = d.raretes && typeof d.raretes === "object" ? d.raretes : {};
+  const ordre = ["COMMUN", "RARE", "EPIQUE"];
+  const parts = ordre.map((r) => raretes[r]?.repartitionPourcent);
+  if (parts.every((x) => typeof x === "number")) {
+    const somme = parts.reduce((a, b) => a + b, 0);
+    if (Math.abs(somme - 100) > 1e-9) {
+      signaler(fichier, "$.raretes", `les parts repartitionPourcent doivent faire 100, elles font ${somme}`);
+    }
+  }
+  croissant(fichier, "$.raretes", ordre.map((r) => raretes[r]?.bonusProductionPourcent), "les bonus de production (COMMUN, RARE, EPIQUE)");
+  croissant(fichier, "$.raretes", ordre.map((r) => raretes[r]?.coutHeuresDeRevenu), "les prix d'embauche (COMMUN, RARE, EPIQUE)");
+  const facteursRoles = d.roles && typeof d.roles === "object" ? d.roles : {};
+  for (const r of ordre) {
+    const bonus = raretes[r]?.bonusProductionPourcent;
+    const salaire = raretes[r]?.salairePourcent;
+    if (typeof bonus !== "number" || typeof salaire !== "number") continue;
+    for (const [role, facteurs] of Object.entries(facteursRoles)) {
+      const facteur = facteurs?.salaireFacteur;
+      if (typeof facteur === "number" && salaire * facteur >= bonus) {
+        signaler(fichier, `$.raretes.${r}.salairePourcent`,
+          `le salaire (${salaire} × ${facteur} pour ${role}) doit rester sous le bonus de production (${bonus}) : sinon embaucher fait perdre de l'argent`);
+      }
+    }
+  }
+}
+
+const CONTROLES = {
+  usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions,
+  personnel: controlesPersonnel,
+};
 
 // ---------------------------------------------------------------- programme
 

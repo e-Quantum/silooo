@@ -287,6 +287,74 @@ export type MondeDefinitions = {
   };
 };
 
+// ---- personnel.json
+
+/** Forme de definitions/personnel.json : l'agence d'emploi, les raretés, les rôles, les postes des usines et le chef d'équipe. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type PersonnelDefinitions = {
+  readonly version: number;
+  /** L'agence d'emploi : les candidats du jour. */
+  readonly agence: {
+    /** Nombre de candidats proposés chaque jour, 5 au plus : le contrat (hire, chemin « slot ») n'en connaît pas plus. */
+    readonly candidatsParJour: number;
+    /** Le rôle proposé à chaque place de la liste du jour, dans l'ordre des places : autant d'entrées que de candidats par jour. */
+    readonly rolesParPlace: readonly PersonnelRoleAgence[];
+    /** Les prénoms que l'agence tire. Textes vus par les joueurs : à valider par Kr. */
+    readonly noms: readonly string[];
+    /** Les apparences (skinId) que l'agence tire, par rôle. L'add-on les associe à un modèle ; à valider par Kr. */
+    readonly apparences: {
+      readonly SALARIE: PersonnelApparences;
+      readonly CHEF: PersonnelApparences;
+    };
+  };
+  /** Les trois raretés, par code : la répartition des candidats, le bonus, le salaire et le prix. EPIQUE est la rareté que le game design appelle « légendaire ». Le code est une clé et non une valeur : la charte des textes bannit le mot. */
+  readonly raretes: {
+    readonly COMMUN: PersonnelRarete;
+    readonly RARE: PersonnelRarete;
+    readonly EPIQUE: PersonnelRarete;
+  };
+  /** Ce qui change d'un rôle à l'autre : un facteur sur le prix d'embauche et un facteur sur le salaire. */
+  readonly roles: {
+    readonly SALARIE: PersonnelRole;
+    readonly CHEF: PersonnelRole;
+  };
+  /** Combien de personnel nommé une usine accueille. */
+  readonly postes: {
+    /** Postes de salarié d'une usine active, quel que soit son niveau. */
+    readonly salariesBase: number;
+    /** Un poste de salarié de plus tous les N niveaux de l'usine. */
+    readonly niveauxParPoste: number;
+    /** Postes de chef d'équipe d'une usine active. */
+    readonly chefsParUsine: number;
+  };
+  readonly chefEquipe: {
+    /** Heures ajoutées au plafond hors ligne d'une usine qui a un chef d'équipe. */
+    readonly plafondHorsLigneBonusHeures: number;
+  };
+};
+
+/** Un rôle que l'agence propose. */
+export type PersonnelRoleAgence = "SALARIE" | "CHEF";
+
+export type PersonnelApparences = readonly string[];
+
+export type PersonnelRarete = {
+  /** Part des candidats de cette rareté, en pourcent. Les trois parts font 100. */
+  readonly repartitionPourcent: number;
+  /** Gain de production de l'usine où le membre travaille, en pourcent de la production de l'usine sans lui. */
+  readonly bonusProductionPourcent: number;
+  /** Salaire par heure, en pourcent de la production de l'usine sans lui (avant le facteur du rôle). */
+  readonly salairePourcent: number;
+  /** Prix d'embauche, en heures du revenu de l'entreprise (avant le facteur du rôle). */
+  readonly coutHeuresDeRevenu: number;
+};
+
+export type PersonnelRole = {
+  /** Facteur sur le prix d'embauche de la rareté. */
+  readonly coutFacteur: number;
+  /** Facteur sur le salaire de la rareté. */
+  readonly salaireFacteur: number;
+};
+
 // ---- usines.json
 
 /** Identifiants de usines.json, tableau « usines ». */

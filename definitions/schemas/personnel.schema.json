@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/personnel.schema.json",
+  "title": "Personnel de Silooo",
+  "description": "Forme de definitions/personnel.json : l'agence d'emploi, les raretés, les rôles, les postes des usines et le chef d'équipe. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "agence", "raretes", "roles", "postes", "chefEquipe"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "agence": {
+      "description": "L'agence d'emploi : les candidats du jour.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidatsParJour", "rolesParPlace", "noms", "apparences"],
+      "properties": {
+        "candidatsParJour": {
+          "description": "Nombre de candidats proposés chaque jour, 5 au plus : le contrat (hire, chemin « slot ») n'en connaît pas plus.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "rolesParPlace": {
+          "description": "Le rôle proposé à chaque place de la liste du jour, dans l'ordre des places : autant d'entrées que de candidats par jour.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/roleAgence" }
+        },
+        "noms": {
+          "description": "Les prénoms que l'agence tire. Textes vus par les joueurs : à valider par Kr.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 24 }
+        },
+        "apparences": {
+          "description": "Les apparences (skinId) que l'agence tire, par rôle. L'add-on les associe à un modèle ; à valider par Kr.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["SALARIE", "CHEF"],
+          "properties": {
+            "SALARIE": { "$ref": "#/$defs/apparences" },
+            "CHEF": { "$ref": "#/$defs/apparences" }
+          }
+        }
+      }
+    },
+    "raretes": {
+      "description": "Les trois raretés, par code : la répartition des candidats, le bonus, le salaire et le prix. EPIQUE est la rareté que le game design appelle « légendaire ». Le code est une clé et non une valeur : la charte des textes bannit le mot.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["COMMUN", "RARE", "EPIQUE"],
+      "properties": {
+        "COMMUN": { "$ref": "#/$defs/rarete" },
+        "RARE": { "$ref": "#/$defs/rarete" },
+        "EPIQUE": { "$ref": "#/$defs/rarete" }
+      }
+    },
+    "roles": {
+      "description": "Ce qui change d'un rôle à l'autre : un facteur sur le prix d'embauche et un facteur sur le salaire.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["SALARIE", "CHEF"],
+      "properties": {
+        "SALARIE": { "$ref": "#/$defs/role" },
+        "CHEF": { "$ref": "#/$defs/role" }
+      }
+    },
+    "postes": {
+      "description": "Combien de personnel nommé une usine accueille.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["salariesBase", "niveauxParPoste", "chefsParUsine"],
+      "properties": {
+        "salariesBase": {
+          "description": "Postes de salarié d'une usine active, quel que soit son niveau.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "niveauxParPoste": {
+          "description": "Un poste de salarié de plus tous les N niveaux de l'usine.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "chefsParUsine": {
+          "description": "Postes de chef d'équipe d'une usine active.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "chefEquipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plafondHorsLigneBonusHeures"],
+      "properties": {
+        "plafondHorsLigneBonusHeures": {
+          "description": "Heures ajoutées au plafond hors ligne d'une usine qui a un chef d'équipe.",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "roleAgence": {
+      "description": "Un rôle que l'agence propose.",
+      "enum": ["SALARIE", "CHEF"]
+    },
+    "apparences": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "description": "Identifiant d'apparence en kebab-case, 32 caractères au plus (colonne staff.skin_id).",
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+        "maxLength": 32
+      }
+    },
+    "rarete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repartitionPourcent", "bonusProductionPourcent", "salairePourcent", "coutHeuresDeRevenu"],
+      "properties": {
+        "repartitionPourcent": {
+          "description": "Part des candidats de cette rareté, en pourcent. Les trois parts font 100.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "bonusProductionPourcent": {
+          "description": "Gain de production de l'usine où le membre travaille, en pourcent de la production de l'usine sans lui.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "salairePourcent": {
+          "description": "Salaire par heure, en pourcent de la production de l'usine sans lui (avant le facteur du rôle).",
+          "type": "number",
+          "minimum": 0
+        },
+        "coutHeuresDeRevenu": {
+          "description": "Prix d'embauche, en heures du revenu de l'entreprise (avant le facteur du rôle).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coutFacteur", "salaireFacteur"],
+      "properties": {
+        "coutFacteur": { "description": "Facteur sur le prix d'embauche de la rareté.", "type": "number", "exclusiveMinimum": 0 },
+        "salaireFacteur": { "description": "Facteur sur le salaire de la rareté.", "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

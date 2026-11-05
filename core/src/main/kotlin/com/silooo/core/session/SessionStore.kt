@@ -4,6 +4,8 @@ import com.silooo.core.api.Balances
 import com.silooo.core.api.FactoryState
 import com.silooo.core.api.Role
 import com.silooo.core.db.Xuid
+import com.silooo.core.definitions.StaffRarity
+import com.silooo.core.definitions.StaffRole
 import java.sql.Connection
 import java.time.Instant
 
@@ -53,6 +55,17 @@ data class FactoryRecord(
     val openIncidentId: Long?,
 )
 
+/** Une ligne de `staff` : un membre du personnel embauché, affecté ou non à une usine. */
+data class StaffRecord(
+    val id: Long,
+    /** L'usine où il travaille ; `null` tant qu'il n'est pas affecté. */
+    val factoryId: String?,
+    val name: String,
+    val skinId: String,
+    val role: StaffRole,
+    val rarity: StaffRarity,
+)
+
 /** Grade à vie et abonnement Pilier du joueur, pour `JoinResponse.rank` et `pilierUntil`. */
 data class PlayerProfile(val rank: String?, val pilierUntil: Instant?)
 
@@ -80,6 +93,9 @@ interface SessionStore {
     fun loadCompany(connection: Connection, companyId: Long): CompanyRecord
     fun loadFactories(connection: Connection, companyId: Long): List<FactoryRecord>
     fun loadZones(connection: Connection, companyId: Long): List<Int>
+
+    /** Le personnel embauché de l'entreprise (`staff`), par identifiant croissant : le moteur d'économie en tire bonus et salaires. */
+    fun loadStaff(connection: Connection, companyId: Long): List<StaffRecord>
     fun loadBalances(connection: Connection, xuid: Xuid): Balances
     fun loadProfile(connection: Connection, xuid: Xuid): PlayerProfile
 
