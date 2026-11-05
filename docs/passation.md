@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 9 h 55, le monde de l'add-on fusionné (session de direction).
+Dernière mise à jour : 5 novembre 2026, 8 h 40, le monde de l'add-on fusionné (session de direction).
 
 ## État
 
@@ -383,12 +383,12 @@ que Kr n'a pas tranché (`docs/economie.md`, « Le marché » : aucune monnaie n
   les préfixes, Oooscar côté client, installation par `start.sh` et le Dockerfile), `claude/phase4-prestige-mission`
   (`island` renseigné, `prestigePreview`, `prestige`, `getMissions`, `definitions/missions.json`). Fichiers disjoints,
   sauf `addon/src/generated/definitions.ts` que deux tranches regénèrent : la direction le regénère à la fusion.
-- **5 novembre 2026, 9 h 40 : direction, pack de ressources fusionné.** `claude/phase3-resource-pack` en avance
+- **5 novembre 2026, 8 h 20 : direction, pack de ressources fusionné.** `claude/phase3-resource-pack` en avance
   rapide (`571b6b5` : `resource-pack/` avec 37 textures copiées, JSON UI du HUD, Oooscar côté client, installation
   par `start.sh`, `texturepack-required=true`, contrôle du pack dans le vérificateur, CI `image-bds` qui vérifie la
   copie et la liste du monde). Case du pack cochée, moins `titleChannel` qui attend le test client. Vérifier :
   `git log --oneline -3 origin/main`, `node tools/verifier_pack.mjs`.
-- **5 novembre 2026, 9 h 55 : direction, le monde de l'add-on fusionné.** `claude/phase3-addon-monde` en avance
+- **5 novembre 2026, 8 h 35 : direction, le monde de l'add-on fusionné.** Les heures des entrées de ce jour qui précèdent étaient en avance d'environ une heure et quart sur l'horloge du PC ; à partir d'ici, elles la suivent. `claude/phase3-addon-monde` en avance
   rapide (`b9d2b24` : `addon/src/monde/`, `definitions/iles.json` et son schéma, entité `silooo:oooscar` dans
   `addon/pack/`, build qui copie `pack/`, 522 tests). Deux cases de la phase 3 cochées, la mission de la mairie côté
   add-on devient une case à part. Décision 30. Reste en vol : `claude/phase4-prestige-mission`. Vérifier :
