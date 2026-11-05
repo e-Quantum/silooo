@@ -108,6 +108,142 @@ export type EconomieDefinitions = {
   };
 };
 
+// ---- iles.json
+
+/** Identifiants de iles.json, tableau « usines ». */
+export type IlesUsinesId =
+  | "carriere"
+  | "scierie"
+  | "ferme"
+  | "mine-profonde"
+  | "fonderie"
+  | "atelier-outils"
+  | "briqueterie"
+  | "elevage"
+  | "centrale"
+  | "verrerie"
+  | "menuiserie"
+  | "conserverie"
+  | "usine-textile"
+  | "usine-robots"
+  | "cristallerie";
+
+/** Forme de definitions/iles.json : où l'add-on pose les mini-îles des usines autour de l'île principale, et de quoi elles sont faites. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
+export type IlesDefinitions = {
+  readonly version: number;
+  readonly commentaire: string;
+  /** Altitude (y) de la face du dessus des plateformes, en blocs. Les joueurs se tiennent un bloc au-dessus. */
+  readonly hauteur: number;
+  /** Décalage en blocs du centre de l'île principale par rapport à l'origine de la case (CompanyState.island), qui est le coin de la case au plus petit x et au plus petit z. Une case fait ecartEntreCases de côté (monde.json) : le centre en est le milieu. */
+  readonly centreDansLaCase: IlesPoint;
+  /** Où se tiennent les mini-îles : sur un carré autour du centre de l'île principale, qui fait 512 × 512 blocs une fois débloquée. */
+  readonly anneau: {
+    /** Demi-côté en blocs de l'île principale une fois débloquée (512 × 512, donc 256), autour du même centre : les mini-îles doivent rester en dehors. */
+    readonly ilePrincipaleDemiCote: number;
+    /** Distance en blocs du centre au carré sur lequel se tiennent les centres des mini-îles, mesurée le long de x ou de z : au moins 256 pour rester hors de l'île principale, au plus la moitié de la case moins le rayon d'une plateforme. */
+    readonly demiCote: number;
+  };
+  /** Le sol d'une mini-île : un disque, en couches de plus en plus étroites vers le bas. */
+  readonly plateforme: {
+    /** Rayon en blocs de la couche du dessus. */
+    readonly rayon: number;
+    /** De haut en bas. La première couche est la face du dessus, à l'altitude « hauteur ». */
+    readonly couches: readonly {
+      readonly materiau: "herbe" | "terre" | "pierre";
+      /** Blocs de rayon en moins que la couche du dessus. */
+      readonly retrait: number;
+    }[];
+  };
+  /** Le point où le joueur apparaît, sur la mini-île de départ. */
+  readonly apparition: {
+    /** L'usine dont le joueur apparaît sur l'île : sa Carrière. */
+    readonly usine: IlesIdentifiant;
+    /** Distance en blocs du centre de la mini-île, du côté de l'île principale, hors du bâtiment. */
+    readonly distance: number;
+    /** Où se tient Oooscar à l'arrivée, par rapport au centre de la mini-île de départ. */
+    readonly oooscar: IlesDecalagePlat;
+  };
+  /** Ce qui se voit d'une usine en ruine. */
+  readonly ruine: {
+    /** Part des blocs de mur qui manquent ou sont remplacés par des gravats. */
+    readonly partMursAbimesPourcent: IlesPourcentage;
+    /** Part de la face du dessus où l'herbe est arrachée. */
+    readonly partSolAbimePourcent: IlesPourcentage;
+  };
+  /** Les blocs de Minecraft qui jouent la palette de design/decor/ (herbe, terre, pierre, planches) et les détails. */
+  readonly materiaux: {
+    readonly herbe: IlesBloc;
+    readonly terre: IlesBloc;
+    readonly pierre: IlesBloc;
+    readonly planches: IlesBloc;
+    /** Le toit d'une usine active. */
+    readonly toit: IlesBloc;
+    /** Ce qui reste d'un mur de pierre abîmé. */
+    readonly gravats: IlesBloc;
+    /** Ce qui reste d'un mur de planches abîmé, et le sol arraché. */
+    readonly mousse: IlesBloc;
+    /** Les poteaux d'un chantier (usine en remise en état). */
+    readonly echafaudage: IlesBloc;
+    /** La lanterne d'une usine active. */
+    readonly lumiere: IlesBloc;
+    /** L'enseigne murale qui porte le nom de l'usine, au-dessus de sa porte. */
+    readonly enseigne: IlesBloc;
+    readonly vide: IlesBloc;
+  };
+  /** Un emplacement et un bâtiment par usine du catalogue (usines.json). Le bâtiment dépend de l'identifiant d'usine. */
+  readonly usines: readonly {
+    readonly id: IlesUsinesId;
+    /** Direction du centre de l'île principale vers cette mini-île, en degrés : 0 vers l'est (x croissant), 90 vers le sud (z croissant), donc dans le sens des aiguilles d'une montre vu d'en haut. */
+    readonly angle: number;
+    readonly murs: "planches" | "pierre";
+    /** Taille du bâtiment le long de x, en blocs, impaire pour que la porte tombe au milieu. */
+    readonly largeur: number;
+    /** Taille du bâtiment le long de z, en blocs, impaire. */
+    readonly profondeur: number;
+    /** Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne. */
+    readonly hauteur: number;
+  }[];
+  /** La cinématique d'arrivée (design/composants/Cinematique.md : 20 secondes, 4 plans), filmée autour de la mini-île de départ. Chaque plan part d'un point, glisse vers un autre et regarde un point fixe ; tous les points sont donnés par rapport au centre de cette mini-île. */
+  readonly cinematique: {
+    readonly plans: readonly {
+      /** Durée du plan en secondes. */
+      readonly duree: number;
+      /** Où la caméra commence. */
+      readonly depart: IlesVue;
+      /** Où la caméra finit. */
+      readonly arrivee: IlesVue;
+      /** Le point que la caméra regarde pendant tout le plan. */
+      readonly regard: IlesVue;
+    }[];
+  };
+};
+
+/** Un décalage sur le sol de la mini-île, dans son repère : « avant » va vers le centre de l'île principale, « droite » est à droite quand on regarde vers l'avant. En blocs. */
+export type IlesDecalagePlat = {
+  readonly avant: number;
+  readonly droite: number;
+};
+
+/** Un point de la mise en scène, dans le repère de la mini-île : avant, droite (voir decalagePlat) et haut, au-dessus de la face du dessus de la plateforme. En blocs. */
+export type IlesVue = {
+  readonly avant: number;
+  readonly droite: number;
+  readonly haut: number;
+};
+
+/** Identifiant en kebab-case : minuscules sans accent, chiffres, tirets. */
+export type IlesIdentifiant = string;
+
+/** Identifiant d'un type de bloc de Minecraft. */
+export type IlesBloc = string;
+
+export type IlesPourcentage = number;
+
+export type IlesPoint = {
+  readonly x: number;
+  readonly z: number;
+};
+
 // ---- missions.json
 
 /** Identifiants de missions.json, tableau « missions ». */

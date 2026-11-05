@@ -274,6 +274,28 @@ describe("lecture des réponses des quatre routes", () => {
     assert.deepEqual(parseCompanyState(undefined), { ok: false, problem: "company : objet attendu" });
   });
 
+  it("parseCompanyState lit l'origine de l'île quand le service la donne, et rien quand il ne la donne pas", () => {
+    const avec = parseCompanyState({ ...companyState(), island: { x: 1200, z: -600 } });
+    assert.ok(avec.ok);
+    assert.deepEqual(avec.value.island, { x: 1200, z: -600 });
+    const sans = parseCompanyState(companyState());
+    assert.ok(sans.ok);
+    assert.equal("island" in sans.value, false);
+    const dansJoin = parseJoinResponse({ ...joinResponse(), state: { ...companyState(), island: { x: 0, z: 0 } } });
+    assert.ok(dansJoin.ok);
+    assert.deepEqual(dansJoin.value.state.island, { x: 0, z: 0 });
+  });
+
+  it("parseCompanyState refuse une île illisible et nomme la clé fautive", () => {
+    const lire = (island: unknown) => parseCompanyState({ ...companyState(), island });
+    assert.deepEqual(lire({ x: 1 }), { ok: false, problem: "company.island.z : nombre attendu" });
+    assert.deepEqual(lire({ x: "1", z: 2 }), { ok: false, problem: "company.island.x : nombre attendu" });
+    assert.deepEqual(lire({ x: 1.5, z: 2 }), { ok: false, problem: "company.island.x : entier attendu" });
+    assert.deepEqual(lire({ x: 1, z: 2.25 }), { ok: false, problem: "company.island.z : entier attendu" });
+    assert.deepEqual(lire(null), { ok: false, problem: "company.island : objet attendu" });
+    assert.deepEqual(lire([1, 2]), { ok: false, problem: "company.island : objet attendu" });
+  });
+
   it("parseCollectResponse lit collected, offlineHours et state", () => {
     const parsed = parseCollectResponse({ collected: 240000, offlineHours: 8, state: companyState() });
     assert.ok(parsed.ok);
@@ -351,6 +373,14 @@ describe("accord avec api/silooo-core.openapi.yaml, routes de l'entreprise", () 
 
   it("Factory : toutes les clés obligatoires sont lues et exigées", () => {
     exigeToutes("    Factory:", { ...factory() }, (corps) => parseCompanyState({ ...companyState(), factories: [corps] }));
+  });
+
+  it("l'île du contrat est un objet facultatif {x, z} en entiers", () => {
+    const debut = after("    CompanyState:");
+    const bloc = yaml.slice(debut, debut + 2600);
+    assert.match(bloc, /island:\s*\n\s*type: object/);
+    assert.match(bloc, /required: \[x, z\]/);
+    assert.deepEqual(listAfter("    CompanyState:", "required:").includes("island"), false);
   });
 
   it("Balances : toutes les clés obligatoires sont lues et exigées", () => {

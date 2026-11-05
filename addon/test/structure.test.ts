@@ -54,13 +54,29 @@ describe("imports de src/", () => {
     }
   });
 
-  it("seuls main.ts, beta.ts et ui/formulaires.ts importent @minecraft/* ; les tests n'ont donc jamais à les charger", () => {
+  it("seuls main.ts, beta.ts, monde/bedrock.ts et ui/formulaires.ts importent @minecraft/* ; les tests n'ont donc jamais à les charger", () => {
+    const autorises = new Set(["main.ts", "beta.ts", "monde/bedrock.ts", "ui/formulaires.ts"]);
     for (const { nom, texte } of fichiers) {
       const minecraft = importsDe(texte).filter((i) => i.startsWith("@minecraft/"));
-      if (nom !== "main.ts" && nom !== "beta.ts" && nom !== "ui/formulaires.ts") {
-        assert.deepEqual(minecraft, [], `${nom} importe @minecraft/*`);
+      if (!autorises.has(nom)) assert.deepEqual(minecraft, [], `${nom} importe @minecraft/*`);
+    }
+  });
+
+  it("monde/bedrock.ts est l'enveloppe de @minecraft/server de la partie monde, et seul main.ts l'importe", () => {
+    const bedrock = fichiers.find((f) => f.nom === "monde/bedrock.ts")?.texte ?? "";
+    assert.deepEqual([...new Set(importsDe(bedrock).filter((i) => i.startsWith("@minecraft/")))], ["@minecraft/server"]);
+    let importeurs = 0;
+    for (const { nom, texte } of fichiers) {
+      if (nom === "monde/bedrock.ts") continue;
+      const charge = importsDe(texte).some((i) => /(^|\/)bedrock$/.test(i));
+      if (nom === "main.ts") {
+        assert.ok(charge, "main.ts ne branche plus monde/bedrock.ts");
+        importeurs += 1;
+      } else {
+        assert.ok(!charge, `${nom} importe monde/bedrock.ts : seul main.ts le fait`);
       }
     }
+    assert.equal(importeurs, 1);
   });
 
   it("ui/formulaires.ts est la seule enveloppe de @minecraft/server-ui, et n'importe @minecraft/server que pour des types", () => {

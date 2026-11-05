@@ -190,3 +190,106 @@ describe("registerMenuItem", () => {
     assert.match(asynchrone.log.errors.join("\n"), /menuItem\.use : Error: promesse rompue/);
   });
 });
+
+describe("la boussole attend la fin de l'arrivée", () => {
+  function avecAttente(options: { occupe: () => boolean; step?: number; max?: number; inv?: InventoryLike<Item> | undefined }) {
+    const spawns: Array<(event: SpawnEventOf<Joueur>) => void> = [];
+    const world: MenuItemWorldLike<Joueur, Item> = {
+      afterEvents: {
+        playerSpawn: { subscribe: (callback) => void spawns.push(callback) },
+        itemUse: { subscribe: () => undefined },
+      },
+    };
+    const inv = "inv" in options ? options.inv : inventaire([undefined]);
+    const scheduler = fakeScheduler();
+    const log = recordingLogger();
+    registerMenuItem(world, {
+      inventoryOf: () => inv,
+      makeItem,
+      open: () => undefined,
+      scheduler,
+      log,
+      waitWhile: options.occupe,
+      ...(options.step === undefined ? {} : { waitStepSeconds: options.step }),
+      ...(options.max === undefined ? {} : { waitMaxSeconds: options.max }),
+    });
+    spawns[0]?.({ initialSpawn: true, player: ALEX });
+    return { inv, scheduler, log };
+  }
+
+  it("ne donne rien tant que le joueur est occupé, puis la donne dès qu'il est libre", () => {
+    let occupe = true;
+    const { inv, scheduler } = avecAttente({ occupe: () => occupe });
+    assert.equal(scheduler.runNextTimeout(), config.ui.menuItemDelaySeconds);
+    assert.equal(inv?.size, 1);
+    assert.equal((inv as ReturnType<typeof inventaire>).ajouts.length, 0);
+    assert.equal(scheduler.timeouts[0]?.seconds, config.ui.menuItemWaitStepSeconds, "elle revient voir au pas réglé");
+    scheduler.runNextTimeout();
+    assert.equal((inv as ReturnType<typeof inventaire>).ajouts.length, 0);
+    occupe = false;
+    scheduler.runNextTimeout();
+    assert.equal((inv as ReturnType<typeof inventaire>).ajouts.length, 1);
+    assert.equal(scheduler.timeouts.length, 0, "plus rien en attente");
+  });
+
+  it("n'attend pas au-delà du maximum : la boussole est donnée quand même, et le journal le dit", () => {
+    const { inv, scheduler, log } = avecAttente({ occupe: () => true, step: 1, max: 3 });
+    scheduler.runNextTimeout();
+    let tours = 0;
+    while (scheduler.timeouts.length > 0 && tours < 20) {
+      scheduler.runNextTimeout();
+      tours += 1;
+    }
+    assert.equal(tours, 3);
+    assert.equal((inv as ReturnType<typeof inventaire>).ajouts.length, 1);
+    assert.equal(log.warns.length, 1);
+    assert.match(log.warns[0] ?? "", /toujours occupé après 3 s/);
+  });
+
+  it("un joueur libre dès le départ la reçoit au délai habituel, sans attente", () => {
+    const { inv, scheduler } = avecAttente({ occupe: () => false });
+    scheduler.runNextTimeout();
+    assert.equal((inv as ReturnType<typeof inventaire>).ajouts.length, 1);
+    assert.equal(scheduler.timeouts.length, 0);
+  });
+
+  it("un joueur parti pendant l'attente : une ligne de journal, aucune exception, plus de nouvelle attente", () => {
+    let present = true;
+    const spawns: Array<(event: SpawnEventOf<Joueur>) => void> = [];
+    const world: MenuItemWorldLike<Joueur, Item> = {
+      afterEvents: {
+        playerSpawn: { subscribe: (callback) => void spawns.push(callback) },
+        itemUse: { subscribe: () => undefined },
+      },
+    };
+    const scheduler = fakeScheduler();
+    const log = recordingLogger();
+    registerMenuItem(world, {
+      inventoryOf: () => {
+        if (!present) throw new Error("joueur invalide");
+        return inventaire([undefined]);
+      },
+      makeItem,
+      open: () => undefined,
+      scheduler,
+      log,
+      waitWhile: () => present,
+    });
+    spawns[0]?.({ initialSpawn: true, player: ALEX });
+    scheduler.runNextTimeout();
+    present = false;
+    assert.doesNotThrow(() => scheduler.runNextTimeout());
+    assert.match(log.infos.join("\n"), /boussole de Alex : Error: joueur invalide/);
+    assert.equal(scheduler.timeouts.length, 0);
+  });
+
+  it("une exception de waitWhile est journalisée sans sortir", () => {
+    const { scheduler, log } = avecAttente({
+      occupe: () => {
+        throw new Error("attente cassée");
+      },
+    });
+    assert.doesNotThrow(() => scheduler.runNextTimeout());
+    assert.match(log.errors.join("\n"), /menuItem\.give : Error: attente cassée/);
+  });
+});

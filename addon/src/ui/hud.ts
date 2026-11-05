@@ -100,8 +100,8 @@ export interface HudPlayerLike {
   readonly onScreenDisplay: HudScreenLike;
 }
 
-export interface HudDeps {
-  readonly players: () => readonly HudPlayerLike[];
+export interface HudDeps<P extends HudPlayerLike = HudPlayerLike> {
+  readonly players: () => readonly P[];
   readonly views: Pick<ViewStore, "get">;
   readonly link: Pick<LinkState, "status">;
   readonly clock: Clock;
@@ -109,13 +109,15 @@ export interface HudDeps {
   readonly status: StatusLog;
   readonly titleChannel?: boolean;
   readonly titleStaySeconds?: number;
+  /** Vrai pour un joueur à qui le HUD ne doit rien envoyer : pendant son arrivée et la cinématique, le HUD se tait. */
+  readonly silenced?: (player: P) => boolean;
 }
 
 /**
  * Un rafraîchissement du HUD pour tous les joueurs présents. Un joueur qui échoue (parti entre-temps) n'empêche
  * pas les autres, et aucune exception ne sort.
  */
-export function createHud(deps: HudDeps): { refresh(): void } {
+export function createHud<P extends HudPlayerLike = HudPlayerLike>(deps: HudDeps<P>): { refresh(): void } {
   const titleChannel = deps.titleChannel ?? config.ui.hud.titleChannel;
   const stayTicks = secondsToTicks(deps.titleStaySeconds ?? config.ui.hud.titleStaySeconds);
   return {
@@ -123,6 +125,7 @@ export function createHud(deps: HudDeps): { refresh(): void } {
       let failed: string | undefined;
       for (const player of deps.players()) {
         try {
+          if (deps.silenced?.(player) === true) continue;
           const frame = renderHud({
             view: deps.views.get(playerXuid(player)),
             link: deps.link.status(),
