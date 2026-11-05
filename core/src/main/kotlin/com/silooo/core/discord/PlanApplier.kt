@@ -20,7 +20,7 @@ class PlanApplier(
     suspend fun run(): PlanReport {
         val report = PlanReport(phase, dryRun)
         val snapshot = server.snapshot()
-        val roleIds = mutableMapOf<String, String>()
+        val roleIds = report.roleIds
         for (role in plan.roles.filter { it.phase.existsIn(phase) }) {
             val spec = RoleSpec(role.nom, role.couleur, role.separe, role.mentionnable)
             val existing = snapshot.roles.firstOrNull { it.name == role.nom }
@@ -76,11 +76,13 @@ class PlanApplier(
                             report.attempt("le salon « ${channel.discordName} »") {
                                 val id = server.createChannel(parent, spec)
                                 report.createdChannels += channel.discordName
+                                report.channelIds[channel.id] = id
                                 if (isJournal) journalId = id
                             }
                         }
                     }
                 } else {
+                    report.channelIds[channel.id] = existing.id
                     if (isJournal) journalId = existing.id
                     if (existing.topic.orEmpty() != channel.sujet.orEmpty()) {
                         report.changedChannels += channel.discordName
@@ -117,6 +119,12 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
     val changedRoles = mutableListOf<String>()
     val changedChannels = mutableListOf<String>()
     val failures = mutableListOf<String>()
+
+    /** Les identifiants Discord trouvés ou créés, par identifiant du plan ; ce qui manque (à blanc, échec) n'y est pas. */
+    val roleIds = mutableMapOf<String, String>()
+    val channelIds = mutableMapOf<String, String>()
+
+    val ids: ServerIds get() = ServerIds(roleIds.toMap(), channelIds.toMap())
 
     val nothingToDo: Boolean
         get() = missingRoles.isEmpty() && missingCategories.isEmpty() && missingChannels.isEmpty() &&

@@ -1,10 +1,13 @@
 package com.silooo.core.discord.jda
 
 import com.silooo.core.discord.BotConfig
+import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.CategorySpec
 import com.silooo.core.discord.ChannelKind
 import com.silooo.core.discord.ChannelSpec
+import com.silooo.core.discord.CommandSpec
 import com.silooo.core.discord.DiscordConnection
+import com.silooo.core.discord.DiscordEvent
 import com.silooo.core.discord.DiscordServer
 import com.silooo.core.discord.ExistingCategory
 import com.silooo.core.discord.ExistingChannel
@@ -17,9 +20,10 @@ import kotlinx.coroutines.future.await
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.Permission
+import net.dv8tion.jda.api.entities.Activity
 import net.dv8tion.jda.api.entities.Guild
-import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.entities.Role
+import net.dv8tion.jda.api.entities.UserSnowflake
 import net.dv8tion.jda.api.entities.channel.ChannelType
 import net.dv8tion.jda.api.entities.channel.attribute.ICategorizableChannel
 import net.dv8tion.jda.api.entities.channel.concrete.ForumChannel
@@ -27,20 +31,32 @@ import net.dv8tion.jda.api.entities.channel.concrete.NewsChannel
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel
+import net.dv8tion.jda.api.exceptions.ErrorResponseException
+import net.dv8tion.jda.api.requests.ErrorResponse
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.requests.restaction.ChannelAction
 import net.dv8tion.jda.api.utils.ChunkingFilter
 import net.dv8tion.jda.api.utils.MemberCachePolicy
+import net.dv8tion.jda.api.utils.cache.CacheFlag
 
 /** Discord a refusé quelque chose que le bot sait expliquer ; le message ne contient jamais le jeton. */
 class DiscordRefusal(message: String) : Exception(message)
 
 /**
- * La connexion JDA (ADR 0007), le seul endroit avec [JdaServer] qui importe JDA. Légère : aucun cache de membres,
- * aucune intention privilégiée pour l'instant (les membres et le contenu des messages viendront avec l'accueil,
- * une fois les intentions accordées par Kr).
+ * La connexion JDA (ADR 0007) : avec [JdaServer], [JdaEvents] et [JdaMessages], le seul endroit qui importe JDA.
+ * Les intentions : membres, messages et leur contenu, réactions, vocaux ; les membres et le contenu sont
+ * privilégiés, Kr les accorde dans le portail des développeurs. Le cache des membres se limite aux derniers vus
+ * ([MEMBER_CACHE]) et à ceux en vocal : l'accueil guidé et les vocaux en ont besoin, rien d'autre.
  */
-class JdaConnection private constructor(private val jda: JDA, override val server: DiscordServer) : DiscordConnection {
+class JdaConnection private constructor(
+    private val jda: JDA,
+    private val guild: Guild,
+    override val server: DiscordServer,
+) : DiscordConnection {
+    override fun onEvent(handler: (DiscordEvent) -> Unit) {
+        jda.addEventListener(JdaEvents(guild.idLong, handler))
+    }
+
     override fun close() {
         jda.shutdown()
         if (!jda.awaitShutdown(SHUTDOWN_WAIT)) jda.shutdownNow()
@@ -49,10 +65,22 @@ class JdaConnection private constructor(private val jda: JDA, override val serve
     companion object {
         private val SHUTDOWN_WAIT: Duration = Duration.ofSeconds(5)
 
+        /** Combien de membres restent en cache, les derniers vus d'abord : assez pour les arrivées d'une soirée. */
+        private const val MEMBER_CACHE = 500
+
+        private val INTENTS: EnumSet<GatewayIntent> = EnumSet.of(
+            GatewayIntent.GUILD_MEMBERS,
+            GatewayIntent.GUILD_MESSAGES,
+            GatewayIntent.MESSAGE_CONTENT,
+            GatewayIntent.GUILD_MESSAGE_REACTIONS,
+            GatewayIntent.GUILD_VOICE_STATES,
+        )
+
         /** Se connecte et trouve le serveur de [config] ; lève si le jeton est refusé ou si le bot n'y est pas. */
         fun open(config: BotConfig): JdaConnection {
-            val jda = JDABuilder.createLight(config.token.reveal(), EnumSet.noneOf(GatewayIntent::class.java))
-                .setMemberCachePolicy(MemberCachePolicy.NONE)
+            val jda = JDABuilder.createLight(config.token.reveal(), INTENTS)
+                .enableCache(CacheFlag.VOICE_STATE)
+                .setMemberCachePolicy(MemberCachePolicy.lru(MEMBER_CACHE).or(MemberCachePolicy.VOICE))
                 .setChunkingFilter(ChunkingFilter.NONE)
                 .setLargeThreshold(50)
                 .build()
@@ -60,7 +88,7 @@ class JdaConnection private constructor(private val jda: JDA, override val serve
                 jda.awaitReady()
                 val guild = jda.getGuildById(config.guildId)
                     ?: throw DiscordRefusal("le bot n'est pas sur le serveur ${config.guildId} (invite-le, puis vérifie SILOOO_DISCORD_SERVEUR)")
-                return JdaConnection(jda, JdaServer(guild))
+                return JdaConnection(jda, guild, JdaServer(guild))
             } catch (e: Exception) {
                 jda.shutdownNow()
                 throw e
@@ -123,11 +151,51 @@ class JdaServer(private val guild: Guild) : DiscordServer {
         }
     }
 
-    override suspend fun send(channelId: String, text: String) {
-        val channel = guild.getChannelById(GuildMessageChannel::class.java, channelId)
-            ?: throw DiscordRefusal("le salon $channelId n'est pas un salon où écrire")
-        channel.sendMessage(text).setAllowedMentions(emptyList<Message.MentionType>()).submit().await()
+    override suspend fun post(channelId: String, message: BotMessage): String =
+        messageChannel(channelId).sendMessage(JdaMessages.create(message)).submit().await().id
+
+    override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {
+        messageChannel(channelId).editMessageById(messageId, JdaMessages.edit(message)).submit().await()
     }
+
+    override suspend fun direct(userId: String, message: BotMessage): Boolean =
+        try {
+            val user = guild.jda.retrieveUserById(userId).submit().await()
+            val channel = user.openPrivateChannel().submit().await()
+            channel.sendMessage(JdaMessages.create(message)).submit().await()
+            true
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.CANNOT_SEND_TO_USER) false else throw e
+        }
+
+    override suspend fun giveRole(userId: String, roleId: String) {
+        guild.addRoleToMember(UserSnowflake.fromId(userId), role(roleId)).submit().await()
+    }
+
+    override suspend fun takeRole(userId: String, roleId: String) {
+        guild.removeRoleFromMember(UserSnowflake.fromId(userId), role(roleId)).submit().await()
+    }
+
+    override suspend fun rename(channelId: String, name: String) {
+        val channel = guild.getGuildChannelById(channelId) ?: throw DiscordRefusal("le salon $channelId n'existe plus")
+        channel.manager.setName(name).submit().await()
+    }
+
+    override suspend fun status(text: String) {
+        guild.jda.presence.activity = Activity.customStatus(text)
+    }
+
+    override suspend fun memberCount(): Int = guild.memberCount
+
+    override suspend fun installCommands(commands: List<CommandSpec>) {
+        guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
+    }
+
+    private fun messageChannel(channelId: String): GuildMessageChannel =
+        guild.getChannelById(GuildMessageChannel::class.java, channelId)
+            ?: throw DiscordRefusal("le salon $channelId n'est pas un salon où écrire")
+
+    private fun role(roleId: String): Role = guild.getRoleById(roleId) ?: throw DiscordRefusal("le rôle $roleId n'existe plus")
 
     /** Une catégorie ou un salon réservé : personne ne le voit, sauf les rôles cités et le bot lui-même. */
     private fun viewers(action: ChannelAction<*>, viewers: Set<String>?) {
