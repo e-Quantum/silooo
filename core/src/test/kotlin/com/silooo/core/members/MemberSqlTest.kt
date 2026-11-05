@@ -217,10 +217,10 @@ class MemberSqlTest {
 
         val members = MariaDbSupport.raw { store.loadMembers(it, a) }
 
-        assertEquals(listOf(KR, STRANGER, OTHER), members.map { it.xuid })
-        assertEquals(listOf("Kr", "Etranger", "Autre"), members.map { it.name })
+        assertEquals(listOf(KR, OTHER, STRANGER), members.map { it.xuid })
+        assertEquals(listOf("Kr", "Autre", "Etranger"), members.map { it.name })
         assertEquals(listOf(Role.PDG, Role.ASSOCIE, Role.ASSOCIE), members.map { it.role })
-        assertEquals(listOf(60, 30, 10), members.map { it.sharePercent })
+        assertEquals(listOf(60, 10, 30), members.map { it.sharePercent })
     }
 
     // --- le service
