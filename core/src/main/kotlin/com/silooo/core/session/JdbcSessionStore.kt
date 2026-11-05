@@ -280,7 +280,11 @@ class JdbcSessionStore : SessionStore {
                 it.setString(2, PILIER_SUBSCRIPTION_ID)
                 it.executeQuery().use { rows -> if (rows.next()) rows.instant("ends_at") else null }
             }
-        return PlayerProfile(rank, pilierUntil)
+        val cosmetics = connection.prepareStatement("SELECT cosmetic_id FROM player_cosmetics WHERE xuid = ? ORDER BY acquired_at, cosmetic_id").use {
+            it.setXuid(1, xuid)
+            it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+        }
+        return PlayerProfile(rank, pilierUntil, cosmetics)
     }
 
     override fun loadMemberLingots(connection: Connection, companyId: Long): List<Long> =

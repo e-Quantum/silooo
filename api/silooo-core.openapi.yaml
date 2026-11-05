@@ -72,6 +72,11 @@ paths:
   /v1/session/join:
     post:
       summary: Un joueur arrive ; crée son profil et son entreprise au premier passage
+      description: |
+        Le service rattrape à l'arrivée ce qui attendait le joueur hors ligne. Un joueur inscrit comme pionnier sur le
+        site (`site_registrations.pioneer`, retrouvé par son gamertag sans tenir compte de la casse ni des espaces aux
+        bords) reçoit le cosmétique `pionnier` (source `site`) et un événement `ANNONCE` dont `payload.action` vaut
+        `pionnier`, une seule fois. `cosmetics` de la réponse liste ce qu'il possède, titre compris.
       operationId: join
       requestBody:
         required: true
@@ -732,8 +737,12 @@ paths:
         boutique (`definitions/boutique.json`). Les six grades d'abord, dans l'ordre imposé : `owned` si le joueur le
         possède, `available` pour le seul premier grade qu'il n'a pas encore. Puis `pilier` (`owned` tant que
         l'abonnement court ; toujours `available`, pour le prolonger), puis `perso` (`available` seulement si le
-        joueur possède le grade Ultime ; `owned` tant que l'abonnement court). Les cosmétiques, les boosts et le pass
-        de saison s'ajouteront ici quand le jeu les vendra.
+        joueur possède le grade Ultime ; `owned` tant que l'abonnement court). Puis les cosmétiques que la boutique
+        vend (`achetable` dans `definitions/boutique.json`), dans l'ordre du fichier : `owned` si le joueur le
+        possède, toujours `available` sinon ; un cosmétique que la boutique ne vend pas (le titre Pionnier) n'y est pas.
+        Enfin le boost collectif, `boost-collectif` : jamais `owned`, toujours `available` (on peut en acheter un
+        autre pendant qu'un boost court : il suit le précédent). Le pass de saison s'ajoutera ici quand le jeu le vendra.
+        Les noms et les catégories des articles sont dans `definitions/boutique.json` (types générés de l'add-on), pas ici.
       operationId: catalog
       parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
       responses:
@@ -762,13 +771,19 @@ paths:
       description: |
         L'acteur paie `itemId` (un article de `catalog`) avec ses Gemmes. Avec `forXuid`, l'article va à ce joueur
         (qui doit être connu du service) et c'est encore l'acteur qui paie ; les vérifications de possession et d'ordre
-        portent alors sur le destinataire. Un `itemId` inconnu ou que le jeu ne vend pas encore, un destinataire
-        inconnu ou un acteur que le service ne connaît pas donnent 400. `DEJA_POSSEDE` pour un grade que le
-        destinataire a déjà ; `GRADE_PRECEDENT_REQUIS` pour un grade qui n'est pas le premier qu'il n'a pas, et pour
+        portent alors sur le destinataire. Un `itemId` inconnu ou que le jeu ne vend pas (un cosmétique non achetable
+        comme le titre Pionnier), un destinataire inconnu, un acteur que le service ne connaît pas ou un cadeau de
+        `boost-collectif` (un boost est pour tout le serveur) donnent 400. `DEJA_POSSEDE` pour un grade ou un cosmétique
+        que le destinataire a déjà ; `GRADE_PRECEDENT_REQUIS` pour un grade qui n'est pas le premier qu'il n'a pas, et pour
         `perso` quand il n'a pas le grade Ultime ; `PAS_ASSEZ_DE_GEMMES`, avec `missing`, si les Gemmes manquent.
         409 `CONFLIT_REESSAYER` si le même `requestId` est encore en cours. `pilier` et `perso` durent `jours` de plus
         à partir du plus tard de maintenant et de la fin de l'abonnement ; chaque achat de `pilier` rend aussitôt ses
-        `gemmesRendues` au destinataire. La réponse donne les soldes de l'acheteur.
+        `gemmesRendues` au destinataire. Un cosmétique est écrit dans `player_cosmetics` du destinataire (source
+        `boutique`, aussi pour un cadeau). `boost-collectif` ajoute au serveur un boost de `bonusPourcent` pendant
+        `dureeMinutes` (`definitions/boutique.json`) : il commence maintenant, ou à la fin du dernier boost réservé
+        s'il en court un (les boosts se suivent, ils ne s'empilent pas) ; il multiplie la production de tout le serveur
+        avec le grade, le Pilier et la ville ; l'achat publie un événement `BOOST_COLLECTIF` (voir `GameEvent`).
+        La réponse donne les soldes de l'acheteur.
       operationId: buyItem
       requestBody:
         required: true
@@ -1062,6 +1077,12 @@ components:
         role: { type: string, enum: [PDG, ASSOCIE] }
         rank: { type: string, nullable: true }
         pilierUntil: { type: string, format: date-time, nullable: true }
+        cosmetics:
+          type: array
+          description: |
+            Les identifiants des cosmétiques que le joueur possède (`definitions/boutique.json`, tableau `cosmetiques`),
+            titre Pionnier compris. Ce que le joueur porte reste à l'add-on.
+          items: { type: string }
         balances: { $ref: '#/components/schemas/Balances' }
         state: { $ref: '#/components/schemas/CompanyState' }
         offlineCollected: { $ref: '#/components/schemas/Donar' }
@@ -1085,7 +1106,8 @@ components:
         salaire, en pourcent du revenu de cette usine ; `salaryPerHour` est ce que ce salaire coûte à l'entreprise en
         Donar par heure, maintenant (zéro tant que le membre n'a pas d'usine active). `hireCost` est le prix d'embauche
         d'un candidat libre, en Donar, au revenu de l'entreprise de maintenant. `EPIQUE` est la troisième rareté
-        (« légendaire » du game design) : le nom affiché est à confirmer par Kr.
+        (« légendaire » du game design) : les noms affichés des trois raretés sont le champ `nom` de chacune dans
+        `definitions/personnel.json` (types générés de l'add-on), à valider par Kr.
       required: [name, role, rarity, bonusPercent, skinId]
       properties:
         staffId: { type: integer, format: int64 }
@@ -1255,10 +1277,18 @@ components:
         celui qui a réparé). Un incident ne s'ouvre jamais pendant que tous les membres sont hors ligne.
 
         Le service publie, pour le bot Discord (`docs/discord.md`) qui les lit avec son propre curseur : `PRESTIGE_ENTREPRISE`
-        (sans `xuid` ; `companyId`, `companyName`, `lingots`, `prestigeCount`) ; `BOOST_COLLECTIF` (`percent`, `minutes`, et
-        `buyerName` quand un joueur l'a offert ; aucune route ne le publie encore) ; `ANNONCE` dont `payload.action` vaut
+        (sans `xuid` ; `companyId`, `companyName`, `lingots`, `prestigeCount`) ; `BOOST_COLLECTIF` (sans `xuid` ; `percent`, `minutes`,
+        et `buyerName` quand un joueur l'a offert) ; `ANNONCE` dont `payload.action` vaut
         `voteParty` (sans `xuid` ; `day`, `votes`, `rewardLingots`, `players`) ; `ANNONCE` dont `payload.action` vaut
         `sansCourant` (adressée à celui qui remet l'usine en état ; `companyId`, `factoryId`, `factoryName`, `playerName`).
+
+        `BOOST_COLLECTIF` est publié par `buyItem` (article `boost-collectif`) : `buyerName` est le gamertag de l'acheteur,
+        `percent` la hausse de production du serveur en pourcent, `minutes` la durée du boost, `startsAt` et `endsAt` ses
+        bornes en UTC (ISO 8601). Un boost acheté pendant un autre commence à la fin du précédent : `startsAt` est alors
+        dans le futur et l'événement s'envoie à l'achat, pas au début du boost. La Vote party ne publie pas ce type.
+
+        `ANNONCE` dont `payload.action` vaut `pionnier` (adressée au joueur ; `cosmeticId`, toujours `pionnier`) : publiée
+        par `join`, une seule fois, quand le service écrit le titre d'un pionnier inscrit sur le site.
       type: object
       required: [id, kind, payload]
       properties:

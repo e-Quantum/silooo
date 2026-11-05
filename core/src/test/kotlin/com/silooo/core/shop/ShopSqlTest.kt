@@ -27,6 +27,7 @@ import com.silooo.core.economy.EngineFixture.Companion.START
 import com.silooo.core.economy.EngineFixture.Companion.STRANGER
 import com.silooo.core.economy.RequestRejected
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.registration.SiteRegistrations
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.session.SessionService
@@ -44,6 +45,7 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.math.BigInteger
 import java.sql.Connection
+import java.sql.SQLException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -65,10 +67,10 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /**
- * La boutique sur la vraie MariaDB : `JdbcShopStore` ligne à ligne (grades, abonnements, achats, Gemmes et journal, livraisons), le
+ * La boutique sur la vraie MariaDB : `JdbcShopStore` ligne à ligne (grades, abonnements, cosmétiques, boosts collectifs, pionniers, achats, Gemmes et journal, livraisons), le
  * relevé des livraisons ([DeliveryRelief]) avec le vrai dépôt, puis `buyItem` et `catalog` par HTTP avec le vrai moteur et la vraie
  * idempotence. Ce que les tests de route (`ShopRoutesTest`, `DeliveryReliefTest`) ne peuvent pas voir : ce qui arrive vraiment dans
- * `shop_deliveries`, `shop_purchases`, `player_ranks`, `player_subscriptions`, `player_balances`, `currency_ledger` et `game_events`,
+ * `shop_deliveries`, `shop_purchases`, `player_ranks`, `player_subscriptions`, `player_cosmetics`, `server_boosts`, `player_balances`, `currency_ledger` et `game_events`,
  * en une seule transaction qui part en entier ou pas du tout, et ce que donne une vraie concurrence. Ignoré sans Docker (voir
  * [MariaDbSupport]) : la CI les rejoue.
  *
@@ -90,6 +92,10 @@ class ShopSqlTest {
     private val top = rules.grades.last()
     private val pilier = rules.subscriptions.single { it.id == ShopRules.PILIER_ID }
     private val perso = rules.subscriptions.single { it.requiredGradeId != null }
+    private val cosmetic = rules.cosmetics.first()
+    private val otherCosmetic = rules.cosmetics[1]
+    private val boost = rules.boost
+    private val boostLength = Duration.ofMinutes(boost.minutes)
 
     @BeforeEach
     fun prepare() = MariaDbSupport.prepare()
@@ -170,6 +176,49 @@ class ShopSqlTest {
             "FROM player_subscriptions ORDER BY xuid, subscription_id",
     )
 
+    /** Les cosmétiques : `joueur|cosmétique|source|obtenu le`. */
+    private fun cosmeticRows(): List<String?> = MariaDbSupport.strings(
+        "SELECT CONCAT(xuid, '|', cosmetic_id, '|', source, '|', CAST(acquired_at AS CHAR)) FROM player_cosmetics " +
+            "ORDER BY xuid, acquired_at, cosmetic_id",
+    )
+
+    /** Les boosts collectifs, dans l'ordre où ils ont été écrits : `acheteur|début|fin|pourcents`. */
+    private fun boostRows(): List<String?> = MariaDbSupport.strings(
+        "SELECT CONCAT(bought_by, '|', CAST(starts_at AS CHAR), '|', CAST(ends_at AS CHAR), '|', bonus_percent) FROM server_boosts ORDER BY id",
+    )
+
+    /** Les fenêtres des boosts, du plus tôt au plus tard : `début|fin`. */
+    private fun boostWindows(): List<String?> = MariaDbSupport.strings(
+        "SELECT CONCAT(CAST(starts_at AS CHAR), '|', CAST(ends_at AS CHAR)) FROM server_boosts ORDER BY starts_at",
+    )
+
+    /** Les événements `BOOST_COLLECTIF` : `joueur (ou -)|acheteur|pourcents|minutes|début|fin`. */
+    private fun boostEvents(): List<String?> = MariaDbSupport.strings(
+        "SELECT CONCAT(IFNULL(CAST(xuid AS CHAR), '-'), '|', JSON_VALUE(payload, '\$.buyerName'), '|', JSON_VALUE(payload, '\$.percent'), '|', " +
+            "JSON_VALUE(payload, '\$.minutes'), '|', JSON_VALUE(payload, '\$.startsAt'), '|', JSON_VALUE(payload, '\$.endsAt')) " +
+            "FROM game_events WHERE kind = 'BOOST_COLLECTIF' ORDER BY id",
+    )
+
+    /** Les événements `ANNONCE` : `joueur (ou -)|action|cosmétique`. */
+    private fun announcements(): List<String?> = MariaDbSupport.strings(
+        "SELECT CONCAT(IFNULL(CAST(xuid AS CHAR), '-'), '|', JSON_VALUE(payload, '\$.action'), '|', IFNULL(JSON_VALUE(payload, '\$.cosmeticId'), '-')) " +
+            "FROM game_events WHERE kind = 'ANNONCE' ORDER BY id",
+    )
+
+    /** Les pourcents du boost qui court à l'instant [at], lus par le vrai dépôt. */
+    private fun activeBoostPercent(at: Instant): Int = MariaDbSupport.raw { jdbc.activeBoostPercent(it, at) }
+
+    /** La fin du dernier boost réservé à l'instant [at], lue par le vrai dépôt. */
+    private fun lastBoostEnd(at: Instant): Instant? = MariaDbSupport.raw { jdbc.lastBoostEnd(it, at) }
+
+    /** Une inscription du site (`site_registrations`, V7) sous la clé que le site calcule pour [gamertag]. */
+    private fun register(gamertag: String, pioneer: Boolean = true) {
+        MariaDbSupport.update(
+            "INSERT INTO site_registrations (gamertag_key, gamertag, pioneer) VALUES (?, ?, ?)",
+            SiteRegistrations.key(gamertag), gamertag, pioneer,
+        )
+    }
+
     private fun relief(store: ShopStore = jdbc) = DeliveryRelief(database, store, clock)
 
     private fun poll(store: ShopStore = jdbc): Int = runBlocking { relief(store).poll() }
@@ -211,6 +260,19 @@ class ShopSqlTest {
     private class FailingSave(private val real: ShopStore = JdbcShopStore()) : ShopStore by real {
         override fun saveSubscription(connection: Connection, xuid: Xuid, subscriptionId: String, term: SubscriptionTerm) {
             throw IllegalStateException("abonnement impossible (test)")
+        }
+    }
+
+    /** Un dépôt qui échoue à donner le cosmétique : l'achat est noté et payé à ce moment-là. */
+    private class FailingCosmeticGrant(private val real: ShopStore = JdbcShopStore()) : ShopStore by real {
+        override fun grantCosmetic(connection: Connection, xuid: Xuid, cosmeticId: String, source: String, at: Instant): Boolean =
+            throw IllegalStateException("cosmétique impossible (test)")
+    }
+
+    /** Un dépôt qui échoue à écrire le boost : l'achat est noté et payé à ce moment-là. */
+    private class FailingBoostInsert(private val real: ShopStore = JdbcShopStore()) : ShopStore by real {
+        override fun insertBoost(connection: Connection, boughtBy: Xuid, window: BoostWindow, bonusPercent: Int) {
+            throw IllegalStateException("boost impossible (test)")
         }
     }
 
@@ -283,6 +345,144 @@ class ShopSqlTest {
         assertEquals(mapOf(pilier.id to START.plus(Duration.ofDays(28))), ceo.subscriptionEnds)
         assertEquals(setOf(top.id), MariaDbSupport.raw { jdbc.ceoHoldings(it, elsewhere) }.ranks)
         assertEquals(Holdings.NOTHING, MariaDbSupport.raw { jdbc.ceoHoldings(it, empty) }, "une entreprise sans PDG n'a aucun bonus")
+    }
+
+    // --- JdbcShopStore : cosmétiques, boosts collectifs, pionniers
+
+    @Test
+    @DisplayName("grantCosmetic : un cosmétique ne se donne qu'une fois (faux au second appel, la source et la date du premier restent), et loadHoldings le relit")
+    fun grantCosmeticIsOncePerPlayer() {
+        player(KR, "Kr")
+        val later = START.plusSeconds(120)
+
+        assertTrue(MariaDbSupport.raw { jdbc.grantCosmetic(it, KR, cosmetic.id, ShopService.SOURCE_COSMETIC, START) })
+        assertFalse(MariaDbSupport.raw { jdbc.grantCosmetic(it, KR, cosmetic.id, PioneerTitle.SOURCE_SITE, START.plusSeconds(60)) })
+        assertTrue(MariaDbSupport.raw { jdbc.grantCosmetic(it, KR, otherCosmetic.id, PioneerTitle.SOURCE_SITE, later) })
+
+        assertEquals(
+            listOf(
+                "${KR.text}|${cosmetic.id}|${ShopService.SOURCE_COSMETIC}|${stamp(START)}",
+                "${KR.text}|${otherCosmetic.id}|${PioneerTitle.SOURCE_SITE}|${stamp(later)}",
+            ),
+            cosmeticRows(),
+        )
+        assertEquals(setOf(cosmetic.id, otherCosmetic.id), MariaDbSupport.raw { jdbc.loadHoldings(it, KR) }.cosmetics)
+        assertEquals(Holdings.NOTHING, MariaDbSupport.raw { jdbc.loadHoldings(it, OTHER) })
+    }
+
+    @Test
+    @DisplayName("ceoHoldings ne lit pas les cosmétiques : ceux du PDG ne comptent pour aucun bonus")
+    fun ceoHoldingsLeaveCosmeticsAlone() {
+        player(KR, "Kr")
+        val company = MariaDbSupport.insertCompany("A", 0)
+        MariaDbSupport.update("INSERT INTO company_members (company_id, xuid, role, share_percent) VALUES (?, ?, 'PDG', 100)", company, bigint(KR))
+        MariaDbSupport.raw { jdbc.grantCosmetic(it, KR, cosmetic.id, ShopService.SOURCE_COSMETIC, START) }
+
+        assertEquals(Holdings.NOTHING, MariaDbSupport.raw { jdbc.ceoHoldings(it, company) })
+        assertEquals(setOf(cosmetic.id), MariaDbSupport.raw { jdbc.loadHoldings(it, KR) }.cosmetics)
+    }
+
+    @Test
+    @DisplayName("gamertagOf rend le gamertag que le service connaît ; un joueur inconnu lève une erreur")
+    fun gamertagOfReadsThePlayer() {
+        player(KR, "Kr Majuscule")
+
+        assertEquals("Kr Majuscule", MariaDbSupport.raw { jdbc.gamertagOf(it, KR) })
+        assertThrows(IllegalStateException::class.java) { MariaDbSupport.raw { jdbc.gamertagOf(it, STRANGER) } }
+    }
+
+    @Test
+    @DisplayName("Boost : sans boost, la fin est nulle et la hausse est zéro ; un boost court de son début (inclus) à sa fin (exclue) ; la fin réservée ne voit que les boosts non échus")
+    fun boostWindowStartsIncludedAndEndsExcluded() {
+        player(KR, "Kr")
+        assertNull(lastBoostEnd(START))
+        assertEquals(0, activeBoostPercent(START))
+        val window = BoostWindow(START.plusSeconds(60), START.plusSeconds(60).plus(boostLength))
+
+        MariaDbSupport.raw { jdbc.insertBoost(it, KR, window, boost.bonusPercent) }
+
+        assertEquals(listOf("${KR.text}|${stamp(window.startsAt)}|${stamp(window.endsAt)}|${boost.bonusPercent}"), boostRows())
+        assertEquals(0, activeBoostPercent(window.startsAt.minusMillis(1)), "juste avant le début")
+        assertEquals(boost.bonusPercent, activeBoostPercent(window.startsAt), "à l'instant du début")
+        assertEquals(boost.bonusPercent, activeBoostPercent(window.endsAt.minusMillis(1)), "à la dernière milliseconde")
+        assertEquals(0, activeBoostPercent(window.endsAt), "à l'instant de la fin")
+        assertEquals(window.endsAt, lastBoostEnd(START), "en attente : sa fin est déjà réservée")
+        assertEquals(window.endsAt, lastBoostEnd(window.endsAt.minusMillis(1)))
+        assertNull(lastBoostEnd(window.endsAt), "échu")
+    }
+
+    @Test
+    @DisplayName("Deux boosts qui se suivent : à chaque instant un seul court, avec ses pourcents ; la fin réservée est celle du dernier")
+    fun chainedBoostsAreReadOneAtATime() {
+        player(KR, "Kr")
+        player(OTHER, "Autre")
+        val firstWindow = BoostWindow(START, START.plus(boostLength))
+        val secondWindow = BoostWindow(firstWindow.endsAt, firstWindow.endsAt.plus(boostLength))
+        MariaDbSupport.raw { jdbc.insertBoost(it, KR, firstWindow, boost.bonusPercent) }
+        MariaDbSupport.raw { jdbc.insertBoost(it, OTHER, secondWindow, boost.bonusPercent + 5) }
+
+        assertEquals(boost.bonusPercent, activeBoostPercent(START))
+        assertEquals(boost.bonusPercent, activeBoostPercent(firstWindow.endsAt.minusMillis(1)))
+        assertEquals(boost.bonusPercent + 5, activeBoostPercent(firstWindow.endsAt), "le second commence où le premier finit")
+        assertEquals(0, activeBoostPercent(secondWindow.endsAt))
+        assertEquals(secondWindow.endsAt, lastBoostEnd(START))
+        assertEquals(secondWindow.endsAt, lastBoostEnd(firstWindow.endsAt), "le premier est échu, le second court")
+    }
+
+    @Test
+    @DisplayName("server_boosts (V9) refuse une fenêtre vide ou renversée, des pourcents à zéro et un acheteur que le service ne connaît pas")
+    fun boostTableRefusesNonsense() {
+        player(KR, "Kr")
+        val window = BoostWindow(START, START.plus(boostLength))
+
+        assertThrows(SQLException::class.java) { MariaDbSupport.raw { jdbc.insertBoost(it, KR, BoostWindow(START, START), boost.bonusPercent) } }
+        assertThrows(SQLException::class.java) { MariaDbSupport.raw { jdbc.insertBoost(it, KR, BoostWindow(window.endsAt, window.startsAt), boost.bonusPercent) } }
+        assertThrows(SQLException::class.java) { MariaDbSupport.raw { jdbc.insertBoost(it, KR, window, 0) } }
+        assertThrows(SQLException::class.java) { MariaDbSupport.raw { jdbc.insertBoost(it, OTHER, window, boost.bonusPercent) } }
+
+        assertEquals(emptyList<String?>(), boostRows())
+    }
+
+    @Test
+    @DisplayName("isPioneer lit site_registrations par la clé du site : vrai pour un pionnier inscrit, faux pour un inscrit qui ne l'est pas et pour un inconnu")
+    fun isPioneerReadsTheSiteRegistrations() {
+        register("Grand Kr", pioneer = true)
+        register("Retardataire", pioneer = false)
+
+        assertTrue(MariaDbSupport.raw { jdbc.isPioneer(it, SiteRegistrations.key("  GRAND   kr ")) })
+        assertFalse(MariaDbSupport.raw { jdbc.isPioneer(it, SiteRegistrations.key("Retardataire")) })
+        assertFalse(MariaDbSupport.raw { jdbc.isPioneer(it, SiteRegistrations.key("Inconnu")) })
+        assertFalse(MariaDbSupport.raw { jdbc.isPioneer(it, SiteRegistrations.key("Grand")) })
+    }
+
+    @Test
+    @DisplayName("Le titre Pionnier avec le vrai dépôt : écrit une fois (source site, date du service), annoncé une fois, quel que soit le nombre de join ; rien pour un joueur non inscrit")
+    fun pioneerTitleIsGivenOnce() {
+        player(KR, "Kr")
+        player(OTHER, "Autre")
+        register("kr")
+        val titles = PioneerTitle(jdbc, clock)
+
+        repeat(3) { runBlocking { database.transaction { connection -> titles.relieve(connection, KR, " KR ") } } }
+        runBlocking { database.transaction { connection -> titles.relieve(connection, OTHER, "Autre") } }
+
+        assertEquals(listOf("${KR.text}|${ShopRules.PIONEER_TITLE_ID}|${PioneerTitle.SOURCE_SITE}|${stamp(START)}"), cosmeticRows())
+        assertEquals(listOf("${KR.text}|${PioneerTitle.ACTION}|${ShopRules.PIONEER_TITLE_ID}"), announcements())
+    }
+
+    @Test
+    @DisplayName("Le titre Pionnier donné par quatre join en même temps : une seule ligne, une seule annonce (les conflits transitoires se rejouent)")
+    fun concurrentPioneerTitlesAreGivenOnce() {
+        player(KR, "Kr")
+        register("Kr")
+        val titles = PioneerTitle(jdbc, clock)
+
+        val results = inParallel(4) { database.transaction { connection -> titles.relieve(connection, KR, "Kr") } }
+
+        results.mapNotNull { it.exceptionOrNull() }.forEach { assertTrue(it.isTransientConflict(), "un conflit à rejouer, pas : $it") }
+        runBlocking { database.transaction { connection -> titles.relieve(connection, KR, "Kr") } }
+        assertEquals(1, cosmeticRows().size)
+        assertEquals(1, announcements().size)
     }
 
     // --- JdbcShopStore : achats et Gemmes
@@ -530,6 +730,60 @@ class ShopSqlTest {
         assertEquals(1, ledger().size)
     }
 
+    @Test
+    @DisplayName("Le pseudo d'une livraison se compare par la clé du site : casse, espaces des bords et espaces doublés sans effet ; un préfixe ou une lettre de plus ne passent pas")
+    fun deliveryGamertagIsMatchedByTheSiteKey() {
+        player(KR, "Kr Majuscule")
+        player(OTHER, "Ami")
+        addDelivery("casse", "KR MAJUSCULE", 1)
+        addDelivery("bords", "  kr majuscule \t", 10)
+        addDelivery("doubles", "Kr   Majuscule", 100)
+        val near = listOf(".Kr Majuscule", "Kr Majuscul", "KrMajuscule", "Kr Majuscule 2")
+        near.forEachIndexed { n, gamertag -> addDelivery("proche-$n", gamertag, 7) }
+        val matching = setOf("casse", "bords", "doubles")
+
+        val pending = MariaDbSupport.raw { jdbc.pendingDeliveries(it, 50) }
+        assertEquals(matching, pending.map { it.orderId }.toSet(), "le relevé ne rend que celles dont le pseudo a la même clé")
+        assertEquals(matching, MariaDbSupport.raw { jdbc.pendingDeliveriesFor(it, KR, "kr  MAJUSCULE ") }.map { it.orderId }.toSet())
+        assertEquals(emptyList<PendingDelivery>(), MariaDbSupport.raw { jdbc.pendingDeliveriesFor(it, OTHER, "Ami") })
+        pending.forEach { delivery -> assertEquals(KR, MariaDbSupport.raw { jdbc.recipientOf(it, delivery) }, delivery.orderId) }
+        near.forEach { gamertag ->
+            assertNull(MariaDbSupport.raw { jdbc.recipientOf(it, PendingDelivery("proche", gamertag, null, 7)) }, gamertag)
+        }
+    }
+
+    @Test
+    @DisplayName("Le relevé verse une fois les livraisons dont le pseudo a la clé d'un joueur connu ; les pseudos qui n'ont que l'air proches restent en attente")
+    fun pollDeliversByTheSiteKey() {
+        player(KR, "Kr Majuscule")
+        addDelivery("casse", "KR MAJUSCULE", 1)
+        addDelivery("bords", "  kr majuscule \t", 10)
+        addDelivery("doubles", "Kr   Majuscule", 100)
+        addDelivery("proche", ".Kr Majuscule", 7)
+
+        assertEquals(3, poll())
+        assertEquals(0, poll(), "le second passage ne verse rien")
+
+        assertEquals(111L, gemmes(KR))
+        assertEquals(
+            listOf("bords|${KR.text}|versee", "casse|${KR.text}|versee", "doubles|${KR.text}|versee", "proche|-|attente"),
+            deliveryRows(),
+        )
+    }
+
+    @Test
+    @DisplayName("recipientOf : deux joueurs dont le gamertag a la même clé, celui qu'on a vu en dernier reçoit")
+    fun recipientOfSameKeyPrefersTheLatestSeen() {
+        player(KR, "Kr Majuscule", lastSeen = LocalDateTime.of(2026, 11, 1, 10, 0))
+        player(OTHER, "KR  majuscule", lastSeen = LocalDateTime.of(2026, 11, 3, 10, 0))
+        val delivery = PendingDelivery("o-1", "kr majuscule", null, 5)
+
+        assertEquals(OTHER, MariaDbSupport.raw { jdbc.recipientOf(it, delivery) })
+
+        MariaDbSupport.update("UPDATE players SET last_seen_at = ? WHERE xuid = ?", LocalDateTime.of(2026, 11, 4, 10, 0), bigint(KR))
+        assertEquals(KR, MariaDbSupport.raw { jdbc.recipientOf(it, delivery) })
+    }
+
     // --- ShopService : les achats
 
     @Test
@@ -699,6 +953,205 @@ class ShopSqlTest {
         assertEquals(1, rankRows().size)
     }
 
+    @Test
+    @DisplayName("buyItem d'un cosmétique : le solde, le journal `boutique`, l'achat et le cosmétique (source `boutique`) sont écrits ensemble ; ni grade, ni boost, ni événement")
+    fun buyCosmeticWritesEverythingTogether() {
+        player(KR, "Kr")
+        give(KR, cosmetic.gems + 10)
+
+        val balances = buy(KR, cosmetic.id)
+
+        assertEquals(10L, balances.gemmes)
+        assertEquals(10L, gemmes(KR))
+        assertEquals(listOf("${KR.text}|-${cosmetic.gems}|10|boutique|${cosmetic.id}"), ledger())
+        assertEquals(listOf("${KR.text}|${cosmetic.id}|${cosmetic.gems}|-|${requestId(1)}"), purchaseRows())
+        assertEquals(listOf("${KR.text}|${cosmetic.id}|${ShopService.SOURCE_COSMETIC}|${stamp(START)}"), cosmeticRows())
+        assertEquals(emptyList<String?>(), rankRows())
+        assertEquals(emptyList<String?>(), boostRows())
+        assertEquals(0L, MariaDbSupport.count("game_events"))
+    }
+
+    @Test
+    @DisplayName("buyItem d'un cosmétique offert : l'acheteur paie, le destinataire le reçoit (source `boutique`), l'achat note le destinataire")
+    fun giftedCosmeticGoesToTheRecipient() {
+        player(KR, "Kr")
+        player(OTHER, "Autre")
+        give(KR, cosmetic.gems)
+
+        buy(KR, cosmetic.id, forXuid = OTHER)
+
+        assertEquals(0L, gemmes(KR))
+        assertEquals(0L, gemmes(OTHER))
+        assertEquals(listOf("${OTHER.text}|${cosmetic.id}|${ShopService.SOURCE_COSMETIC}|${stamp(START)}"), cosmeticRows())
+        assertEquals(listOf("${KR.text}|${cosmetic.id}|${cosmetic.gems}|${OTHER.text}|${requestId(1)}"), purchaseRows())
+        assertEquals(listOf("${KR.text}|-${cosmetic.gems}|0|boutique|${cosmetic.id}"), ledger())
+    }
+
+    @Test
+    @DisplayName("buyItem d'un cosmétique refusé (DEJA_POSSEDE, PAS_ASSEZ_DE_GEMMES avec ce qui manque) : rien n'est écrit")
+    fun cosmeticRefusalsWriteNothing() {
+        player(KR, "Kr")
+        player(OTHER, "Autre")
+        give(KR, cosmetic.gems * 2)
+        buy(KR, cosmetic.id, n = 1)
+        fun snapshot() = listOf(gemmes(KR), gemmes(OTHER), ledger(), purchaseRows(), cosmeticRows())
+        val before = snapshot()
+
+        assertEquals(RefusalCodes.ALREADY_OWNED, refusalOf { buy(KR, cosmetic.id, n = 2) }.reason)
+        val poor = refusalOf { buy(OTHER, otherCosmetic.id, n = 3) }
+        assertEquals(RefusalCodes.NOT_ENOUGH_GEMS, poor.reason)
+        assertEquals(otherCosmetic.gems.toDouble(), poor.missing)
+
+        assertEquals(before, snapshot())
+    }
+
+    @Test
+    @DisplayName("buyItem du boost : le solde, le journal, l'achat, la ligne de server_boosts et l'événement BOOST_COLLECTIF (sans joueur) sont écrits ensemble ; il commence maintenant")
+    fun buyBoostWritesEverythingTogether() {
+        player(KR, "Kr")
+        give(KR, boost.gems + 3)
+
+        val balances = buy(KR, boost.id)
+
+        val ends = START.plus(boostLength)
+        assertEquals(3L, balances.gemmes)
+        assertEquals(listOf("${KR.text}|-${boost.gems}|3|boutique|${boost.id}"), ledger())
+        assertEquals(listOf("${KR.text}|${boost.id}|${boost.gems}|-|${requestId(1)}"), purchaseRows())
+        assertEquals(listOf("${KR.text}|${stamp(START)}|${stamp(ends)}|${boost.bonusPercent}"), boostRows())
+        assertEquals(listOf("-|Kr|${boost.bonusPercent}|${boost.minutes}|$START|$ends"), boostEvents())
+        assertEquals(1L, MariaDbSupport.count("game_events"))
+        assertEquals(emptyList<String?>(), cosmeticRows())
+        assertEquals(emptyList<String?>(), rankRows())
+        assertEquals(boost.bonusPercent, activeBoostPercent(START))
+    }
+
+    @Test
+    @DisplayName("buyItem du boost pendant un autre boost : le second commence à la fin du premier, la hausse n'est jamais doublée ; échu, le suivant recommence à maintenant")
+    fun boostBoughtDuringAnotherStartsAfterIt() {
+        player(KR, "Kr")
+        player(OTHER, "Autre")
+        give(KR, boost.gems * 2)
+        give(OTHER, boost.gems)
+
+        buy(KR, boost.id, n = 1)
+        clock.advance(Duration.ofSeconds(1))
+        buy(OTHER, boost.id, n = 2)
+
+        val firstEnd = START.plus(boostLength)
+        val secondEnd = firstEnd.plus(boostLength)
+        assertEquals(
+            listOf(
+                "${KR.text}|${stamp(START)}|${stamp(firstEnd)}|${boost.bonusPercent}",
+                "${OTHER.text}|${stamp(firstEnd)}|${stamp(secondEnd)}|${boost.bonusPercent}",
+            ),
+            boostRows(),
+        )
+        assertEquals(
+            listOf(
+                "-|Kr|${boost.bonusPercent}|${boost.minutes}|$START|$firstEnd",
+                "-|Autre|${boost.bonusPercent}|${boost.minutes}|$firstEnd|$secondEnd",
+            ),
+            boostEvents(),
+        )
+        assertEquals(boost.bonusPercent, activeBoostPercent(clock.instant()), "le premier court, une seule hausse")
+        assertEquals(boost.bonusPercent, activeBoostPercent(firstEnd), "le second court, une seule hausse")
+        assertEquals(0, activeBoostPercent(secondEnd))
+
+        clock.advance(boostLength.multipliedBy(3))
+        buy(KR, boost.id, n = 3)
+
+        val now = clock.instant()
+        assertEquals("${KR.text}|${stamp(now)}|${stamp(now.plus(boostLength))}|${boost.bonusPercent}", boostRows().last())
+    }
+
+    @Test
+    @DisplayName("buyItem du boost : offert, il est refusé en requête invalide ; un solde trop juste le refuse en PAS_ASSEZ_DE_GEMMES ; rien n'est écrit")
+    fun boostRefusalsWriteNothing() {
+        player(KR, "Kr")
+        player(OTHER, "Autre")
+        give(KR, boost.gems - 1)
+
+        assertThrows(RequestRejected::class.java) { buy(KR, boost.id, n = 1, forXuid = OTHER) }
+        val poor = refusalOf { buy(KR, boost.id, n = 2) }
+
+        assertEquals(RefusalCodes.NOT_ENOUGH_GEMS, poor.reason)
+        assertEquals(1.0, poor.missing)
+        assertEquals(boost.gems - 1, gemmes(KR))
+        assertEquals(emptyList<String?>(), ledger())
+        assertEquals(emptyList<String?>(), purchaseRows())
+        assertEquals(emptyList<String?>(), boostRows())
+        assertEquals(0L, MariaDbSupport.count("game_events"))
+    }
+
+    @Test
+    @DisplayName("Un achat de cosmétique ou de boost part en entier ou pas du tout : si le cosmétique, le boost ou son événement ne s'écrit pas, ni les Gemmes, ni le journal, ni l'achat ne restent")
+    fun cosmeticAndBoostPurchasesRollBackAsOne() {
+        player(KR, "Kr")
+        give(KR, cosmetic.gems + boost.gems)
+
+        assertThrows(IllegalStateException::class.java) { buy(KR, cosmetic.id, n = 1, store = FailingCosmeticGrant()) }
+        assertThrows(IllegalStateException::class.java) { buy(KR, boost.id, n = 2, store = FailingBoostInsert()) }
+        assertThrows(IllegalStateException::class.java) { buy(KR, boost.id, n = 2, store = FailingPublish()) }
+
+        assertEquals(cosmetic.gems + boost.gems, gemmes(KR))
+        assertEquals(emptyList<String?>(), ledger())
+        assertEquals(emptyList<String?>(), purchaseRows())
+        assertEquals(emptyList<String?>(), cosmeticRows())
+        assertEquals(emptyList<String?>(), boostRows(), "la ligne écrite avant l'échec de la publication est partie avec le reste")
+        assertEquals(0L, MariaDbSupport.count("game_events"))
+        buy(KR, cosmetic.id, n = 1)
+        buy(KR, boost.id, n = 2)
+        assertEquals(2, purchaseRows().size, "les mêmes requestId servent encore : les premiers essais n'ont rien laissé")
+        assertEquals(1, boostRows().size)
+    }
+
+    @Test
+    @DisplayName("Deux achats du même cosmétique en même temps : un seul passe, les Gemmes ne sont retirées qu'une fois, un seul cosmétique est écrit")
+    fun concurrentPurchasesOfTheSameCosmeticChargeOnce() {
+        player(KR, "Kr")
+        give(KR, cosmetic.gems * 3)
+
+        val results = inParallel(4) { index -> buy(KR, cosmetic.id, n = index + 1) }
+
+        assertEquals(1, results.count { it.isSuccess }, "un seul achat réussit : $results")
+        results.mapNotNull { it.exceptionOrNull() }.forEach { failure ->
+            val allowed = (failure is Refusal && failure.reason == RefusalCodes.ALREADY_OWNED) || failure.isTransientConflict()
+            assertTrue(allowed, "DEJA_POSSEDE ou un conflit à rejouer, pas : $failure")
+        }
+        assertEquals(cosmetic.gems * 2, gemmes(KR))
+        assertEquals(1, ledger().size)
+        assertEquals(1, purchaseRows().size)
+        assertEquals(1, cosmeticRows().size)
+    }
+
+    @Test
+    @DisplayName("Des boosts achetés en même temps se suivent sans se chevaucher : les fenêtres se touchent à partir de maintenant (les conflits transitoires se rejouent), chaque achat est payé et annoncé une fois")
+    fun concurrentBoostPurchasesChain() {
+        player(KR, "Kr")
+        val count = 4
+        give(KR, boost.gems * count)
+
+        val results = inParallel(count) { index -> buy(KR, boost.id, n = index + 1) }
+
+        results.mapNotNull { it.exceptionOrNull() }.forEach { assertTrue(it.isTransientConflict(), "un conflit à rejouer, pas : $it") }
+        // Le client rejoue un conflit avec le même requestId : la transaction avait tout défait, rien n'est payé deux fois.
+        results.forEachIndexed { index, result -> if (result.isFailure) buy(KR, boost.id, n = index + 1) }
+
+        val expected = (0 until count).map { i ->
+            "${stamp(START.plus(boostLength.multipliedBy(i.toLong())))}|${stamp(START.plus(boostLength.multipliedBy(i + 1L)))}"
+        }
+        assertEquals(expected, boostWindows(), "les fenêtres se touchent, sans trou ni recouvrement")
+        assertEquals(0L, gemmes(KR))
+        assertEquals(count, purchaseRows().size)
+        assertEquals(count, ledger().size)
+        assertEquals(count, boostEvents().size)
+        for (i in 0 until count) {
+            val inside = START.plus(boostLength.multipliedBy(i.toLong())).plusSeconds(1)
+            assertEquals(boost.bonusPercent, activeBoostPercent(inside), "un seul boost court à la fois")
+        }
+        assertEquals(0, activeBoostPercent(START.plus(boostLength.multipliedBy(count.toLong()))))
+    }
+
     // --- HTTP : catalog et buyItem avec le vrai moteur
 
     private fun dependencies(): Dependencies = Dependencies(
@@ -713,6 +1166,7 @@ class ShopSqlTest {
         companyBootstrap = DefinitionsBootstrap(engine, definitions),
         shopStore = jdbc,
         deliveries = relief(),
+        pendingTitles = PioneerTitle(jdbc, clock),
         serverPresence = presence,
     )
 
@@ -751,7 +1205,7 @@ class ShopSqlTest {
         join(KR, "Kr")
         give(KR, first.gems + 5)
         val before = catalog(KR)
-        assertEquals(rules.grades.map { it.id } + rules.subscriptions.map { it.id }, before.map { it.itemId })
+        assertEquals((rules.grades + rules.subscriptions + rules.cosmetics + rules.boost).map { it.id }, before.map { it.itemId })
         assertTrue(before.single { it.itemId == first.id }.available)
         assertFalse(before.single { it.itemId == second.id }.available)
 
@@ -823,5 +1277,48 @@ class ShopSqlTest {
         assertEquals(listOf("ord-1|${KR.text}|versee"), deliveryRows())
         assertEquals(listOf("${KR.text}|120|120|livraison|ord-1"), ledger())
         assertEquals(listOf("${KR.text}|GEMMES_RECUES|ord-1|120|120"), events())
+    }
+
+    @Test
+    @DisplayName("HTTP : buyItem d'un cosmétique puis du boost : soldes, catalogue et join suivent ; le boost offert est refusé en 400 ; la base garde le boost qui court")
+    fun buyCosmeticAndBoostOverHttp() = withApp {
+        join(KR, "Kr")
+        join(OTHER, "Autre")
+        give(KR, cosmetic.gems + boost.gems + 5)
+
+        val cosmeticBought = buyItem(KR, cosmetic.id, n = 1)
+        val boostBought = buyItem(KR, boost.id, n = 2)
+        val gift = buyItem(KR, boost.id, n = 3, forXuid = OTHER)
+
+        assertEquals(HttpStatusCode.OK, cosmeticBought.status, cosmeticBought.bodyAsText())
+        assertEquals(HttpStatusCode.OK, boostBought.status, boostBought.bodyAsText())
+        assertEquals(5L, SiloooJson.decodeFromString(Balances.serializer(), boostBought.bodyAsText()).gemmes)
+        assertEquals(HttpStatusCode.BadRequest, gift.status, gift.bodyAsText())
+        val after = catalog(KR)
+        assertTrue(after.single { it.itemId == cosmetic.id }.owned)
+        assertFalse(after.single { it.itemId == cosmetic.id }.available)
+        assertFalse(after.single { it.itemId == boost.id }.owned)
+        assertTrue(after.single { it.itemId == boost.id }.available, "le boost se rachète à volonté")
+        assertEquals(listOf(cosmetic.id), join(KR, "Kr").cosmetics)
+        assertEquals(emptyList<String>(), join(OTHER, "Autre").cosmetics)
+        assertEquals(2, purchaseRows().size)
+        assertEquals(1, boostRows().size)
+        assertEquals(boost.bonusPercent, activeBoostPercent(START))
+    }
+
+    @Test
+    @DisplayName("HTTP : le join d'un pionnier inscrit sur le site lui donne le titre Pionnier (dans la réponse, une seule annonce) ; un joueur non inscrit n'a rien")
+    fun joinOverHttpGivesThePioneerTitle() = withApp {
+        register("Kr")
+
+        val joined = join(KR, "Kr")
+        val again = join(KR, "Kr")
+        val other = join(OTHER, "Autre")
+
+        assertEquals(listOf(ShopRules.PIONEER_TITLE_ID), joined.cosmetics)
+        assertEquals(listOf(ShopRules.PIONEER_TITLE_ID), again.cosmetics)
+        assertEquals(emptyList<String>(), other.cosmetics)
+        assertEquals(listOf("${KR.text}|${ShopRules.PIONEER_TITLE_ID}|${PioneerTitle.SOURCE_SITE}|${stamp(START)}"), cosmeticRows())
+        assertEquals(listOf("${KR.text}|${PioneerTitle.ACTION}|${ShopRules.PIONEER_TITLE_ID}"), announcements())
     }
 }

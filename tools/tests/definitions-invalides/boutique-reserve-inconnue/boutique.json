@@ -70,6 +70,7 @@
   "abonnements": [
     {
       "id": "pilier",
+      "nom": "Pilier",
       "gemmes": 400,
       "jours": 28,
       "bonusDonarPourcent": 10,
@@ -77,9 +78,129 @@
     },
     {
       "id": "perso",
+      "nom": "Préfixe perso",
       "gemmes": 2500,
       "jours": 28,
       "reserveA": "mythique"
     }
-  ]
+  ],
+  "cosmetiques": [
+    {
+      "id": "usine-brique",
+      "nom": "Usine de brique",
+      "categorie": "skinUsine",
+      "prixGemmes": 150,
+      "achetable": true
+    },
+    {
+      "id": "usine-acier",
+      "nom": "Usine d'acier",
+      "categorie": "skinUsine",
+      "prixGemmes": 250,
+      "achetable": true
+    },
+    {
+      "id": "usine-verre",
+      "nom": "Usine de verre",
+      "categorie": "skinUsine",
+      "prixGemmes": 400,
+      "achetable": true
+    },
+    {
+      "id": "camion-rouille",
+      "nom": "Camion rouillé",
+      "categorie": "skinVehicule",
+      "prixGemmes": 200,
+      "achetable": true
+    },
+    {
+      "id": "camion-bleu",
+      "nom": "Camion bleu de travail",
+      "categorie": "skinVehicule",
+      "prixGemmes": 350,
+      "achetable": true
+    },
+    {
+      "id": "camion-dore",
+      "nom": "Camion doré",
+      "categorie": "skinVehicule",
+      "prixGemmes": 600,
+      "achetable": true
+    },
+    {
+      "id": "chat-atelier",
+      "nom": "Chat d'atelier",
+      "categorie": "pet",
+      "prixGemmes": 300,
+      "achetable": true
+    },
+    {
+      "id": "corbeau-silo",
+      "nom": "Corbeau du silo",
+      "categorie": "pet",
+      "prixGemmes": 500,
+      "achetable": true
+    },
+    {
+      "id": "renard-ferraille",
+      "nom": "Renard de la ferraille",
+      "categorie": "pet",
+      "prixGemmes": 800,
+      "achetable": true
+    },
+    {
+      "id": "lampadaire",
+      "nom": "Lampadaire d'usine",
+      "categorie": "decor",
+      "prixGemmes": 50,
+      "achetable": true
+    },
+    {
+      "id": "bac-fleurs",
+      "nom": "Bac à fleurs",
+      "categorie": "decor",
+      "prixGemmes": 100,
+      "achetable": true
+    },
+    {
+      "id": "fontaine-cour",
+      "nom": "Fontaine de cour",
+      "categorie": "decor",
+      "prixGemmes": 300,
+      "achetable": true
+    },
+    {
+      "id": "etincelles",
+      "nom": "Étincelles",
+      "categorie": "effetPrestige",
+      "prixGemmes": 250,
+      "achetable": true
+    },
+    {
+      "id": "pluie-rivets",
+      "nom": "Pluie de rivets",
+      "categorie": "effetPrestige",
+      "prixGemmes": 250,
+      "achetable": true
+    },
+    {
+      "id": "pionnier",
+      "nom": "Pionnier",
+      "categorie": "titre",
+      "prixGemmes": 0,
+      "achetable": false
+    },
+    {
+      "id": "contremaitre",
+      "nom": "Contremaître",
+      "categorie": "titre",
+      "prixGemmes": 120,
+      "achetable": true
+    }
+  ],
+  "boostCollectif": {
+    "prixGemmes": 150,
+    "bonusPourcent": 25,
+    "dureeMinutes": 60
+  }
 }

@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * La forme de definitions/boutique.json (schéma : definitions/schemas/boutique.schema.json). Voir
- * [EconomyDefinitions]. Le moteur d'économie n'en lit rien en phase 1 : la boutique est chargée avec
- * les autres fichiers pour que le démarrage échoue net si elle est abîmée.
+ * [EconomyDefinitions]. Les packs de Gemmes, les grades, les abonnements, les cosmétiques et le boost
+ * collectif : tous les prix du jeu en Gemmes vivent ici et nulle part ailleurs.
  */
 @Serializable
 data class ShopDefinitions(
@@ -16,7 +16,17 @@ data class ShopDefinitions(
     val grades: List<GradeDefinition>,
     @SerialName("regleGrades") val gradeRule: String,
     @SerialName("abonnements") val subscriptions: List<SubscriptionDefinition>,
-)
+    @SerialName("cosmetiques") val cosmetics: List<CosmeticDefinition>,
+    @SerialName("boostCollectif") val collectiveBoost: CollectiveBoostDefinition,
+) {
+    companion object {
+        /** L'identifiant de l'article « boost collectif » dans `buyItem` : le boost n'est pas une liste, il n'a pas d'entrée à lui dans le fichier. */
+        const val BOOST_ID = "boost-collectif"
+
+        /** Le titre que le site donne aux pionniers : le service l'écrit dans `player_cosmetics` à la connexion. */
+        const val PIONEER_TITLE_ID = "pionnier"
+    }
+}
 
 @Serializable
 data class GemPackDefinition(
@@ -38,9 +48,56 @@ data class GradeDefinition(
 @Serializable
 data class SubscriptionDefinition(
     val id: String,
+    /** Le nom que les joueurs voient. À valider par Kr. */
+    @SerialName("nom") val name: String,
     @SerialName("gemmes") val gems: Long,
     @SerialName("jours") val days: Int,
     @SerialName("bonusDonarPourcent") val donarBonusPercent: Int? = null,
     @SerialName("gemmesRendues") val gemsReturned: Long? = null,
     @SerialName("reserveA") val reservedForGradeId: String? = null,
+)
+
+/** Les rayons de la boutique de cosmétiques. */
+@Serializable
+enum class CosmeticCategory {
+    @SerialName("skinUsine")
+    FACTORY_SKIN,
+
+    @SerialName("skinVehicule")
+    VEHICLE_SKIN,
+
+    @SerialName("pet")
+    PET,
+
+    @SerialName("decor")
+    DECOR,
+
+    @SerialName("effetPrestige")
+    PRESTIGE_EFFECT,
+
+    @SerialName("titre")
+    TITLE,
+}
+
+/**
+ * Un cosmétique. Un cosmétique non achetable (`purchasable` faux, prix 0) n'est pas vendu : le jeu ou le site le
+ * donne, comme le titre Pionnier.
+ */
+@Serializable
+data class CosmeticDefinition(
+    /** Aussi la valeur de `player_cosmetics.cosmetic_id`. */
+    val id: String,
+    /** Le nom que les joueurs voient. À valider par Kr. */
+    @SerialName("nom") val name: String,
+    @SerialName("categorie") val category: CosmeticCategory,
+    @SerialName("prixGemmes") val gems: Long,
+    @SerialName("achetable") val purchasable: Boolean,
+)
+
+/** Le boost collectif : la production de tout le serveur monte de [bonusPercent] pendant [durationMinutes] minutes. */
+@Serializable
+data class CollectiveBoostDefinition(
+    @SerialName("prixGemmes") val gems: Long,
+    @SerialName("bonusPourcent") val bonusPercent: Int,
+    @SerialName("dureeMinutes") val durationMinutes: Long,
 )

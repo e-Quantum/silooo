@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "commentaire": "Calque sur SileneMC (bw.core.shop.Shop.kt, releve le 4 nov. 2026) ; Gemmes au meme taux que les cristaux. Cosmetiques, boost collectif et noms des abonnements : tranche 5 du 5 nov. 2026, prix et noms a valider par Kr.",
+  "packsGemmes": [
+    {
+      "gemmes": 50,
+      "euros": "0,99",
+      "bonusPourcent": 0
+    },
+    {
+      "gemmes": 275,
+      "euros": "4,99",
+      "bonusPourcent": 10
+    },
+    {
+      "gemmes": 600,
+      "euros": "9,99",
+      "bonusPourcent": 20
+    },
+    {
+      "gemmes": 1300,
+      "euros": "19,99",
+      "bonusPourcent": 30
+    },
+    {
+      "gemmes": 3500,
+      "euros": "49,99",
+      "bonusPourcent": 40
+    }
+  ],
+  "grades": [
+    {
+      "id": "mvip",
+      "nom": "MVIP",
+      "gemmes": 100,
+      "bonusDonarPourcent": 5
+    },
+    {
+      "id": "vip",
+      "nom": "VIP",
+      "gemmes": 500,
+      "bonusDonarPourcent": 5
+    },
+    {
+      "id": "vip+",
+      "nom": "VIP+",
+      "gemmes": 1000,
+      "bonusDonarPourcent": 10
+    },
+    {
+      "id": "heros",
+      "nom": "Héros",
+      "gemmes": 2000,
+      "bonusDonarPourcent": 20
+    },
+    {
+      "id": "legende",
+      "nom": "Légende",
+      "gemmes": 3500,
+      "bonusDonarPourcent": 30
+    },
+    {
+      "id": "ultime",
+      "nom": "Ultime",
+      "gemmes": 6000,
+      "bonusDonarPourcent": 50
+    }
+  ],
+  "regleGrades": "a prendre dans l'ordre, comme sur SileneMC",
+  "abonnements": [
+    {
+      "id": "pilier",
+      "nom": "Pilier",
+      "gemmes": 400,
+      "jours": 28,
+      "bonusDonarPourcent": 10,
+      "gemmesRendues": 50
+    },
+    {
+      "id": "perso",
+      "nom": "Préfixe perso",
+      "gemmes": 2500,
+      "jours": 28,
+      "reserveA": "ultime"
+    }
+  ],
+  "cosmetiques": [
+    {
+      "id": "usine-brique",
+      "nom": "Usine de brique",
+      "categorie": "skinUsine",
+      "prixGemmes": 150,
+      "achetable": true
+    },
+    {
+      "id": "usine-brique",
+      "nom": "Usine d'acier",
+      "categorie": "skinUsine",
+      "prixGemmes": 250,
+      "achetable": true
+    },
+    {
+      "id": "usine-verre",
+      "nom": "Usine de verre",
+      "categorie": "skinUsine",
+      "prixGemmes": 400,
+      "achetable": true
+    },
+    {
+      "id": "camion-rouille",
+      "nom": "Camion rouillé",
+      "categorie": "skinVehicule",
+      "prixGemmes": 200,
+      "achetable": true
+    },
+    {
+      "id": "camion-bleu",
+      "nom": "Camion bleu de travail",
+      "categorie": "skinVehicule",
+      "prixGemmes": 350,
+      "achetable": true
+    },
+    {
+      "id": "camion-dore",
+      "nom": "Camion doré",
+      "categorie": "skinVehicule",
+      "prixGemmes": 600,
+      "achetable": true
+    },
+    {
+      "id": "chat-atelier",
+      "nom": "Chat d'atelier",
+      "categorie": "pet",
+      "prixGemmes": 300,
+      "achetable": true
+    },
+    {
+      "id": "corbeau-silo",
+      "nom": "Corbeau du silo",
+      "categorie": "pet",
+      "prixGemmes": 500,
+      "achetable": true
+    },
+    {
+      "id": "renard-ferraille",
+      "nom": "Renard de la ferraille",
+      "categorie": "pet",
+      "prixGemmes": 800,
+      "achetable": true
+    },
+    {
+      "id": "lampadaire",
+      "nom": "Lampadaire d'usine",
+      "categorie": "decor",
+      "prixGemmes": 50,
+      "achetable": true
+    },
+    {
+      "id": "bac-fleurs",
+      "nom": "Bac à fleurs",
+      "categorie": "decor",
+      "prixGemmes": 100,
+      "achetable": true
+    },
+    {
+      "id": "fontaine-cour",
+      "nom": "Fontaine de cour",
+      "categorie": "decor",
+      "prixGemmes": 300,
+      "achetable": true
+    },
+    {
+      "id": "etincelles",
+      "nom": "Étincelles",
+      "categorie": "effetPrestige",
+      "prixGemmes": 250,
+      "achetable": true
+    },
+    {
+      "id": "pluie-rivets",
+      "nom": "Pluie de rivets",
+      "categorie": "effetPrestige",
+      "prixGemmes": 250,
+      "achetable": true
+    },
+    {
+      "id": "pionnier",
+      "nom": "Pionnier",
+      "categorie": "titre",
+      "prixGemmes": 0,
+      "achetable": false
+    },
+    {
+      "id": "contremaitre",
+      "nom": "Contremaître",
+      "categorie": "titre",
+      "prixGemmes": 120,
+      "achetable": true
+    }
+  ],
+  "boostCollectif": {
+    "prixGemmes": 150,
+    "bonusPourcent": 25,
+    "dureeMinutes": 60
+  }
+}

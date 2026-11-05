@@ -122,8 +122,14 @@
     "rarete": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repartitionPourcent", "bonusProductionPourcent", "salairePourcent", "coutHeuresDeRevenu"],
+      "required": ["nom", "repartitionPourcent", "bonusProductionPourcent", "salairePourcent", "coutHeuresDeRevenu"],
       "properties": {
+        "nom": {
+          "description": "Le nom que les joueurs voient pour cette rareté (la clé reste COMMUN, RARE, EPIQUE). Texte vu par les joueurs : à valider par Kr.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
         "repartitionPourcent": {
           "description": "Part des candidats de cette rareté, en pourcent. Les trois parts font 100.",
           "type": "number",

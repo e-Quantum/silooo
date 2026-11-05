@@ -24,6 +24,8 @@ socle. Ce fichier les regroupe par domaine et rappelle les règles ; les colonne
 | Joueurs et sessions | `players`, `player_ranks`, `player_subscriptions` | XUID, UUID Floodgate, gamertag, étape du tutoriel, dernière connexion ; grades à vie ; Pilier et préfixe perso |
 | Monnaies et journal | `player_balances`, `currency_ledger` | Soldes personnels (Lingots, Gemmes, jetons, clés) et chaque mouvement |
 | Boutique | `shop_deliveries`, `shop_purchases`, `player_cosmetics` | Commandes de Gemmes du site, achats en jeu, cosmétiques possédés |
+| Boutique, après V1 | `server_boosts` ([V9](../core/src/main/resources/db/migration/V9__boosts_collectifs.sql)) | Les boosts collectifs achetés : acheteur, fenêtre, pourcentage figé |
+| Site, après V1 | `site_registrations` ([V7](../core/src/main/resources/db/migration/V7__site_registrations.sql)) | Les inscriptions du site : pionnier, compte Discord relié, admission |
 | Entreprises et membres | `archipelago_slots`, `companies`, `company_members`, `company_invites` | Case de l'archipel, Donar de la course, époque, étoiles, niveaux de mairie et de Silo, plafond hors ligne, identité ; PDG et associés avec leurs parts ; invitations |
 | Usines et personnel | `company_factories`, `factory_incidents`, `staff`, `agency_candidates` | État et niveau de chaque usine, incidents ouverts, personnel nommé, candidats du jour |
 | Prestige | `prestige_history` | Chaque prestige, son seuil, ses Donar gagnés, ses Lingots et sa durée |
@@ -84,8 +86,8 @@ achetées). Le site n'a que le droit d'insérer. silooo-core fait le reste, dans
   lignes sans `delivered_at`, de la plus ancienne à la plus récente, par lots de 100 ;
 - **au `join`** : les lignes d'un joueur qui arrive sont versées dans la transaction du `join`, avant la réponse.
 
-Le joueur d'une ligne est trouvé par `xuid` si la ligne en porte un que `players` connaît, sinon par `gamertag` (casse ignorée,
-celui dont `last_seen_at` est le plus récent s'ils sont plusieurs). Personne ne correspond : la ligne reste en attente, intacte
+Le joueur d'une ligne est trouvé par `xuid` si la ligne en porte un que `players` connaît, sinon par `gamertag`, comparé par la clé du
+site (casse, espaces des bords et espaces doublés sans effet ; celui dont `last_seen_at` est le plus récent s'ils sont plusieurs). Personne ne correspond : la ligne reste en attente, intacte
 (`delivered_at` toujours nul, `xuid` tel que le site l'a écrit), et le passage suivant, ou le `join` du joueur, la reprend.
 
 Une ligne trouvée se verse en **une seule transaction** :
@@ -98,6 +100,26 @@ Une ligne trouvée se verse en **une seule transaction** :
 Si une des trois écritures échoue, aucune ne reste et la ligne attend le passage suivant. La commande est donc versée une seule fois,
 même si deux passages, ou un passage et un `join`, tournent en même temps : le second ne touche aucune ligne. Aucune migration n'a été
 nécessaire, V1 suffit.
+
+## Les boosts collectifs
+
+Un joueur paie des Gemmes (`ShopService`, article `boost-collectif`) et la production de tout le serveur monte de `bonus_percent` entre
+`starts_at` (inclus) et `ends_at` (exclu). Une ligne de `server_boosts` par achat, écrite par `buyItem` dans la transaction de l'achat
+(paiement, `shop_purchases`, événement `BOOST_COLLECTIF`), jamais modifiée ensuite ; les lignes échues restent comme historique.
+
+- **Ils s'enchaînent, ils ne s'empilent pas** : un boost acheté pendant un autre commence à la fin du dernier boost réservé. Le service
+  lit cette fin avec `SELECT ... FOR UPDATE` avant d'écrire : deux achats en même temps se suivent, ou l'un reçoit un conflit transitoire
+  que le jeu rejoue (`CONFLIT_REESSAYER`, même `requestId`).
+- **Le pourcentage est figé à l'achat** : changer `boostCollectif.bonusPourcent` dans `definitions/` ne touche pas un boost déjà payé.
+- **Contraintes** : `ends_at > starts_at`, `bonus_percent > 0`, l'acheteur est un joueur de `players`.
+- Le moteur lit celui qui court maintenant (`starts_at <= maintenant < ends_at`) à chaque calcul de multiplicateur.
+
+## Les inscriptions du site
+
+`site_registrations` (V7) est écrite par le site seul : une ligne par gamertag, sous la clé `SiteRegistrations.key` (minuscules,
+espaces réduits à un). Le jeu la lit : `admitted_at` pour l'admission, et `pioneer` pour le titre Pionnier, que `join` donne au
+joueur inscrit ([economie.md](economie.md), section « La boutique »). Le site n'écrit pas `pioneer` : la colonne prend sa valeur
+par défaut, vrai, pour toute inscription, avant comme après l'ouverture.
 
 ## La règle des migrations
 

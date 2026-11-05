@@ -259,13 +259,13 @@ class EngineFigures(
     /**
      * Le multiplicateur global : la moyenne des Lingots détenus par les membres, les étoiles de l'entreprise, le bonus de
      * production des bâtiments de la ville (rien sans ville ou sans bâtiment à bonus), puis les bonus de la boutique : le plus
-     * haut grade du PDG et son Pilier (rien sans source de boutique, ni sans grade ni Pilier).
+     * haut grade du PDG, son Pilier et le boost collectif du serveur (rien sans source de boutique, ni sans grade, Pilier ni boost).
      */
     private fun multiplierOf(connection: Connection, company: CompanyRecord, cityState: CityState?): Double {
         val base = engine.globalMultiplier(engine.averageHeldLingots(store.loadMemberLingots(connection, company.id)), company.stars)
         val withCity = if (cityState == null) base else engine.withCityBonus(base, cityState.bonuses.donarProductionPercent)
         val bonuses = shop?.of(connection, company) ?: return withCity
-        return engine.withShopBonuses(withCity, bonuses.gradePercent, bonuses.pilierPercent)
+        return engine.withShopBonuses(withCity, bonuses.gradePercent, bonuses.pilierPercent, bonuses.boostPercent)
     }
 
     /** Le niveau des usines qui produisent, par identifiant : la matière du revenu de l'entreprise. */

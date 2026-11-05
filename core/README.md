@@ -126,7 +126,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `session/` | `POST /v1/session/join` et `leave` : `SessionService`, `JdbcSessionStore`, `CompanyNaming`, `OnlinePlayers` (qui est connecté ; `server/ServerPresence` l'implémente), et les deux interfaces que le moteur remplit (`EconomyFigures`, `CompanyBootstrap`), dont les implémentations sont dans `economy/` |
 | `events/` | `GET /v1/events` (curseur) et `publishEvent` |
 | `mission/` | `GET /v1/players/{xuid}/missions` : `MissionRoutes`, `MissionService` (la chaîne de missions, l'avancement, la fin), `MissionStore` et `JdbcMissionStore` (`player_missions`, versement des Lingots, événement) ; `CompanyService.collect` l'appelle |
-| `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries`, Gemmes), `ShopFigures` (les bonus de Donar du PDG que le moteur lit) et `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) |
+| `shop/` | `GET /v1/shop/catalog` et `POST /v1/shop/purchases` : `ShopRoutes`, `ShopService` (`catalog`, `buy`), `ShopRules` (grades, abonnements, cosmétiques, boost, bonus), `ShopStore` et `JdbcShopStore` (`player_ranks`, `player_subscriptions`, `player_cosmetics`, `server_boosts`, `shop_purchases`, `shop_deliveries`, `site_registrations` en lecture, Gemmes), `ShopFigures` (les bonus de Donar du PDG et le boost collectif que le moteur lit), `DeliveryRelief` (le relevé des livraisons de Gemmes, à intervalle et au `join`) et `PioneerTitle` (le titre Pionnier, donné au `join`) |
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`) ; `discord/jda/` est le seul paquet qui importe JDA |
@@ -601,28 +601,42 @@ de chiffres sont dans `docs/economie.md`, section « La ville côté service » 
 
 ## La boutique côté service
 
-Deux routes, déjà nommées au contrat (qui reste à 32 opérations), et maintenant écrites : `catalog` (`GET /v1/shop/catalog?actor=`) et
+Deux routes, déjà nommées au contrat (qui reste à 33 opérations), et maintenant écrites : `catalog` (`GET /v1/shop/catalog?actor=`) et
 `buyItem` (`POST /v1/shop/purchases`, corps : `requestId`, `actor`, `itemId`, et `forXuid` pour un cadeau). S'y ajoute le relevé des
 livraisons de Gemmes, qui n'a pas de route : il tourne dans le service. Le service décide de tout (prix, ordre des grades, bonus) ;
-les règles de jeu et les tableaux de chiffres sont dans `docs/economie.md`, section « La boutique : Gemmes, grades et Pilier » ; les
-chiffres eux-mêmes dans `definitions/boutique.json`, que cette tranche n'a pas touché.
+les règles de jeu et les tableaux de chiffres sont dans `docs/economie.md`, section « La boutique : Gemmes, grades, Pilier, cosmétiques
+et boost » ; les chiffres eux-mêmes dans `definitions/boutique.json` (les cosmétiques, le boost collectif et les noms sont **à valider
+par Kr**). La boutique vend les grades, les deux abonnements, les cosmétiques et le boost collectif ; le titre Pionnier se donne au `join`.
 
 - **Le code** est dans `shop/` : `ShopRules` (les règles pures sur `definitions/` : ordre des grades, catalogue, refus, prolongation
   d'un abonnement, bonus), `ShopService` (`catalog` et `buy`), `ShopRoutes` (la forme des requêtes et `call.idempotent`),
   `ShopStore` et `JdbcShopStore` (le SQL sur `player_ranks`, `player_subscriptions`, `shop_purchases`, `shop_deliveries` et les
   Gemmes), `ShopFigures` (la boutique vue par le moteur : les bonus du PDG), `DeliveryRelief` (le relevé des livraisons, avec
-  `launchDeliveryPoll`, la boucle que le module lance). `economy/ShopBonusSource` est l'interface que le moteur lit, comme
-  `CityBonusSource` ; `session/PendingDeliveries` est la seule chose que `join` sache du relevé. Sans source, rien ne change.
-- **`catalog`** : les six grades dans l'ordre, puis `pilier` et `perso`, avec `owned` et `available` vus de l'`actor`. Un `actor`
-  absent, mal formé ou inconnu du service : 400, rien d'écrit.
+  `launchDeliveryPoll`, la boucle que le module lance), `PioneerTitle` (le titre Pionnier). `economy/ShopBonusSource` est l'interface que
+  le moteur lit, comme `CityBonusSource` ; `session/PendingDeliveries` est la seule chose que `join` sache du relevé, et
+  `session/PendingTitles` la seule qu'il sache des titres. Sans source, rien ne change.
+- **`catalog`** : les six grades dans l'ordre, `pilier` et `perso`, les quinze cosmétiques en vente (dans l'ordre de `boutique.json`),
+  puis `boost-collectif`, avec `owned` et `available` vus de l'`actor` (le boost est toujours `available`, jamais `owned`). Le titre
+  Pionnier n'y est pas. Un `actor` absent, mal formé ou inconnu du service : 400, rien d'écrit.
 - **`buyItem`, l'ordre des vérifications** : forme de la requête (400 avant tout : `itemId` vide ou de plus de 48 caractères,
   `forXuid` mal formé), article inconnu ou pas vendu (400), acheteur ou destinataire inconnu (400), puis les Gemmes de l'acheteur sont
   verrouillées et lues, puis les refus du jeu (409 : `DEJA_POSSEDE`, `GRADE_PRECEDENT_REQUIS`, `PAS_ASSEZ_DE_GEMMES` avec la somme qui
-  manque), puis seulement les écritures. Un refus n'écrit rien. La réponse est le solde de l'acheteur (`Balances`).
+  manque), puis seulement les écritures. Un refus n'écrit rien. La réponse est le solde de l'acheteur (`Balances`). Deux cas de plus
+  sont des 400 : `pionnier` (hors vente, comme un article inconnu) et `boost-collectif` avec `forXuid` (le boost est pour tout le serveur).
 - **Une seule transaction, celle de l'idempotence** : l'achat dans `shop_purchases` (clé unique sur le `requestId`), le débit des
   Gemmes (`creditBalance` négatif, motif `boutique`, référence : l'article), puis le grade (`player_ranks`, source `achat` ou
-  `cadeau`) ou l'abonnement prolongé (`player_subscriptions`, `months_total` plus un) avec les Gemmes qu'il rend au destinataire
-  (motif `pilier`). Si une écriture échoue, tout est annulé. Aucun événement n'est écrit pour un achat.
+  `cadeau`), le cosmétique (`player_cosmetics`, source `boutique`, cadeau compris), l'abonnement prolongé (`player_subscriptions`,
+  `months_total` plus un) avec les Gemmes qu'il rend au destinataire (motif `pilier`), ou le boost (une ligne de `server_boosts`, V9, et
+  l'événement `BOOST_COLLECTIF`). Si une écriture échoue, tout est annulé. Seul le boost écrit un événement.
+- **Le boost collectif** : sa fenêtre commence à l'achat, ou à la fin du dernier boost réservé (`ShopRules.scheduleBoost`) ; la lecture de
+  cette fin est un `SELECT ... FOR UPDATE` (`JdbcShopStore.lastBoostEnd`), donc deux achats en même temps se suivent, ou l'un reçoit un
+  conflit transitoire que `Idempotency` rend en `CONFLIT_REESSAYER`. Le moteur lit le boost qui court dans `ShopBonuses.boostPercent`
+  (rendu par `ShopFigures`, via `ShopBonusSource.of`), et `EconomyEngine.withShopBonuses(multiplicateur, grade, Pilier, boost)` le multiplie, pour toutes les entreprises.
+  Le boost qui court au règlement vaut pour toute la période réglée, hors ligne comprise (à valider par Kr).
+- **Le titre Pionnier** : `PioneerTitle` (branché sur `Dependencies.pendingTitles` par `Main`) lit `site_registrations` par la clé
+  `SiteRegistrations.key` du gamertag ; `session/SessionService.join` l'appelle après le relevé des livraisons et des votes, dans la
+  même transaction. Il écrit `player_cosmetics` (source `site`) et une `ANNONCE` (`payload.action` = `pionnier`), une seule fois. La
+  réponse de `join` rend `cosmetics`, la liste de ce que le joueur possède.
 - **Le relevé des livraisons** (`DeliveryRelief`) verse les lignes de `shop_deliveries` sans `delivered_at` dont le joueur est connu,
   par XUID puis par pseudo, à intervalle (`Dependencies.deliveries` et `deliveryPoll`, câblés par `Main`) et au `join`
   (`SessionService.join` l'appelle juste après l'inscription du joueur, dans la même transaction). Une livraison se verse en une
@@ -631,22 +645,33 @@ chiffres eux-mêmes dans `definitions/boutique.json`, que cette tranche n'a pas 
   `DeliveryRelief.BATCH` (100) lignes, chacune dans sa transaction : une qui échoue est notée et retentée au passage suivant. Les
   tests passent `deliveries = null` : ni relevé ni tâche de fond.
 - **Les bonus** entrent dans le moteur par `economy/EngineFigures` : le multiplicateur global, après celui de la ville, est multiplié
-  par `1 + grade / 100` (le plus haut grade du PDG) puis `1 + Pilier / 100` (tant qu'il court) : `EconomyEngine.withShopBonuses`, qui
-  rend exactement le calcul d'avant quand les deux sont nuls. C'est le PDG de l'entreprise qui compte (`JdbcShopStore.ceoHoldings`).
+  par `1 + grade / 100` (le plus haut grade du PDG), `1 + Pilier / 100` (tant qu'il court) puis `1 + boost / 100` (le boost collectif qui
+  court) : `EconomyEngine.withShopBonuses`, qui rend exactement le calcul d'avant quand les trois sont nuls. C'est le PDG de l'entreprise qui compte (`JdbcShopStore.ceoHoldings`).
   Un achat ne règle pas la production en attente : voir `docs/economie.md`.
-- **Aucune migration** : V1 a déjà `shop_deliveries`, `shop_purchases`, `player_ranks` et `player_subscriptions`.
-- **Les tests** : `shop/ShopRulesTest` (ordre, catalogue, refus, prolongation, bonus), `shop/ShopRoutesTest` (sans base : les deux
-  routes, refus, 400, rejeu, cadeau), `shop/DeliveryReliefTest` (à qui revient une livraison, ce qui reste en attente, versement
-  unique, rattrapage au `join`, tâche de fond du module), `economy/EngineFiguresShopTest` (réponses identiques sans grade ni Pilier,
-  PDG, bonus non cumulés, bonus versés), `ConfigDeliveryPollTest`, `ContractTest` (les deux opérations, toujours 32), et
-  `shop/ShopSqlTest` (MariaDB, CI seulement, ignoré sans Docker) : lignes, journal et solde écrits et annulés ensemble, une
-  livraison versée une fois même relevée deux fois ou en même temps, le rattrapage au `join`, deux achats simultanés du même grade.
-  `shop/InMemoryShopStore` est le faux magasin partagé des tests.
+- **Une migration, V9** (`V9__boosts_collectifs.sql`) : la table `server_boosts`. V1 a déjà `shop_deliveries`, `shop_purchases`,
+  `player_ranks`, `player_subscriptions` et `player_cosmetics` ; V7 a `site_registrations`. **V8 est réservé au bot Discord** : tant qu'il
+  n'est pas fusionné, V9 passe seule (Flyway accepte un trou), mais V8, ajoutée après que la base a reçu V9, serait refusée à la
+  validation (Flyway sans `outOfOrder`). La direction doit ordonner les deux fusions ou renuméroter.
+- **Les tests** : `shop/ShopRulesTest` (26 : ordre, catalogue, refus, prolongation, bonus, enchaînement des boosts), `shop/ShopRoutesTest`
+  (46, sans base : les deux routes, cosmétiques, boost, refus, 400, rejeu, cadeau), `shop/PioneerTitleTest` (9 : à qui, une fois, ce que
+  `join` montre), `shop/DeliveryReliefTest` (18 : à qui revient une livraison, la clé du pseudo, ce qui reste en attente, versement
+  unique, rattrapage au `join`, tâche de fond du module), `economy/EngineFiguresShopTest` (17 : réponses identiques sans grade, Pilier
+  ni boost, PDG, bonus non cumulés, boost de tout le serveur, bonus versés), `definitions/DefinitionsLoaderTest` (les nouvelles clés et
+  leurs refus), `ConfigDeliveryPollTest`, `ContractTest` (les opérations, toujours 33, avec les deux achats et le titre validés contre les
+  schémas), et `shop/ShopSqlTest` (49, MariaDB, CI seulement, ignoré sans Docker) : lignes, journal et solde écrits et annulés ensemble,
+  une livraison versée une fois même relevée deux fois ou en même temps, le pseudo comparé par la clé du site, le rattrapage au `join`,
+  deux achats simultanés du même grade ou du même cosmétique, des boosts achetés en même temps qui se suivent sans se chevaucher, le
+  titre Pionnier donné une fois. `shop/InMemoryShopStore` est le faux magasin partagé des tests. Les treize cibles du simulateur ne
+  bougent pas.
 - **Les manques du contrat** (à traiter avec Kr) : pas de code de refus pour « le Perso demande le grade Ultime » (rendu en
   `GRADE_PRECEDENT_REQUIS`) ; pas de 404 ni de 403 pour un article, un acheteur ou un destinataire inconnu (rendus en 400
   `REQUETE_INVALIDE`) ; aucun événement d'achat n'existe, donc l'add-on ne peut apprendre un grade ou un Pilier acheté ailleurs qu'en
   relisant le catalogue ou en rejoignant ; `Balances` est la seule réponse de `buyItem`, sans le grade ni la fin du Pilier. Le
   contrat n'a pas encore de section d'écarts à part : ces points sont notés ici, comme pour la ville.
+- **Les manques de cette tranche** : aucune route ne rend le boost qui court (le jeu l'apprend par l'événement `BOOST_COLLECTIF`, qui
+  part à l'achat, même pour un boost en attente) ; `site_registrations.pioneer` vaut vrai pour toute inscription, avant comme après
+  l'ouverture, puisque le site n'écrit pas la colonne ; `ShopStore.ceoHoldings` ne lit pas les cosmétiques (aucun n'a de bonus) ;
+  la comparaison des pseudos par la clé du site relit `players` à chaque livraison (un index fonctionnel suffira si la table grossit).
 
 ## Les votes côté service
 

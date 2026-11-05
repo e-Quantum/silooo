@@ -18,6 +18,25 @@ export type ShopSubscriptionId =
   | "pilier"
   | "perso";
 
+/** Identifiants de boutique.json, tableau « cosmetiques ». */
+export type ShopCosmeticId =
+  | "usine-brique"
+  | "usine-acier"
+  | "usine-verre"
+  | "camion-rouille"
+  | "camion-bleu"
+  | "camion-dore"
+  | "chat-atelier"
+  | "corbeau-silo"
+  | "renard-ferraille"
+  | "lampadaire"
+  | "bac-fleurs"
+  | "fontaine-cour"
+  | "etincelles"
+  | "pluie-rivets"
+  | "pionnier"
+  | "contremaitre";
+
 /** Forme de definitions/boutique.json. Les prix vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes. */
 export type BoutiqueDefinitions = {
   readonly version: number;
@@ -36,16 +55,41 @@ export type BoutiqueDefinitions = {
   readonly regleGrades: string;
   readonly abonnements: readonly {
     readonly id: ShopSubscriptionId;
+    readonly nom: BoutiqueNomAffiche;
     readonly gemmes: number;
     readonly jours: number;
     readonly bonusDonarPourcent?: BoutiquePourcentage;
     readonly gemmesRendues?: number;
     readonly reserveA?: BoutiqueIdentifiantGrade;
   }[];
+  /** Les cosmétiques de la boutique et le titre du pionnier. Un cosmétique non achetable (achetable à faux) n'est pas vendu : le jeu ou le site le donne, et son prix est 0. Les identifiants sont ceux de la colonne player_cosmetics.cosmetic_id et ne recoupent ni un grade, ni un abonnement, ni le boost collectif. */
+  readonly cosmetiques: readonly {
+    readonly id: ShopCosmeticId;
+    readonly nom: BoutiqueNomAffiche;
+    /** Le rayon : skin d'usine, skin de véhicule, pet, décor, effet de prestige ou titre. */
+    readonly categorie: "skinUsine" | "skinVehicule" | "pet" | "decor" | "effetPrestige" | "titre";
+    /** Prix en Gemmes. 0 pour un cosmétique non achetable. */
+    readonly prixGemmes: number;
+    /** Vrai si la boutique le vend ; faux pour un cosmétique que le jeu ou le site donne (le titre Pionnier). */
+    readonly achetable: boolean;
+  }[];
+  /** Le boost collectif : un joueur l'achète en Gemmes, la production de tout le serveur monte de bonusPourcent pendant dureeMinutes, et son pseudo est annoncé. Un boost acheté pendant un boost actif commence à la fin du précédent : ils ne s'empilent pas. */
+  readonly boostCollectif: {
+    readonly prixGemmes: number;
+    /** Hausse de la production de tout le serveur, en pourcent. Au moins 1. */
+    readonly bonusPourcent: number;
+    readonly dureeMinutes: number;
+  };
 };
 
 /** Identifiant en kebab-case : minuscules sans accent, chiffres, tirets. */
 export type BoutiqueIdentifiant = string;
+
+/** Identifiant de cosmétique : kebab-case, 48 caractères au plus (colonne player_cosmetics.cosmetic_id). */
+export type BoutiqueIdentifiantCosmetique = string;
+
+/** Nom vu par les joueurs : à valider par Kr. */
+export type BoutiqueNomAffiche = string;
 
 /** Identifiant de grade : kebab-case, avec un « + » final permis pour les grades calqués sur SileneMC (vip+). */
 export type BoutiqueIdentifiantGrade = string;
@@ -527,6 +571,8 @@ export type PersonnelRoleAgence = "SALARIE" | "CHEF";
 export type PersonnelApparences = readonly string[];
 
 export type PersonnelRarete = {
+  /** Le nom que les joueurs voient pour cette rareté (la clé reste COMMUN, RARE, EPIQUE). Texte vu par les joueurs : à valider par Kr. */
+  readonly nom: string;
   /** Part des candidats de cette rareté, en pourcent. Les trois parts font 100. */
   readonly repartitionPourcent: number;
   /** Gain de production de l'usine où le membre travaille, en pourcent de la production de l'usine sans lui. */
