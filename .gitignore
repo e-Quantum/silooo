@@ -1,0 +1,15 @@
+.env
+.env.*
+*.key
+*.pem
+build/
+.gradle/
+out/
+node_modules/
+dist/
+*.mcpack
+*.mcaddon
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

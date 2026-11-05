@@ -1,0 +1,716 @@
+openapi: 3.0.3
+info:
+  title: silooo-core, API interne
+  version: 0.1.0
+  description: |
+    Contrat entre l'add-on Silooo (Script API, module @minecraft/server-net) et le service Kotlin silooo-core.
+
+    Règles communes :
+    - L'API n'écoute que sur le réseau interne (Docker) ; jamais exposée sur Internet.
+    - Chaque appel porte l'en-tête `X-Silooo-Key` : un secret partagé, rangé côté BDS dans les
+      secrets de @minecraft/server-admin (jamais dans le code de l'add-on).
+    - Le service décide de tout : l'add-on envoie une intention (« monter la Scierie au prochain palier »),
+      le service vérifie, calcule, écrit et renvoie le nouvel état.
+    - Tout appel qui modifie quelque chose porte un `requestId` (UUID) : rejoué après une coupure,
+      il renvoie la même réponse sans refaire l'action.
+    - Le Donar est un nombre à virgule (double) ; Lingots, Gemmes, jetons et clés sont des entiers.
+    - Le service ne peut pas appeler l'add-on : l'add-on interroge `/v1/events` à intervalle court.
+servers:
+  - url: http://silooo-core:8080
+    description: réseau Docker interne
+security:
+  - cleServeur: []
+
+paths:
+  /v1/server/heartbeat:
+    post:
+      summary: Le serveur Bedrock signale qu'il tourne et qui est en ligne
+      operationId: heartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serverId, onlineXuids]
+              properties:
+                serverId: { type: string, example: bds-1 }
+                onlineXuids: { type: array, items: { $ref: '#/components/schemas/Xuid' } }
+      responses:
+        '204': { description: noté }
+
+  /v1/events:
+    get:
+      summary: Événements à afficher en jeu depuis le curseur donné (Gemmes reçues, commande terminée…)
+      operationId: pollEvents
+      parameters:
+        - { name: after, in: query, required: true, schema: { type: integer, format: int64 }, description: dernier id déjà reçu }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        '200':
+          description: événements, du plus ancien au plus récent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, cursor]
+                properties:
+                  cursor: { type: integer, format: int64 }
+                  events: { type: array, items: { $ref: '#/components/schemas/GameEvent' } }
+
+  /v1/session/join:
+    post:
+      summary: Un joueur arrive ; crée son profil et son entreprise au premier passage
+      operationId: join
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [xuid, gamertag]
+              properties:
+                xuid: { $ref: '#/components/schemas/Xuid' }
+                gamertag: { type: string, maxLength: 32 }
+      responses:
+        '200':
+          description: tout ce qu'il faut pour afficher le joueur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JoinResponse' }
+
+  /v1/session/leave:
+    post:
+      summary: Un joueur part ; fige l'heure pour le calcul hors ligne
+      operationId: leave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [xuid]
+              properties:
+                xuid: { $ref: '#/components/schemas/Xuid' }
+      responses:
+        '204': { description: noté }
+
+  /v1/companies/{companyId}:
+    get:
+      summary: État complet de l'entreprise (usines, revenu, Donar)
+      operationId: getCompany
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      responses:
+        '200':
+          description: état courant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyState' }
+
+  /v1/companies/{companyId}/collect:
+    post:
+      summary: Encaisse la production depuis le dernier passage (hors ligne compris, avec plafond)
+      operationId: collect
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      requestBody: { $ref: '#/components/requestBodies/Action' }
+      responses:
+        '200':
+          description: ce qui a été encaissé et le nouvel état
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [collected, offlineHours, state]
+                properties:
+                  collected: { $ref: '#/components/schemas/Donar' }
+                  offlineHours: { type: number, description: 'heures comptées, plafond appliqué' }
+                  state: { $ref: '#/components/schemas/CompanyState' }
+
+  /v1/companies/{companyId}/factories/{factoryId}/levels:
+    post:
+      summary: Monte une usine de niveau(x)
+      operationId: buyLevels
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { $ref: '#/components/parameters/FactoryId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [amount]
+                  properties:
+                    amount:
+                      type: string
+                      enum: ['1', '10', 'palier', 'max']
+                      description: palier = jusqu'au prochain ×2 ; max = tout ce qu'on peut payer
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/factories/{factoryId}/restore:
+    post:
+      summary: Avance la remise en état d'une usine (dialogue, tâches, livraison, recrutement)
+      operationId: restoreStep
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { $ref: '#/components/parameters/FactoryId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [step]
+                  properties:
+                    step: { type: integer, minimum: 1, maximum: 4 }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/incidents/{incidentId}/resolve:
+    post:
+      summary: Le mini-jeu de réparation est réussi ; relance l'usine et donne la petite récompense
+      operationId: resolveIncident
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { name: incidentId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody: { $ref: '#/components/requestBodies/Action' }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+
+  /v1/companies/{companyId}/agency:
+    get:
+      summary: Les 5 candidats du jour à l'agence d'emploi
+      operationId: getCandidates
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      responses:
+        '200':
+          description: candidats
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Staff' }
+
+  /v1/companies/{companyId}/agency/{slot}/hire:
+    post:
+      summary: Embauche un candidat du jour
+      operationId: hire
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { name: slot, in: path, required: true, schema: { type: integer, minimum: 1, maximum: 5 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  properties:
+                    factoryId: { type: string, description: usine où l'affecter tout de suite }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/staff/{staffId}:
+    patch:
+      summary: Affecte un membre du personnel à une autre usine
+      operationId: assignStaff
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { name: staffId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [factoryId]
+                  properties:
+                    factoryId: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+    delete:
+      summary: Renvoie un membre du personnel (seul cas où il part)
+      operationId: fireStaff
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { name: staffId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/ActorXuid' }
+        - { $ref: '#/components/parameters/RequestId' }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+
+  /v1/companies/{companyId}/prestige/preview:
+    get:
+      summary: Ce que rapporterait un prestige maintenant (Lingots, part de chacun, époque ou étoile suivante)
+      operationId: prestigePreview
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      responses:
+        '200':
+          description: aperçu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrestigePreview' }
+
+  /v1/companies/{companyId}/prestige:
+    post:
+      summary: Lance le prestige (le PDG seulement) ; remet le Donar et les usines à zéro, partage les Lingots
+      operationId: prestige
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      requestBody: { $ref: '#/components/requestBodies/Action' }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '403': { $ref: '#/components/responses/Refused' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/members:
+    post:
+      summary: Invite un joueur comme associé (le PDG seulement, 4 membres au plus)
+      operationId: invite
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [targetXuid]
+                  properties:
+                    targetXuid: { $ref: '#/components/schemas/Xuid' }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+    put:
+      summary: Le PDG fixe la part de chaque associé (somme = 100)
+      operationId: setShares
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [shares]
+                  properties:
+                    shares:
+                      type: array
+                      items:
+                        type: object
+                        required: [xuid, percent]
+                        properties:
+                          xuid: { $ref: '#/components/schemas/Xuid' }
+                          percent: { type: integer, minimum: 0, maximum: 100 }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/city/zones/{zoneIndex}:
+    post:
+      summary: Achète la zone suivante de la ville, en Lingots (prix fixe)
+      operationId: buyZone
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { name: zoneIndex, in: path, required: true, schema: { type: integer, minimum: 1, maximum: 16 } }
+      requestBody: { $ref: '#/components/requestBodies/Action' }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/city/buildings:
+    post:
+      summary: Pose un bâtiment préfabriqué (outil de construction)
+      operationId: placeBuilding
+      parameters: [ { $ref: '#/components/parameters/CompanyId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [buildingType, x, z, rotation]
+                  properties:
+                    buildingType: { type: string }
+                    x: { type: integer }
+                    z: { type: integer }
+                    rotation: { type: integer, enum: [0, 90, 180, 270] }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/companies/{companyId}/city/buildings/{buildingId}:
+    post:
+      summary: Améliore un bâtiment d'un niveau
+      operationId: upgradeBuilding
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+        - { name: buildingId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody: { $ref: '#/components/requestBodies/Action' }
+      responses:
+        '200': { $ref: '#/components/responses/CompanyUpdated' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/orders/today:
+    get:
+      summary: La commande mondiale du jour et sa progression
+      operationId: todayOrder
+      responses:
+        '200':
+          description: commande du jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorldOrder' }
+
+  /v1/orders/today/deliveries:
+    post:
+      summary: Livre des marchandises à la commande mondiale
+      operationId: deliverOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [quantity]
+                  properties:
+                    quantity: { type: number, minimum: 0 }
+      responses:
+        '200':
+          description: commande mise à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorldOrder' }
+
+  /v1/market/listings:
+    get:
+      summary: Offres ouvertes du marché, par ressource, les moins chères d'abord
+      operationId: listMarket
+      parameters:
+        - { name: resourceId, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: offres
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Listing' }
+    post:
+      summary: Met des ressources en vente (prix en Lingots, taxe de 10 % à la vente)
+      operationId: createListing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [resourceId, quantity, unitPrice]
+                  properties:
+                    resourceId: { type: string }
+                    quantity: { type: integer, format: int64, minimum: 1 }
+                    unitPrice: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '200':
+          description: offre créée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Listing' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/market/listings/{listingId}/buy:
+    post:
+      summary: Achète tout ou partie d'une offre
+      operationId: buyListing
+      parameters:
+        - { name: listingId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [quantity]
+                  properties:
+                    quantity: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '200':
+          description: achat fait, soldes mis à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Balances' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/shop/catalog:
+    get:
+      summary: Ce qui s'achète en Gemmes en jeu (grades, Pilier, cosmétiques, boosts, pass)
+      operationId: catalog
+      parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
+      responses:
+        '200':
+          description: catalogue, avec ce que le joueur possède déjà
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [itemId, gemmes, owned, available]
+                  properties:
+                    itemId: { type: string }
+                    gemmes: { type: integer, format: int64 }
+                    owned: { type: boolean }
+                    available: { type: boolean, description: faux pour un grade pas encore débloqué (ordre imposé) }
+
+  /v1/shop/purchases:
+    post:
+      summary: Achète un article en Gemmes, pour soi ou en cadeau
+      operationId: buyItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [itemId]
+                  properties:
+                    itemId: { type: string }
+                    forXuid: { $ref: '#/components/schemas/Xuid' }
+      responses:
+        '200':
+          description: achat fait
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Balances' }
+        '409': { $ref: '#/components/responses/Refused' }
+
+  /v1/pass:
+    get:
+      summary: Progression du pass de saison
+      operationId: getPass
+      parameters: [ { $ref: '#/components/parameters/ActorXuid' } ]
+      responses:
+        '200':
+          description: pass
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  seasonId: { type: string }
+                  points: { type: integer }
+                  premium: { type: boolean }
+                  claimed: { type: array, items: { type: string, example: '12-PREMIUM' } }
+
+  /v1/pass/claims:
+    post:
+      summary: Réclame un palier du pass
+      operationId: claimPass
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [tier, track]
+                  properties:
+                    tier: { type: integer, minimum: 1 }
+                    track: { type: string, enum: [GRATUIT, PREMIUM] }
+      responses:
+        '200': { description: palier réclamé }
+        '409': { $ref: '#/components/responses/Refused' }
+
+components:
+  securitySchemes:
+    cleServeur:
+      type: apiKey
+      in: header
+      name: X-Silooo-Key
+
+  parameters:
+    CompanyId: { name: companyId, in: path, required: true, schema: { type: integer, format: int64 } }
+    FactoryId: { name: factoryId, in: path, required: true, schema: { type: string, example: scierie } }
+    ActorXuid: { name: actor, in: query, required: true, schema: { type: string, pattern: '^[0-9]{1,20}$' }, description: le joueur qui agit }
+    RequestId: { name: requestId, in: query, required: true, schema: { type: string, format: uuid } }
+
+  requestBodies:
+    Action:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ActionBase' }
+
+  responses:
+    CompanyUpdated:
+      description: action faite ; nouvel état de l'entreprise et des soldes de celui qui agit
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [state, balances]
+            properties:
+              state: { $ref: '#/components/schemas/CompanyState' }
+              balances: { $ref: '#/components/schemas/Balances' }
+    Refused:
+      description: action refusée ; `reason` est un code stable, l'add-on choisit l'icône et la bulle d'Oooscar
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason:
+                type: string
+                enum: [PAS_ASSEZ_DE_DONAR, PAS_ASSEZ_DE_LINGOTS, PAS_ASSEZ_DE_GEMMES, PAS_LE_PDG, SEUIL_NON_ATTEINT,
+                       USINE_VERROUILLEE, ZONE_VERROUILLEE, EMPLACEMENT_OCCUPE, ENTREPRISE_PLEINE, DEJA_POSSEDE,
+                       GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER]
+              missing: { type: number, description: 'ce qui manque, quand c''est une somme' }
+
+  schemas:
+    Xuid:
+      type: string
+      pattern: '^[0-9]{1,20}$'
+      description: XUID en chaîne (un entier 64 bits dépasse la précision des nombres JavaScript)
+    Donar:
+      type: number
+      format: double
+    ActionBase:
+      type: object
+      required: [requestId, actor]
+      properties:
+        requestId: { type: string, format: uuid }
+        actor: { $ref: '#/components/schemas/Xuid' }
+    Balances:
+      type: object
+      required: [lingots, gemmes, jetons, cles]
+      properties:
+        lingots: { type: integer, format: int64 }
+        gemmes: { type: integer, format: int64 }
+        jetons: { type: integer, format: int64 }
+        cles: { type: integer, format: int64 }
+    Factory:
+      type: object
+      required: [factoryId, state, level, ratePerHour, nextCost, nextMilestone]
+      properties:
+        factoryId: { type: string }
+        state: { type: string, enum: [EN_RUINE, REMISE_EN_ETAT, ACTIVE] }
+        restoreStep: { type: integer }
+        level: { type: integer }
+        ratePerHour: { $ref: '#/components/schemas/Donar' }
+        nextCost: { $ref: '#/components/schemas/Donar' }
+        nextMilestone: { type: integer, description: prochain palier ×2 }
+        incidentId: { type: integer, format: int64, nullable: true }
+        stoppedNoPower: { type: boolean, description: 'époque 3 et plus, sans électricité' }
+    CompanyState:
+      type: object
+      required: [companyId, name, era, stars, courseNumber, donar, donarEarned, ratePerHour, multiplier, threshold, factories, version]
+      properties:
+        companyId: { type: integer, format: int64 }
+        name: { type: string }
+        era: { type: integer, minimum: 1, maximum: 4 }
+        stars: { type: integer }
+        courseNumber: { type: integer }
+        donar: { $ref: '#/components/schemas/Donar' }
+        donarEarned: { $ref: '#/components/schemas/Donar' }
+        ratePerHour:
+          allOf: [ { $ref: '#/components/schemas/Donar' } ]
+          description: l'add-on fait défiler le compteur à partir de ce revenu, sans rappeler le service
+        multiplier: { type: number, description: 'Lingots, grade, Pilier, étoiles, bâtiments, boosts' }
+        threshold: { $ref: '#/components/schemas/Donar' }
+        factories: { type: array, items: { $ref: '#/components/schemas/Factory' } }
+        zonesOwned: { type: array, items: { type: integer } }
+        version: { type: integer, description: verrou optimiste }
+    JoinResponse:
+      type: object
+      required: [xuid, firstJoin, companyId, balances, state]
+      properties:
+        xuid: { $ref: '#/components/schemas/Xuid' }
+        firstJoin: { type: boolean, description: vrai = lancer le tutoriel d'Oooscar }
+        tutorialStep: { type: integer }
+        companyId: { type: integer, format: int64 }
+        role: { type: string, enum: [PDG, ASSOCIE] }
+        rank: { type: string, nullable: true }
+        pilierUntil: { type: string, format: date-time, nullable: true }
+        balances: { $ref: '#/components/schemas/Balances' }
+        state: { $ref: '#/components/schemas/CompanyState' }
+        offlineCollected: { $ref: '#/components/schemas/Donar' }
+    Staff:
+      type: object
+      required: [name, role, rarity, bonusPercent, skinId]
+      properties:
+        staffId: { type: integer, format: int64 }
+        slot: { type: integer }
+        name: { type: string }
+        skinId: { type: string }
+        role: { type: string, enum: [SALARIE, CHEF, DIRECTEUR] }
+        rarity: { type: string, enum: [COMMUN, RARE, EPIQUE] }
+        bonusPercent: { type: number }
+        factoryId: { type: string, nullable: true }
+    PrestigePreview:
+      type: object
+      required: [allowed, lingotsTotal, shares, next]
+      properties:
+        allowed: { type: boolean }
+        lingotsTotal: { type: integer, format: int64 }
+        lingotsIfDoubled: { type: integer, format: int64, description: pour montrer le rendement décroissant }
+        shares:
+          type: array
+          items:
+            type: object
+            properties:
+              xuid: { $ref: '#/components/schemas/Xuid' }
+              lingots: { type: integer, format: int64 }
+        next: { type: string, enum: [EPOQUE_2, EPOQUE_3, EPOQUE_4, ETOILE] }
+    WorldOrder:
+      type: object
+      required: [day, resourceId, target, delivered, rewardLingots]
+      properties:
+        day: { type: string, format: date }
+        resourceId: { type: string }
+        target: { type: number }
+        delivered: { type: number }
+        rewardLingots: { type: integer, format: int64 }
+        completed: { type: boolean }
+    Listing:
+      type: object
+      required: [listingId, sellerXuid, resourceId, remaining, unitPrice]
+      properties:
+        listingId: { type: integer, format: int64 }
+        sellerXuid: { $ref: '#/components/schemas/Xuid' }
+        resourceId: { type: string }
+        remaining: { type: integer, format: int64 }
+        unitPrice: { type: integer, format: int64 }
+    GameEvent:
+      type: object
+      required: [id, kind, payload]
+      properties:
+        id: { type: integer, format: int64 }
+        xuid: { allOf: [ { $ref: '#/components/schemas/Xuid' } ], nullable: true }
+        kind:
+          type: string
+          enum: [GEMMES_RECUES, COMMANDE_TERMINEE, PRESTIGE_ENTREPRISE, INVITATION, VENTE_MARCHE, INCIDENT, BOOST_COLLECTIF, ANNONCE]
+        payload: { type: object, additionalProperties: true }

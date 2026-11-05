@@ -1,0 +1,265 @@
+/* Silooo Atelier : composants.
+   Chaque panneau et chaque bouton est une texture PNG découpée en 9 (border-image),
+   agrandie ×3 sans lissage : exactement ce que fera le pack de ressources Bedrock. */
+
+.sa-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---------- Panneau : fenêtre en fonte rivetée (ou en laiton pour le prestige) */
+.sa-panneau {
+  border: 15px solid transparent;
+  border-image: url("/_blob/a4d05c169326a8b4aa0fb334c391b77e") 5 fill / 15px stretch;
+  image-rendering: pixelated;
+  color: var(--papier);
+  padding: var(--pas-2);
+  box-shadow: var(--ombre-pixel);
+}
+.sa-panneau--laiton {
+  border-image-source: url("/_blob/94ebf96cdf9eef88349cd743b9315141");
+  color: var(--fonte-900);
+}
+
+/* ---------- Plaque : titre émaillé (crème, filet bleu ou rouge) */
+.sa-plaque {
+  display: inline-block;
+  border: 15px solid transparent;
+  border-image: url("/_blob/d7af43cc05748282c79d26d333ba06c6") 5 fill / 15px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-affiche);
+  font-size: 50px;
+  line-height: 48px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  padding: 0 var(--pas-4);
+}
+.sa-plaque--rouge { border-image-source: url("/_blob/dccdac589ecaceba237e63e35e10a765"); }
+.sa-plaque--petite { font-size: 30px; line-height: 30px; border-width: 12px; border-image-width: 12px; }
+
+/* ---------- Bouton : émail rouge (action), laiton (secondaire), fonte (neutre) */
+.sa-bouton {
+  appearance: none;
+  border: 12px solid transparent;
+  border-image: url("/_blob/c839f61c22c8c591861ea4016a3e10e4") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  background: none;
+  color: var(--papier);
+  font-family: var(--font-affiche);
+  font-size: 40px;
+  line-height: 36px;
+  min-height: 60px;
+  padding: 0 var(--pas-2) 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pas-2);
+  text-shadow: 3px 3px 0 var(--email-rouge-sombre);
+}
+.sa-bouton:active, .sa-bouton.is-appuye {
+  border-image-source: url("/_blob/840602f48323529d32204a8a0ae10bdd");
+  padding-top: 6px; padding-bottom: 0;
+}
+.sa-bouton--laiton {
+  border-image-source: url("/_blob/c53886f5da15f3253b9d1be6925a5535");
+  color: var(--fonte-900);
+  text-shadow: none;
+}
+.sa-bouton--fonte {
+  border-image-source: url("/_blob/74c34630b76f29c8c49a48ae6e489fbf");
+  text-shadow: 3px 3px 0 var(--fonte-700);
+}
+.sa-bouton--fonte:active, .sa-bouton--fonte.is-appuye { border-image-source: url("/_blob/a6b99c94530b5a3d162af3d96cdd8360"); }
+.sa-bouton[disabled] { filter: saturate(0.2) brightness(0.8); cursor: not-allowed; }
+.sa-bouton:focus-visible { outline: 3px solid var(--or-lingot); outline-offset: 3px; }
+.sa-bouton small { font-family: var(--font-etiquette); font-size: 16px; line-height: 20px; letter-spacing: 1px; }
+
+/* ---------- Icône : 16 × 16 px, toujours à ×2, ×3 ou ×4 */
+.sa-icone { width: 48px; height: 48px; image-rendering: pixelated; display: inline-block; flex: none; }
+.sa-icone--x2 { width: 32px; height: 32px; }
+.sa-icone--x4 { width: 64px; height: 64px; }
+
+/* ---------- Compteur mécanique : un cylindre crème par chiffre */
+.sa-compteur { display: inline-flex; align-items: center; gap: 3px; }
+.sa-compteur__chiffre {
+  width: 36px; height: 48px;
+  border: 3px solid var(--fonte-900);
+  background: var(--papier);
+  box-shadow: inset 0 6px 0 var(--papier-ombre), inset 0 -6px 0 var(--papier-ombre);
+  color: var(--fonte-900);
+  font-family: var(--font-affiche);
+  font-size: 50px; line-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sa-compteur__virgule { font-family: var(--font-affiche); font-size: 50px; line-height: 44px; color: var(--papier); padding: 0 1px; }
+.sa-compteur__unite {
+  margin-left: var(--pas-2);
+  font-family: var(--font-affiche); font-size: 50px; line-height: 44px;
+  color: var(--laiton-clair);
+}
+
+/* ---------- Jauge à lampes : un segment par niveau jusqu'au prochain palier ×2 */
+.sa-jauge { display: flex; gap: 3px; align-items: center; }
+.sa-jauge__lampe { width: 18px; height: 24px; image-rendering: pixelated; background: url("/_blob/9f115281b9b2daa72f487394640a2207") center / 100% 100%; }
+.sa-jauge__lampe.is-allumee { background-image: url("/_blob/fba9cfbc87b336b0c34bd8edd9505149"); }
+
+/* ---------- Monnaie : icône + valeur (Donar, Lingots, Gemmes) */
+.sa-monnaie {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  font-family: var(--font-affiche); font-size: 40px; line-height: 40px; color: var(--papier);
+}
+.sa-monnaie--lingots { color: var(--or-lingot); }
+.sa-monnaie--gemmes { color: var(--papier); }
+
+/* ---------- Ticket : prix, récompense, reçu (papier perforé) */
+.sa-ticket {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  border: 12px solid transparent;
+  border-image: url("/_blob/01d554229628700e4bdccbb93ffff2b1") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-affiche); font-size: 30px; line-height: 30px;
+  padding: 0 var(--pas-2) 0 var(--pas-4);
+}
+
+/* ---------- Bulle d'Oooscar : plaque crème rivetée, 6 mots au plus */
+.sa-bulle {
+  position: relative;
+  display: inline-block;
+  border: 12px solid transparent;
+  border-image: url("/_blob/d7af43cc05748282c79d26d333ba06c6") 5 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-corps); font-size: 24px; line-height: 30px;
+  padding: 0 var(--pas-2);
+  max-width: 360px;
+}
+
+/* ---------- Barre d'actions : rangée de boutons fonte en bas de l'écran */
+.sa-barre { display: inline-flex; gap: var(--pas-2); }
+.sa-barre .sa-bouton { flex-direction: column; gap: 3px; min-width: 96px; min-height: 96px; padding: 0 0 3px; font-size: 16px; line-height: 20px; font-family: var(--font-etiquette); text-shadow: none; }
+
+/* ---------- Oooscar : illustration à blocs (PNG 512 px de haut), affichée lisse, pas en pixel art */
+.sa-oooscar { height: 120px; width: auto; image-rendering: auto; flex: none; }
+.sa-oooscar--grand { height: 180px; }
+
+/* =================================================================== HUD autour de la barre d'inventaire */
+/* Puce : une stat (icône 16 px à ×2 + valeur), texture puce-fonte.png découpée en 9 (bord 2 px, ×3). */
+.sa-puce {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  border: 6px solid transparent;
+  border-image: url("/_blob/f352a5dcf299bca6ab1fc72e6cae52f2") 2 fill / 6px stretch;
+  image-rendering: pixelated;
+  color: var(--papier);
+  font-family: var(--font-affiche); font-size: 30px; line-height: 30px;
+  padding: 0 var(--pas-2) 0 var(--pas-1);
+  white-space: nowrap;
+}
+.sa-puce img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.sa-puce--laiton { border-image-source: url("/_blob/7b948b9cc6ff6cd16ce77099f62bc677"); color: var(--fonte-900); }
+.sa-puce--lingots { color: var(--or-lingot); }
+
+/* Ligne de consigne : l'objectif en cours, sous les puces du haut. Une seule à la fois. */
+.sa-consigne {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  background: var(--fonte-900); color: var(--papier);
+  border: 3px solid var(--fonte-900); box-shadow: inset 0 3px 0 var(--fonte-700);
+  font-family: var(--font-corps); font-size: 18px; line-height: 24px;
+  padding: 3px var(--pas-4) 3px var(--pas-2);
+}
+.sa-consigne b { color: var(--or-lingot); font-weight: 600; }
+.sa-consigne img { width: 32px; height: 32px; image-rendering: pixelated; }
+
+/* Barre de progression : piste.png (bord 2 px) + plein.png répété. Pour le Silo, la Vote party, un événement. */
+.sa-progression {
+  position: relative; box-sizing: border-box;
+  height: 30px; min-width: 120px;
+  border: 6px solid transparent;
+  border-image: url("/_blob/7a5fdd7669e8dcf5d609cc07ba1a9700") 2 fill / 6px stretch;
+  image-rendering: pixelated;
+}
+.sa-progression__plein { height: 100%; background: url("/_blob/6ac1bc4b9e5d3236ea51ebd88d85ee08") 0 0 / 12px 100% repeat-x; image-rendering: pixelated; }
+.sa-progression--haute { height: 42px; }
+.sa-progression__texte {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-etiquette); font-size: 16px; line-height: 16px; letter-spacing: 1px;
+  color: var(--papier);
+  text-shadow: 3px 0 0 var(--fonte-900), -3px 0 0 var(--fonte-900), 0 3px 0 var(--fonte-900), 0 -3px 0 var(--fonte-900);
+}
+
+/* Barre d'inventaire (vanilla, dessinée pour situer le HUD : on ne la retexture pas). */
+.sa-hotbar { display: inline-flex; background: var(--fonte-700); border: 3px solid var(--fonte-900); padding: 3px; gap: 0; }
+.sa-hotbar__case { width: 54px; height: 54px; box-sizing: border-box; border: 3px solid var(--fonte-500); display: flex; align-items: center; justify-content: center; }
+.sa-hotbar__case.is-choisie { border-color: var(--papier); }
+.sa-hotbar__case img { width: 32px; height: 32px; image-rendering: pixelated; }
+
+/* Tableau latéral (scoreboard) : titre plaque, une ligne = icône + mot + valeur. 8 lignes au plus. */
+.sa-tableau {
+  background: var(--fonte-900); border: 3px solid var(--fonte-900); box-shadow: inset 0 0 0 3px var(--fonte-700);
+  color: var(--papier); font-family: var(--font-corps); font-size: 18px; line-height: 24px;
+  padding: var(--pas-2) var(--pas-4); display: flex; flex-direction: column; gap: 3px; min-width: 240px;
+}
+.sa-tableau__titre { font-family: var(--font-affiche); font-size: 30px; line-height: 30px; color: var(--laiton-clair); text-align: center; margin-bottom: 3px; }
+.sa-tableau__ligne { display: flex; align-items: center; gap: var(--pas-2); }
+.sa-tableau__ligne img { width: 24px; height: 24px; image-rendering: pixelated; }
+.sa-tableau__ligne span:last-child { margin-left: auto; font-family: var(--font-affiche); font-size: 24px; }
+.sa-tableau__pied { font-family: var(--font-etiquette); font-size: 12px; line-height: 18px; color: var(--acier-100); text-align: center; margin-top: 3px; }
+
+/* Gain flottant : chiffre qui monte au-dessus d'une usine ou du Silo (texte flottant, ombre pixel). */
+.sa-gain { font-family: var(--font-affiche); font-size: 40px; line-height: 40px; color: var(--laiton-clair); text-shadow: var(--ombre-texte); white-space: nowrap; }
+.sa-gain--lingots { color: var(--or-lingot); }
+
+/* =================================================================== Menus */
+/* Tuile : un bouton du menu (bouton fonte agrandi). Icône, nom, une ligne d'info. */
+.sa-tuile {
+  position: relative; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 3px;
+  border: 12px solid transparent;
+  border-image: url("/_blob/74c34630b76f29c8c49a48ae6e489fbf") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--papier); text-align: left;
+  min-height: 150px; padding: var(--pas-1) var(--pas-2) var(--pas-2);
+  font-family: var(--font-corps);
+}
+.sa-tuile > img { width: 48px; height: 48px; image-rendering: pixelated; margin-bottom: auto; }
+.sa-tuile__nom { font-family: var(--font-affiche); font-size: 36px; line-height: 32px; }
+.sa-tuile__info { font-size: 16px; line-height: 20px; }
+.sa-tuile--laiton { border-image-source: url("/_blob/c53886f5da15f3253b9d1be6925a5535"); color: var(--fonte-900); }
+.sa-tuile.is-verrouillee { filter: saturate(0.2) brightness(0.8); }
+.sa-tuile .sa-pastille { position: absolute; top: -18px; right: -18px; }
+
+/* Pastille : nombre de choses à faire. Émail rouge, jamais plus de 2 chiffres (« 9+ »). */
+.sa-pastille {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  min-width: 33px; height: 33px; padding: 0 6px;
+  background: var(--email-rouge); border: 3px solid var(--fonte-900); box-shadow: inset 0 3px 0 var(--email-rouge-clair);
+  color: var(--papier); font-family: var(--font-affiche); font-size: 30px; line-height: 24px;
+}
+
+/* Onglet : colonne de gauche d'un menu. Actif = laiton. */
+.sa-onglet { width: 100%; justify-content: flex-start; font-size: 30px; line-height: 30px; min-height: 60px; }
+
+/* Fiche : le détail d'un élément (ce que montre l'info-bulle des menus Java, ici dans son propre écran). */
+.sa-fiche {
+  background: var(--fonte-900); border: 3px solid var(--fonte-900); box-shadow: inset 0 0 0 3px var(--fonte-700), var(--ombre-pixel);
+  color: var(--papier); font-family: var(--font-corps); font-size: 18px; line-height: 24px;
+  padding: var(--pas-4); display: flex; flex-direction: column; gap: var(--pas-2); max-width: 420px;
+}
+.sa-fiche__titre { font-family: var(--font-affiche); font-size: 36px; line-height: 32px; color: var(--laiton-clair); margin: 0; }
+.sa-fiche__sorte { font-family: var(--font-etiquette); font-size: 12px; line-height: 16px; letter-spacing: 1px; color: var(--acier-100); }
+.sa-fiche__infos { display: grid; grid-template-columns: 24px auto 1fr; gap: 3px var(--pas-2); align-items: center; margin: 0; }
+.sa-fiche__infos img { width: 24px; height: 24px; image-rendering: pixelated; }
+.sa-fiche__infos dd { margin: 0; text-align: right; font-family: var(--font-affiche); font-size: 24px; }
+.sa-fiche__action { color: var(--or-lingot); font-weight: 600; }
+.sa-fiche__blocage { color: var(--email-rouge-clair); font-weight: 600; }
+.sa-fiche__ok { color: var(--email-vert-clair); font-weight: 600; }
+
+/* =================================================================== Cinématique */
+.sa-cinema { position: relative; overflow: hidden; background: var(--ciel); }
+.sa-cinema__bande { position: absolute; left: 0; right: 0; height: 12.5%; background: var(--fonte-900); z-index: 2; }
+.sa-cinema__bande--haut { top: 0; } .sa-cinema__bande--bas { bottom: 0; }
+.sa-soustitre {
+  position: absolute; left: 12%; right: 12%; bottom: 15%; z-index: 3; margin: 0; text-align: center;
+  color: var(--papier); font-family: var(--font-corps); font-size: 24px; line-height: 30px; text-shadow: var(--ombre-texte);
+}
+.sa-soustitre__qui { display: block; font-family: var(--font-etiquette); font-size: 16px; line-height: 20px; letter-spacing: 1px; color: var(--laiton-clair); }
+.sa-passer { position: absolute; right: var(--pas-8); bottom: 3.5%; z-index: 3; font-family: var(--font-etiquette); font-size: 12px; line-height: 16px; letter-spacing: 1px; color: var(--acier-100); }

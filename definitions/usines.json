@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "source": "UrbaFactory-equilibrage-v2.xlsx (propositions de calibrage, 4 nov. 2026)",
+  "unites": {
+    "prixNiveau1": "Donar",
+    "productionParNiveau": "Donar par heure de jeu, salaires déduits, avant multiplicateurs"
+  },
+  "usines": [
+    {
+      "id": "carriere",
+      "nom": "Carrière",
+      "epoque": 1,
+      "produit": [
+        "pierre",
+        "sable",
+        "charbon"
+      ],
+      "entrees": [],
+      "decouverte": "depart",
+      "prixNiveau1": 100,
+      "productionParNiveau": 2400,
+      "electricite": false
+    },
+    {
+      "id": "scierie",
+      "nom": "Scierie",
+      "epoque": 1,
+      "produit": [
+        "bois"
+      ],
+      "entrees": [],
+      "decouverte": "niveau-entreprise-2",
+      "prixNiveau1": 7000,
+      "productionParNiveau": 16800,
+      "electricite": false
+    },
+    {
+      "id": "ferme",
+      "nom": "Ferme",
+      "epoque": 1,
+      "produit": [
+        "ble",
+        "legumes"
+      ],
+      "entrees": [],
+      "decouverte": "niveau-entreprise-3",
+      "prixNiveau1": 120000.0,
+      "productionParNiveau": 117600,
+      "electricite": false
+    },
+    {
+      "id": "mine-profonde",
+      "nom": "Mine profonde",
+      "epoque": 1,
+      "produit": [
+        "minerai-fer"
+      ],
+      "entrees": [],
+      "decouverte": "niveau-entreprise-4",
+      "prixNiveau1": 3500000.0,
+      "productionParNiveau": 823200,
+      "electricite": false
+    },
+    {
+      "id": "fonderie",
+      "nom": "Fonderie",
+      "epoque": 2,
+      "produit": [
+        "barres-fer"
+      ],
+      "entrees": [
+        "minerai-fer",
+        "charbon"
+      ],
+      "decouverte": "epoque-2",
+      "prixNiveau1": 6000000.0,
+      "productionParNiveau": 4000000.0,
+      "electricite": false
+    },
+    {
+      "id": "atelier-outils",
+      "nom": "Atelier d'outils",
+      "epoque": 2,
+      "produit": [
+        "outils",
+        "pieces-metal"
+      ],
+      "entrees": [
+        "barres-fer"
+      ],
+      "decouverte": "apres-fonderie",
+      "prixNiveau1": 180000000.0,
+      "productionParNiveau": 48000000.0,
+      "electricite": false
+    },
+    {
+      "id": "briqueterie",
+      "nom": "Briqueterie",
+      "epoque": 2,
+      "produit": [
+        "briques"
+      ],
+      "entrees": [
+        "pierre",
+        "charbon"
+      ],
+      "decouverte": "epoque-2",
+      "prixNiveau1": 5400000000.0,
+      "productionParNiveau": 576000000.0,
+      "electricite": false
+    },
+    {
+      "id": "elevage",
+      "nom": "Élevage",
+      "epoque": 2,
+      "produit": [
+        "viande",
+        "laine",
+        "cuir"
+      ],
+      "entrees": [
+        "ble"
+      ],
+      "decouverte": "epoque-2",
+      "prixNiveau1": 60000000000.0,
+      "productionParNiveau": 6900000000.0,
+      "electricite": false
+    },
+    {
+      "id": "centrale",
+      "nom": "Centrale",
+      "epoque": 3,
+      "produit": [
+        "electricite"
+      ],
+      "entrees": [
+        "charbon"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 1000000000.0,
+      "productionParNiveau": 600000000.0,
+      "electricite": false
+    },
+    {
+      "id": "verrerie",
+      "nom": "Verrerie",
+      "epoque": 3,
+      "produit": [
+        "verre"
+      ],
+      "entrees": [
+        "sable",
+        "electricite"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 20000000000.0,
+      "productionParNiveau": 3300000000.0,
+      "electricite": true
+    },
+    {
+      "id": "menuiserie",
+      "nom": "Menuiserie",
+      "epoque": 3,
+      "produit": [
+        "planches",
+        "meubles",
+        "poutres"
+      ],
+      "entrees": [
+        "bois",
+        "electricite"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 200000000000.0,
+      "productionParNiveau": 18000000000.0,
+      "electricite": true
+    },
+    {
+      "id": "conserverie",
+      "nom": "Conserverie",
+      "epoque": 3,
+      "produit": [
+        "conserves"
+      ],
+      "entrees": [
+        "legumes",
+        "viande",
+        "electricite"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 2000000000000.0,
+      "productionParNiveau": 100000000000.0,
+      "electricite": true
+    },
+    {
+      "id": "usine-textile",
+      "nom": "Usine textile",
+      "epoque": 3,
+      "produit": [
+        "tissu",
+        "uniformes"
+      ],
+      "entrees": [
+        "laine",
+        "electricite"
+      ],
+      "decouverte": "epoque-3",
+      "prixNiveau1": 15000000000000.0,
+      "productionParNiveau": 550000000000.0,
+      "electricite": true
+    },
+    {
+      "id": "usine-robots",
+      "nom": "Usine de robots",
+      "epoque": 4,
+      "produit": [
+        "robots"
+      ],
+      "entrees": [
+        "pieces-metal",
+        "electricite"
+      ],
+      "decouverte": "epoque-4",
+      "prixNiveau1": 20000000000.0,
+      "productionParNiveau": 100000000000.0,
+      "electricite": true
+    },
+    {
+      "id": "cristallerie",
+      "nom": "Cristallerie",
+      "epoque": 4,
+      "produit": [
+        "cristaux"
+      ],
+      "entrees": [
+        "minerai-fer",
+        "electricite"
+      ],
+      "decouverte": "epoque-4",
+      "prixNiveau1": 10000000000000.0,
+      "productionParNiveau": 10000000000000.0,
+      "electricite": true
+    }
+  ]
+}
