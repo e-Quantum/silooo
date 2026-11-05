@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/plan-serveur-discord.json",
+  "title": "Le plan du serveur Discord de Silooo",
+  "description": "Les rôles, les catégories et les salons que le bot Oooscar crée (docs/discord.md). Contrôlé par tools/verifier_plan_discord.mjs, qui ajoute ce que ce schéma ne sait pas dire : unicité, références entre rôles et salons, un seul emoji par salon, les couleurs prises dans design/tokens.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["roles", "categories"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "commentaire": { "type": "string" },
+    "roles": { "type": "array", "items": { "$ref": "#/$defs/role" } },
+    "categories": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/categorie" } }
+  },
+  "$defs": {
+    "identifiant": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Un identifiant en minuscules, les mots séparés par des tirets."
+    },
+    "phase": {
+      "enum": ["attente", "beta", "ouvert"],
+      "description": "La phase où l'entrée apparaît : attente par défaut (le QG du chantier), beta, ouvert."
+    },
+    "couleur": {
+      "enum": ["#8fb8d6", "#e0614f", "#4f9a74", "#5c84b8", "#efe3c6", "#c8962e"],
+      "description": "Une couleur de rôle, parmi celles du cadrage : ciel, email-rouge-clair, email-vert-clair, email-bleu-clair, email-creme, laiton (design/tokens.json)."
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nom"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifiant" },
+        "nom": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "couleur": { "$ref": "#/$defs/couleur" },
+        "separe": { "type": "boolean", "description": "Affiché à part dans la liste des membres." },
+        "mentionnable": { "type": "boolean", "description": "Mentionnable par tout le monde ; le bot mentionne ce qu'il veut." },
+        "phase": { "$ref": "#/$defs/phase" }
+      }
+    },
+    "categorie": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nom", "salons"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifiant" },
+        "nom": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "phase": { "$ref": "#/$defs/phase" },
+        "visible": { "type": "array", "items": { "$ref": "#/$defs/identifiant" }, "description": "Les rôles qui voient la catégorie et ses salons ; absente, tout le monde." },
+        "salons": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/salon" } }
+      }
+    },
+    "salon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "emoji", "nom", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifiant" },
+        "emoji": { "type": "string", "minLength": 1, "maxLength": 8, "description": "Un seul emoji, devant le nom. La seule clé du dépôt où un emoji est permis." },
+        "nom": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Sans emoji. En minuscules et sans espace pour un salon écrit ; libre pour un vocal." },
+        "type": { "enum": ["texte", "annonces", "forum", "vocal"] },
+        "sujet": { "type": "string", "maxLength": 1024 },
+        "phase": { "$ref": "#/$defs/phase" },
+        "ecriture": { "type": "array", "items": { "$ref": "#/$defs/identifiant" }, "description": "Les rôles qui écrivent ; vide, le bot seul ; absente, tout le monde." },
+        "visible": { "type": "array", "items": { "$ref": "#/$defs/identifiant" }, "description": "Les rôles qui voient le salon ; absente, la règle de la catégorie." },
+        "verrouille": { "type": "boolean", "description": "Un vocal où personne ne se connecte : il ne sert qu'à afficher une information." }
+      }
+    }
+  }
+}

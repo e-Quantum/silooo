@@ -1,6 +1,6 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 15 h 00, S5 fusionnée, prêt à mettre en ligne, dernier bilan (direction du site, cloud).
+Dernière mise à jour : 5 novembre 2026, 15 h 48, mise en ligne suspendue, révision en cours (direction du site, deuxième passage, en local).
 
 Ce fichier est tenu par la session de direction du site ([site-direction.md](site-direction.md)). Il ne remplace pas
 [passation.md](passation.md), qui reste à la direction du jeu : ici, seulement le site `silooo.com`, décrit dans
@@ -8,6 +8,9 @@ Ce fichier est tenu par la session de direction du site ([site-direction.md](sit
 
 ## État
 
+- **Suspendu : révision en cours** (5 novembre 2026, 15 h 48). Une deuxième direction du site, en local sur le poste de Kr,
+  relit S0 à S5 contre le kit de Kr (`docs/references/site-kit/`, `docs/references/site/`), que la première direction,
+  dans le cloud, n'avait pas lu. Le site ne se met pas en ligne avant la fin de cette révision (section du même nom).
 - **S5 est sur `main`** : les joueurs en ligne sur l'accueil (d'après le dernier `heartbeat`, « Serveur fermé pour
   l'instant. » sans battement récent), les classements de la semaine ISO en Lingots gagnés (`/classements/`, pages de
   25, cache d'une minute), la fiche d'entreprise (`/entreprise/{id}/`), le webhook PayNow (`POST /paynow/webhook`,
@@ -213,18 +216,33 @@ webhook PayNow écrit `shop_deliveries` ; la liste « Prêt à mettre en ligne �
   Kr (DNS, bloc Caddy vers `silooo-core:8081`, mentions remplies, variables posées, `SILOOO_SITE_MODE` laissé à
   `attente`) ; `docs/site.md` complet
 
-## Prêt à mettre en ligne
+## Suspendu : révision en cours
 
-Depuis le 5 novembre 2026, 15 h : S0 à S5 sont sur `main`, `main` est vert (vérificateur dans la session et CI), et la
-marche à suivre est écrite dans [site.md](site.md), section « Mettre en ligne ». Rien ne change au déploiement du jeu :
-le site est dans l'image de silooo-core, sur le port `SILOOO_SITE_PORT` (8081), et toutes ses variables ont un défaut
-sûr (`attente`, aucun lien, aucun webhook, aucune liaison Discord tant que Kr ne les pose pas). La direction du jeu
-déploie `main` quand Kr a fait sa part (DNS, bloc Caddy, variables, mentions) ; le site répond alors en mode `attente`
-avec la page d'attente, les mentions et l'inscription des pionniers. Le passage à `ouvert` reste un geste de Kr.
+Depuis le 5 novembre 2026, 15 h 48, cette section remplace « Prêt à mettre en ligne ». La première direction du site
+(cloud) a construit S0 à S5 sans lire le kit de Kr : `docs/site.md`, `docs/site-direction.md`, `docs/site-passation.md`
+et `docs/references/site/`, non suivis dans son dossier. Une deuxième direction, en local sur le poste de Kr (worktree
+`silooo-site`, branche `claude/site-revision`), relit ce qui est sur `main` contre ce que Kr a décidé (kit, cadrage, plan,
+maquettes) et écrit chaque écart dans `docs/site-revision.md`, avec un verdict : garder, corriger, refaire, à trancher par Kr.
+Le kit est versionné tel quel dans `docs/references/site-kit/` et `docs/references/site/`.
+
+**Le site ne se met pas en ligne avant la fin de la révision.** Rien ne change au déploiement du jeu : le site est dans
+l'image de silooo-core, en mode `attente` par défaut, sur un port que le compose ne publie pas, et aucun bloc Caddy ne le
+joint. Cette section redeviendra « Prêt à mettre en ligne » quand chaque ligne de `docs/site-revision.md` sera gardée
+ou corrigée, sauf ce qui attend Kr.
 
 ## Pour la direction du jeu
 
 Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses attendues dans son journal.
+
+**Depuis le 5 novembre 2026, 15 h 48 : ne déployez pas le site avant la fin de la révision.** La deuxième direction du site
+relit S0 à S5 contre le kit de Kr (section « Suspendu : révision en cours »). Déployer silooo-core pour le jeu reste
+possible : le site y reste en `attente`, sans bloc Caddy ni variable posée. Ne demandez pas à Kr le DNS, le bloc Caddy
+ni les variables du site tant que cette passation ne dit pas de nouveau « Prêt à mettre en ligne ».
+
+**Le kit de Kr est sur `main`** : `docs/references/site-kit/` (ses trois `site*.md`) et `docs/references/site/` (maquettes,
+prototype d'Oooscar). Votre dossier `silooo` garde une copie non suivie de `docs/references/site/`, identique octet pour
+octet : supprimez-la avant de fusionner `origin/main`, sinon git refuse d'écraser des fichiers non suivis. Le point 1
+ci-dessous est donc réglé.
 
 1. **Les fichiers de Kr.** Vous voyez `docs/site-direction.md`, `docs/site-passation.md` et `docs/references/site/`
    non suivis dans votre dossier. La direction du site du cloud ne les a pas. Si vous pouvez les lire sans les
@@ -517,3 +535,11 @@ Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne
     `s5` poussées et fusionnées.
   - Ce que seule la CI vérifie : les tests SQL Testcontainers de S4 et S5 (`SiteRegistrationSqlTest`,
     `SiteStatsSqlTest`, `ShopDeliverySqlTest`) et `MigrationTest` avec V7, ignorés sans Docker dans la session.
+- 5 novembre 2026, 15 h 30 à 15 h 48 (direction du site, deuxième passage, en local sur le PC de Kr). Le kit de Kr, non suivi
+  dans le dossier `silooo`, est copié tel quel dans `docs/references/site-kit/` (ses trois `site*.md`) et
+  `docs/references/site/` (maquettes, prototype d'Oooscar), versionnés sur `claude/site-revision` (worktree `silooo-site`,
+  partie de `origin/main`). Lu : `CLAUDE.md`, `docs/README.md`, `docs/passation.md` (décisions 37 à 42), le kit, le cadrage
+  et le plan de construction de Kr, l'ADR 0006, `docs/site*.md` de `main`, les paquets `site/`, `registration/`,
+  `sitedata/` et les ressources du site. Premier geste : « Prêt à mettre en ligne » devient « Suspendu : révision en
+  cours », une ligne pour la direction du jeu. Suite : le site rendu en local, captures à 360 et 1 280 px, puis
+  `docs/site-revision.md`.

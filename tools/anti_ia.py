@@ -49,6 +49,9 @@ TEXTES_JOUEURS = [
     # Seul le paquet « site » compte : le reste de core/ est du code, pas du texte de joueur.
     "core/src/main/resources/site/**/*.md",
     "core/src/main/kotlin/com/silooo/core/site/**/*.kt",
+    # Le bot Discord Oooscar (docs/discord.md) : le plan du serveur (noms, sujets) et ce que le bot écrit (littéraux).
+    "core/src/main/resources/discord/**/*.json",
+    "core/src/main/kotlin/com/silooo/core/discord/**/*.kt",
 ]
 
 # Dossiers qu'on ne parcourt jamais en mode --tout (code généré, dépendances). « generated » : les types
@@ -60,6 +63,9 @@ DOSSIERS_IGNORES = {"node_modules", "build", "dist", "out", ".gradle", ".git", "
 CLES_JSON_TECHNIQUES = {
     "commentaire", "source", "unites", "notation", "formule", "formulePrix",
     "regleGrades", "etoilesSuivantes", "$schema", "$id", "$comment",
+    # Le plan du serveur Discord : l'emoji devant chaque nom de salon, voulu par Kr, est la seule clé du
+    # dépôt où un emoji est permis (tools/verifier_plan_discord.mjs contrôle qu'il n'y en a qu'un).
+    "emoji",
 }
 
 # Un identifiant (kebab-case, « + » final permis comme vip+) n'est pas un texte lu par un joueur.

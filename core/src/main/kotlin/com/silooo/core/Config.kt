@@ -1,6 +1,10 @@
 package com.silooo.core
 
 import com.silooo.core.definitions.DefinitionsLoader
+import com.silooo.core.discord.BotConfig
+import com.silooo.core.discord.BotMode
+import com.silooo.core.discord.BotToken
+import com.silooo.core.discord.ServerPhase
 import com.silooo.core.registration.DiscordConfig
 import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.site.SiteMode
@@ -56,11 +60,14 @@ data class ServiceConfig(
     val votifier: VotifierSettings? = null,
     /** `SILOOO_PAYNOW_WEBHOOK_SECRET` : la clé de la signature du webhook de PayNow ; `null` : le webhook répond 503. */
     val payNowWebhookSecret: String? = null,
+    /** Le bot Discord Oooscar (`SILOOO_DISCORD_ACTIF` et suivantes, ADR 0007) ; `null` tant que le bot n'est pas demandé. */
+    val bot: BotConfig? = null,
 ) {
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier)"
+            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier, " +
+            "bot=${bot ?: "non"})"
 }
 
 /**
@@ -97,6 +104,17 @@ object Config {
 
     /** 8192 quand `SILOOO_VOTIFIER_PORT` n'est pas posé : le port habituel de Votifier. Le compose publie le même (`${SILOOO_VOTIFIER_PORT:-8192}`). */
     const val DEFAULT_VOTIFIER_PORT = 8192
+    /** Le bot Discord Oooscar (ADR 0007) : `non` par défaut, `a-blanc` pour lire l'écart avec le plan, `oui` pour l'appliquer. */
+    const val DISCORD_ACTIF = "SILOOO_DISCORD_ACTIF"
+
+    /** Le jeton du bot, obligatoire dès que le bot est demandé ; il ne s'affiche jamais. */
+    const val DISCORD_TOKEN = "SILOOO_DISCORD_TOKEN"
+
+    /** L'identifiant numérique du serveur Discord que le bot règle (celui de test sur le poste de Kr, puis celui de Silooo). */
+    const val DISCORD_SERVEUR = "SILOOO_DISCORD_SERVEUR"
+
+    /** La phase du serveur : `attente` par défaut, `beta`, `ouvert`. Chaque entrée du plan porte la phase où elle apparaît. */
+    const val DISCORD_PHASE = "SILOOO_DISCORD_PHASE"
 
     /**
      * Combien d'heures `api_requests` garde la réponse d'une requête pour la rejouer. Un réglage technique, pas
@@ -181,6 +199,7 @@ object Config {
         val trustedProxy = reader.trustedProxy()
         val votifier = reader.votifier(port, sitePort)
         val payNowSecret = env[PAYNOW_WEBHOOK_SECRET]?.trim()?.takeIf { it.isNotEmpty() }
+        val bot = reader.bot()
         reader.finish()
         return ServiceConfig(
             checkNotNull(port), checkNotNull(apiKey), checkNotNull(database), checkNotNull(definitionsDir), checkNotNull(retention),
@@ -190,6 +209,7 @@ object Config {
             siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
             votifier = votifier,
             payNowWebhookSecret = payNowSecret,
+            bot = bot,
         )
     }
 
@@ -409,6 +429,34 @@ object Config {
                     null
                 }
             }
+        }
+
+        /**
+         * Le bot Discord : `non` (ou rien) le laisse éteint. `a-blanc` et `oui` exigent le jeton et l'identifiant numérique du
+         * serveur ; la phase vaut `attente` quand elle n'est pas posée. Toute valeur inconnue arrête le démarrage.
+         */
+        fun bot(): BotConfig? {
+            val rawMode = env[DISCORD_ACTIF]
+            val mode = if (rawMode.isNullOrBlank()) BotMode.NON else BotMode.parse(rawMode)
+            if (mode == null) {
+                problems += "$DISCORD_ACTIF doit valoir ${BotMode.entries.joinToString(", ") { it.word }}"
+                return null
+            }
+            if (mode == BotMode.NON) return null
+            val token = required(DISCORD_TOKEN)?.trim()
+            val guildId = required(DISCORD_SERVEUR)?.trim()
+            if (guildId != null && !guildId.all { it.isDigit() }) {
+                problems += "$DISCORD_SERVEUR doit être l'identifiant numérique du serveur Discord"
+                return null
+            }
+            val rawPhase = env[DISCORD_PHASE]
+            val phase = if (rawPhase.isNullOrBlank()) ServerPhase.ATTENTE else ServerPhase.parse(rawPhase)
+            if (phase == null) {
+                problems += "$DISCORD_PHASE doit valoir ${ServerPhase.entries.joinToString(", ") { it.word }}"
+                return null
+            }
+            if (token == null || guildId == null) return null
+            return BotConfig(mode, BotToken(token), guildId, phase)
         }
 
         fun finish() {

@@ -60,6 +60,10 @@ etape_types_addon() {
   node tools/generer_types.mjs --verifier
 }
 
+etape_plan_discord() {
+  node tools/verifier_plan_discord.mjs
+}
+
 etape_anti_ia() {
   trouver_python || { echo "Python introuvable : essayé python3, python, uv run python."; return 1; }
   "${PYTHON[@]}" tools/anti_ia.py --tout
@@ -125,6 +129,7 @@ etape_tests_outillage() {
 etape "Dépendances Node" etape_node
 etape "Définitions : schémas et contrôles croisés" etape_definitions
 etape "Types de l'add-on à jour" etape_types_addon
+etape "Discord : plan du serveur" etape_plan_discord
 etape "Anti-IA : textes vus par les joueurs" etape_anti_ia
 if [ "$SANS_LIENS" -eq 1 ]; then
   ignorer "Liens relatifs de la documentation" "option --sans-liens"

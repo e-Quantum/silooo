@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 15 h 43, Discord réduit et fusionné (le bot est à la direction du Discord), cosmétiques en cours (session de direction).
+Dernière mise à jour : 5 novembre 2026, 15 h 48, les variables du site dans deploy/ et la doc de déploiement (point 3 du site) ; cosmétiques et pass en cours (session de direction).
 
 ## État
 
@@ -878,3 +878,11 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   noté ; le pack de ressources naît avec l'add-on, pas avant la beta ; le modèle y entrera à ce moment. (7) Fait :
   `design/README.md` dit l'exception, limitée aux noms de salons et de catégories. Vérifier : `git log --oneline -3
   origin/main`, `cd core && ./gradlew test --tests '*Prestige*'`, `git grep -c SILOOO_DISCORD core/src/main`.
+- **5 novembre 2026, 15 h 48 : direction, les variables du site (point 3 de la direction du site) ; pass lancé.** Les
+  treize variables du module `site/` sont dans `deploy/exemple.env.txt`, en commentaire, avec leur défaut sûr
+  (`attente`, 8081), et dans le tableau de `docs/deploiement.md` ; `SILOOO_SITE_MODE` y porte l'avertissement : seul
+  Kr passe à `ouvert`, sur le VPS, jamais une session ni un commit. L'exemption de `tools/tests/deploy-compose.mjs`
+  est retirée : le test exige maintenant chaque variable lue par `Config.kt` dans l'exemple. Lancé : le pass de
+  saison (`claude/phase5-pass` : `pass.json`, `getPass`, `claimPass`, `pass-premium` par `buyItem`, aucune
+  migration). Deux sessions en cours : cosmétiques et pass. Vérifier : `node tools/tests/deploy-compose.mjs`,
+  `git log --oneline -3 origin/main`.

@@ -1,0 +1,118 @@
+{
+  "$schema": "./plan-serveur.schema.json",
+  "commentaire": "Le plan du serveur Discord de Silooo (docs/discord.md). Le bot crée ce qui manque et ne supprime jamais rien. Chaque entrée porte la phase où elle apparaît : attente (le QG du chantier), beta, ouvert. Les noms, les emoji et les sujets sont à valider par Kr. Les catégories s'écrivent en minuscules : Discord les affiche en capitales.",
+  "roles": [
+    { "id": "staff", "nom": "Staff", "couleur": "#e0614f", "separe": true },
+    { "id": "moderation", "nom": "Modération", "couleur": "#e0614f", "separe": true },
+    { "id": "aide", "nom": "Aide", "couleur": "#4f9a74", "separe": true },
+    { "id": "createur", "nom": "Créateur", "couleur": "#5c84b8", "separe": true, "phase": "beta" },
+    { "id": "pionnier", "nom": "Pionnier", "couleur": "#efe3c6" },
+    { "id": "beta", "nom": "Bêta" },
+    { "id": "joueur-relie", "nom": "Joueur relié", "phase": "beta" },
+    { "id": "pdg", "nom": "PDG", "phase": "beta" },
+    { "id": "associe", "nom": "Associé", "phase": "beta" },
+    { "id": "ingenieur", "nom": "Ingénieur" },
+    { "id": "contremaitre", "nom": "Contremaître" },
+    { "id": "ouvrier", "nom": "Ouvrier" },
+    { "id": "apprenti", "nom": "Apprenti" },
+    { "id": "entrepreneur", "nom": "Entrepreneur", "couleur": "#8fb8d6" },
+    { "id": "console", "nom": "Console" },
+    { "id": "telephone", "nom": "Téléphone" },
+    { "id": "pc", "nom": "PC" },
+    { "id": "actus", "nom": "Actus" },
+    { "id": "coulisses", "nom": "Coulisses" },
+    { "id": "concours", "nom": "Concours" },
+    { "id": "giveaways", "nom": "Giveaways" },
+    { "id": "vote-party", "nom": "Vote party" },
+    { "id": "concours-de-villes", "nom": "Concours de villes" }
+  ],
+  "categories": [
+    {
+      "id": "infos",
+      "nom": "Infos",
+      "salons": [
+        { "id": "adresse", "emoji": "🌐", "nom": "play.silooo.com · 19142", "type": "vocal", "verrouille": true },
+        { "id": "console", "emoji": "🎮", "nom": "Console : ami HubyOnMC", "type": "vocal", "verrouille": true },
+        { "id": "en-ligne", "emoji": "👥", "nom": "0 en ligne", "type": "vocal", "verrouille": true }
+      ]
+    },
+    {
+      "id": "accueil",
+      "nom": "Accueil",
+      "salons": [
+        { "id": "bienvenue", "emoji": "👋", "nom": "bienvenue", "type": "texte", "ecriture": [], "sujet": "Le point de départ : relier ton compte, choisir tes notifications, lire le guide." },
+        { "id": "annonces", "emoji": "📢", "nom": "annonces", "type": "annonces", "ecriture": [], "sujet": "Les étapes du chantier et les nouvelles du jeu. Le rôle Actus est prévenu." },
+        { "id": "rejoindre", "emoji": "🧭", "nom": "rejoindre", "type": "texte", "ecriture": [], "sujet": "Comment rejoindre play.silooo.com sur console, téléphone et PC." }
+      ]
+    },
+    {
+      "id": "chantier",
+      "nom": "Le chantier",
+      "salons": [
+        { "id": "coulisses", "emoji": "🏗️", "nom": "coulisses", "type": "texte", "ecriture": [], "sujet": "Le chantier en images. Un spoil débloque le suivant quand assez de membres réagissent." },
+        { "id": "sondages", "emoji": "📊", "nom": "sondages", "type": "texte", "ecriture": [], "sujet": "Les sondages qui décident une partie du jeu. Une voix par membre." },
+        { "id": "giveaways", "emoji": "🎁", "nom": "giveaways", "type": "texte", "ecriture": [], "sujet": "Des lots gratuits, tirés au sort parmi ceux qui cliquent. Sans achat ni invitation." },
+        { "id": "concours", "emoji": "🏆", "nom": "concours", "type": "forum", "phase": "beta", "sujet": "Le concours de la semaine : ton île ou ta ville en captures, le vote des joueurs reliés." }
+      ]
+    },
+    {
+      "id": "jeu",
+      "nom": "Le jeu",
+      "phase": "beta",
+      "salons": [
+        { "id": "le-silo", "emoji": "🏭", "nom": "le-silo", "type": "texte", "phase": "beta", "ecriture": [], "sujet": "Le serveur en direct : joueurs en ligne, production, commande du jour, Panthéon." },
+        { "id": "tchat-du-jeu", "emoji": "🎮", "nom": "tchat-du-jeu", "type": "texte", "phase": "beta", "ecriture": ["joueur-relie"], "sujet": "Le tchat du jeu, relié dans les deux sens. Comptes reliés seulement, 200 caractères." },
+        { "id": "records", "emoji": "📈", "nom": "records", "type": "texte", "phase": "beta", "ecriture": [], "sujet": "Les prestiges, les records du Panthéon, la Vote party, la commande du jour livrée." },
+        { "id": "vote", "emoji": "🗳️", "nom": "vote", "type": "texte", "phase": "beta", "ecriture": [], "sujet": "Voter pour Silooo, et suivre la jauge de la Vote party." }
+      ]
+    },
+    {
+      "id": "communaute",
+      "nom": "Communauté",
+      "salons": [
+        { "id": "discussion", "emoji": "💬", "nom": "discussion", "type": "texte", "sujet": "Pour parler du jeu, et de tout le reste. Oooscar y dit bonjour aux nouveaux." },
+        { "id": "pantheon", "emoji": "🏛️", "nom": "panthéon", "type": "texte", "ecriture": [], "sujet": "Les tableaux : top réactions de la semaine, Aide du mois, records des petits jeux." },
+        { "id": "meilleurs-moments", "emoji": "⭐", "nom": "meilleurs-moments", "type": "texte", "ecriture": [], "sujet": "Les messages que le serveur a aimés, recopiés avec leur auteur." },
+        { "id": "captures", "emoji": "📸", "nom": "captures", "type": "texte", "phase": "beta", "sujet": "Ton île, ta ville, ton usine préférée : en images." },
+        { "id": "entreprises", "emoji": "🤝", "nom": "entreprises", "type": "forum", "phase": "beta", "sujet": "Un sujet par entreprise qui cherche un associé." },
+        { "id": "villes", "emoji": "🏙️", "nom": "villes", "type": "forum", "phase": "beta", "sujet": "Un sujet par ville : qui construit quoi, et où." },
+        { "id": "suggestions", "emoji": "💡", "nom": "suggestions", "type": "forum", "phase": "beta", "sujet": "Une idée par sujet. Oooscar étiquette : lue, acceptée, prévue, faite." },
+        { "id": "patch-notes", "emoji": "🆕", "nom": "patch-notes", "type": "texte", "phase": "beta", "ecriture": [], "sujet": "Chaque mise à jour du jeu, en carte." },
+        { "id": "createurs", "emoji": "🎬", "nom": "créateurs", "type": "forum", "phase": "beta", "sujet": "Tes vidéos Silooo. Le vote des joueurs reliés choisit trois créateurs par mois." }
+      ]
+    },
+    {
+      "id": "animation",
+      "nom": "Animation",
+      "salons": [
+        { "id": "comptage", "emoji": "🔢", "nom": "comptage", "type": "texte", "sujet": "Chacun écrit le nombre suivant, jamais deux fois de suite. Oooscar tient le compte." },
+        { "id": "monte-charge", "emoji": "🛗", "nom": "monte-charge", "type": "texte", "ecriture": [], "sujet": "Un bouton, un étage de plus toutes les 5 minutes par membre. Le staff fait redescendre." }
+      ]
+    },
+    {
+      "id": "aide",
+      "nom": "Aide",
+      "salons": [
+        { "id": "aide", "emoji": "❓", "nom": "aide", "type": "forum", "sujet": "Une question de jeu par sujet. Le bouton Résolu par désigne qui a aidé." },
+        { "id": "tickets", "emoji": "🎫", "nom": "tickets", "type": "texte", "ecriture": [], "sujet": "Pour ce qui ne se dit pas en public : un menu, puis un salon privé." }
+      ]
+    },
+    {
+      "id": "vocaux",
+      "nom": "Vocaux",
+      "salons": [
+        { "id": "cree-ton-vocal", "emoji": "➕", "nom": "Crée ton vocal", "type": "vocal" }
+      ]
+    },
+    {
+      "id": "staff",
+      "nom": "Staff",
+      "visible": ["staff", "moderation"],
+      "salons": [
+        { "id": "journal-du-bot", "emoji": "📒", "nom": "journal-du-bot", "type": "texte", "ecriture": [], "sujet": "Ce que fait Oooscar, geste par geste, et le rapport du lundi." },
+        { "id": "admissions", "emoji": "✅", "nom": "admissions", "type": "texte", "ecriture": [], "sujet": "Les inscrits de la page d'attente, en carte : Admettre, Refuser, Plus tard." },
+        { "id": "signalements", "emoji": "🚩", "nom": "signalements", "type": "texte", "ecriture": [], "visible": ["moderation"], "sujet": "Les messages signalés, avec leur contexte. Modération seulement." }
+      ]
+    }
+  ]
+}
