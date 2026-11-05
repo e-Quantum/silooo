@@ -289,6 +289,9 @@ class EconomyEngine(private val definitions: Definitions) {
         return rounded.toLong()
     }
 
+    /** Vrai si le prestige de la course [course] donne une étoile (la dernière époque est passée) plutôt qu'une époque. */
+    fun prestigeGivesStar(course: Int): Boolean = starsAt(course + 1) > starsAt(course)
+
     /** L'époque de la course (numérotée depuis 1) : une de plus à chaque prestige, jusqu'à la dernière d'usines.json. */
     fun eraAt(course: Int): Int {
         require(course >= 1) { "Une course se numérote depuis 1 : $course" }
