@@ -49,7 +49,7 @@ class OnboardingBuild(val state: OnboardingState?, val problems: List<String>, v
 
 /**
  * Traduit la clé `accueil` du plan pour la phase courante : les questions telles quelles, et pour salons par défaut
- * tous les salons publics de la phase. Discord exige au moins [MIN_DEFAULT_CHANNELS] salons par défaut, dont
+ * les salons publics non vocaux de la phase. Discord exige au moins [MIN_DEFAULT_CHANNELS] salons par défaut, dont
  * [MIN_WRITABLE_CHANNELS] où tout le monde écrit : le compte se fait ici, pour que le journal dise le chiffre plutôt
  * qu'un refus de Discord.
  */
@@ -57,14 +57,14 @@ object OnboardingPlanner {
     const val MIN_DEFAULT_CHANNELS = 7
     const val MIN_WRITABLE_CHANNELS = 5
 
-    /** Les salons que tout le monde voit dans la [phase] : sans clé `visible`, dans une catégorie qui n'en a pas. */
+    /** Les salons non vocaux du plan public de la [phase] ; les droits effectifs sont vérifiés avant l'envoi. */
     fun publicChannels(plan: ServerPlan, phase: ServerPhase): List<PlannedChannel> =
         plan.categories
             .filter { it.phase.existsIn(phase) && it.visible == null }
-            .flatMap { category -> category.salons.filter { it.phase.existsIn(phase) && it.visible == null } }
+            .flatMap { category -> category.salons.filter { it.phase.existsIn(phase) && it.visible == null && it.type != ChannelKind.VOCAL } }
 
     /** Tout le monde écrit dans un salon sans clé `ecriture`. */
-    fun everyoneWrites(channel: PlannedChannel): Boolean = channel.ecriture == null
+    fun everyoneWrites(channel: PlannedChannel): Boolean = channel.type != ChannelKind.VOCAL && channel.ecriture == null
 
     fun build(plan: ServerPlan, phase: ServerPhase, ids: ServerIds): OnboardingBuild {
         val onboarding = plan.accueil
@@ -175,6 +175,11 @@ class OnboardingApplier(
         }
         report.onboarding = OnboardingOutcome("refusé", null)
         report.attempt("l'accueil guidé") {
+            val access = wanted.defaultChannelIds.map { server.publicChannelAccess(it) }
+            if (access.any { !it.view || !it.history } || access.count { it.view && it.send && it.forumWrite } < OnboardingPlanner.MIN_WRITABLE_CHANNELS) {
+                report.onboarding = OnboardingOutcome("en attente", "L'accueil guidé attend : les droits publics effectifs des salons ne satisfont pas les exigences de Discord.")
+                return@attempt
+            }
             val changes = OnboardingSync.changes(server.onboarding(), wanted)
             report.onboarding = when {
                 changes == null -> OnboardingOutcome("en place", "L'accueil guidé est en place : " + build.summary + ".")

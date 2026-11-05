@@ -119,6 +119,23 @@ class OnboardingTest {
     }
 
     @Test
+    @DisplayName("Les vocaux sont exclus et les droits publics effectifs sont contrôlés")
+    fun effectivePermissionsGuardOnboarding() {
+        val fake = FakeDiscordServer()
+        apply(fake)
+        val public = OnboardingPlanner.publicChannels(plan, ServerPhase.ATTENTE)
+        assertTrue(public.none { it.type == ChannelKind.VOCAL })
+        assertTrue(public.any { it.id == "medias" })
+        fake.onboarding = OnboardingState.NONE
+        fake.onboardingWrites.clear()
+        val discussion = fake.channels.first { it.name == "💬・discussion" }
+        fake.publicAccessOverrides[discussion.id] = PublicChannelAccess(view = true, history = true, send = false)
+        val result = apply(fake)
+        assertEquals("en attente", result.onboarding?.status)
+        assertTrue(fake.onboardingWrites.isEmpty())
+    }
+
+    @Test
     @DisplayName("La comparaison ignore le sélecteur de variante des emoji, une description vide et l'ordre des salons ; un titre changé fait une réponse neuve")
     fun syncNormalizes() {
         val option = OnboardingOption("900000000000000002", "A", "", "🏗", setOf("1"))

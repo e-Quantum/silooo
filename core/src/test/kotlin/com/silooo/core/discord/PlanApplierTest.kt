@@ -144,6 +144,31 @@ class PlanApplierTest {
     }
 
     @Test
+    @DisplayName("Les droits du staff dérivés sont signalés à blanc puis corrigés sans nouveau salon")
+    fun repairsPrivatePermissions() {
+        val fake = FakeDiscordServer()
+        apply(fake)
+        val staff = fake.categories.first { it.name == "Staff" }
+        val journal = fake.channels.first { it.name == "📒・journal-du-bot" }
+        val reports = fake.channels.first { it.name == "🚩・signalements" }
+        fake.permissionSpecs[staff.id] = Triple(emptySet(), null, false)
+        fake.permissionSpecs[journal.id] = Triple(null, emptySet(), false)
+        fake.permissionSpecs[reports.id] = Triple(null, emptySet(), false)
+        fake.permissionWrites.clear()
+        val dry = apply(fake, dryRun = true)
+        assertTrue(dry.changedPermissions.containsAll(listOf("Staff", journal.name, reports.name)))
+        assertTrue(fake.permissionWrites.isEmpty())
+        assertTrue(dry.failures.any { it.contains("journal est visible") })
+        val result = apply(fake)
+        assertTrue(result.failures.isEmpty())
+        assertEquals(setOf(staff.id, journal.id, reports.id), fake.permissionWrites.toSet())
+        assertFalse(runBlocking { fake.publicChannelAccess(journal.id) }.view)
+        fake.permissionWrites.clear()
+        apply(fake)
+        assertTrue(fake.permissionWrites.isEmpty())
+    }
+
+    @Test
     @DisplayName("Sans journal possible, le compte rendu reste dans les journaux du service et rien ne casse")
     fun noJournal() {
         val fake = FakeDiscordServer(refused = setOf("Staff"))

@@ -18,6 +18,9 @@ class FakeDiscordServer(
     val roleSpecs = mutableMapOf<String, RoleSpec>()
     val categorySpecs = mutableMapOf<String, CategorySpec>()
     val channelSpecs = mutableMapOf<String, ChannelSpec>()
+    val permissionSpecs = mutableMapOf<String, Triple<Set<String>?, Set<String>?, Boolean>>()
+    val permissionWrites = mutableListOf<String>()
+    val publicAccessOverrides = mutableMapOf<String, PublicChannelAccess>()
 
     /** Les messages envoyés : identifiant du salon et texte ; [posted] garde le message entier. */
     val messages = mutableListOf<Pair<String, String>>()
@@ -135,6 +138,7 @@ class FakeDiscordServer(
         val id = newId()
         categories += ExistingCategory(id, category.name)
         categorySpecs[id] = category
+        permissionSpecs[id] = Triple(category.viewers, null, false)
         return id
     }
 
@@ -147,6 +151,7 @@ class FakeDiscordServer(
         val id = newId()
         channels += ExistingChannel(id, channel.name, channel.kind, categoryId, channel.topic)
         channelSpecs[id] = channel
+        permissionSpecs[id] = Triple(channel.viewers ?: if (channel.memberViewers.isEmpty()) null else emptySet(), channel.writers, channel.locked)
         return id
     }
 
@@ -154,6 +159,22 @@ class FakeDiscordServer(
         val index = channel(id)
         channels[index] = channels[index].copy(topic = channel.topic)
         channelSpecs[id] = channel
+    }
+
+    override suspend fun reconcilePlanPermissions(id: String, viewers: Set<String>?, writers: Set<String>?, locked: Boolean, managedViewers: Set<String>, dryRun: Boolean): Boolean {
+        val wanted = Triple(viewers, writers, locked)
+        val changed = permissionSpecs[id] != wanted
+        if (changed && !dryRun) {
+            permissionSpecs[id] = wanted
+            permissionWrites += id
+        }
+        return changed
+    }
+
+    override suspend fun publicChannelAccess(id: String): PublicChannelAccess {
+        publicAccessOverrides[id]?.let { return it }
+        val spec = permissionSpecs[id]
+        return PublicChannelAccess(spec?.first == null, true, spec?.second == null)
     }
 
     override suspend fun post(channelId: String, message: BotMessage): String {

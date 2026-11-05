@@ -71,6 +71,7 @@
       "nom": "Communauté",
       "salons": [
         { "id": "discussion", "emoji": "💬", "nom": "discussion", "type": "texte", "sujet": "Pour parler du jeu, et de tout le reste. Oooscar y dit bonjour aux nouveaux." },
+        { "id": "medias", "emoji": "🖼️", "nom": "medias", "type": "texte" },
         { "id": "pantheon", "emoji": "🏛️", "nom": "panthéon", "type": "texte", "ecriture": [], "sujet": "Les tableaux : top réactions de la semaine, Aide du mois, records des petits jeux." },
         { "id": "meilleurs-moments", "emoji": "⭐", "nom": "meilleurs-moments", "type": "texte", "ecriture": [], "sujet": "Les messages que le serveur a aimés, recopiés avec leur auteur." },
         { "id": "captures", "emoji": "📸", "nom": "captures", "type": "texte", "phase": "beta", "sujet": "Ton île, ta ville, ton usine préférée : en images." },

@@ -25,6 +25,12 @@ interface DiscordServer {
     /** Change le sujet d'un salon existant ; jamais son nom, son type ni ses droits (posés à la création, et à Kr ensuite). */
     suspend fun updateChannel(id: String, channel: ChannelSpec)
 
+    /** Vérifie et, sauf à blanc, réconcilie les bits de permission gérés par le plan. */
+    suspend fun reconcilePlanPermissions(id: String, viewers: Set<String>?, writers: Set<String>?, locked: Boolean, managedViewers: Set<String>, dryRun: Boolean): Boolean
+
+    /** Permissions effectives du seul rôle @everyone dans un salon existant. */
+    suspend fun publicChannelAccess(id: String): PublicChannelAccess
+
     /** Un message du bot ; rend l'identifiant du message. */
     suspend fun post(channelId: String, message: BotMessage): String
 
@@ -199,3 +205,6 @@ data class ChannelSpec(
 
 /** Un message d'un salon tel que le bot le relit ; [text] porte les pièces jointes réduites à leur nom entre crochets. */
 data class ChannelMessage(val authorId: String, val authorName: String, val text: String, val at: Instant, val bot: Boolean = false)
+
+/** Droits effectifs d'@everyone, après les overrides du salon. */
+data class PublicChannelAccess(val view: Boolean, val history: Boolean, val send: Boolean, val forumWrite: Boolean = true)

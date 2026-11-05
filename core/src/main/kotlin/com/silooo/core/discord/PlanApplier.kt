@@ -2,7 +2,7 @@ package com.silooo.core.discord
 
 /**
  * Applique le [plan] au serveur : crée les rôles, catégories et salons de la phase courante qui manquent, met à
- * jour la couleur d'un rôle et le sujet d'un salon qui diffèrent, et ne supprime jamais rien (ADR 0007). Les
+ * jour la couleur d'un rôle, le sujet et les permissions gérées qui diffèrent, et ne supprime jamais rien (ADR 0007). Les
  * entrées se reconnaissent à leur nom Discord : renommer un salon dans le plan en crée un nouveau, l'ancien reste.
  * Une fois les rôles et les salons en place, l'accueil guidé du plan suit ([OnboardingApplier]).
  *
@@ -42,6 +42,7 @@ class PlanApplier(
             }
         }
 
+        val managedViewers = listOfNotNull(roleIds["staff"], roleIds["moderation"]).toSet()
         var journalId: String? = null
         for (category in plan.categories.filter { it.phase.existsIn(phase) }) {
             val viewers = category.visible?.let { resolve(it, roleIds) }
@@ -57,6 +58,11 @@ class PlanApplier(
                 }
             }
             categoryId?.let { report.categoryIds[category.id] = it }
+            if (categoryId != null && snapshot.categories.any { it.id == categoryId } && (category.visible == null || viewers?.size == category.visible.size)) {
+                report.attempt("les droits de la catégorie « ${category.nom} »") {
+                    if (server.reconcilePlanPermissions(categoryId!!, viewers, null, false, managedViewers, dryRun)) report.changedPermissions += category.nom
+                }
+            }
             for (channel in category.salons.filter { it.phase.existsIn(phase) }) {
                 val spec = ChannelSpec(
                     name = channel.discordName,
@@ -86,6 +92,14 @@ class PlanApplier(
                 } else {
                     report.channelIds[channel.id] = existing.id
                     if (isJournal) journalId = existing.id
+                    val requestedViewers = channel.visible ?: category.visible
+                    if (requestedViewers == null || spec.viewers?.size == requestedViewers.size) {
+                        if (channel.ecriture == null || spec.writers?.size == channel.ecriture.size) {
+                            report.attempt("les droits du salon « ${channel.discordName} »") {
+                                if (server.reconcilePlanPermissions(existing.id, spec.viewers, spec.writers, spec.locked, managedViewers, dryRun)) report.changedPermissions += channel.discordName
+                            }
+                        }
+                    }
                     if (existing.topic.orEmpty() != channel.sujet.orEmpty()) {
                         report.changedChannels += channel.discordName
                         if (!dryRun) report.attempt("le sujet du salon « ${channel.discordName} »") { server.updateChannel(existing.id, spec) }
@@ -94,13 +108,17 @@ class PlanApplier(
             }
         }
 
-        OnboardingApplier(plan, phase, dryRun).run(server, report.ids, report)
+        if (report.failures.isEmpty()) OnboardingApplier(plan, phase, dryRun).run(server, report.ids, report)
 
         val journal = journalId
         if (journal == null) {
             report.failures += "pas de salon du journal : le compte rendu reste dans les journaux du service"
         } else {
-            report.attempt("le compte rendu dans le journal") { server.send(journal, report.text()) }
+            report.attempt("le compte rendu dans le journal") {
+                if (report.failures.any { it.startsWith("les droits") }) throw DiscordRefusal("les droits privés n'ont pas tous pu être vérifiés")
+                if (server.publicChannelAccess(journal).view) throw DiscordRefusal("le journal est visible par tous")
+                server.send(journal, report.text())
+            }
         }
         return report
     }
@@ -122,6 +140,7 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
     val createdChannels = mutableListOf<String>()
     val changedRoles = mutableListOf<String>()
     val changedChannels = mutableListOf<String>()
+    val changedPermissions = mutableListOf<String>()
     val failures = mutableListOf<String>()
 
     /** L'accueil guidé : ce qu'il en est ; `null` tant que le plan n'en a pas. */
@@ -136,7 +155,7 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
 
     val nothingToDo: Boolean
         get() = missingRoles.isEmpty() && missingCategories.isEmpty() && missingChannels.isEmpty() &&
-            changedRoles.isEmpty() && changedChannels.isEmpty()
+            changedRoles.isEmpty() && changedChannels.isEmpty() && changedPermissions.isEmpty()
 
     /** Tente une action de Discord ; un échec s'écrit dans [failures] avec [what], sans le détail des jetons. */
     internal suspend fun attempt(what: String, action: suspend () -> Unit) {
@@ -151,7 +170,7 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
         val mode = if (dryRun) "à blanc" else "appliqué"
         return "plan du serveur (phase ${phase.word}, $mode) : ${missingRoles.size} rôle(s), ${missingCategories.size} catégorie(s) et " +
             "${missingChannels.size} salon(s) manquaient ; ${createdRoles.size + createdCategories.size + createdChannels.size} création(s), " +
-            "${changedRoles.size + changedChannels.size} modification(s), ${failures.size} échec(s) ; accueil guidé " +
+            "${changedRoles.size + changedChannels.size + changedPermissions.size} modification(s), ${failures.size} échec(s) ; accueil guidé " +
             (onboarding?.status ?: "absent du plan")
     }
 
@@ -165,12 +184,14 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
                 " et " + counted(missingChannels, "salon", "salons") + "."
             if (changedRoles.isNotEmpty()) lines += "À modifier : la couleur de " + counted(changedRoles, "rôle", "rôles") + "."
             if (changedChannels.isNotEmpty()) lines += "À modifier : le sujet de " + counted(changedChannels, "salon", "salons") + "."
+            if (changedPermissions.isNotEmpty()) lines += "Droits à modifier : " + counted(changedPermissions, "élément", "éléments") + "."
             lines += if (createdChannels.isEmpty()) "Je n'ai rien changé." else "Je n'ai rien changé, sauf le salon du journal, créé pour écrire ceci."
         } else {
             lines += "J'ai créé " + counted(createdRoles, "rôle", "rôles") + ", " + counted(createdCategories, "catégorie", "catégories") +
                 " et " + counted(createdChannels, "salon", "salons") + "."
             if (changedRoles.isNotEmpty()) lines += "J'ai modifié la couleur de " + counted(changedRoles, "rôle", "rôles") + "."
             if (changedChannels.isNotEmpty()) lines += "J'ai modifié le sujet de " + counted(changedChannels, "salon", "salons") + "."
+            if (changedPermissions.isNotEmpty()) lines += "J'ai corrigé les droits de " + counted(changedPermissions, "élément", "éléments") + "."
             lines += "Je ne supprime jamais rien."
         }
         onboarding?.line?.let { lines += it }

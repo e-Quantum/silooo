@@ -17,6 +17,7 @@ import com.silooo.core.discord.ExistingCategory
 import com.silooo.core.discord.ExistingChannel
 import com.silooo.core.discord.ExistingRole
 import com.silooo.core.discord.ImageFile
+import com.silooo.core.discord.PublicChannelAccess
 import com.silooo.core.discord.OnboardingState
 import com.silooo.core.discord.RoleSpec
 import com.silooo.core.discord.ServerSnapshot
@@ -154,16 +155,25 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             ChannelKind.FORUM -> category.createForumChannel(channel.name).setTopic(channel.topic)
             ChannelKind.VOCAL -> category.createVoiceChannel(channel.name)
         }
-        viewers(action, channel.viewers ?: if (channel.memberViewers.isEmpty()) null else emptySet())
+        val privateViewers = channel.viewers ?: if (channel.memberViewers.isEmpty()) null else emptySet()
+        val none = EnumSet.noneOf(Permission::class.java)
+        val publicDenied = EnumSet.noneOf(Permission::class.java)
+        if (privateViewers != null) publicDenied.addAll(VIEW)
+        if (channel.writers != null) publicDenied.addAll(WRITE)
+        if (channel.locked) publicDenied.add(Permission.VOICE_CONNECT)
+        if (publicDenied.isNotEmpty()) action.addPermissionOverride(guild.publicRole, none, publicDenied)
+        if (privateViewers != null) action.addMemberPermissionOverride(guild.selfMember.idLong, VIEW, none)
+        val roleIds = privateViewers.orEmpty() + channel.writers.orEmpty()
+        roleIds.forEach { id ->
+            val allowed = EnumSet.noneOf(Permission::class.java)
+            if (id in privateViewers.orEmpty()) allowed.addAll(VIEW)
+            if (id in channel.writers.orEmpty()) allowed.addAll(WRITE)
+            action.addRolePermissionOverride(id.toLong(), allowed, none)
+        }
         if (channel.memberViewers.isNotEmpty()) {
             val allowed = if (channel.kind == ChannelKind.VOCAL) VOICE_MEMBER else TEXT_MEMBER
-            channel.memberViewers.forEach { action.addMemberPermissionOverride(it.toLong(), allowed, EnumSet.noneOf(Permission::class.java)) }
+            channel.memberViewers.forEach { action.addMemberPermissionOverride(it.toLong(), allowed, none) }
         }
-        channel.writers?.let { writers ->
-            action.addPermissionOverride(guild.publicRole, EnumSet.noneOf(Permission::class.java), WRITE)
-            writers.forEach { action.addRolePermissionOverride(it.toLong(), WRITE, EnumSet.noneOf(Permission::class.java)) }
-        }
-        if (channel.locked) action.addPermissionOverride(guild.publicRole, EnumSet.noneOf(Permission::class.java), EnumSet.of(Permission.VOICE_CONNECT))
         return action.submit().await().id
     }
 
@@ -174,6 +184,62 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             is ForumChannel -> existing.manager.setTopic(channel.topic).submit().await()
             else -> Unit
         }
+    }
+
+    override suspend fun reconcilePlanPermissions(
+        id: String, viewers: Set<String>?, writers: Set<String>?, locked: Boolean,
+        managedViewers: Set<String>, dryRun: Boolean,
+    ): Boolean {
+        val channel = guild.getGuildChannelById(id)?.permissionContainer
+            ?: throw DiscordRefusal("le salon ou la catégorie $id n'existe plus")
+        val view = Permission.VIEW_CHANNEL.rawValue
+        val write = WRITE.fold(0L) { bits, permission -> bits or permission.rawValue }
+        val connect = Permission.VOICE_CONNECT.rawValue
+        val desired = mutableMapOf<Role, Pair<Long, Long>>()
+        fun update(role: Role, allowBits: Long, denyBits: Long, clearBits: Long = 0L) {
+            val previous = channel.getPermissionOverride(role)
+            val oldAllow = previous?.allowedRaw ?: 0L
+            val oldDeny = previous?.deniedRaw ?: 0L
+            val mask = allowBits or denyBits or clearBits
+            val allow = (oldAllow and mask.inv()) or allowBits
+            val deny = (oldDeny and mask.inv()) or denyBits
+            if (allow != oldAllow || deny != oldDeny) desired[role] = allow to deny
+        }
+        var deny = 0L
+        if (viewers != null) deny = deny or view
+        if (writers != null) deny = deny or write
+        if (locked) deny = deny or connect
+        if (deny != 0L) update(guild.publicRole, 0L, deny)
+        if (viewers != null) {
+            for (roleId in managedViewers + viewers) {
+                val allowed = roleId in viewers
+                val writeAllowed = roleId in writers.orEmpty()
+                val allowBits = (if (allowed) view else 0L) or (if (writeAllowed) write else 0L)
+                val clearBits = (if (!allowed) view else 0L)
+                update(role(roleId), allowBits, 0L, clearBits)
+            }
+        }
+        for (roleId in writers.orEmpty() - managedViewers - viewers.orEmpty()) update(role(roleId), write, 0L)
+        if (!dryRun) for ((role, masks) in desired) {
+            channel.upsertPermissionOverride(role).setPermissions(masks.first, masks.second).submit().await()
+        }
+        // Ne pas supprimer les exceptions ajoutées à la main : signaler plutôt qu'elles peuvent exposer le salon.
+        if (viewers != null && channel.permissionOverrides.any {
+                it.allowedRaw and view != 0L && it.id != guild.selfMember.id &&
+                    (it.isMemberOverride || it.id !in viewers)
+            }) throw DiscordRefusal("une exception de visibilité supplémentaire doit être vérifiée sur $id")
+        return desired.isNotEmpty()
+    }
+
+    override suspend fun publicChannelAccess(id: String): PublicChannelAccess {
+        val channel = guild.getGuildChannelById(id) ?: throw DiscordRefusal("le salon $id n'existe plus")
+        val permissions = guild.publicRole.getPermissions(channel)
+        return PublicChannelAccess(
+            Permission.VIEW_CHANNEL in permissions,
+            Permission.MESSAGE_HISTORY in permissions,
+            Permission.MESSAGE_SEND in permissions,
+            channel !is ForumChannel || (Permission.CREATE_PUBLIC_THREADS in permissions && Permission.MESSAGE_SEND_IN_THREADS in permissions),
+        )
     }
 
     override suspend fun post(channelId: String, message: BotMessage): String =
