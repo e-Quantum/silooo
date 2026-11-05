@@ -1,6 +1,6 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 19 h 10, bilan de 19 h : l'add-on de la phase 5 fusionné (74a7ca1), la phase 5 complète hors Kr, la CI de `main` verte à 856b57c ; en cours : le curseur des événements persistant (session de direction).
+Dernière mise à jour : 5 novembre 2026, 19 h 34, bilan final de la session de direction : le curseur des événements persistant fusionné (9f5376a), les phases 0 à 5 cochées sur `main` hors les cases de Kr, aucune session lancée, rien de déployé.
 
 ## État
 
@@ -43,8 +43,8 @@ Dernière mise à jour : 5 novembre 2026, 19 h 10, bilan de 19 h : l'add-on de l
   payloads dans l'OpenAPI ; le bot Oooscar lui-même est à la direction du Discord, `docs/discord-passation.md`) ;
   les cosmétiques, le boost collectif et le titre du pionnier (paquet `shop/`, migration V9 `server_boosts`), le pass de
   saison (paquet `pass/`, `pass.json`, `getPass`, `claimPass`, `pass-premium`) , l'add-on de la boutique, du
-  pass et des votes (`ui/boutique.ts`, `ui/pass.ts`, `ui/votes.ts`, `ui/annonces.ts`, 74a7ca1) ; en cours : le curseur des
-  événements de l'add-on rendu persistant (`claude/phase5-curseur`). La direction du Discord a posé D2 sur `main` (`definitions/discord.json`,
+  pass et des votes (`ui/boutique.ts`, `ui/pass.ts`, `ui/votes.ts`, `ui/annonces.ts`, 74a7ca1) , le curseur des
+  événements de l'add-on persistant (`silooo:events-cursor`, 0cee7a5) : la phase 5 est complète, hors les cases de Kr. La direction du Discord a posé D2 sur `main` (`definitions/discord.json`,
   migration V10) ; le jeu prend V11 et la suite.
 
 ## Phase 0 : le dépôt prêt pour les sessions Claude
@@ -157,7 +157,7 @@ définitions et la doc avancent sans attendre, et rien de ce qui en dépend n'es
 - [x] silooo-core : votes et Vote party (paquet `vote/` : `VotifierProtocol` (décodage et signature HMAC-SHA256 en fonctions pures), `VotifierServer` (TCP, éteint sans `SILOOO_VOTIFIER_TOKEN`, port `SILOOO_VOTIFIER_PORT` 8192, publié par le compose au même numéro), `VoteRules`, `VoteService`, `JdbcVoteStore`, `VoteRoutes` ; une ligne `server_votes` par vote, `xuid` retrouvé par gamertag, Lingots hors prestige (`creditBalance`, raison `vote`), série de jours UTC avec bonus à chaque multiple de `serie.jours`, Vote party au vote de rang `voteParty.votesParJour` pour les présents, `ANNONCE` (`action` vote, voteParty) ; pseudo inconnu rattrapé au `join` par `session/PendingVotes` ; `definitions/vote.json` (1 Lingot par vote, série de 7 jours, +2, fête à 10 votes, 1 Lingot par présent, site `hubyy`) avec schéma, cas invalides et types générés ; `GET /v1/votes/today` (`todayVotes`) : le contrat passe à 33 opérations ; environ 100 tests neufs dont 16 SQL en CI ; pas de migration, pas de dépendance ; `docs/economie.md` « Les votes », `core/README.md`, `docs/deploiement.md` (port, jeton, Hubyy) ; chiffres et règles **à valider par Kr** ; décision 42) ; les sites de vote autres que Hubyy plus tard, par le même chemin
 - [x] silooo-core : Discord, réduit le 5 novembre à ce que le service publie (décision 43 : le bot Oooscar est à la direction du Discord, `docs/discord-passation.md`, qui lit `game_events` avec son propre curseur) : le prestige publie `PRESTIGE_ENTREPRISE` pour tout le serveur (`xuid` nul, en plus de l'`ANNONCE` par membre), le moteur publie `ANNONCE` `sansCourant` au joueur dont une usine manque de courant (constaté par comparaison avant et après la dernière étape de remise en état, une fois par passage, pas d'état stocké), `ANNONCE` `voteParty` (votes) et `BOOST_COLLECTIF` (cosmétiques) complètent la liste ; payloads décrits dans `api/silooo-core.openapi.yaml` ; 1517 tests Gradle, 7 neufs dans `CompanyRoutesTest` ; aucune variable `SILOOO_DISCORD_*` côté jeu
 - [x] add-on : boutique (catalogue, achat, cadeau, grades et Pilier, titre et objet Pionnier, bulle d'Oooscar à l'arrivée des Gemmes `GEMMES_RECUES`), pass de saison (progression, réclamer un palier), rappel de vote et Vote party, annonce du boost collectif ; textes **à valider par Kr** (fusionné le 5 novembre à 19 h, 74a7ca1 : `ui/boutique.ts`, `ui/pass.ts`, `ui/votes.ts`, `ui/annonces.ts`, 1678 tests de l'add-on dont 47 de parcours ; décision 46 ; l'objet Pionnier attend Kr, le titre s'affiche sans se choisir)
-- [ ] add-on : le curseur des événements persistant entre deux démarrages du serveur (propriété dynamique du monde), pour que les annonces de la phase 5 ne se rejouent pas au redémarrage (`claude/phase5-curseur`, en cours)
+- [x] add-on : le curseur des événements persistant entre deux démarrages du serveur (propriété dynamique du monde `silooo:events-cursor`, `CursorStore` dans `events.ts`, `createEventsCursorStore` dans `monde/bedrock.ts` ; 18 tests, 1696 au total ; fusionné le 5 novembre à 19 h 34, 9f5376a ; décision 47 ; jamais vu sur un vrai BDS)
 - [x] `definitions/` : `boutique.json` complété (cosmétiques, effet de prestige, boost collectif, noms des abonnements, cosmétiques de saison hors vente), `pass.json`, `vote.json`, `personnel.json` (noms des raretés), avec leurs schémas, leurs cas invalides et les types générés (`node tools/generer_types.mjs`)
 - [x] docs : `docs/economie.md` « La boutique », « Le pass de saison », « Les votes » ; `core/README.md` (boutique, votes, pass, Discord côté service) ; `docs/deploiement.md` : ce que Kr branche (Votifier par la tranche des votes, les variables du bot par la direction du Discord) ; `docs/base-de-donnees.md` (V7, V9 ; V10 par la direction du Discord)
 
@@ -211,6 +211,11 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 - [ ] Phase 5, après l'add-on : dire comment un joueur choisit son titre parmi ceux qu'il possède (l'add-on affiche un
   titre sans le laisser choisir) ; l'objet de déco du pionnier (point 3 du site) ; et dire si une route des soldes
   seuls vaut la peine (le HUD garde ses Lingots d'avant un vote jusqu'à la prochaine collecte)
+- [ ] À savoir pour l'exploitation : si la table `game_events` est vidée (base remise à zéro), effacer aussi la
+  propriété dynamique `silooo:events-cursor` du monde Bedrock, sinon l'add-on garde un curseur au-dessus des
+  identifiants et n'annonce plus rien (décision 47)
+- [ ] Jeter les branches `claude/phase5-*`, `claude/phase0-*`, `claude/phase1-*`, `claude/phase2-*` sur `origin`
+  (toutes fusionnées ; la direction du jeu ne supprime jamais une branche distante) et les deux stashs du poste
 
 ## Décisions prises sans Kr
 
@@ -462,6 +467,14 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     ses Lingots d'avant un vote jusqu'à la prochaine collecte ; les charges des événements ne sont décrites qu'en
     texte dans le contrat ; aucun moyen de choisir son titre parmi ceux qu'on possède ; l'URL de la boutique du site
     n'est pas dans l'add-on (le site est suspendu). À relire par Kr.
+47. **Le curseur des événements survit au redémarrage, et ce qu'on y perd.** Tranché par la tranche du curseur :
+    l'add-on garde son curseur dans la propriété dynamique `silooo:events-cursor` du monde, lu au premier besoin et
+    non au chargement du script (le monde n'est pas lisible si tôt) ; 0 si rien, si la valeur n'est pas un entier sûr
+    positif ou si la lecture lève ; sauvé après chaque page qui avance, une erreur de sauvegarde journalisée une fois.
+    Au redémarrage, plus rien ne se rejoue : une invitation d'entreprise reçue et pas encore traitée avant un
+    redémarrage est perdue côté add-on (le service la garde, aucune route ne la liste : une route de liste à ajouter
+    plus tard) ; un curseur plus haut que les identifiants du service (table `game_events` vidée) ferait taire les
+    événements : effacer la propriété avec la table (ligne de Kr). À relire par Kr.
 
 ## À valider par Kr
 
@@ -1097,3 +1110,27 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     tranches de D2 (accueil guidé, bonjour d'Oooscar, coulisses) sont sur `main`, fusionnées par elle ; `Main.kt` touché
     par `BotFeatures`, lu ; rien à répondre de plus.
   - Vérifier : `gh run list --branch main --limit 3`, `git log --oneline -8 origin/main`.
+- **5 novembre 2026, 19 h 34 : direction, le curseur des événements persistant fusionné (9f5376a).** La tranche a rendu
+  `claude/phase5-curseur` (fee17e1, fusion d'`origin/main` à 8032a6a, puis 0cee7a5) : `CursorStore` (`load`, `save`)
+  facultatif dans `createEventsPoller`, lu au premier besoin ; `createEventsCursorStore` sur la propriété dynamique
+  `silooo:events-cursor` (`monde/bedrock.ts`), branché dans `main.ts` ; dix-huit tests (1696 au total), aucun retiré ;
+  les commentaires qui disaient « repart de 0 » (`events.ts`, `invitations.ts`, `missions.ts`, `annonces.ts`,
+  `votes.ts`) et `addon/README.md` à jour. Revue : le second commit ne touche qu'`addon/`, deux lignes de test retirées
+  (un assistant réécrit), quatorze fichiers `@minecraft/`, aucun secret. Fusion sur `main` (9f5376a), vérificateur vert.
+  Décision 47 ; ce qu'on y perd (l'invitation en attente au redémarrage, la table vidée) y est écrit, et la ligne de Kr
+  pour la table vidée. Vérifier : `git show 0cee7a5 --stat | tail -3`, `cd addon && npm test`.
+- **5 novembre 2026, 19 h 34 : bilan final de la session de direction.**
+  - Fait depuis le bilan de 19 h : le curseur des événements persistant (9f5376a) ; la dernière case de la phase 5
+    cochée. Les phases 0 à 5 sont cochées sur `main`, hors les cases de Kr. Rien n'est déployé.
+  - En cours : aucune session lancée ; aucun worktree de la direction du jeu.
+  - Reste à Kr : phase 2, trois cases (la base, le port, le monde) ; phase 3, le test de bout en bout ; phase 4, le test
+    en jeu ; phase 5, la condition de sortie (achat réel de test, Hubyy et le port Votifier, le jeton du bot Discord) ;
+    la liste « À faire par Kr ». Les phases 6 et 7 ne s'ouvrent pas.
+  - Reste au jeu, sans case, pour une tranche après que Kr aura vu l'add-on : la route des soldes seuls, une route qui
+    liste les invitations en attente (décision 47), les charges des événements typées dans le contrat, la version de
+    Bedrock dans le signal de vie et le dernier prestige pour le bandeau du site (point 9 du site).
+  - Décisions prises seul depuis 19 h : 47. À valider : rien de nouveau (aucun texte nouveau).
+  - Directions du site et du Discord : rien de nouveau dans « Pour la direction du jeu » depuis le bilan de 19 h.
+  - État du dépôt : `main` = `origin/main` = 9f5376a, arbre propre hors `.agents/` et `.codex/` (ligne de Kr) ; les
+    branches `claude/phase5-*` restent sur `origin`, fusionnées (ligne de Kr). CI : `gh run list --branch main --limit 3`.
+  - Vérifier : `git log --oneline -6 origin/main`, `git status --short`.
