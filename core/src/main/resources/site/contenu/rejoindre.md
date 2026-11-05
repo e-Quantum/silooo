@@ -2,7 +2,7 @@
 titre: Rejoindre
 description: Comment rejoindre le serveur Silooo : l'adresse, le port et la marche à suivre sur PC, téléphone, tablette et console.
 url: /rejoindre/
-modes: [ouvert]
+modes: [beta, ouvert]
 ---
 Pour jouer, ajoute Silooo à ta liste de serveurs dans Minecraft Bedrock.
 

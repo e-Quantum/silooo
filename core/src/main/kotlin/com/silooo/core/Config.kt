@@ -7,6 +7,7 @@ import com.silooo.core.discord.BotToken
 import com.silooo.core.discord.ServerPhase
 import com.silooo.core.registration.DiscordConfig
 import com.silooo.core.registration.SiteAdmission
+import com.silooo.core.registration.XboxConfig
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 import com.silooo.core.site.VoteSite
@@ -54,6 +55,8 @@ data class ServiceConfig(
     val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
     /** L'application Discord de « Relier Discord » ; `null` tant que Kr ne l'a pas créée. */
     val discord: DiscordConfig? = null,
+    /** L'application Azure de « Se connecter avec Xbox » (`SILOOO_XBOX_CLIENT_ID` et `SILOOO_XBOX_CLIENT_SECRET`) ; `null` tant que Kr ne l'a pas créée : pas de porte Xbox. */
+    val xbox: XboxConfig? = null,
     /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For`. */
     val siteTrustedProxy: Boolean = false,
     /** La réception des votes de Hubyy (`SILOOO_VOTIFIER_TOKEN` et `SILOOO_VOTIFIER_PORT`) ; `null` tant que le jeton n'est pas posé : rien n'écoute. */
@@ -66,7 +69,7 @@ data class ServiceConfig(
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier, " +
+            "siteAdmission=${siteAdmission.word}, discord=$discord, xbox=$xbox, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier, " +
             "bot=${bot ?: "non"})"
 }
 
@@ -95,6 +98,8 @@ object Config {
     const val SITE_ADMISSION = "SILOOO_SITE_ADMISSION"
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
+    const val XBOX_CLIENT_ID = "SILOOO_XBOX_CLIENT_ID"
+    const val XBOX_CLIENT_SECRET = "SILOOO_XBOX_CLIENT_SECRET"
     const val SITE_TRUSTED_PROXY = "SILOOO_SITE_TRUSTED_PROXY"
     const val PAYNOW_WEBHOOK_SECRET = "SILOOO_PAYNOW_WEBHOOK_SECRET"
 
@@ -201,6 +206,7 @@ object Config {
         val siteSettings = reader.siteSettings()
         val siteAdmission = reader.siteAdmission()
         val discord = reader.discord()
+        val xbox = reader.xbox()
         val trustedProxy = reader.trustedProxy()
         val votifier = reader.votifier(port, sitePort)
         val payNowSecret = env[PAYNOW_WEBHOOK_SECRET]?.trim()?.takeIf { it.isNotEmpty() }
@@ -211,7 +217,7 @@ object Config {
             deliveryPoll = checkNotNull(deliveryPoll),
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
             siteSettings = checkNotNull(siteSettings),
-            siteAdmission = checkNotNull(siteAdmission), discord = discord, siteTrustedProxy = checkNotNull(trustedProxy),
+            siteAdmission = checkNotNull(siteAdmission), discord = discord, xbox = xbox, siteTrustedProxy = checkNotNull(trustedProxy),
             votifier = votifier,
             payNowWebhookSecret = payNowSecret,
             bot = bot,
@@ -424,6 +430,18 @@ object Config {
                 return null
             }
             return DiscordConfig(id, secret)
+        }
+
+        /** Les deux variables de l'application Azure de la connexion Xbox, ou aucune : une seule des deux est une erreur. */
+        fun xbox(): XboxConfig? {
+            val id = env[XBOX_CLIENT_ID]?.trim()?.takeIf { it.isNotEmpty() }
+            val secret = env[XBOX_CLIENT_SECRET]?.trim()?.takeIf { it.isNotEmpty() }
+            if (id == null && secret == null) return null
+            if (id == null || secret == null) {
+                problems += "$XBOX_CLIENT_ID et $XBOX_CLIENT_SECRET vont ensemble : pose les deux, ou aucune"
+                return null
+            }
+            return XboxConfig(id, secret)
         }
 
         /** `false` quand la variable n'est pas posée ; seuls `true` et `false` sont acceptés. */

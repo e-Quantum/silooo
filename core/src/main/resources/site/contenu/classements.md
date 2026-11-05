@@ -2,7 +2,7 @@
 titre: Classements
 description: Les joueurs qui ont gagné le plus de Lingots cette semaine, avec leur entreprise.
 url: /classements/
-modes: [ouvert]
+modes: [beta, ouvert]
 ---
 {{classement}}
 

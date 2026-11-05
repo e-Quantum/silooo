@@ -5,8 +5,15 @@ import com.silooo.core.MutableClock
 import com.silooo.core.TestDefinitions
 import com.silooo.core.db.FakeDatabase
 import com.silooo.core.db.PassThroughDatabase
+import com.silooo.core.registration.DiscordLinks
 import com.silooo.core.registration.FakeDiscordIdentity
+import com.silooo.core.registration.FakeXboxIdentity
+import com.silooo.core.registration.InMemoryBetaAccessStore
+import com.silooo.core.registration.InMemoryDiscordLinkStore
 import com.silooo.core.registration.InMemorySiteRegistrationStore
+import com.silooo.core.registration.InMemoryWaitlistStore
+import com.silooo.core.registration.InMemoryWebAccountStore
+import com.silooo.core.registration.InMemoryWebSessionStore
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.InMemorySessionStore
 import com.silooo.core.sitedata.CompanyCard
@@ -15,12 +22,12 @@ import com.silooo.core.sitedata.InMemorySiteStatsStore
 import com.silooo.core.sitedata.MemberRole
 import com.silooo.core.vote.InMemoryVoteStore
 import com.silooo.core.vote.VoteRow
-import io.ktor.client.request.forms.submitForm
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Parameters
+import com.silooo.core.registration.XboxFailure
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.nio.file.Path
@@ -38,7 +45,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
  *
  * Les dossiers : `/` (attente), `discord/` (attente avec le Discord), `ouvert/` (tout le mode ouvert, Discord posé),
  * `ouvert-complet/` (boutique, sites de vote, actus d'exemple), `ouvert-vivant/` (classement et fiche d'entreprise
- * avec des données), `pionniers/` et `ouvert/pionniers/` (le formulaire et ses réponses), `introuvable/` (le 404), et
+ * avec des données), les comptes dans chaque mode (`connexion/`, `pionniers/` et `pionniers/etat/`, `beta/compte/`,
+ * `beta/compte/lier/`, `connexion/refus/` : voir `renderAccountsAndNotFound`), `introuvable/` (le 404), et
  * `site/direct.json` (la réponse du bandeau direct avec trois joueurs et deux votes : le vérificateur sert la racine du rendu,
  * `direct.js` y relit `/site/direct.json`).
  */
@@ -59,7 +67,7 @@ class SiteRenderToDisk {
         copyPublic()
         renderLiving()
         renderModes()
-        renderPioneersAndNotFound()
+        renderAccountsAndNotFound()
     }
 
     /** `public/` tel que Gradle l'a composé (les copies de design/, composants.css dérivé, les polices). */
@@ -194,40 +202,71 @@ class SiteRenderToDisk {
         }
     }
 
-    /** Le formulaire des pionniers et chacune de ses réponses, dans les deux modes, puis la page introuvable. */
-    private fun renderPioneersAndNotFound() {
-        for (mode in listOf(SiteMode.ATTENTE, SiteMode.OUVERT)) {
-            val prefix = if (mode == SiteMode.ATTENTE) "" else "ouvert/"
+    /**
+     * Les pages des comptes dans chaque mode : la connexion, l'inscription et « C'est noté ! » (par Xbox, par Discord) tant que
+     * le site n'est pas ouvert, « Mon compte » et « Lier mon compte » (le code, le compte Xbox, « Relié ! ») dès la bêta, les
+     * refus de Xbox (compte enfant, panne) ; puis la page introuvable.
+     */
+    private fun renderAccountsAndNotFound() {
+        for (mode in SiteMode.entries) {
+            val prefix = when (mode) {
+                SiteMode.ATTENTE -> ""
+                SiteMode.BETA -> "beta/"
+                SiteMode.OUVERT -> "ouvert/"
+            }
             testApplication {
+                val xbox = FakeXboxIdentity()
+                val accounts = InMemoryWebAccountStore()
+                val links = InMemoryDiscordLinkStore()
+                val registrations = InMemorySiteRegistrationStore()
+                val database = PassThroughDatabase()
                 application {
                     siteModule(
                         Dependencies(
-                            PassThroughDatabase(), "cle", definitions = TestDefinitions.loaded, clock = clock, siteMode = mode,
-                            siteUrl = "https://silooo.test", siteRegistrationStore = InMemorySiteRegistrationStore(),
-                            discordIdentity = FakeDiscordIdentity("123"), discordUrl = "https://discord.gg/exemple",
+                            database, "cle", definitions = TestDefinitions.loaded, clock = clock, siteMode = mode,
+                            siteUrl = "https://silooo.test", siteRegistrationStore = registrations, discordUrl = "https://discord.gg/exemple",
+                            discordIdentity = FakeDiscordIdentity("123"), xboxIdentity = xbox,
+                            webAccountStore = accounts, waitlistStore = InMemoryWaitlistStore(), discordLinkStore = links,
+                            betaAccessStore = InMemoryBetaAccessStore(), webSessionStore = InMemoryWebSessionStore(),
                         ),
                     )
                 }
                 val client = createClient { followRedirects = false }
-                suspend fun token(): String {
-                    val html = client.get("/pionniers/").bodyAsText()
-                    val input = checkNotNull(Regex("""<input[^>]*name="jeton"[^>]*>""").find(html)) { "le jeton manque sur /pionniers/" }.value
-                    return checkNotNull(Regex("""value="([^"]+)"""").find(input)).groupValues[1]
+                fun cookie(response: HttpResponse, name: String): String =
+                    checkNotNull(response.headers.getAll(HttpHeaders.SetCookie)?.firstOrNull { it.startsWith("$name=") }) { "le cookie $name manque" }.substringBefore(';')
+                /** Le départ puis le retour d'une porte : la réponse du retour. */
+                suspend fun back(door: String): HttpResponse {
+                    val start = client.get("/connexion/$door/")
+                    val location = checkNotNull(start.headers[HttpHeaders.Location]) { "pas de Location au départ vers $door" }
+                    val state = checkNotNull(Regex("state=([0-9a-f]+)").find(location)) { "pas d'état dans $location" }.groupValues[1]
+                    return client.get("/connexion/$door/retour/?state=$state&code=code-de-rendu") { header(HttpHeaders.Cookie, cookie(start, "silooo_porte")) }
                 }
-                suspend fun register(gamertag: String, rules: Boolean = true) = client.submitForm("/pionniers/", Parameters.build {
-                    append("gamertag", gamertag)
-                    if (rules) append("regles", "oui")
-                    append("jeton", token())
-                })
-                write("${prefix}pionniers/index.html", client.get("/pionniers/").bodyAsText())
-                val ok = register("Kr Test")
-                val cookie = checkNotNull(ok.headers.getAll(HttpHeaders.SetCookie)).first { it.startsWith("silooo_pionnier=") }.substringBefore(';')
-                write("${prefix}pionniers/etat/index.html", client.get("/pionniers/etat/") { header(HttpHeaders.Cookie, cookie) }.bodyAsText())
-                write("${prefix}pionniers/deja/index.html", register("Kr Test").bodyAsText())
-                write("${prefix}pionniers/invalide/index.html", register("x").bodyAsText())
-                write("${prefix}pionniers/sans-regles/index.html", register("Autre Joueur", rules = false).bodyAsText())
-                write("${prefix}pionniers/compteur/index.html", client.get("/pionniers/").bodyAsText())
-                write("${prefix}introuvable/index.html", client.get("/nulle-part/").bodyAsText())
+                suspend fun fetch(path: String, session: String? = null): String = client.get(path) { session?.let { header(HttpHeaders.Cookie, it) } }.bodyAsText()
+
+                write("${prefix}connexion/index.html", fetch("/connexion/"))
+                val byXbox = cookie(back("xbox"), "silooo_session")
+                val byDiscord = cookie(back("discord"), "silooo_session")
+                if (mode != SiteMode.OUVERT) {
+                    write("${prefix}pionniers/index.html", fetch("/pionniers/"))
+                    write("${prefix}pionniers/etat/index.html", fetch("/pionniers/etat/", byXbox))
+                    write("${prefix}pionniers/etat-discord/index.html", fetch("/pionniers/etat/", byDiscord))
+                }
+                if (mode != SiteMode.ATTENTE) {
+                    write("${prefix}compte/index.html", fetch("/compte/", byXbox))
+                    write("${prefix}compte/discord/index.html", fetch("/compte/", byDiscord))
+                    write("${prefix}compte/lier/index.html", fetch("/compte/lier/", byDiscord))
+                    write("${prefix}compte/lier-xbox/index.html", fetch("/compte/lier/", byXbox))
+                    // Le jeu consomme le code (sa route viendra avec la direction du jeu) : la page « Relié ! ».
+                    val discordAccount = checkNotNull(database.transaction { accounts.findByDiscord(it, "123") })
+                    val code = checkNotNull(database.transaction { links.findByAccount(it, discordAccount.id) }).code
+                    database.transaction { DiscordLinks(accounts, links, registrations, clock).redeem(it, code, "Kr Discord", admit = true, pioneer = false) }
+                    write("${prefix}compte/lier-relie/index.html", fetch("/compte/lier/", byDiscord))
+                }
+                xbox.failure = XboxFailure.CHILD_ACCOUNT
+                write("${prefix}connexion/refus/index.html", back("xbox").bodyAsText())
+                xbox.failure = XboxFailure.UNAVAILABLE
+                write("${prefix}connexion/panne/index.html", back("xbox").bodyAsText())
+                write("${prefix}introuvable/index.html", fetch("/nulle-part/"))
             }
         }
     }

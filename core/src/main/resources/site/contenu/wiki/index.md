@@ -2,7 +2,7 @@
 titre: Wiki
 description: Les systèmes de Silooo expliqués dans l'ordre où tu les rencontres.
 url: /wiki/
-modes: [ouvert]
+modes: [beta, ouvert]
 ---
 Le wiki explique les systèmes du jeu dans l'ordre où tu les rencontres. Chaque page se lit en deux minutes.
 

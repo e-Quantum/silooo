@@ -2,7 +2,7 @@
 titre: Incidents et électricité
 description: Les pannes qui ralentissent une usine, et le courant que demandent les usines modernes.
 url: /wiki/incidents-et-electricite/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 7
 ---
 ## Les incidents

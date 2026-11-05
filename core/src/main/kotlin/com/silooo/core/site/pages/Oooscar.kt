@@ -48,7 +48,8 @@ internal object Bulles {
     }
 
     fun pour(url: String?, mode: SiteMode, definitions: Definitions): String = when {
-        url == "/" && mode == SiteMode.ATTENTE -> ATTENTE
+        // La bêta garde la page d'attente à `/` : seule l'ouverture a l'accueil.
+        url == "/" && mode != SiteMode.OUVERT -> ATTENTE
         url == "/rejoindre/" -> REJOINDRE
         url == "/boutique/" || url == "/ce-qui-se-vend/" -> BOUTIQUE
         url == "/classements/" -> CLASSEMENTS

@@ -2,7 +2,7 @@
 titre: Le prestige
 description: Revendre ses usines pour passer à l'époque suivante, gagner des Lingots et des étoiles.
 url: /wiki/prestige/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 6
 ---
 ## Ce que fait un prestige

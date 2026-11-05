@@ -68,7 +68,19 @@ import com.silooo.core.sitedata.JdbcSiteStatsStore
 import com.silooo.core.sitedata.ShopDeliveryStore
 import com.silooo.core.sitedata.SiteStatsStore
 import com.silooo.core.staff.StaffStore
+import com.silooo.core.registration.BetaAccessStore
+import com.silooo.core.registration.DiscordGuildJoiner
 import com.silooo.core.registration.DiscordIdentity
+import com.silooo.core.registration.DiscordLinkStore
+import com.silooo.core.registration.JdbcBetaAccessStore
+import com.silooo.core.registration.JdbcDiscordLinkStore
+import com.silooo.core.registration.JdbcWaitlistStore
+import com.silooo.core.registration.JdbcWebAccountStore
+import com.silooo.core.registration.JdbcWebSessionStore
+import com.silooo.core.registration.WaitlistStore
+import com.silooo.core.registration.WebAccountStore
+import com.silooo.core.registration.WebSessionStore
+import com.silooo.core.registration.XboxIdentity
 import com.silooo.core.registration.JdbcSiteRegistrationStore
 import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.SiteRegistrationStore
@@ -170,8 +182,18 @@ class Dependencies(
     val siteRegistrationStore: SiteRegistrationStore = JdbcSiteRegistrationStore(),
     /** La règle d'admission des inscrits (`SILOOO_SITE_ADMISSION`). */
     val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
-    /** Le fournisseur de « Relier Discord » ; `null` : l'application Discord n'est pas configurée, le bouton n'est pas proposé. */
+    /** Le fournisseur de « Se connecter avec Discord » ; `null` : l'application Discord n'est pas configurée, la porte dit « bientôt ». */
     val discordIdentity: DiscordIdentity? = null,
+    /** Le fournisseur de « Se connecter avec Xbox » ; `null` : l'application Azure n'est pas configurée, la porte dit « bientôt ». */
+    val xboxIdentity: XboxIdentity? = null,
+    /** L'entrée sur le serveur Discord avec `guilds.join` (la case « Rejoindre aussi le Discord ») ; `null` tant que le bot ne l'a pas branché. */
+    val guildJoiner: DiscordGuildJoiner? = null,
+    /** Les accès SQL des comptes du site (`web_accounts`, `waitlist`, `discord_links`, `beta_access`, `web_sessions`). */
+    val webAccountStore: WebAccountStore = JdbcWebAccountStore(),
+    val waitlistStore: WaitlistStore = JdbcWaitlistStore(),
+    val discordLinkStore: DiscordLinkStore = JdbcDiscordLinkStore(),
+    val betaAccessStore: BetaAccessStore = JdbcBetaAccessStore(),
+    val webSessionStore: WebSessionStore = JdbcWebSessionStore(),
     /** `SILOOO_SITE_TRUSTED_PROXY` : l'adresse du visiteur se lit dans `X-Forwarded-For` (le Caddy de SileneMC la pose). */
     val siteTrustedProxy: Boolean = false,
     /** Signe les cookies et les jetons du site. Tiré au démarrage : il change à chaque redémarrage, une inscription en cours recommence. */

@@ -1,9 +1,7 @@
 ---
-titre: Pionniers
-description: Inscris-toi comme pionnier de Silooo avant l'ouverture du serveur, avec ton gamertag.
+titre: Me prévenir
+description: Inscris-toi à la bêta de Silooo avec Xbox ou Discord. On ne garde que ton gamertag ou ton identifiant Discord.
 url: /pionniers/
-modes: [attente, ouvert]
+modes: [attente, beta]
 ---
-Tu t'inscris avant l'ouverture. Tu entres parmi les premiers.
-
-Ton gamertag suffit : pas de courriel, pas de mot de passe.
+Inscris-toi pour la bêta. On ne garde que ton gamertag ou ton identifiant Discord.

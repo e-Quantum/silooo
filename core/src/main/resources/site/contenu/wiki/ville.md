@@ -2,7 +2,7 @@
 titre: La ville
 description: L'île principale, ses zones, la mairie et les bâtiments. La ville est en construction.
 url: /wiki/ville/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 10
 ---
 La ville est en construction. Cette page dit ce que le jeu permet déjà et ce qui arrive.

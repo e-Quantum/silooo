@@ -64,7 +64,7 @@ class SiteStyleTest {
     }
 
     @Test
-    @DisplayName("Navigation : en attente Actus, Discord puis Me prévenir, selon les pages que le mode rend ; en ouvert les sept entrées")
+    @DisplayName("Navigation : en attente Actus, Discord puis Me prévenir, selon les pages que le mode rend ; en bêta et en ouvert les sept entrées, Mon compte mène à /compte/")
     fun navigationByMode() {
         // L'attente rend toujours /actus/ et /discord/ (les deux existent dans les deux modes) et /pionniers/ (le bouton « Me prévenir »).
         val waiting = SiteContent.fromClasspath().forMode(SiteMode.ATTENTE).map { it.url }
@@ -78,14 +78,19 @@ class SiteStyleTest {
                 }
             }
         }
-        withSite(SiteMode.OUVERT) { client ->
+        val open = SiteContent.fromClasspath().forMode(SiteMode.OUVERT).map { it.url }
+        val beta = SiteContent.fromClasspath().forMode(SiteMode.BETA).map { it.url }
+        assertTrue("/compte/" in open && "/compte/" in beta, "l'ouverture et la bêta rendent /compte/ : c'est l'entrée « Mon compte »")
+        for (mode in listOf(SiteMode.BETA, SiteMode.OUVERT)) withSite(mode) { client ->
             val html = client.get("/rejoindre/").bodyAsText()
-            assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), navLabels(html))
-            assertEquals(1, Regex("""aria-current="page"""").findAll(html).count(), "la page courante est marquée une fois")
-            assertTrue(html.contains("""<a href="/rejoindre/" class="navigation__lien" aria-current="page">Rejoindre</a>"""), "et c'est Rejoindre")
+            assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), navLabels(html), mode.word)
+            assertEquals(1, Regex("""aria-current="page"""").findAll(html).count(), "${mode.word} : la page courante est marquée une fois")
+            assertTrue(html.contains("""<a href="/rejoindre/" class="navigation__lien" aria-current="page">Rejoindre</a>"""), "${mode.word} : et c'est Rejoindre")
+            assertTrue(Regex("""<a href="/compte/" class="[^"]*navigation__bouton"[^>]*>Mon compte</a>""").containsMatchIn(html), "${mode.word} : Mon compte mène à /compte/")
+            assertFalse(html.substringAfter("<nav").substringBefore("</nav>").contains("/pionniers/"), "${mode.word} : la navigation ne mène plus à l'inscription des pionniers")
             // Les mentions sont au pied et le logo mène à l'accueil : aucune des deux n'est dans la navigation, donc aucune n'est « courante ».
-            assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/mentions-legales/").bodyAsText()).count())
-            assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/").bodyAsText()).count())
+            assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/mentions-legales/").bodyAsText()).count(), mode.word)
+            assertEquals(0, Regex("""aria-current="page"""").findAll(client.get("/").bodyAsText()).count(), mode.word)
         }
     }
 
@@ -93,19 +98,24 @@ class SiteStyleTest {
     @DisplayName("Navigation : l'ordre est celui de la liste du mode, et une page absente n'a pas de lien")
     fun navigationOrder() {
         fun page(url: String) = ContentPage(url.trim('/'), "t", "d", url, SiteMode.entries.toSet(), "")
-        val every = listOf("/mentions-legales/", "/vote/", "/", "/wiki/", "/actus/", "/discord/", "/boutique/", "/classements/", "/rejoindre/", "/pionniers/").map(::page)
-        val open = listOf("/rejoindre/", "/boutique/", "/classements/", "/vote/", "/wiki/", "/actus/", "/pionniers/")
+        val every = listOf("/mentions-legales/", "/vote/", "/", "/wiki/", "/actus/", "/discord/", "/boutique/", "/classements/", "/rejoindre/", "/pionniers/", "/compte/").map(::page)
+        val open = listOf("/rejoindre/", "/boutique/", "/classements/", "/vote/", "/wiki/", "/actus/", "/compte/")
         assertEquals(open, Navigation.items(SiteMode.OUVERT, every).map { it.url })
+        // La bêta a la liste de l'ouverture, entrée pour entrée.
+        assertEquals(open, Navigation.items(SiteMode.BETA, every).map { it.url })
         assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), Navigation.items(SiteMode.OUVERT, every).map { it.label })
+        assertEquals(listOf("Rejoindre", "Boutique", "Classements", "Vote", "Guide", "Actus", "Mon compte"), Navigation.items(SiteMode.BETA, every).map { it.label })
         // L'attente : les actus, la page du Discord (demande de Kr du 5 novembre 2026) et « Me prévenir ». L'ouvert ne montre pas le Discord.
         assertEquals(listOf("/actus/", "/discord/", "/pionniers/"), Navigation.items(SiteMode.ATTENTE, every).map { it.url })
         assertEquals(listOf("Actus", "Discord", "Me prévenir"), Navigation.items(SiteMode.ATTENTE, every).map { it.label })
         assertEquals(listOf("/actus/", "/pionniers/"), Navigation.items(SiteMode.ATTENTE, every.filter { it.url != "/discord/" }).map { it.url })
         // Deux boutons de fonte seulement : le compte et « Me prévenir ». Le reste est un lien simple.
         assertEquals(listOf("Mon compte"), Navigation.items(SiteMode.OUVERT, every).filter { it.kind == NavKind.BOUTON }.map { it.label })
+        assertEquals(listOf("Mon compte"), Navigation.items(SiteMode.BETA, every).filter { it.kind == NavKind.BOUTON }.map { it.label })
         assertEquals(listOf("Me prévenir"), Navigation.items(SiteMode.ATTENTE, every).filter { it.kind == NavKind.BOUTON }.map { it.label })
         // Les mentions sont au pied, le logo mène à l'accueil : ni l'un ni l'autre n'est dans la navigation, même rendus.
         assertEquals(emptyList<String>(), Navigation.items(SiteMode.OUVERT, listOf(page("/mentions-legales/"), page("/"))).map { it.url })
+        assertEquals(emptyList<String>(), Navigation.items(SiteMode.BETA, listOf(page("/mentions-legales/"), page("/"))).map { it.url })
         assertEquals(listOf("/vote/"), Navigation.items(SiteMode.OUVERT, listOf(page("/vote/"), page("/mentions-legales/"))).map { it.url })
         assertEquals(emptyList<String>(), Navigation.items(SiteMode.ATTENTE, emptyList()).map { it.url })
     }

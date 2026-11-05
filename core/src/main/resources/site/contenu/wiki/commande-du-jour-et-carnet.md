@@ -2,7 +2,7 @@
 titre: Commande du jour et Carnet
 description: La commande que tout le serveur livre ensemble, et le Carnet des ressources que tu as vues sortir.
 url: /wiki/commande-du-jour-et-carnet/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 8
 ---
 ## La commande du jour

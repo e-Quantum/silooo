@@ -32,8 +32,12 @@ enum class LinkOutcome {
  * service, chaque méthode reçoit la [Connection] de la transaction ; le faux des tests ne l'ouvre jamais.
  */
 interface SiteRegistrationStore {
-    /** Inscrit [gamertag] sous [key] ; `false` si la clé existe déjà (rien n'est modifié). [admitted] pose `admitted_at`. */
-    fun insert(connection: Connection, key: String, gamertag: String, admitted: Boolean): Boolean
+    /**
+     * Inscrit [gamertag] sous [key] ; `false` si la clé existe déjà (rien n'est modifié). [admitted] pose `admitted_at`.
+     * [pioneer] pose `pioneer` : vrai pour une inscription d'avant l'ouverture (le titre Pionnier que le jeu donne à `join`),
+     * faux pour un compte relié depuis le jeu après l'ouverture.
+     */
+    fun insert(connection: Connection, key: String, gamertag: String, admitted: Boolean, pioneer: Boolean = true): Boolean
 
     fun find(connection: Connection, key: String): SiteRegistration?
 
@@ -44,40 +48,28 @@ interface SiteRegistrationStore {
     fun link(connection: Connection, key: String, discordUserId: String, admit: Boolean): LinkOutcome
 
     /**
+     * Retire `discord_user_id` et `linked_at` de l'inscription [key] (« Délier » depuis le site) ; `true` si la ligne a changé.
+     * L'admission n'est pas retirée : une admission n'est jamais retirée.
+     */
+    fun unlink(connection: Connection, key: String): Boolean
+
+    /**
      * Pose `admitted_at` à maintenant (UTC) sur l'inscription [key] si elle ne l'a pas encore ; `true` si la ligne a changé.
      * Le staff admet par ici depuis `#admissions` (bot Discord) ; une admission n'est jamais retirée.
      */
     fun admit(connection: Connection, key: String): Boolean
 }
 
-/** Pourquoi un gamertag est refusé ; la phrase que le visiteur lit est écrite par la page (`site/pages/Pionniers.kt`). */
-enum class GamertagProblem { EDGE_SPACE, BAD_CHARACTER, DOUBLE_SPACE, TOO_SHORT, TOO_LONG }
-
 /**
- * Le gamertag d'une inscription : sa forme et sa clé. La clé est le seul lien entre le site et le jeu : la route de
- * `join` calcule [key] sur le gamertag qu'elle reçoit et cherche cette clé dans `site_registrations`.
+ * Le gamertag d'une inscription : sa clé. La clé est le seul lien entre le site et le jeu : la route de `join` calcule
+ * [key] sur le gamertag qu'elle reçoit et cherche cette clé dans `site_registrations`. Le site ne contrôle plus la forme
+ * d'un gamertag : il le tient de Xbox (`/connexion/xbox/`) ou du jeu (le code de `/compte/lier/`), jamais d'une saisie.
  */
 object SiteRegistrations {
-    const val MIN_LENGTH = 3
-    const val MAX_LENGTH = 16
-
     private val SPACES = Regex("\\s+")
 
     /** La clé d'un gamertag : sans espace aux bords, espaces réduits à un seul, minuscules. */
     fun key(gamertag: String): String = gamertag.trim().replace(SPACES, " ").lowercase(Locale.ROOT)
-
-    /**
-     * Contrôle ce que le visiteur a saisi, tel quel : le site refuse, il ne corrige pas. Lettres sans accent, chiffres
-     * et espaces simples ; ni espace au début ni à la fin ; de [MIN_LENGTH] à [MAX_LENGTH] caractères. `null` : valable.
-     */
-    fun problem(raw: String): GamertagProblem? = when {
-        raw.startsWith(" ") || raw.endsWith(" ") -> GamertagProblem.EDGE_SPACE
-        raw.any { !(it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == ' ') } -> GamertagProblem.BAD_CHARACTER
-        raw.contains("  ") -> GamertagProblem.DOUBLE_SPACE
-        raw.length < MIN_LENGTH -> GamertagProblem.TOO_SHORT
-        raw.length > MAX_LENGTH -> GamertagProblem.TOO_LONG
-        else -> null
-    }
 }
 
 /** Les deux moments où une inscription peut devenir admise. */

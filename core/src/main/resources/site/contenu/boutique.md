@@ -2,7 +2,7 @@
 titre: Boutique
 description: Les grades et le Pilier de Silooo, et où acheter des Gemmes.
 url: /boutique/
-modes: [ouvert]
+modes: [beta, ouvert]
 ---
 Les Gemmes se dépensent dans la boutique en jeu. Les prix sont ici, avant ta première connexion.
 

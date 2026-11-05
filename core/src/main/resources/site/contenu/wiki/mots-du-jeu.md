@@ -2,7 +2,7 @@
 titre: Les mots du jeu
 description: Une ligne par mot du jeu, pour comprendre le reste du wiki.
 url: /wiki/mots-du-jeu/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 11
 ---
 - **Donar** : la monnaie de la course. Elle repart de zéro à chaque prestige.

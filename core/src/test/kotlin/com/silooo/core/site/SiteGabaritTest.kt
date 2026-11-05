@@ -38,7 +38,7 @@ internal fun assertOnlySiteScripts(html: String, where: String) {
 
 /**
  * Ce que chaque page reçoit du gabarit : la scène d'Oooscar sous le contenu, le bouton Menu et la navigation, les trois
- * scripts, le pied, le bandeau direct du mode ouvert. Les valeurs attendues viennent du mode et de la configuration passés
+ * scripts, le pied, le bandeau direct hors de l'attente. Les valeurs attendues viennent du mode et de la configuration passés
  * au module ; les phrases d'Oooscar sont à valider par Kr, seules celles de l'attente et des erreurs sont écrites ici.
  */
 class SiteGabaritTest {
@@ -126,7 +126,9 @@ class SiteGabaritTest {
     @Test
     @DisplayName("Chaque page a sa scène : Oooscar au visage de son humeur, une bulle de six mots au plus, ses textes en JSON")
     fun everyPageHasItsScene() {
-        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions-legales/", SiteMode.OUVERT to "/rejoindre/")) {
+        for ((mode, path) in listOf(
+            SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions-legales/", SiteMode.BETA to "/", SiteMode.BETA to "/rejoindre/", SiteMode.OUVERT to "/rejoindre/",
+        )) {
             withSite(mode) { client ->
                 val response = client.get(path)
                 assertEquals(HttpStatusCode.OK, response.status, path)
@@ -144,6 +146,16 @@ class SiteGabaritTest {
             if (path == "/") assertEquals("On construit. Reviens vite !", bubble)
             assertFalse(html.contains("Le serveur ouvre bientôt !"), "$path : cette bulle n'existe plus")
         }
+    }
+
+    @Test
+    @DisplayName("La bêta garde la page d'attente à / avec sa bulle, et le guide garde la sienne")
+    fun betaBubbles() = withSite(SiteMode.BETA) { client ->
+        val (_, bubble) = checkScene(client.get("/").bodyAsText(), "/ (bêta)")
+        assertEquals("On construit. Reviens vite !", bubble)
+        val milestones = TestDefinitions.loaded.economy.levels.doublingMilestones
+        val first = milestones.fixed.firstOrNull() ?: milestones.thenEvery
+        assertEquals("Niveau $first : production ×2 !", checkScene(client.get("/wiki/").bodyAsText(), "/wiki/ (bêta)").second)
     }
 
     @Test
@@ -188,9 +200,9 @@ class SiteGabaritTest {
     }
 
     @Test
-    @DisplayName("Le bouton Menu (caché, replié, lié à nav#menu) précède la navigation, dans les deux modes")
+    @DisplayName("Le bouton Menu (caché, replié, lié à nav#menu) précède la navigation, dans les trois modes")
     fun menuButtonAndNavigation() {
-        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions-legales/", SiteMode.OUVERT to "/rejoindre/")) {
+        for ((mode, path) in listOf(SiteMode.ATTENTE to "/", SiteMode.ATTENTE to "/mentions-legales/", SiteMode.BETA to "/rejoindre/", SiteMode.OUVERT to "/rejoindre/")) {
             withSite(mode) { client ->
                 val html = client.get(path).bodyAsText()
                 val button = Regex("""<button[^>]*menu__bouton[^>]*>""").find(html)?.value ?: error("$path : pas de bouton Menu")
@@ -229,12 +241,12 @@ class SiteGabaritTest {
     }
 
     @Test
-    @DisplayName("Trois scripts au plus, tous dans le head : menu.js sans defer, oooscar.js différé, direct.js différé en ouvert seulement")
+    @DisplayName("Trois scripts au plus, tous dans le head : menu.js sans defer, oooscar.js différé, direct.js différé hors de l'attente")
     fun scripts() {
         val menu = """<script src="/public/menu.js"></script>"""
         val oooscar = """<script src="/public/oooscar.js" defer="defer"></script>"""
         val direct = """<script src="/public/direct.js" defer="defer"></script>"""
-        for ((mode, expected) in listOf(SiteMode.ATTENTE to listOf(menu, oooscar), SiteMode.OUVERT to listOf(menu, oooscar, direct))) {
+        for ((mode, expected) in listOf(SiteMode.ATTENTE to listOf(menu, oooscar), SiteMode.BETA to listOf(menu, oooscar, direct), SiteMode.OUVERT to listOf(menu, oooscar, direct))) {
             withSite(mode) { client ->
                 for (path in listOf("/", "/mentions-legales/", "/nulle-part/")) {
                     val html = client.get(path).bodyAsText()
@@ -296,17 +308,17 @@ class SiteGabaritTest {
     }
 
     @Test
-    @DisplayName("Le bandeau direct n'existe qu'en ouvert : div.direct en zone de statut, qui relit /site/direct.json, sous l'en-tête et avant le contenu")
+    @DisplayName("Le bandeau direct n'existe qu'en bêta et en ouvert : div.direct en zone de statut, qui relit /site/direct.json, sous l'en-tête et avant le contenu")
     fun directBandOnlyWhenOpen() {
-        withSite(SiteMode.OUVERT) { client ->
+        for (mode in listOf(SiteMode.BETA, SiteMode.OUVERT)) withSite(mode) { client ->
             for (path in listOf("/", "/rejoindre/", "/nulle-part/")) {
                 val html = client.get(path).bodyAsText()
-                val tag = Regex("""<div class="direct"[^>]*>""").find(html)?.value ?: error("$path : pas de bandeau")
+                val tag = Regex("""<div class="direct"[^>]*>""").find(html)?.value ?: error("$path (${mode.word}) : pas de bandeau")
                 assertEquals("status", attribute(tag, "role"), path)
                 assertEquals("/site/direct.json", attribute(tag, "data-direct"), path)
-                assertEquals(1, Regex("""data-direct=""").findAll(html).count(), "$path : un seul bandeau")
+                assertEquals(1, Regex("""data-direct=""").findAll(html).count(), "$path (${mode.word}) : un seul bandeau")
                 assertTrue(html.indexOf("</header>") < html.indexOf(tag) && html.indexOf(tag) < html.indexOf("<main"), "$path : le bandeau est entre l'en-tête et le contenu")
-                assertTrue(html.contains("""<script src="/public/direct.js" defer="defer"></script>"""), "$path : direct.js")
+                assertTrue(html.contains("""<script src="/public/direct.js" defer="defer"></script>"""), "$path (${mode.word}) : direct.js")
             }
         }
         withSite(SiteMode.ATTENTE) { client ->

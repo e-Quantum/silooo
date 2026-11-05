@@ -131,4 +131,35 @@ class SiteRegistrationSqlTest {
         assertEquals(admittedAt, MariaDbSupport.string("SELECT admitted_at FROM site_registrations"))
         assertEquals(SiteRegistration("kr test", "Kr Test", linked = false, admitted = true), inTransaction { store.find(it, "kr test") })
     }
+
+    @Test
+    @DisplayName("Une inscription hors pionniers pose pioneer à faux et n'entre pas dans le compteur")
+    fun notAPioneer() {
+        assertTrue(inTransaction { store.insert(it, "tardif", "Tardif", admitted = true, pioneer = false) })
+        assertTrue(register("Kr Test"))
+        assertEquals(0L, MariaDbSupport.long("SELECT pioneer FROM site_registrations WHERE gamertag_key = 'tardif'"))
+        assertEquals(1L, MariaDbSupport.long("SELECT pioneer FROM site_registrations WHERE gamertag_key = 'kr test'"))
+        assertEquals(1L, inTransaction { store.countPioneers(it) })
+        assertNotNull(MariaDbSupport.string("SELECT admitted_at FROM site_registrations WHERE gamertag_key = 'tardif'"))
+    }
+
+    @Test
+    @DisplayName("Délier retire l'identifiant Discord et linked_at, garde l'admission, rend faux sans lien ou sans inscription, et libère l'identifiant")
+    fun unlink() {
+        register("Kr Test")
+        register("Autre")
+        assertFalse(inTransaction { store.unlink(it, "kr test") }, "rien à délier")
+        assertEquals(LinkOutcome.LINKED, inTransaction { store.link(it, "kr test", "42", admit = true) })
+        assertTrue(inTransaction { store.unlink(it, "kr test") })
+        assertNull(MariaDbSupport.string("SELECT discord_user_id FROM site_registrations WHERE gamertag_key = 'kr test'"))
+        assertNull(MariaDbSupport.string("SELECT linked_at FROM site_registrations WHERE gamertag_key = 'kr test'"))
+        assertNotNull(MariaDbSupport.string("SELECT admitted_at FROM site_registrations WHERE gamertag_key = 'kr test'"), "l'admission n'est jamais retirée")
+        assertEquals(SiteRegistration("kr test", "Kr Test", linked = false, admitted = true), inTransaction { store.find(it, "kr test") })
+        assertFalse(inTransaction { store.unlink(it, "kr test") }, "déjà délié")
+        assertFalse(inTransaction { store.unlink(it, "inconnu") })
+        // L'identifiant est libre : une autre inscription peut le prendre, et celle-ci peut se relier de nouveau.
+        assertEquals(LinkOutcome.LINKED, inTransaction { store.link(it, "autre", "42", admit = false) })
+        assertTrue(inTransaction { store.unlink(it, "autre") })
+        assertEquals(LinkOutcome.LINKED, inTransaction { store.link(it, "kr test", "42", admit = false) })
+    }
 }

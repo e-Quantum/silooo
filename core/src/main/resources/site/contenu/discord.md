@@ -2,7 +2,7 @@
 titre: Le Discord de Silooo
 description: Le Discord de Silooo : annonces, forum d'aide, Oooscar, liaison de ton compte et tchat relié au jeu.
 url: /discord/
-modes: [attente, ouvert]
+modes: [attente, beta, ouvert]
 ---
 Le Discord de Silooo est l'endroit où l'on suit le chantier et où l'on parle avec ceux qui jouent.
 

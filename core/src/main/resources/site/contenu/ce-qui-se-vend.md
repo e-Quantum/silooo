@@ -2,7 +2,7 @@
 titre: Ce qui se vend
 description: La liste exacte de ce qui s'achète sur Silooo, avec les prix, et de ce qui ne s'achète jamais.
 url: /ce-qui-se-vend/
-modes: [ouvert]
+modes: [beta, ouvert]
 ---
 Tout ce qui s'achète se gagne aussi en jouant.
 
