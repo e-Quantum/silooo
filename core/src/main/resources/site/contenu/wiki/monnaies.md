@@ -2,7 +2,7 @@
 titre: Les monnaies
 description: Donar, Lingots et Gemmes : à quoi sert chacun, et comment lire les grands nombres.
 url: /wiki/monnaies/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 5
 ---
 ## Donar

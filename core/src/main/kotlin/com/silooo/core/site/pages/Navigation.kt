@@ -16,7 +16,7 @@ internal class NavItem(val url: String, val label: String, val kind: NavKind = N
  * La navigation des maquettes de Kr (docs/references/site-kit/maquettes/, SiteVitrine et SiteAttente), écrite en une liste
  * par mode. Une adresse n'apparaît que si le mode rend vraiment la page (la liste des pages vient de `SiteContent`) : aucun
  * lien ne mène à un 404. Le logo mène à l'accueil, les mentions sont au pied : ni l'un ni l'autre n'est dans la navigation.
- * Tant que le compte du joueur n'existe pas, « Mon compte » et « Me prévenir » mènent à l'inscription des pionniers.
+ * La bêta a la liste de l'ouverture. « Mon compte » mène à `/compte/` ; « Me prévenir », en attente, à l'inscription des pionniers.
  */
 internal object Navigation {
     private val OUVERT = listOf(
@@ -26,7 +26,7 @@ internal object Navigation {
         NavItem("/vote/", "Vote"),
         NavItem("/wiki/", "Guide"),
         NavItem("/actus/", "Actus"),
-        NavItem("/pionniers/", "Mon compte", NavKind.BOUTON),
+        NavItem("/compte/", "Mon compte", NavKind.BOUTON),
     )
 
     // L'entrée Discord mène à la page du Discord (demande de Kr du 5 novembre 2026), qui porte l'invitation quand elle existe.
@@ -38,7 +38,7 @@ internal object Navigation {
 
     fun items(mode: SiteMode, pages: List<ContentPage>): List<NavItem> {
         val rendered = pages.map { it.url }.toSet()
-        val order = if (mode == SiteMode.OUVERT) OUVERT else ATTENTE
+        val order = if (mode == SiteMode.ATTENTE) ATTENTE else OUVERT
         return order.filter { it.url in rendered }
     }
 }

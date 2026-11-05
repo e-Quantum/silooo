@@ -2,7 +2,7 @@
 titre: Le personnel
 description: L'agence du jour, l'embauche, les rôles, les postes et les raretés du personnel.
 url: /wiki/personnel/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 4
 ---
 ## L'agence du jour

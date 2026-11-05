@@ -42,7 +42,7 @@ class SiteContent(val pages: List<ContentPage>) {
          * Les contenus livrés dans le jar. Un jar ne se parcourt pas comme un dossier : la liste est écrite ici,
          * et un test la compare au dossier des ressources pour qu'un fichier ajouté sans elle se voie.
          */
-        val BUNDLED = listOf("attente", "accueil", "rejoindre", "ce-qui-se-vend", "boutique", "vote", "actus", "discord", "pionniers", "classements", "mentions-legales", "cgv", "confidentialite", "parents")
+        val BUNDLED = listOf("attente", "accueil", "rejoindre", "ce-qui-se-vend", "boutique", "vote", "actus", "discord", "pionniers", "connexion", "compte", "classements", "mentions-legales", "cgv", "confidentialite", "parents")
 
         fun fromClasspath(): SiteContent = SiteContent(
             BUNDLED.map { name ->

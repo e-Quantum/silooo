@@ -2,7 +2,7 @@
 titre: Note aux parents
 description: Ce qu'un parent doit savoir de Silooo : coût, tchat, Discord dès 13 ans, données, contact.
 url: /parents/
-modes: [attente, ouvert]
+modes: [attente, beta, ouvert]
 ---
 Cette page est écrite pour les parents. Elle dit ce qu'est Silooo, ce que ça coûte et ce qui est gardé.
 

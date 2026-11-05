@@ -733,3 +733,61 @@ a.rang:hover { color: var(--papier); box-shadow: inset 0 0 0 2px var(--laiton); 
 .rang__bloc { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rang__bloc .rang__titre { font-family: var(--font-affiche); font-size: 28px; line-height: 26px; color: var(--laiton-clair); }
 .rang__detail { font-size: 16px; line-height: 21px; }
+
+/* ---------- Les comptes (connexion, inscription, mon compte, lier) */
+/* D'après les maquettes SiteInscription et SiteLier. Le contenu se pose sur le ciel (<main class="ciel comptes">, comme les actus) : le h1 est une
+   plaque, les panneaux de fonte gardent le padding du composant (6 px), comme ceux de la page d'attente. Les lignes sont des .rang. Téléphone d'abord. */
+main.comptes .sa-panneau { display: flex; flex-direction: column; gap: 10px; padding: var(--pas-2); }
+main.comptes .sa-panneau .sa-plaque { align-self: flex-start; }
+
+/* Le texte (18 px sur 24, 20 sur 28 sur ordinateur) et le petit texte (15 sur 20) : fonte-900 sur le ciel, papier dans un panneau. */
+.comptes__texte { margin: 0; font-size: 18px; line-height: 24px; }
+.comptes__texte p { margin: 0 0 var(--pas-4); }
+.comptes__texte p:last-child { margin-bottom: 0; }
+.comptes__petit { margin: 0; font-size: 15px; line-height: 20px; }
+/* L'étiquette en capitales (les mots s'écrivent en minuscules dans le HTML : c'est le CSS qui les met en capitales). */
+.comptes__etiquette {
+  margin: 0;
+  font-family: var(--font-etiquette);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--acier-100);
+}
+.comptes__etiquette--laiton { color: var(--laiton-clair); }
+/* La valeur d'une ligne d'état (le gamertag, « Relié ») en affiche ; « Pas encore relié » en corps, grisé. */
+.comptes__valeur { font-family: var(--font-affiche); font-size: 28px; line-height: 26px; overflow-wrap: anywhere; }
+.comptes__valeur--vide { font-family: var(--font-corps); font-size: 18px; line-height: 24px; color: var(--acier-100); }
+
+/* Les boutons sous les panneaux : l'un sous l'autre et pleine largeur sur téléphone, côte à côte et à leur largeur dès 700 px. */
+.comptes__actions { display: flex; flex-direction: column; gap: var(--pas-4); }
+.comptes__actions form { margin: 0; }
+.comptes__actions .sa-bouton, .porte .sa-bouton { display: flex; width: 100%; }
+
+/* Les deux portes : deux panneaux, empilés sur téléphone, côte à côte à partir de 700 px. Le bouton remplit son panneau. */
+.portes { display: flex; flex-direction: column; gap: var(--pas-4); }
+.porte { min-width: 0; }
+.porte .formulaire { align-items: stretch; gap: var(--pas-2); }
+.porte .formulaire__case label { font-size: 17px; line-height: 22px; }
+
+/* Le code à taper en jeu : six cases de .sa-compteur, centrées dans leur panneau. Le temps qu'il reste est dessous. */
+.lier__code { align-items: center; text-align: center; }
+.lier__code .sa-compteur { justify-content: center; }
+/* « En attente du jeu » : la barre de progression de la maquette, à 40 % et toujours la même ; son texte passe en capitales par le CSS. */
+.lier__attente { width: 100%; }
+.lier__plein { width: 40%; }
+.lier__attente .sa-progression__texte { text-transform: uppercase; }
+
+@media (min-width: 700px) {
+  .comptes__texte { font-size: 20px; line-height: 28px; }
+  .comptes__petit { font-size: 17px; line-height: 22px; }
+  .comptes__etiquette { font-size: 14px; line-height: 18px; }
+  .comptes__valeur { font-size: 34px; line-height: 30px; }
+  .portes { flex-direction: row; align-items: stretch; }
+  .portes > .porte { flex: 1 1 0; }
+  .comptes__actions { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .comptes__actions .sa-bouton { width: auto; padding: 0 18px 3px; }
+  /* La bulle d'Oooscar (trois lignes au plus) dépasse la scène de 240 px d'une cinquantaine de pixels : cette marge lui laisse la place sous le dernier bloc. */
+  main.comptes { margin-bottom: 72px; }
+}

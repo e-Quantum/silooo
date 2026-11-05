@@ -11,6 +11,7 @@ import com.silooo.core.incident.INCIDENT_TICK_EVERY
 import com.silooo.core.pass.JdbcPassStore
 import com.silooo.core.pass.PassService
 import com.silooo.core.registration.HttpDiscordIdentity
+import com.silooo.core.registration.HttpXboxIdentity
 import com.silooo.core.server.ServerPresence
 import com.silooo.core.session.JdbcSessionStore
 import com.silooo.core.shop.DeliveryRelief
@@ -108,6 +109,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteSettings = config.siteSettings,
             siteAdmission = config.siteAdmission,
             discordIdentity = config.discord?.let { HttpDiscordIdentity(it) },
+            xboxIdentity = config.xbox?.let { HttpXboxIdentity(it) },
             siteTrustedProxy = config.siteTrustedProxy,
             payNowWebhookSecret = config.payNowWebhookSecret,
         )

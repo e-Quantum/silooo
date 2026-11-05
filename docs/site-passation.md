@@ -1,24 +1,28 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 16 h 19, révision écrite, fichiers du site réalignés sur le kit (direction du
-site, deuxième passage, en local). Tenue par la direction du site (`docs/site-direction.md`). La direction du jeu
+Dernière mise à jour : 5 novembre 2026, 20 h 42, `claude/site-comptes` fusionnée sur `main` (direction du site, deuxième
+passage, en local). Tenue par la direction du site (`docs/site-direction.md`). La direction du jeu
 lit « Pour la direction du jeu », la direction du Discord lit « Pour la direction du Discord ».
 
 ## État
 
 - **Suspendu : révision en cours** (depuis le 5 novembre 2026, 15 h 48). Le site ne se met pas en ligne avant la fin
   de la révision ; la section « Suspendu » dit ce qui doit être vrai pour que « Prêt à mettre en ligne » revienne.
-- **Le jeu** : phase 5 en cours (`docs/passation.md`). Dernière migration du site sur `main` : `V7__site_registrations.sql` ;
-  la suivante prend le numéro libre à la fusion.
+- **Le jeu** : phase 5 en cours (`docs/passation.md`). Dernière migration du site sur `main` : `V11__comptes_du_site.sql`
+  (`claude/site-comptes`, 5 novembre 2026) ; le jeu prend V12 et la suite (annoncé dans `docs/passation.md`).
 - **Le site** : les six étapes S0 à S5 de la première direction sont sur `main` (commit `69d98b1`), revues dans
-  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, seize corrigées, R49 pour moitié (`claude/site-socle`,
-  `claude/site-gabarit`, `claude/site-attente`), onze à corriger, onze à refaire, trois posées à Kr (T1 appliquée par sa recommandation,
-  décision 15 ; T2 et T3 attendent). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
+  [site-revision.md](site-revision.md) : cinquante-cinq lignes, quatorze gardées, vingt-quatre corrigées dont quatre pour moitié (R18,
+  R19, R21, R49 ; `claude/site-socle`, `claude/site-gabarit`, `claude/site-attente`, `claude/site-comptes`), sept à corriger, huit à
+  refaire, trois posées à Kr (T1 et T3 appliquées par leur recommandation, décisions 15 et 19 ; T2 attend). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
   est dans `docs/references/site-kit/`.
-- **Étape en cours** : `claude/site-socle`, `claude/site-gabarit` et `claude/site-attente` sont finies (fusionnées sur
-  `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-comptes`.
-- **Kr** : deux questions encore ouvertes dans la révision (T2, T3) ; T1 a été appliquée par sa recommandation
-  (décision 15), Kr peut la retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
+- **Étape en cours** : `claude/site-socle`, `claude/site-gabarit`, `claude/site-attente` et `claude/site-comptes` sont finies
+  (fusionnées sur `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-admin`.
+- **Kr** : une question encore ouverte dans la révision (T2) ; T1 et T3 ont été appliquées par leur recommandation
+  (décisions 15 et 19), Kr peut les retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
+- **Le déploiement** : Kr a dit en séance, le 5 novembre 2026, de déployer le site sur le VPS sous `silooo.com` quand il
+  sera prêt. La direction du site s'en chargera à la fin de la révision (le seul projet Docker « silooo », en mode
+  `attente`, après un verifier vert) et écrira ici l'enregistrement DNS à poser et le bloc Caddy à coller : le compte OVH
+  et le Caddy de SileneMC restent à Kr.
 
 ## Les écarts à corriger
 
@@ -38,11 +42,13 @@ La page d'attente :
 - [x] `claude/site-attente` : R34 (page d'attente de la maquette), R25 (quatre pages légales), R49 pour moitié
   (`/actus` et `/actus/<slug>` au plan fixe, lues dans des fichiers avec la marque « étape ») ; la page `/discord/`
   demandée par Kr le 5 novembre 2026
-- [ ] `claude/site-comptes` : R6 (mode `beta`), R15 (Xbox prototypé en premier, Discord), R16 (inscription), R17
-  (migration des comptes et sessions Redis), R18 (admission par le staff, refus de `join` en bêta par le contrat),
-  R19 (Pionnier côté jeu), R21 pour `/compte/lier`, R23 selon T3
+- [x] `claude/site-comptes` (5 novembre 2026) : R6 (mode `beta`), R15 (Xbox prototypé avec un faux fournisseur, puis
+  `HttpXboxIdentity` ; Discord), R16 (inscription par Xbox ou Discord), R17 (migration V11 ; les sessions en table
+  `web_sessions`, pas dans Redis), R18 pour moitié (`beta_access` écrite par la règle ; le staff avec l'admin), R19 pour
+  moitié (le Pionnier noté une fois, à l'inscription d'avant l'ouverture ; l'objet côté jeu), R21 pour `/compte/lier`,
+  R23 selon T3
 - [ ] `claude/site-admin` : R20 (les cinq pages admin, rôle staff, journal), R42 (bêta : seul le staff paie), le reste
-  de R49 (actus écrites dans l'admin)
+  de R49 (actus écrites dans l'admin), le reste de R18 (l'admission par le staff écrite dans `beta_access`)
 
 La bêta :
 
@@ -90,6 +96,8 @@ Lu à chaque bilan de la direction du jeu (décision 37, point 3). Réponses att
 **Depuis le 5 novembre 2026, 15 h 48 : ne déployez pas le site avant la fin de la révision.** Déployer silooo-core pour
 le jeu reste possible : le site y reste en `attente`, sans bloc Caddy ni variable posée. Ne demandez pas à Kr le DNS,
 le bloc Caddy ni les variables du site tant que cette passation ne dit pas de nouveau « Prêt à mettre en ligne ».
+Kr a demandé le 5 novembre 2026 que le site soit déployé sous `silooo.com` dès qu'il sera prêt : la direction du site
+s'en chargera elle-même (le projet Docker « silooo » seul) et vous le dira ici.
 
 **Le kit de Kr est sur `main`** : `docs/references/site-kit/` (ses trois `site*.md`), `docs/references/site/`
 (maquettes, prototype d'Oooscar, captures de la révision), et `docs/site.md` qui le reprend. Votre dossier `silooo`
@@ -100,15 +108,16 @@ garde une copie non suivie de `docs/references/site/`, identique octet pour octe
    bouger avec les corrections : `SILOOO_SITE_URL_BOUTIQUE` disparaît (les Gemmes passent par la boutique PayNow de
    Silooo, kit « L'achat de Gemmes »), `SILOOO_SITE_SITES_DE_VOTE` aussi (les sites de vote vivent dans
    `definitions/site-votes.json`), `SILOOO_SITE_MODE` gagne la valeur `beta`, et des variables arrivent pour
-   l'application Azure de la connexion Xbox, l'API de commande PayNow et Redis (sessions sous `silooo:web:session:`).
-   Chaque branche qui en change une l'annonce ici avant sa fusion ; rien à faire d'ici là.
+   l'application Azure de la connexion Xbox (arrivées, point 10) et l'API de commande PayNow ; pas de Redis : les
+   sessions sont dans la table `web_sessions` (décision 19). Chaque branche qui en change une l'annonce ici avant sa
+   fusion ; rien à faire d'ici là.
 2. **L'admission et la preuve du gamertag.** Le kit répond à la réserve de S4 : l'inscription se fait par Xbox (le
    gamertag vient du jeton XSTS) ou par Discord suivi d'un code de six caractères tapé en jeu (le gamertag vient du
    jeu). Deux choses vous reviennent, contrat d'abord (`api/silooo-core.openapi.yaml`, puis le test de contrat, puis
    le code) : `POST /v1/links/discord` (l'add-on envoie le code tapé ; le service relie le compte) et, en mode
    `beta` du site, le refus de `session/join` pour un joueur absent de `beta_access`, avec un code `Refused` nommé
-   (par exemple `PAS_ADMIS`). D'ici là, la règle `SILOOO_SITE_ADMISSION` sur `site_registrations` (V7) reste telle
-   quelle. La direction du site vous écrira le dessin exact de la table avant la migration.
+   (par exemple `PAS_ADMIS`). D'ici là, la règle `SILOOO_SITE_ADMISSION` reste telle quelle (elle écrit maintenant aussi
+   `beta_access`). Les tables sont sur `main` (V11, point 10) et `DiscordLinks.redeem` fait le travail du code tapé.
 3. **Le Pionnier** : le kit le donne une seule fois, au premier `session/join` d'un inscrit, par une ligne de
    `player_cosmetics` de source `evenement` ; le drapeau `pioneer` de V7 ne sert plus. Le titre et l'objet de déco
    restent à dessiner (Kr).
@@ -149,6 +158,23 @@ garde une copie non suivie de `docs/references/site/`, identique octet pour octe
    `version` (la version de Bedrock) et `dernierPrestige` restent à `null` : si le signal de vie du serveur portait la
    version, et si le dépôt des prestiges offrait une lecture du dernier, le bandeau les montrerait sans autre changement
    (`SiteDirect.kt`). Rien d'urgent : le bandeau cache ce qu'il n'a pas.
+10. **Ce que `claude/site-comptes` touche et attend** (5 novembre 2026). (a) **La migration V11** `comptes_du_site`
+   (`web_accounts`, `waitlist`, `discord_links`, `beta_access`, `web_sessions`) : le site a pris V11, le jeu prend V12
+   et la suite (noté dans `docs/passation.md`). (b) **`POST /v1/links/discord`** : tout est prêt côté site dans
+   `registration/DiscordLinks.kt` : `redeem(connection, codeTapé, gamertag, admit, pioneer)` normalise le code
+   (majuscules, sans espaces ni tirets), vérifie les dix minutes, refuse un gamertag déjà relié à un autre compte, relie
+   le compte, écrit `site_registrations` et, selon la règle, `beta_access` ; il répond `UnknownCode`, `Expired`,
+   `PlayerTaken`, `AlreadyLinked` ou `Linked(accountId)`, à traduire en codes `Refused` du contrat. À vous : la route
+   (contrat d'abord) et l'écran de l'add-on, car la page `/compte/lier/` promet « Ouvre le Menu (case 9), Mon compte, puis
+   Relier Discord, Tape le code ». (c) **Le refus de `session/join` en bêta** : `BetaAccessStore.find(connection,
+   playerXuid)` (`registration/WebAccounts.kt`, `JdbcWebStores.kt`) lit `beta_access` ; `SiteAdmission` lit toujours
+   `site_registrations` ; à vous de choisir laquelle `join` consulte en mode `beta` (la règle écrit les deux). (d) **Le
+   Pionnier** : `site_registrations.pioneer` n'est plus toujours vrai, seul un inscrit d'avant le mode `ouvert` l'a ;
+   `waitlist.pioneer_given_at` attend que le jeu ait donné l'objet (personne ne l'écrit encore). (e) **Les variables** :
+   `SILOOO_XBOX_CLIENT_ID` et `SILOOO_XBOX_CLIENT_SECRET` (facultatives, ensemble ; sans elles la porte Xbox dit « arrive
+   bientôt »), et `SILOOO_SITE_MODE=beta` ; dans `deploy/exemple.env.txt` et `docs/deploiement.md`. (f) **Fichiers
+   partagés** : `Config.kt` (`xbox()`), `Main.kt` (`HttpXboxIdentity`), `Application.kt` (`Dependencies` : `xboxIdentity`,
+   `guildJoiner`, les cinq dépôts des comptes), `core/README.md` (« Trois modes », les deux variables).
 
 ## Pour la direction du Discord
 
@@ -157,8 +183,14 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
 
 1. **La liaison** : d'accord. Le site affiche « relié » dès l'OAuth2 ; « prouvé » vient du jeu, par le code tapé en
    jeu (`POST /v1/links/discord`, demandé à la direction du jeu). Le bot donne le pseudo et les rôles après ce code.
-2. **La case « Rejoindre aussi le Discord »** : la portée `guilds.join` est demandée seulement quand la case est
-   cochée (deux adresses d'autorisation), `identify` seul sinon. Question T3 de `docs/site-revision.md`, posée à Kr.
+   Depuis `claude/site-comptes` (5 novembre 2026), le code existe (`registration/DiscordLinks.kt`, page `/compte/lier/`,
+   table `discord_links` de V11). Votre « Admettre » de `#admissions` devrait aussi écrire `beta_access` (V11,
+   `BetaAccessStore.admit`, `admitted_by` = le membre du staff) pour que le site, le jeu et le bot voient la même admission.
+2. **La case « Rejoindre aussi le Discord »** : fait ainsi par `claude/site-comptes` (T3 appliquée par sa recommandation,
+   décision 19) : `identify` seul, `identify guilds.join` quand la case est cochée. Après le retour OAuth2, le site
+   appelle `DiscordGuildJoiner.join(user)` (`registration/DiscordIdentity.kt` ; `user.accessToken` est le jeton du
+   joueur) : à vous de l'implémenter avec le jeton du bot (`PUT /guilds/{id}/members/{user}`) et de le poser dans
+   `Dependencies.guildJoiner` ; sans lui, la case ne fait rien de plus et le site l'écrit dans son journal.
 3. **Les textes** : le site publiera les règles des tirages et la page Confidentialité (journal de salon gardé trente
    jours) dans `claude/site-attente` (R25). Envoyez vos brouillons par votre passation ; en attendant, le site écrit
    une phrase « à compléter par la direction du Discord ».
@@ -169,13 +201,16 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
 ## À faire par Kr
 
 - [ ] Répondre aux trois questions de [site-revision.md](site-revision.md) (T1 socle technique, T2 classement
-  hebdomadaire, T3 portée Discord) ; sans réponse, la recommandation s'applique
+  hebdomadaire, T3 portée Discord) ; sans réponse, la recommandation s'applique (T1 et T3 le sont déjà, décisions 15
+  et 19 : à retourner si elles ne conviennent pas)
 - [ ] Relire l'[ADR 0006](adr/0006-site-silooo-com.md) (statut « Proposée »), que `claude/site-socle` amende selon T1
 - [ ] Le DNS de `silooo.com`, `www` et `play.silooo.com` vers l'IP du VPS ; ouvrir le port 19142 en UDP et TCP
 - [ ] Le bloc `silooo.com` dans le Caddy de SileneMC (`/var/www/minecraft`, qu'aucune session Silooo ne touche) :
   mandat vers `silooo-core:8081` sur le réseau `silenemc`, TLS automatique
-- [ ] Créer le serveur Discord Silooo, son application (connexion et bot) et le rôle staff ; poser les identifiants
-- [ ] Créer l'application Azure de la connexion Xbox (comptes Microsoft personnels) ; poser ses identifiants
+- [ ] Créer le serveur Discord Silooo, son application (connexion et bot, adresse de retour
+  `https://silooo.com/connexion/discord/retour/`) et le rôle staff ; poser les identifiants
+- [ ] Créer l'application Azure de la connexion Xbox (comptes Microsoft personnels, adresse de retour
+  `https://silooo.com/connexion/xbox/retour/`) ; poser `SILOOO_XBOX_CLIENT_ID` et `SILOOO_XBOX_CLIENT_SECRET`
 - [ ] Brancher Votifier sur Hubyy vers silooo-core et poser le jeton ; choisir plus tard d'autres sites de vote
 - [ ] Ajouter Silooo au menu de Hubyy (troisième étape de `/rejoindre`)
 - [ ] Ouvrir la boutique PayNow de Silooo en mode test, poser la clé du webhook ; confirmer le format exact du webhook
@@ -309,6 +344,27 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
     « aucune largeur fixe au-dessus de 360 px » reste entière. Les textes légaux sont des brouillons entiers, avec des
     hypothèses à confirmer (« À valider par Kr »).
 
+19. **Les comptes, tranché par la branche `claude/site-comptes`** (5 novembre 2026). (a) Les sessions vivent dans la table
+   `web_sessions`, pas dans Redis comme le kit l'écrit : Redis est celui de SileneMC, une table se sauvegarde avec le
+   reste et suffit à cette échelle ; la base ne garde que l'empreinte SHA-256 du jeton (un vol de la base ne donne
+   aucune session), le jeton anti-CSRF des formulaires est celui de la session, les sessions mortes se purgent à chaque
+   connexion. (b) L'état OAuth2 des deux portes voyage dans un cookie signé de dix minutes (`silooo_porte`, chemin
+   `/connexion/`) ; cinq départs par minute et par adresse. (c) Xbox d'abord : OAuth Microsoft (`consumers`, portée
+   `XboxLive.signin`), jeton Xbox Live puis XSTS ; les trois refus de Microsoft ont chacun leur page (compte enfant :
+   « Microsoft a dit non » avec la marche à suivre des parents ; pas de profil Xbox ; pays sans Xbox Live) ; une panne
+   de Microsoft (5xx, 429) répond 502 « Réessaie dans un moment », un refus répond 400. (d) Un gamertag, un compte
+   Discord : un gamertag déjà relié à un autre compte du site répond 409, un Discord déjà relié aussi ; « Délier » est
+   l'issue. (e) La règle `SILOOO_SITE_ADMISSION` reste jusqu'à l'admin et écrit `beta_access` (`admitted_by` =
+   `regle:<mot>`) ; `site_registrations` (V7) reste écrite dès qu'un gamertag est connu, parce que le jeu et le bot la
+   lisent. (f) Le Pionnier se note à l'inscription tant que le site n'est pas `ouvert` ; en mode `ouvert`, se connecter
+   n'inscrit plus personne. (g) T3 par sa recommandation : `identify` seul, `guilds.join` quand la case est cochée.
+   (h) `/pionniers/` reste l'adresse de « Me prévenir » en `attente` et en `beta` (les deux portes et la promesse),
+   `/connexion/` existe dans les trois modes, `/compte/` et `/compte/lier/` en `beta` et `ouvert` ; en `beta`, `/` reste
+   la page d'attente. (i) La page du code se rafraîchit par un bouton « Actualiser » (formulaire GET), pas par une balise
+   `meta refresh` : le gabarit n'en offre pas, et une page qui se recharge seule gêne un lecteur d'écran. (j) Le
+   gamertag tapé, la case « J'ai lu les règles » et `PioneerRoutes.kt` disparaissent. (k) La bulle d'Oooscar passait sur
+   le dernier bloc des pages de compte à 1 280 px : une marge de 72 px sous `main.comptes` lui laisse la place.
+
 ## À valider par Kr
 
 Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne. Tous ceux de S0 sont dans
@@ -432,6 +488,35 @@ plus. Ce qui les remplace, tout à valider :
   Discord », « L'invitation au Discord arrive bientôt sur cette page. » ; `pages/Oooscar.kt` : la bulle « Sur Discord
   aussi, c'est moi. ». Le code de liaison y est dit « à la bêta », et « les lots d'un giveaway ne suivent qu'un compte
   relié » frôle une promesse : à relire en premier.
+- `claude/site-comptes`, `contenu/connexion.md`, `pionniers.md`, `compte.md` : « Se connecter », « Connecte-toi avec Xbox ou
+  avec Discord. Silooo ne te demande aucun mot de passe. » ; « Me prévenir », « Inscris-toi pour la bêta. On ne garde que
+  ton gamertag ou ton identifiant Discord. » ; « Mon compte », « Ici, tu vois le compte du jeu et le Discord reliés à ton
+  compte du site. », et leurs descriptions.
+- `pages/Connexion.kt` : « Avec Xbox », « Avec Discord », « Tu te connectes avec ton compte Microsoft. », « Tu te
+  connectes avec ton compte Discord. », « Rejoindre aussi le Discord », « Ton compte du jeu : ton gamertag est réservé
+  tout de suite. », « Le bot te prévient le jour de l'ouverture. », « La connexion avec Xbox arrive bientôt. » (et
+  Discord), « Moins de 13 ans » et son texte (Discord fermé, passer par Xbox, la famille Microsoft), « C'est noté ! »,
+  « Pour toi », « Xbox ne nous laisse pas t'écrire. Pour savoir quand ça ouvre, garde un œil sur le chantier ou sur
+  Hubyy. », « Tu relieras ton compte du jeu à l'ouverture de la bêta. », « Voir le chantier », « Relier mon compte du
+  jeu », « Microsoft a dit non », « Ton compte Xbox est un compte enfant. Microsoft le bloque tant qu'il n'est pas dans
+  une famille. », « Pour débloquer » et ses trois étapes (« Un parent se connecte à son compte Microsoft. », « Dans
+  Famille, il ajoute ton compte. », « Tu reviens ici et tu réessaies. »), « Réessayer » ; les bulles d'Oooscar « Xbox ou
+  Discord, au choix. » et « Réessaie dans un moment. ».
+- `pages/AccountViews.kt`, les pages de refus : « Trop d'essais. Réessaie dans une minute. », « Le formulaire a expiré.
+  Envoie-le de nouveau. », « La connexion Xbox n'a pas abouti. Reprends depuis le début. », « Xbox ne répond pas pour
+  l'instant. Réessaie dans un moment. », « Ce compte Microsoft n'a pas de profil Xbox. Crée-le sur xbox.com, puis
+  reviens. », « Xbox Live n'existe pas dans ton pays : Microsoft refuse la connexion. », « Ce gamertag est déjà relié à
+  un autre compte du site. », les deux phrases Discord sur le même modèle, « Ce compte Discord est déjà relié à un autre
+  joueur. », « Retour à la connexion », « Retour à mon compte ».
+- `pages/Compte.kt` : « Ton compte », « Compte du jeu », « Pas encore relié », « Discord », « Relié », « Pas relié »,
+  « Inscription », « Pionnier », « Relier mon compte du jeu », « Relier Discord », « Se déconnecter » ; « Lier mon
+  compte », « Relie ton compte du jeu à ton compte du site avec un code de six caractères, valable dix minutes. », « Tu
+  es connecté avec Discord. Relie maintenant ton compte du jeu. », « Tu es connecté avec Xbox. Ton compte du jeu est
+  déjà relié : tu n'as rien à taper en jeu. », « Un gamertag, un compte Discord. Pour en changer, délie d'abord
+  celui-ci. », « Relier Discord arrive bientôt. », « Ton code », « Valable encore 9 min 41 s. », « Ce code a expiré.
+  Demande un nouveau code. », « Dans le jeu » et ses trois étapes (« Ouvre le Menu (case 9) », « Mon compte, puis Relier
+  Discord », « Tape le code » : ce que l'add-on devra offrir), « En attente du jeu », « Actualiser », « Nouveau code »,
+  « Relié ! », « Voir mon compte », « Délier ».
 
 ## Journal
 
@@ -563,3 +648,17 @@ plus. Ce qui les remplace, tout à valider :
   deux tailles, actus, article, Discord, CGV). `tools/verifier_site.mjs` et les tests du module acceptent `alt=""` sur
   une image décorative (un `alt` absent reste une faute). `tools/verifier.sh` vert, rebase sur `origin/main`, fusion sur
   `main`. Suite : `claude/site-comptes`.
+- 5 novembre 2026, 19 h 27 à 20 h 42 (direction du site, deuxième passage, en local ; trois agents Sonnet en parallèle
+  pour la migration et les dépôts JDBC, le fournisseur Xbox et le mode `beta`, les pages et leurs tests ; la direction a
+  écrit les routes des comptes et leurs vingt tests, câblé le module, relu les captures). `claude/site-comptes` : la
+  connexion par Xbox (`HttpXboxIdentity`, prototypée d'abord avec `FakeXboxIdentity`) et par Discord, les sessions en
+  table `web_sessions`, l'inscription d'avant l'ouverture avec le Pionnier, `/compte/` et `/compte/lier/` avec le code de
+  six caractères (`DiscordLinks`), le mode `beta`, la migration V11 (décision 19 ; point 10 pour la direction du jeu,
+  points 1 et 2 pour la direction du Discord). R6, R15, R16, R17 corrigés, R18 et R19 pour moitié, R21 pour
+  `/compte/lier`, R23 selon T3. Tests Gradle verts en local (2 020, SQL ignorés sans Docker ; `WebStoresSqlTest` et
+  `SiteRegistrationSqlTest` joués par la CI sur la branche avant la fusion : au premier passage, le jeu de test écrivait un
+  jeton anti-CSRF de 69 caractères dans la colonne de 64, corrigé), 66 pages à 360 et 1 280 px sans débordement
+  ni erreur console, captures relues (connexion, refus, panne, pionniers et « C'est noté ! », compte, lier, aux deux
+  tailles ; à 1 280 px la bulle d'Oooscar passait sur le dernier bloc, corrigé par une marge). `tools/verifier.sh` vert,
+  rebase sur `origin/main` (le Discord D2 avait avancé), fusion sur `main`. Kr a demandé en séance de déployer sous
+  `silooo.com` quand ce sera prêt (État). Suite : `claude/site-admin`.

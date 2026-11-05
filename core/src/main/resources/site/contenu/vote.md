@@ -2,7 +2,7 @@
 titre: Vote
 description: Les sites où voter pour Silooo, la récompense par vote et la Vote party.
 url: /vote/
-modes: [ouvert]
+modes: [beta, ouvert]
 ---
 Vote pour Silooo sur les sites ci-dessous.
 

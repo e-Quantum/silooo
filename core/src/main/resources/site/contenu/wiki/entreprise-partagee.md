@@ -2,7 +2,7 @@
 titre: Entreprise partagée
 description: Le PDG, les associés, l'invitation et ce que devient l'entreprise que tu laisses.
 url: /wiki/entreprise-partagee/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 9
 ---
 ## PDG et associés

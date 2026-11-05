@@ -40,8 +40,8 @@ internal fun Route.siteRoutes(
 ) {
     val published = NewsArticles.published(articles)
     for (page in pages) {
-        // Les routes des pionniers (GET et POST) sont dans PioneerRoutes.kt, celles des classements dans StatsRoutes.kt.
-        if (page.name == PIONEERS_PAGE || page.name == RANKING_PAGE) continue
+        // Les routes des comptes (connexion, pionniers, compte) sont dans AccountRoutes.kt, celles des classements dans StatsRoutes.kt.
+        if (page.name == PIONEERS_PAGE || page.name == CONNEXION_PAGE || page.name == ACCOUNT_PAGE || page.name == RANKING_PAGE) continue
         val render = renderer(page, shell, articles, wiki, online)
         get(page.url) { call.respondHtml(HttpStatusCode.OK) { render() } }
         // /cgv mène à /cgv/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.

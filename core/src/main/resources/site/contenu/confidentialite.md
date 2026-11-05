@@ -2,7 +2,7 @@
 titre: Confidentialité
 description: Ce que le site, le Discord et le paiement gardent de toi, combien de temps, et comment l'effacer.
 url: /confidentialite/
-modes: [attente, ouvert]
+modes: [attente, beta, ouvert]
 ---
 Silooo garde le minimum. Cette page dit quoi, chez qui et pendant combien de temps.
 

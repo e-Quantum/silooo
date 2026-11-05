@@ -2,7 +2,7 @@
 titre: Silo et hors ligne
 description: Encaisser au Silo, et ce que produisent tes usines quand tu n'es pas connecté.
 url: /wiki/silo-et-hors-ligne/
-modes: [ouvert]
+modes: [beta, ouvert]
 ordre: 3
 ---
 ## Le Silo
