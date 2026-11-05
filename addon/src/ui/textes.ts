@@ -140,6 +140,12 @@ const REFUSAL_BUBBLES: Readonly<Record<RefusalReason, (amount: number | undefine
   DEJA_POSSEDE: () => say("fier", "Tu l'as déjà."),
   GRADE_PRECEDENT_REQUIS: () => say("oups", "Il faut d'abord le grade précédent."),
   CONFLIT_REESSAYER: () => say("oups", "Ça a bougé. Réessaie."),
+  // À valider par Kr : les quatre refus du pass de saison. Les écrans du pass viennent dans une autre tranche.
+  PALIER_NON_ATTEINT: (amount) =>
+    amount === 1 ? say("oups", "Il te manque 1 point.") : missing("points", amount, "Il te manque des points."),
+  DEJA_RECLAME: () => say("oups", "Tu as déjà réclamé ce palier."),
+  PREMIUM_REQUIS: () => say("oups", "Cette piste demande le pass premium."),
+  SAISON_INACTIVE: () => say("oups", "La saison n'est pas en cours."),
 };
 
 function isRefusalReason(reason: string): reason is RefusalReason {
