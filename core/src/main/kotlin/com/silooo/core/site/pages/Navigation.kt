@@ -18,6 +18,7 @@ internal object Navigation {
     private val ORDER = listOf(
         NavItem("/", "Accueil"),
         NavItem("/rejoindre/", "Rejoindre"),
+        NavItem("/pionniers/", "Pionniers"),
         NavItem("/wiki/", "Wiki"),
         NavItem("/classements/", "Classements"),
         NavItem("/boutique/", "Boutique"),

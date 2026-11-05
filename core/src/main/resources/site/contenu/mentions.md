@@ -24,4 +24,10 @@ Silooo est un serveur indépendant. Minecraft est une marque de Mojang AB et de 
 
 ## Données
 
-Ce site ne pose aucun cookie et n'utilise aucun outil de mesure. Il ne charge rien depuis un autre hôte.
+Ce site n'utilise aucun outil de mesure. Il ne charge rien depuis un autre hôte.
+
+Le site pose un seul cookie, de session : signé, valable une heure, et seulement après une inscription de pionnier. Il sert à retrouver ton inscription, rien d'autre.
+
+Pour l'admission, le site garde ton gamertag et, si tu relies ton compte Discord, l'identifiant de ce compte. Il ne garde rien d'autre : ni courriel, ni mot de passe. Le site n'affiche jamais cet identifiant.
+
+Pour effacer ton inscription, écris au contact ci-dessus.

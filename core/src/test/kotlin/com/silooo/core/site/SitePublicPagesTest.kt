@@ -392,7 +392,7 @@ class SitePublicPagesTest {
         val html = client.get("/").bodyAsText()
         val labels = Regex("""<a href="[^"]*" class="sa-bouton sa-bouton--fonte sa-bouton--nav"[^>]*>([^<]+)</a>""")
             .findAll(html).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("Accueil", "Rejoindre", "Wiki", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
+        assertEquals(listOf("Accueil", "Rejoindre", "Pionniers", "Wiki", "Boutique", "Vote", "Mises à jour", "Mentions"), labels)
     }
 
     @Test

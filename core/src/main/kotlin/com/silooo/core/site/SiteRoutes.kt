@@ -26,6 +26,8 @@ import kotlinx.html.HTML
  */
 internal fun Route.siteRoutes(pages: List<ContentPage>, shell: SiteShell, updates: List<UpdateEntry>, wiki: List<ContentPage>) {
     for (page in pages) {
+        // Les routes des pionniers (GET et POST) sont dans PioneerRoutes.kt.
+        if (page.name == PIONEERS_PAGE) continue
         val render = renderer(page, shell, updates, wiki)
         get(page.url) { call.respondHtml(HttpStatusCode.OK) { render() } }
         // /mentions mène à /mentions/ : une seule adresse par page, pour les liens et pour les moteurs de recherche.
