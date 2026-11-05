@@ -274,10 +274,10 @@ Soutiens, parrainage, lots des concours passent par le contrat et « Pour la dir
 ## Technique
 
 - **Où vit le bot** : dans silooo-core, le paquet `discord/`, derrière une interface Kotlin avec un faux Discord pour
-  les tests ; aucun test ne parle au vrai Discord. La bibliothèque (Kord ou JDA) se choisit par ADR, version relevée
-  sur Maven Central, sur les composants récents, l'accueil guidé, l'AutoMod, les forums, les réponses éphémères, la
-  reconnexion et la mémoire.
-- **Ne jamais faire tomber le jeu** : le bot ne démarre que si `SILOOO_DISCORD_ACTIF=oui` (non par défaut) ; une file
+  les tests ; aucun test ne parle au vrai Discord. La bibliothèque est JDA 6.7.0, choisie par l'ADR 0007 sur les
+  composants récents, la cadence des versions et le changement de Discord du 16 novembre 2026 ; Kord est écarté.
+- **Ne jamais faire tomber le jeu** : le bot ne démarre que si `SILOOO_DISCORD_ACTIF` vaut `oui` ou `a-blanc` (l'écart
+  avec le plan, sans rien changer) ; `non` par défaut ; `SILOOO_DISCORD_PHASE` dit quelles entrées du plan existent ; une file
   bornée pour les images ; un budget mémoire mesuré avec et sans le bot, chiffres dans la passation ; une panne du bot
   ou de Discord n'arrête ni le jeu ni le site. Au-delà du budget, le bot devient un processus à part (ADR).
 - **Les secrets** : `SILOOO_DISCORD_TOKEN` et l'identifiant du serveur viennent de l'environnement du conteneur (du VPS

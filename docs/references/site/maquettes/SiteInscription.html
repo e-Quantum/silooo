@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>silooo.com, inscription</title>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Jersey+10&amp;family=Pixelify+Sans:wght@400;600&amp;family=Silkscreen&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#fff6de}a:hover{color:#f0cf72}
+:root, [data-theme="atelier"] {
+  --fonte-900: #1e1c1a;
+  --fonte-700: #3a3633;
+  --fonte-500: #5b5853;
+  --fonte-300: #8c8780;
+  --acier-100: #bab5ac;
+  --email-creme: #efe3c6;
+  --papier: #fff6de;
+  --papier-ombre: #c9ba98;
+  --email-rouge: #b3362b;
+  --email-rouge-clair: #e0614f;
+  --email-rouge-sombre: #7a2019;
+  --email-bleu: #2d4e7a;
+  --email-bleu-clair: #5c84b8;
+  --email-vert: #2f6b4f;
+  --email-vert-clair: #4f9a74;
+  --laiton: #c8962e;
+  --laiton-clair: #f0cf72;
+  --laiton-sombre: #8a6420;
+  --or-lingot: #f2c440;
+  --amethyste: #7a4fb0;
+  --amethyste-clair: #b38be6;
+  --flamme: #e07a2b;
+  --ciel: #8fb8d6;
+  --ciel-clair: #bedaec;
+  --ombre-pixel: 0 3px 0 #1e1c1a;
+  --ombre-texte: 3px 3px 0 #1e1c1a;
+}
+:root {
+  --pas-1: 3px;
+  --pas-2: 6px;
+  --pas-4: 12px;
+  --pas-6: 18px;
+  --pas-8: 24px;
+  --pas-12: 36px;
+  --rayon-zero: 0;
+  --font-affiche: "Jersey 10", "Courier New", monospace;
+  --font-corps: "Pixelify Sans", "Trebuchet MS", sans-serif;
+  --font-etiquette: Silkscreen, "Courier New", monospace;
+}
+.affiche-geante { font-family: var(--font-affiche); font-size: 80px; line-height: 72px; font-weight: 400; }
+.affiche-titre { font-family: var(--font-affiche); font-size: 50px; line-height: 48px; font-weight: 400; }
+.affiche-chiffre { font-family: var(--font-affiche); font-size: 40px; line-height: 40px; font-weight: 400; }
+.corps { font-family: var(--font-corps); font-size: 20px; line-height: 26px; font-weight: 400; }
+.corps-gras { font-family: var(--font-corps); font-size: 20px; line-height: 26px; font-weight: 600; }
+.etiquette { font-family: var(--font-etiquette); font-size: 16px; line-height: 20px; font-weight: 400; }
+/* Silooo Atelier : composants.
+   Chaque panneau et chaque bouton est une texture PNG découpée en 9 (border-image),
+   agrandie ×3 sans lissage : exactement ce que fera le pack de ressources Bedrock. */
+
+.sa-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---------- Panneau : fenêtre en fonte rivetée (ou en laiton pour le prestige) */
+.sa-panneau {
+  border: 15px solid transparent;
+  border-image: url("../../../../design/textures/panneau-fonte.png") 5 fill / 15px stretch;
+  image-rendering: pixelated;
+  color: var(--papier);
+  padding: var(--pas-2);
+  box-shadow: var(--ombre-pixel);
+}
+.sa-panneau--laiton {
+  border-image-source: url("../../../../design/textures/panneau-laiton.png");
+  color: var(--fonte-900);
+}
+
+/* ---------- Plaque : titre émaillé (crème, filet bleu ou rouge) */
+.sa-plaque {
+  display: inline-block;
+  border: 15px solid transparent;
+  border-image: url("../../../../design/textures/plaque-email-bleue.png") 5 fill / 15px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-affiche);
+  font-size: 50px;
+  line-height: 48px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  padding: 0 var(--pas-4);
+}
+.sa-plaque--rouge { border-image-source: url("../../../../design/textures/plaque-email-rouge.png"); }
+.sa-plaque--petite { font-size: 30px; line-height: 30px; border-width: 12px; border-image-width: 12px; }
+
+/* ---------- Bouton : émail rouge (action), laiton (secondaire), fonte (neutre) */
+.sa-bouton {
+  appearance: none;
+  border: 12px solid transparent;
+  border-image: url("../../../../design/textures/bouton-rouge.png") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  background: none;
+  color: var(--papier);
+  font-family: var(--font-affiche);
+  font-size: 40px;
+  line-height: 36px;
+  min-height: 60px;
+  padding: 0 var(--pas-2) 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pas-2);
+  text-shadow: 3px 3px 0 var(--email-rouge-sombre);
+}
+.sa-bouton:active, .sa-bouton.is-appuye {
+  border-image-source: url("../../../../design/textures/bouton-rouge-appuye.png");
+  padding-top: 6px; padding-bottom: 0;
+}
+.sa-bouton--laiton {
+  border-image-source: url("../../../../design/textures/bouton-laiton.png");
+  color: var(--fonte-900);
+  text-shadow: none;
+}
+.sa-bouton--fonte {
+  border-image-source: url("../../../../design/textures/bouton-fonte.png");
+  text-shadow: 3px 3px 0 var(--fonte-700);
+}
+.sa-bouton--fonte:active, .sa-bouton--fonte.is-appuye { border-image-source: url("../../../../design/textures/bouton-fonte-appuye.png"); }
+.sa-bouton[disabled] { filter: saturate(0.2) brightness(0.8); cursor: not-allowed; }
+.sa-bouton:focus-visible { outline: 3px solid var(--or-lingot); outline-offset: 3px; }
+.sa-bouton small { font-family: var(--font-etiquette); font-size: 16px; line-height: 20px; letter-spacing: 1px; }
+
+/* ---------- Icône : 16 × 16 px, toujours à ×2, ×3 ou ×4 */
+.sa-icone { width: 48px; height: 48px; image-rendering: pixelated; display: inline-block; flex: none; }
+.sa-icone--x2 { width: 32px; height: 32px; }
+.sa-icone--x4 { width: 64px; height: 64px; }
+
+/* ---------- Compteur mécanique : un cylindre crème par chiffre */
+.sa-compteur { display: inline-flex; align-items: center; gap: 3px; }
+.sa-compteur__chiffre {
+  width: 36px; height: 48px;
+  border: 3px solid var(--fonte-900);
+  background: var(--papier);
+  box-shadow: inset 0 6px 0 var(--papier-ombre), inset 0 -6px 0 var(--papier-ombre);
+  color: var(--fonte-900);
+  font-family: var(--font-affiche);
+  font-size: 50px; line-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sa-compteur__virgule { font-family: var(--font-affiche); font-size: 50px; line-height: 44px; color: var(--papier); padding: 0 1px; }
+.sa-compteur__unite {
+  margin-left: var(--pas-2);
+  font-family: var(--font-affiche); font-size: 50px; line-height: 44px;
+  color: var(--laiton-clair);
+}
+
+/* ---------- Jauge à lampes : un segment par niveau jusqu'au prochain palier ×2 */
+.sa-jauge { display: flex; gap: 3px; align-items: center; }
+.sa-jauge__lampe { width: 18px; height: 24px; image-rendering: pixelated; background: url("../../../../design/textures/jauge-eteinte.png") center / 100% 100%; }
+.sa-jauge__lampe.is-allumee { background-image: url("../../../../design/textures/jauge-allumee.png"); }
+
+/* ---------- Monnaie : icône + valeur (Donar, Lingots, Gemmes) */
+.sa-monnaie {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  font-family: var(--font-affiche); font-size: 40px; line-height: 40px; color: var(--papier);
+}
+.sa-monnaie--lingots { color: var(--or-lingot); }
+.sa-monnaie--gemmes { color: var(--papier); }
+
+/* ---------- Ticket : prix, récompense, reçu (papier perforé) */
+.sa-ticket {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  border: 12px solid transparent;
+  border-image: url("../../../../design/textures/ticket-papier.png") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-affiche); font-size: 30px; line-height: 30px;
+  padding: 0 var(--pas-2) 0 var(--pas-4);
+}
+
+/* ---------- Bulle d'Oooscar : plaque crème rivetée, 6 mots au plus */
+.sa-bulle {
+  position: relative;
+  display: inline-block;
+  border: 12px solid transparent;
+  border-image: url("../../../../design/textures/plaque-email-bleue.png") 5 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--fonte-900);
+  font-family: var(--font-corps); font-size: 24px; line-height: 30px;
+  padding: 0 var(--pas-2);
+  max-width: 360px;
+}
+
+/* ---------- Barre d'actions : rangée de boutons fonte en bas de l'écran */
+.sa-barre { display: inline-flex; gap: var(--pas-2); }
+.sa-barre .sa-bouton { flex-direction: column; gap: 3px; min-width: 96px; min-height: 96px; padding: 0 0 3px; font-size: 16px; line-height: 20px; font-family: var(--font-etiquette); text-shadow: none; }
+
+/* ---------- Oooscar : illustration à blocs (PNG 512 px de haut), affichée lisse, pas en pixel art */
+.sa-oooscar { height: 120px; width: auto; image-rendering: auto; flex: none; }
+.sa-oooscar--grand { height: 180px; }
+
+/* =================================================================== HUD autour de la barre d'inventaire */
+/* Puce : une stat (icône 16 px à ×2 + valeur), texture puce-fonte.png découpée en 9 (bord 2 px, ×3). */
+.sa-puce {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  border: 6px solid transparent;
+  border-image: url("../../../../design/textures/puce-fonte.png") 2 fill / 6px stretch;
+  image-rendering: pixelated;
+  color: var(--papier);
+  font-family: var(--font-affiche); font-size: 30px; line-height: 30px;
+  padding: 0 var(--pas-2) 0 var(--pas-1);
+  white-space: nowrap;
+}
+.sa-puce img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.sa-puce--laiton { border-image-source: url("../../../../design/textures/puce-laiton.png"); color: var(--fonte-900); }
+.sa-puce--lingots { color: var(--or-lingot); }
+
+/* Ligne de consigne : l'objectif en cours, sous les puces du haut. Une seule à la fois. */
+.sa-consigne {
+  display: inline-flex; align-items: center; gap: var(--pas-2);
+  background: var(--fonte-900); color: var(--papier);
+  border: 3px solid var(--fonte-900); box-shadow: inset 0 3px 0 var(--fonte-700);
+  font-family: var(--font-corps); font-size: 18px; line-height: 24px;
+  padding: 3px var(--pas-4) 3px var(--pas-2);
+}
+.sa-consigne b { color: var(--or-lingot); font-weight: 600; }
+.sa-consigne img { width: 32px; height: 32px; image-rendering: pixelated; }
+
+/* Barre de progression : piste.png (bord 2 px) + plein.png répété. Pour le Silo, la Vote party, un événement. */
+.sa-progression {
+  position: relative; box-sizing: border-box;
+  height: 30px; min-width: 120px;
+  border: 6px solid transparent;
+  border-image: url("../../../../design/textures/piste.png") 2 fill / 6px stretch;
+  image-rendering: pixelated;
+}
+.sa-progression__plein { height: 100%; background: url("../../../../design/textures/plein.png") 0 0 / 12px 100% repeat-x; image-rendering: pixelated; }
+.sa-progression--haute { height: 42px; }
+.sa-progression__texte {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-etiquette); font-size: 16px; line-height: 16px; letter-spacing: 1px;
+  color: var(--papier);
+  text-shadow: 3px 0 0 var(--fonte-900), -3px 0 0 var(--fonte-900), 0 3px 0 var(--fonte-900), 0 -3px 0 var(--fonte-900);
+}
+
+/* Barre d'inventaire (vanilla, dessinée pour situer le HUD : on ne la retexture pas). */
+.sa-hotbar { display: inline-flex; background: var(--fonte-700); border: 3px solid var(--fonte-900); padding: 3px; gap: 0; }
+.sa-hotbar__case { width: 54px; height: 54px; box-sizing: border-box; border: 3px solid var(--fonte-500); display: flex; align-items: center; justify-content: center; }
+.sa-hotbar__case.is-choisie { border-color: var(--papier); }
+.sa-hotbar__case img { width: 32px; height: 32px; image-rendering: pixelated; }
+
+/* Tableau latéral (scoreboard) : titre plaque, une ligne = icône + mot + valeur. 8 lignes au plus. */
+.sa-tableau {
+  background: var(--fonte-900); border: 3px solid var(--fonte-900); box-shadow: inset 0 0 0 3px var(--fonte-700);
+  color: var(--papier); font-family: var(--font-corps); font-size: 18px; line-height: 24px;
+  padding: var(--pas-2) var(--pas-4); display: flex; flex-direction: column; gap: 3px; min-width: 240px;
+}
+.sa-tableau__titre { font-family: var(--font-affiche); font-size: 30px; line-height: 30px; color: var(--laiton-clair); text-align: center; margin-bottom: 3px; }
+.sa-tableau__ligne { display: flex; align-items: center; gap: var(--pas-2); }
+.sa-tableau__ligne img { width: 24px; height: 24px; image-rendering: pixelated; }
+.sa-tableau__ligne span:last-child { margin-left: auto; font-family: var(--font-affiche); font-size: 24px; }
+.sa-tableau__pied { font-family: var(--font-etiquette); font-size: 12px; line-height: 18px; color: var(--acier-100); text-align: center; margin-top: 3px; }
+
+/* Gain flottant : chiffre qui monte au-dessus d'une usine ou du Silo (texte flottant, ombre pixel). */
+.sa-gain { font-family: var(--font-affiche); font-size: 40px; line-height: 40px; color: var(--laiton-clair); text-shadow: var(--ombre-texte); white-space: nowrap; }
+.sa-gain--lingots { color: var(--or-lingot); }
+
+/* =================================================================== Menus */
+/* Tuile : un bouton du menu (bouton fonte agrandi). Icône, nom, une ligne d'info. */
+.sa-tuile {
+  position: relative; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 3px;
+  border: 12px solid transparent;
+  border-image: url("../../../../design/textures/bouton-fonte.png") 4 fill / 12px stretch;
+  image-rendering: pixelated;
+  color: var(--papier); text-align: left;
+  min-height: 150px; padding: var(--pas-1) var(--pas-2) var(--pas-2);
+  font-family: var(--font-corps);
+}
+.sa-tuile > img { width: 48px; height: 48px; image-rendering: pixelated; margin-bottom: auto; }
+.sa-tuile__nom { font-family: var(--font-affiche); font-size: 36px; line-height: 32px; }
+.sa-tuile__info { font-size: 16px; line-height: 20px; }
+.sa-tuile--laiton { border-image-source: url("../../../../design/textures/bouton-laiton.png"); color: var(--fonte-900); }
+.sa-tuile.is-verrouillee { filter: saturate(0.2) brightness(0.8); }
+.sa-tuile .sa-pastille { position: absolute; top: -18px; right: -18px; }
+
+/* Pastille : nombre de choses à faire. Émail rouge, jamais plus de 2 chiffres (« 9+ »). */
+.sa-pastille {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  min-width: 33px; height: 33px; padding: 0 6px;
+  background: var(--email-rouge); border: 3px solid var(--fonte-900); box-shadow: inset 0 3px 0 var(--email-rouge-clair);
+  color: var(--papier); font-family: var(--font-affiche); font-size: 30px; line-height: 24px;
+}
+
+/* Onglet : colonne de gauche d'un menu. Actif = laiton. */
+.sa-onglet { width: 100%; justify-content: flex-start; font-size: 30px; line-height: 30px; min-height: 60px; }
+
+/* Fiche : le détail d'un élément (ce que montre l'info-bulle des menus Java, ici dans son propre écran). */
+.sa-fiche {
+  background: var(--fonte-900); border: 3px solid var(--fonte-900); box-shadow: inset 0 0 0 3px var(--fonte-700), var(--ombre-pixel);
+  color: var(--papier); font-family: var(--font-corps); font-size: 18px; line-height: 24px;
+  padding: var(--pas-4); display: flex; flex-direction: column; gap: var(--pas-2); max-width: 420px;
+}
+.sa-fiche__titre { font-family: var(--font-affiche); font-size: 36px; line-height: 32px; color: var(--laiton-clair); margin: 0; }
+.sa-fiche__sorte { font-family: var(--font-etiquette); font-size: 12px; line-height: 16px; letter-spacing: 1px; color: var(--acier-100); }
+.sa-fiche__infos { display: grid; grid-template-columns: 24px auto 1fr; gap: 3px var(--pas-2); align-items: center; margin: 0; }
+.sa-fiche__infos img { width: 24px; height: 24px; image-rendering: pixelated; }
+.sa-fiche__infos dd { margin: 0; text-align: right; font-family: var(--font-affiche); font-size: 24px; }
+.sa-fiche__action { color: var(--or-lingot); font-weight: 600; }
+.sa-fiche__blocage { color: var(--email-rouge-clair); font-weight: 600; }
+.sa-fiche__ok { color: var(--email-vert-clair); font-weight: 600; }
+
+/* =================================================================== Cinématique */
+.sa-cinema { position: relative; overflow: hidden; background: var(--ciel); }
+.sa-cinema__bande { position: absolute; left: 0; right: 0; height: 12.5%; background: var(--fonte-900); z-index: 2; }
+.sa-cinema__bande--haut { top: 0; } .sa-cinema__bande--bas { bottom: 0; }
+.sa-soustitre {
+  position: absolute; left: 12%; right: 12%; bottom: 15%; z-index: 3; margin: 0; text-align: center;
+  color: var(--papier); font-family: var(--font-corps); font-size: 24px; line-height: 30px; text-shadow: var(--ombre-texte);
+}
+.sa-soustitre__qui { display: block; font-family: var(--font-etiquette); font-size: 16px; line-height: 20px; letter-spacing: 1px; color: var(--laiton-clair); }
+.sa-passer { position: absolute; right: var(--pas-8); bottom: 3.5%; z-index: 3; font-family: var(--font-etiquette); font-size: 12px; line-height: 16px; letter-spacing: 1px; color: var(--acier-100); }
+
+.sa-sol { background: url("../../../../design/decor/terre-herbe.png") 0 0 / 48px 48px repeat-x, url("../../../../design/decor/terre.png") 0 48px / 48px 48px repeat; image-rendering: pixelated; border-bottom: 3px solid var(--fonte-900); }
+.sa-pierre { background: url("../../../../design/decor/pierre.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; }
+.sa-planches { background: url("../../../../design/decor/planches.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; }
+.sa-herbe { background: url("../../../../design/decor/herbe.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; }
+.sa-sol--x2 { background-size: 32px 32px, 32px 32px; background-position: 0 0, 0 32px; }
+.sa-chiffre-vol { font-family: var(--font-affiche); color: var(--laiton-clair); text-shadow: var(--ombre-texte); }
+.sa-silo { position: absolute; }
+.sa-silo b { display: block; margin: 0 auto; background: var(--email-rouge); border: 3px solid var(--fonte-900); border-bottom: 0; }
+.sa-silo i { display: block; background: var(--acier-100); border: 3px solid var(--fonte-900); box-shadow: inset -9px 0 0 var(--fonte-300); }
+
+
+/* ---------- Site : textures ×2 sur téléphone */
+.x2 .sa-panneau { border-width: 10px; border-image-width: 10px; }
+.x2 .sa-plaque { border-width: 10px; border-image-width: 10px; font-size: 32px; line-height: 32px; letter-spacing: 2px; }
+.x2 .sa-plaque--petite { border-width: 8px; border-image-width: 8px; font-size: 24px; line-height: 24px; }
+.x2 .sa-bouton { border-width: 8px; border-image-width: 8px; font-size: 28px; line-height: 28px; min-height: 52px; padding: 0 6px 2px; text-shadow: 2px 2px 0 var(--email-rouge-sombre); }
+.x2 .sa-bouton--fonte { text-shadow: 2px 2px 0 var(--fonte-700); }
+.x2 .sa-bouton--laiton { text-shadow: none; }
+.x2 .sa-ticket { border-width: 8px; border-image-width: 8px; font-size: 22px; line-height: 22px; padding: 0 4px 0 8px; }
+.x2 .sa-bulle { border-width: 8px; border-image-width: 8px; font-size: 18px; line-height: 22px; max-width: 220px; }
+.x2 .sa-puce { border-width: 4px; border-image-width: 4px; font-size: 22px; line-height: 22px; padding: 0 6px 0 2px; }
+.x2 .sa-puce img { width: 24px; height: 24px; }
+.x2 .sa-progression { border-width: 4px; border-image-width: 4px; height: 26px; }
+.x2 .sa-progression__plein { background-size: 8px 100%; }
+.x2 .sa-progression__texte { font-size: 12px; text-shadow: 2px 0 0 #1e1c1a, -2px 0 0 #1e1c1a, 0 2px 0 #1e1c1a, 0 -2px 0 #1e1c1a; }
+.x2 .sa-jauge__lampe { width: 12px; height: 16px; }
+.x2 .sa-compteur__chiffre { width: 40px; height: 52px; font-size: 48px; line-height: 44px; }
+.x2 .sa-tuile { border-width: 8px; border-image-width: 8px; min-height: 0; padding: 2px 4px 6px; }
+.x2 .sa-tuile > img { width: 32px; height: 32px; }
+.x2 .sa-tuile__nom { font-size: 26px; line-height: 24px; }
+.x2 .sa-tuile__info { font-size: 14px; line-height: 18px; }
+
+/* ---------- Site : pièces communes */
+.w-tel { width: 390px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--ciel); font-family: var(--font-corps); color: var(--fonte-900); display: flex; flex-direction: column; }
+.w-entete { display: flex; align-items: center; gap: 10px; padding: 12px 16px; position: relative; }
+.w-marque { font-family: var(--font-affiche); font-size: 40px; line-height: 36px; color: var(--fonte-900); text-decoration: none; }
+.w-entete .w-droite { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.x2 .w-entete .sa-bouton { font-size: 22px; line-height: 22px; min-height: 48px; }
+.w-direct { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; background: var(--fonte-900); color: var(--papier); font-family: var(--font-etiquette); font-size: 12px; line-height: 16px; letter-spacing: 1px; padding: 8px 16px; }
+.w-direct b { font-weight: 400; color: var(--email-vert-clair); }
+.w-direct i { font-style: normal; color: var(--laiton-clair); }
+.w-pt { display: inline-block; width: 8px; height: 8px; background: var(--email-vert-clair); margin-right: 6px; }
+.w-corps { padding: 12px 16px 8px; display: flex; flex-direction: column; gap: 20px; position: relative; }
+.w-h1 { font-family: var(--font-affiche); font-size: 52px; line-height: 46px; margin: 0; font-weight: 400; color: var(--fonte-900); }
+.w-h2 { font-family: var(--font-affiche); font-size: 32px; line-height: 30px; margin: 0; font-weight: 400; }
+.w-p { font-size: 18px; line-height: 24px; margin: 0; }
+.w-petit { font-size: 15px; line-height: 20px; margin: 0; }
+.w-eti { font-family: var(--font-etiquette); font-size: 12px; line-height: 16px; letter-spacing: 1px; margin: 0; }
+.w-large { width: 100%; box-sizing: border-box; }
+.w-pile { display: flex; flex-direction: column; gap: 10px; }
+.w-rangee { display: flex; align-items: center; gap: 10px; }
+.w-rang { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 48px; box-sizing: border-box; background: var(--fonte-900); box-shadow: inset 0 0 0 2px var(--fonte-700); color: var(--papier); text-decoration: none; }
+.w-rang .w-fin { margin-left: auto; font-family: var(--font-affiche); font-size: 26px; line-height: 26px; white-space: nowrap; }
+.w-rang img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.w-num { flex: none; width: 28px; height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: var(--email-rouge); border: 2px solid var(--fonte-900); color: var(--papier); font-family: var(--font-affiche); font-size: 24px; line-height: 20px; }
+.w-ok { flex: none; width: 28px; height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: var(--email-vert); border: 2px solid var(--fonte-900); }
+.w-champ { display: block; width: 100%; box-sizing: border-box; height: 52px; padding: 0 12px; background: var(--papier); color: var(--fonte-900); border: 3px solid var(--fonte-900); box-shadow: inset 0 3px 0 var(--papier-ombre); font-family: var(--font-corps); font-size: 20px; }
+.w-label { display: block; font-size: 16px; line-height: 20px; margin-bottom: 6px; }
+.w-case { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 20px; }
+.w-case input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--email-vert); }
+.w-bon { color: var(--email-vert-clair); }
+.w-lien { color: var(--fonte-900); }
+.sa-panneau .w-lien { color: var(--laiton-clair); }
+.w-onglets { display: flex; gap: 6px; }
+.w-onglets .sa-bouton { flex: 1 1 0; font-size: 22px; line-height: 22px; }
+.w-puces { display: flex; flex-wrap: wrap; gap: 6px; }
+.w-vide { flex-grow: 1; }
+.w-scene { position: relative; height: 196px; flex: none; }
+.w-scene .sa-sol { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; }
+.w-scene .w-o { position: absolute; left: 20px; bottom: 60px; }
+.w-scene .sa-bulle { position: absolute; left: 118px; bottom: 132px; margin: 0; }
+.w-nuage { position: absolute; height: 18px; background: var(--ciel-clair); }
+.w-pied { background: var(--fonte-900); color: var(--papier); padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 20px; flex: none; }
+.w-pied nav { display: flex; flex-wrap: wrap; gap: 0 18px; }
+.w-pied a { color: var(--papier); display: inline-flex; align-items: center; min-height: 44px; }
+.w-pied .w-voir { color: var(--acier-100); }
+.w-pied .w-voir a { color: var(--acier-100); min-height: 0; }
+.w-voile { position: absolute; inset: 0; background: rgba(30, 28, 26, 0.72); }
+.w-fenetre { position: absolute; left: 12px; right: 12px; }
+.w-cadre { box-sizing: border-box; border: 3px solid var(--fonte-900); flex: none; }
+.w-video { position: relative; background: var(--fonte-900); display: flex; align-items: center; justify-content: center; }
+.w-cap { background: var(--fonte-500); border: 3px solid var(--fonte-900); display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box; color: var(--papier); }
+
+/* ---------- Site : ordinateur (textures ×3, celles du design system) */
+.w-page { width: 100%; background: var(--ciel); font-family: var(--font-corps); color: var(--fonte-900); display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.w-boite { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 40px; box-sizing: border-box; }
+.w-page .w-entete { padding: 18px 0; gap: 16px; }
+.w-page .w-marque { font-size: 56px; line-height: 50px; }
+.w-nav { display: flex; gap: 6px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+.w-nav a { font-size: 20px; line-height: 24px; color: var(--fonte-900); padding: 0 10px; min-height: 48px; display: inline-flex; align-items: center; }
+.w-nav a.is-ici { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 6px; }
+.w-page .w-direct { font-size: 14px; line-height: 18px; padding: 10px 0; gap: 6px 24px; }
+.w-page .w-direct .w-boite { display: flex; flex-wrap: wrap; gap: 6px 28px; align-items: center; }
+.w-page .w-pied { padding: 28px 0 32px; font-size: 17px; line-height: 22px; }
+.w-page .w-pied .w-boite { display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; }
+.w-grille2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: center; }
+.w-grille3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.w-grille5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; }
+.w-geant { font-family: var(--font-affiche); font-size: 84px; line-height: 74px; margin: 0; font-weight: 400; }
+.w-page .w-h2 { font-size: 44px; line-height: 40px; }
+.w-page .w-p { font-size: 20px; line-height: 28px; }
+.w-scene-g { position: relative; height: 460px; }
+
+/* ---------- Admin : sobre, lisible, mêmes couleurs */
+.w-admin { width: 100%; min-height: 980px; display: grid; grid-template-columns: 248px minmax(0, 1fr); background: var(--fonte-700); color: var(--papier); font-family: var(--font-corps); }
+.w-admin aside { background: var(--fonte-900); padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; }
+.w-admin aside a { color: var(--papier); text-decoration: none; font-size: 18px; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 10px; }
+.w-admin aside a img { width: 32px; height: 32px; image-rendering: pixelated; }
+.w-admin aside a.is-ici { background: var(--fonte-700); box-shadow: inset 4px 0 0 var(--laiton); }
+.w-admin main { padding: 28px 36px; display: flex; flex-direction: column; gap: 24px; }
+.w-chiffres { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.w-chiffre { background: var(--fonte-900); box-shadow: inset 0 0 0 3px var(--fonte-500); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.w-chiffre strong { font-family: var(--font-affiche); font-size: 44px; line-height: 40px; font-weight: 400; color: var(--laiton-clair); }
+.w-table { width: 100%; border-collapse: collapse; font-size: 17px; line-height: 22px; }
+.w-table th { text-align: left; font-family: var(--font-etiquette); font-size: 12px; letter-spacing: 1px; font-weight: 400; color: var(--acier-100); padding: 10px 12px; border-bottom: 3px solid var(--fonte-900); }
+.w-table td { padding: 8px 12px; border-bottom: 2px solid var(--fonte-500); height: 48px; }
+.w-table tr.is-choisi td { background: rgba(200, 150, 46, 0.18); }
+.w-etat { font-family: var(--font-etiquette); font-size: 12px; letter-spacing: 1px; padding: 4px 8px; border: 2px solid currentColor; white-space: nowrap; }
+</style>
+</helmet>
+<div style="width:1332px; height:954px; box-sizing:border-box; padding:32px; background: var(--fonte-700); display:flex; gap:40px; align-items:flex-start;"><figure style="margin:0; display:flex; flex-direction:column; gap:12px; width:396px;"><figcaption class="w-eti" style="color: var(--papier); font-size:14px; line-height:28px;">1 · LE CHOIX</figcaption><div class="w-cadre" style="width:396px;"><div class="w-tel x2" style="height:844px;"><header class="w-entete">
+<span class="w-nuage" style="left:180px; top:10px; width:72px;" aria-hidden="true"></span>
+<a href="#accueil" style="display:flex; align-items:center; gap:8px; text-decoration:none;"><img src="../../../../design/logo/silooo-logo.png" alt="" width="33" height="40" style="width:33px; height:40px;"><span class="w-marque">Silooo</span></a>
+<div class="w-droite"><a class="sa-bouton sa-bouton--fonte" href="#menu" style="text-decoration:none;"><svg width="20" height="18" viewBox="0 0 10 9" aria-hidden="true" shape-rendering="crispEdges"><rect y="0" width="10" height="2" fill="#fff6de"/><rect y="3.5" width="10" height="2" fill="#fff6de"/><rect y="7" width="10" height="2" fill="#fff6de"/></svg>Menu</a></div>
+</header>
+<main class="w-corps" style="gap:18px;">
+<h1 class="w-h1">Me prévenir</h1>
+<p class="w-p">Inscris-toi pour la bêta. On ne garde que ton gamertag ou ton identifiant Discord.</p>
+<div class="w-pile" style="gap:6px;"><a class="sa-bouton w-large" href="#xbox" style="text-decoration:none;">Avec Xbox</a><p class="w-petit">Ton compte du jeu : ton gamertag est réservé tout de suite.</p></div>
+<div class="w-pile" style="gap:6px;"><a class="sa-bouton sa-bouton--fonte w-large" href="#discord" style="text-decoration:none;">Avec Discord</a><p class="w-petit">Le bot te prévient le jour de l’ouverture.</p></div>
+<section class="sa-panneau" aria-label="Moins de 13 ans"><div class="w-pile" style="gap:6px;">
+<p class="w-eti" style="color: var(--laiton-clair);">MOINS DE 13 ANS</p>
+<p class="w-petit">Discord ne t’est pas ouvert : passe par Xbox. Si ton compte est un compte enfant, un parent doit d’abord l’ajouter à sa famille Microsoft.</p>
+</div></section>
+</main>
+<div class="w-vide"></div>
+<div class="w-scene" aria-hidden="false">
+<span class="w-nuage" style="left:250px; top:40px; width:96px;" aria-hidden="true"></span>
+<p class="sa-bulle">Xbox ou Discord, au choix.</p>
+<img class="w-o" src="../../../../design/mascotte/oooscar-joie.png" alt="Oooscar" width="109" height="120" style="width:109px; height:120px; flex:none; ">
+<div class="sa-sol sa-sol--x2" aria-hidden="true"></div>
+</div></div></div></figure><figure style="margin:0; display:flex; flex-direction:column; gap:12px; width:396px;"><figcaption class="w-eti" style="color: var(--papier); font-size:14px; line-height:28px;">2 · INSCRIT PAR XBOX</figcaption><div class="w-cadre" style="width:396px;"><div class="w-tel x2" style="height:844px;"><header class="w-entete">
+<span class="w-nuage" style="left:180px; top:10px; width:72px;" aria-hidden="true"></span>
+<a href="#accueil" style="display:flex; align-items:center; gap:8px; text-decoration:none;"><img src="../../../../design/logo/silooo-logo.png" alt="" width="33" height="40" style="width:33px; height:40px;"><span class="w-marque">Silooo</span></a>
+<div class="w-droite"><a class="sa-bouton sa-bouton--fonte" href="#menu" style="text-decoration:none;"><svg width="20" height="18" viewBox="0 0 10 9" aria-hidden="true" shape-rendering="crispEdges"><rect y="0" width="10" height="2" fill="#fff6de"/><rect y="3.5" width="10" height="2" fill="#fff6de"/><rect y="7" width="10" height="2" fill="#fff6de"/></svg>Menu</a></div>
+</header>
+<main class="w-corps" style="gap:18px;">
+<div class="w-rangee" style="align-items:flex-end; gap:6px;"><img class="" src="../../../../design/mascotte/oooscar-fier.png" alt="Oooscar" width="128" height="132" style="width:128px; height:132px; flex:none; "><h1 class="w-h1" style="padding-bottom:8px; font-size:44px; line-height:40px;">C’est noté !</h1></div>
+<p class="w-p">Ton gamertag <b style="font-weight:600;">OscarLeBûcheron</b> est réservé pour la bêta.</p>
+<section class="sa-panneau" aria-label="Ce qui t’attend"><div class="w-pile">
+<span class="sa-plaque sa-plaque--petite" style="align-self:flex-start;">Pour toi</span>
+<div class="w-rang"><img src="../../../../design/icones/cadenas.png" alt="" width="32" height="32" style="width:32px; height:32px; image-rendering:pixelated; flex:none;"><span>Accès à la bêta fermée</span></div>
+<div class="w-rang"><img src="../../../../design/icones/etoile.png" alt="" width="32" height="32" style="width:32px; height:32px; image-rendering:pixelated; flex:none;"><span>Le titre Pionnier</span></div>
+<div class="w-rang"><img src="../../../../design/icones/ville.png" alt="" width="32" height="32" style="width:32px; height:32px; image-rendering:pixelated; flex:none;"><span>Un objet de déco Pionnier pour ton île</span></div>
+</div></section>
+<p class="w-petit">Xbox ne nous laisse pas t’écrire. Pour savoir quand ça ouvre, garde un œil sur le chantier ou sur Hubyy.</p>
+<a class="sa-bouton sa-bouton--fonte w-large" href="#chantier" style="text-decoration:none;">Voir le chantier</a>
+</main></div></div></figure><figure style="margin:0; display:flex; flex-direction:column; gap:12px; width:396px;"><figcaption class="w-eti" style="color: var(--papier); font-size:14px; line-height:28px;">3 · COMPTE ENFANT REFUSÉ</figcaption><div class="w-cadre" style="width:396px;"><div class="w-tel x2" style="height:844px;"><header class="w-entete">
+<span class="w-nuage" style="left:180px; top:10px; width:72px;" aria-hidden="true"></span>
+<a href="#accueil" style="display:flex; align-items:center; gap:8px; text-decoration:none;"><img src="../../../../design/logo/silooo-logo.png" alt="" width="33" height="40" style="width:33px; height:40px;"><span class="w-marque">Silooo</span></a>
+<div class="w-droite"><a class="sa-bouton sa-bouton--fonte" href="#menu" style="text-decoration:none;"><svg width="20" height="18" viewBox="0 0 10 9" aria-hidden="true" shape-rendering="crispEdges"><rect y="0" width="10" height="2" fill="#fff6de"/><rect y="3.5" width="10" height="2" fill="#fff6de"/><rect y="7" width="10" height="2" fill="#fff6de"/></svg>Menu</a></div>
+</header>
+<main class="w-corps" style="gap:18px;">
+<div class="w-rangee" style="align-items:flex-end; gap:6px;"><img class="" src="../../../../design/mascotte/oooscar-oups.png" alt="Oooscar" width="111" height="132" style="width:111px; height:132px; flex:none; "><h1 class="w-h1" style="padding-bottom:8px; font-size:44px; line-height:40px;">Microsoft a dit non</h1></div>
+<p class="w-p">Ton compte Xbox est un compte enfant. Microsoft le bloque tant qu’il n’est pas dans une famille.</p>
+<section class="sa-panneau" aria-label="Pour débloquer"><div class="w-pile">
+<span class="sa-plaque sa-plaque--petite" style="align-self:flex-start;">Pour débloquer</span>
+<div class="w-rang" style="align-items:flex-start;"><span class="w-num">1</span><span style="font-size:17px; line-height:22px;">Un parent se connecte à son compte Microsoft.</span></div>
+<div class="w-rang" style="align-items:flex-start;"><span class="w-num">2</span><span style="font-size:17px; line-height:22px;">Dans Famille, il ajoute ton compte.</span></div>
+<div class="w-rang" style="align-items:flex-start;"><span class="w-num">3</span><span style="font-size:17px; line-height:22px;">Tu reviens ici et tu réessaies.</span></div>
+</div></section>
+<a class="sa-bouton w-large" href="#xbox" style="text-decoration:none;">Réessayer</a>
+</main></div></div></figure></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1332,"height":954}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

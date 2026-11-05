@@ -64,6 +64,10 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_PAYNOW_WEBHOOK_SECRET` | La clé de la signature des webhooks de PayNow (`POST /paynow/webhook`) ; ne s'affiche jamais | non, sans elle le webhook répond 503 |
 | `SILOOO_VOTIFIER_TOKEN` | Le jeton de Votifier 2, avec lequel Hubyy signe ses votes ; ne s'affiche jamais | non, sans lui rien n'écoute et les votes de Hubyy ne sont pas reçus |
 | `SILOOO_VOTIFIER_PORT` | Le port TCP de la réception des votes, de 1 à 65535, différent de `SILOOO_PORT` et de `SILOOO_SITE_PORT` | non, 8192 par défaut ; lu seulement quand le jeton est posé |
+| `SILOOO_DISCORD_ACTIF` | Le bot Discord Oooscar (ADR 0007) : `non`, `a-blanc` (lit l'écart avec le plan sans rien changer) ou `oui` (applique le plan) ; toute autre valeur refuse le démarrage | non, `non` par défaut |
+| `SILOOO_DISCORD_TOKEN` | Le jeton du bot ; ne s'affiche jamais | oui dès que `SILOOO_DISCORD_ACTIF` n'est pas `non` |
+| `SILOOO_DISCORD_SERVEUR` | L'identifiant numérique du serveur Discord que le bot règle | oui dès que `SILOOO_DISCORD_ACTIF` n'est pas `non` |
+| `SILOOO_DISCORD_PHASE` | La phase du serveur : `attente`, `beta` ou `ouvert` ; chaque entrée du plan porte la phase où elle apparaît | non, `attente` par défaut |
 
 Il manque quelque chose : le service le dit en une fois (toutes les variables absentes) et sort avec
 le code 78, sans rien démarrer. Ni le mot de passe, ni la clé, ni le jeton Votifier ne s'écrivent dans les journaux.
@@ -126,6 +130,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue` ; `discord/jda/` est le seul paquet qui importe JDA |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -840,3 +845,31 @@ ne le publie jamais.
 - **Voir les pages dans un navigateur** sans base : `SILOOO_SITE_RENDER_DIR=/tmp/site ./gradlew test --tests '*SiteRenderToDisk'`
   écrit les pages rendues et `public/` dans ce dossier ; on le sert avec n'importe quel serveur de fichiers (ce test est ignoré
   quand la variable n'est pas posée).
+
+## Le Discord
+
+Le bot Oooscar vit dans le paquet `discord/` (ADR 0007, cadrage dans `docs/discord.md`, état dans `docs/discord-passation.md`). Il
+démarre dans son propre fil après le site, seulement si `SILOOO_DISCORD_ACTIF` le demande, et tout ce qui lui arrive de mal (jeton
+refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les journaux sans arrêter le jeu ni le site.
+
+- **Trois modes.** `non` (le défaut) : rien ne se charge. `a-blanc` : le bot se connecte, lit le serveur et écrit dans le journal
+  l'écart avec le plan, sans rien changer, sauf le salon du journal lui-même s'il manque. `oui` : il crée ce qui manque et remet
+  le sujet d'un salon ou la couleur d'un rôle qui ont dérivé. Dans tous les cas, il ne supprime jamais rien : une entrée retirée du
+  plan reste sur Discord jusqu'à ce que Kr l'enlève à la main.
+- **Le plan** est `src/main/resources/discord/plan-serveur.json`, contrôlé par `plan-serveur.schema.json` et
+  `tools/verifier_plan_discord.mjs` (unicité, rôles cités, un seul emoji par salon et jamais dans le nom, couleurs de
+  `design/tokens.json`, salon du journal). Les clés sont en français ; chaque rôle, catégorie et salon porte la phase où il
+  apparaît (`attente`, `beta`, `ouvert`), et `SILOOO_DISCORD_PHASE` dit où en est le serveur. Un salon se reconnaît à son nom
+  Discord (`emoji・nom`) : le renommer dans le plan en crée un nouveau.
+- **Le serveur de test** est celui du poste de Kr, avec son propre bot et son propre jeton : `SILOOO_DISCORD_ACTIF=a-blanc`,
+  `SILOOO_DISCORD_TOKEN`, `SILOOO_DISCORD_SERVEUR` (l'identifiant numérique du serveur) et les variables de la base et de la clé,
+  puis `./gradlew run`. Le serveur doit être en mode Communauté pour les forums et le salon d'annonces ; sinon le bot le dit dans
+  son compte rendu et crée le reste. Le bot a besoin des droits « Gérer les rôles » et « Gérer les salons », et aucune intention
+  privilégiée pour l'instant.
+- **Le journal** : le salon `journal-du-bot` de la catégorie Staff reçoit un compte rendu à chaque démarrage (ce qui manquait, ce qui
+  a été créé ou modifié, les refus de Discord), sans aucune mention ; le résumé va aussi dans les journaux du service.
+- **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
+  sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/DiscordBotTest`
+  (rien ne lève, le jeton ne s'affiche pas), `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans
+  `build/mesure-memoire-discord.txt`) et `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
+  (la clé `emoji` exceptée).

@@ -17,6 +17,8 @@ testcontainers = "2.0.5"
 snakeyaml = "2.7"
 # Rend le Markdown des contenus du site en HTML (relevé sur Maven Central le 5 novembre 2026).
 commonmark = "0.32.0"
+# Le bot Discord Oooscar (ADR 0007), relevé sur Maven Central le 5 novembre 2026.
+jda = "6.7.0"
 
 [libraries]
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
@@ -47,6 +49,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 testcontainers-mariadb = { module = "org.testcontainers:testcontainers-mariadb", version.ref = "testcontainers" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+jda = { module = "net.dv8tion:JDA", version.ref = "jda" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

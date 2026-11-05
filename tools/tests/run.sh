@@ -252,6 +252,40 @@ node -e '
 sortie="$(generateur --verifier)"
 if [ $? -eq 1 ] && printf '%s\n' "$sortie" | grep -q "oooscar.png n'a pas les pixels"; then ok "--verifier voit une texture qui ne suit plus les jetons de couleur"; else ko "--verifier devrait voir une texture périmée" "$sortie"; fi
 
+# ------------------------------------------------------------------ verifier_plan_discord.mjs
+echo "verifier_plan_discord.mjs : le vrai plan passe, chaque copie abîmée est refusée"
+sortie="$(node tools/verifier_plan_discord.mjs 2>&1)"
+if [ $? -eq 0 ]; then ok "plan-serveur.json est valide"; else ko "plan-serveur.json devrait être valide" "$sortie"; fi
+
+# essai_plan <cas> <texte attendu> <JavaScript qui abîme la copie « p » du plan>
+essai_plan() {
+  local cas="$1" attendu="$2" script="$3"
+  node -e '
+    const fs = require("node:fs");
+    const [source, cible, script] = process.argv.slice(1);
+    const p = JSON.parse(fs.readFileSync(source, "utf8"));
+    new Function("p", script)(p);
+    fs.writeFileSync(cible, JSON.stringify(p));
+  ' core/src/main/resources/discord/plan-serveur.json "$TMP_NATIF/plan.json" "$script"
+  sortie="$(node tools/verifier_plan_discord.mjs "$TMP_NATIF/plan.json" 2>&1)"
+  code=$?
+  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu"; then
+    ok "$cas est refusé"
+  else
+    ko "$cas devrait être refusé avec « $attendu » (code $code)" "$sortie"
+  fi
+}
+essai_plan "une couleur hors palette" "n'est pas une couleur de la palette" 'p.roles[0].couleur = "#123456"'
+essai_plan "une couleur hors du schéma" "roles.0.couleur" 'p.roles[0].couleur = "rouge"'
+essai_plan "un emoji dans le nom" "contient un emoji" 'p.categories[1].salons[0].nom = "👋bienvenue"'
+essai_plan "deux emoji" "un seul emoji" 'p.categories[1].salons[0].emoji = "👋👋"'
+essai_plan "un nom de salon écrit en capitales" "en minuscules" 'p.categories[1].salons[0].nom = "Bienvenue"'
+essai_plan "un rôle inconnu" "le rôle « fantome » n'existe pas" 'p.categories[1].salons[0].ecriture = ["fantome"]'
+essai_plan "un salon avant sa catégorie" "apparaît avant sa catégorie" 'p.categories.find((c) => c.id === "jeu").salons[0].phase = "attente"'
+essai_plan "un identifiant en double" "est en double" 'p.roles[1].id = p.roles[0].id'
+essai_plan "une clé inconnue" "additional properties" 'p.roles[0].couleurs = "#e0614f"'
+essai_plan "sans journal" "journal-du-bot" 'p.categories = p.categories.filter((c) => c.id !== "staff")'
+
 # ------------------------------------------------------------------ deploy/
 # Trois essais, chacun dans son fichier : start.sh (sans Docker), deploy.sh et sauvegarde.sh (avec un faux docker),
 # puis le compose, le Dockerfile, start.sh et l'exemple d'environnement lus les uns contre les autres.
