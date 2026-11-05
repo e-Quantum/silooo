@@ -1,5 +1,6 @@
 package com.silooo.core.api
 
+import com.silooo.core.definitions.BuildingBonusType
 import com.silooo.core.definitions.StaffRarity
 import com.silooo.core.definitions.StaffRole
 import kotlinx.serialization.EncodeDefault
@@ -70,13 +71,62 @@ data class Staff(
     @EncodeDefault(EncodeDefault.Mode.NEVER) val hireCost: Double? = null,
     /** L'usine où le membre est affecté ; nul tant qu'il n'en a pas. */
     val factoryId: String? = null,
+    /** Vrai si un logement de la ville l'héberge : son salaire est réduit, `salaryPercent` et `salaryPerHour` le disent déjà. Membre embauché seulement. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val housed: Boolean? = null,
+)
+
+/** Schéma `CityState.nextZone` : la prochaine zone à acheter, avec ce qu'elle demande. Tout vient de `ville.json` et `economie.json`. */
+@Serializable
+data class NextZone(val zoneIndex: Int, val priceLingots: Long, val mairieLevelRequired: Int, val activeFactoriesRequired: Int)
+
+/** Schéma `CityBuilding.nextLevel` : ce que coûte et demande le niveau suivant d'un bâtiment. */
+@Serializable
+data class NextBuildingLevel(val priceLingots: Long, val mairieLevelRequired: Int)
+
+/**
+ * Schéma `CityBuilding` : un bâtiment de la ville. [bonusType] et [bonus] disent ce qu'il donne à son niveau (nuls pour la mairie et
+ * les routes), [nextLevel] ce que coûte le niveau suivant (nul au dernier niveau). Nulls écrits `null`, comme le contrat les déclare.
+ */
+@Serializable
+data class CityBuilding(
+    val buildingId: Long,
+    val buildingType: String,
+    val level: Int,
+    val maxLevel: Int,
+    val zoneIndex: Int,
+    val x: Int,
+    val z: Int,
+    val rotation: Int,
+    val bonusType: BuildingBonusType? = null,
+    val bonus: Double? = null,
+    val nextLevel: NextBuildingLevel? = null,
+)
+
+/** Schéma `CityBonuses` : ce que les bâtiments donnent ensemble, plafonds appliqués. */
+@Serializable
+data class CityBonuses(
+    val housingPlaces: Int,
+    val housedStaff: Int,
+    val donarProductionPercent: Double,
+    val deliverySpeedPercent: Double,
+)
+
+/** Schéma `CityState` : la ville de l'entreprise telle que le service la calcule ; l'add-on l'affiche. */
+@Serializable
+data class CityState(
+    val mairieLevel: Int,
+    /** La prochaine zone à acheter ; nulle quand toutes sont à l'entreprise. */
+    val nextZone: NextZone? = null,
+    val buildings: List<CityBuilding>,
+    val bonuses: CityBonuses,
 )
 
 /** Schéma `CompanyState.island` : l'origine de l'archipel de l'entreprise, en blocs (`archipelago_slots`). */
 @Serializable
 data class Island(val x: Int, val z: Int)
 
-/** Schéma `CompanyState`. */
+/** Schéma `CompanyState`. [city] n'est écrite que si le service a calculé la ville (le contrat ne la rend pas obligatoire). */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class CompanyState(
     val companyId: Long,
@@ -91,6 +141,7 @@ data class CompanyState(
     val threshold: Double,
     val factories: List<Factory>,
     val zonesOwned: List<Int>,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val city: CityState? = null,
     val staff: List<Staff> = emptyList(),
     val island: Island,
     val version: Int,

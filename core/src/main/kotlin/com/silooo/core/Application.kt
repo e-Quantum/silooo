@@ -10,6 +10,11 @@ import com.silooo.core.api.launchApiRequestPurge
 import com.silooo.core.api.notDoneRoutes
 import com.silooo.core.api.respondError
 import com.silooo.core.api.respondRefusal
+import com.silooo.core.city.CityFigures
+import com.silooo.core.city.CityRules
+import com.silooo.core.city.CityStore
+import com.silooo.core.city.JdbcCityStore
+import com.silooo.core.city.cityRoutes
 import com.silooo.core.db.Database
 import com.silooo.core.definitions.Definitions
 import com.silooo.core.economy.CompanyStore
@@ -83,8 +88,10 @@ class Dependencies(
     val sessionStore: SessionStore = JdbcSessionStore(),
     /** L'horloge du service : le jour de l'agence d'emploi et le calcul de la production s'y lisent. Un test la remplace pour avancer le temps. */
     val clock: Clock = Clock.systemUTC(),
-    /** Les chiffres de `join` (revenu, multiplicateur, seuil, hors ligne) : le moteur d'économie, sur [definitions]. */
-    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore, clock),
+    /** Les accès SQL de la ville (`city_zones`, `city_buildings`) et le paiement des zones et des bâtiments ; déclaré avant [economyFigures], qui y lit les bonus. */
+    val cityStore: CityStore = JdbcCityStore(),
+    /** Les chiffres de `join` (revenu, multiplicateur, seuil, hors ligne) : le moteur d'économie, sur [definitions], avec les bonus de la ville. */
+    val economyFigures: EconomyFigures = EngineFigures(economy, sessionStore, clock, CityFigures(CityRules(definitions), sessionStore, cityStore)),
     /** Ce que la création d'une entreprise tire de `definitions/` : usines de départ, plafond hors ligne, grille des îles. */
     val companyBootstrap: CompanyBootstrap = DefinitionsBootstrap(economy, definitions),
     val eventStore: EventStore = JdbcEventStore(),
@@ -149,6 +156,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             orderRoutes(dependencies)
             findingRoutes(dependencies)
             staffRoutes(dependencies)
+            cityRoutes(dependencies)
 
             notDoneRoutes() // en dernier : le filet 501 pour tout ce qui n'est pas écrit
         }
