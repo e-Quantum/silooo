@@ -217,7 +217,7 @@ nouveau_projet
 tag_courant ancien456
 lancer_deploy FAUX_BON_TAG='*' -- nouveau123
 if [ "$CODE" -eq 0 ]; then ok "sort en 0"; else ko "devait sortir en 0 (code $CODE)" "$SORTIE"; fi
-if ordre '^free' '^df' 'network inspect silenemc_default' 'mariadb-dump' 'tar -C' ' pull$' '[]] pull curlimages/curl' \
+if ordre '^free' '^df' 'network inspect bw_internal' 'mariadb-dump' 'tar -C' ' pull$' '[]] pull curlimages/curl' \
   ' run --rm -T silooo-migrate$' ' up -d --no-deps silooo-core silooo-bds$' '[]] run .*curlimages/curl' '^free'; then
   ok "ordre : mémoire et disque, sauvegarde (base puis monde), pull, migrations, démarrage, test de fumée, mémoire"
 else

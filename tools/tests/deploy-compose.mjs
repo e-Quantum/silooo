@@ -86,7 +86,7 @@ verifier(volumesBds.length === 3 && montageZip?.type === 'bind' && montageZip.so
 verifier(String(bds.environment?.SILOOO_API_KEY).includes('${SILOOO_API_KEY:?'), 'silooo-bds : SILOOO_API_KEY obligatoire', bds.environment?.SILOOO_API_KEY);
 
 // réseaux et volumes
-verifier(compose.networks?.silenemc?.external === true && compose.networks.silenemc.name === '${SILENEMC_NETWORK:-silenemc_default}',
+verifier(compose.networks?.silenemc?.external === true && compose.networks.silenemc.name === '${SILENEMC_NETWORK:-bw_internal}',
   'le réseau de SileneMC est externe, son nom vient de SILENEMC_NETWORK', compose.networks?.silenemc);
 verifier(compose.networks?.silooo?.name === 'silooo', 'le réseau du projet s\'appelle silooo (deploy.sh y lance le test de fumée)', compose.networks?.silooo);
 verifier(compose.volumes?.['bds-worlds']?.name === 'silooo-bds-worlds', 'le volume du monde s\'appelle silooo-bds-worlds (sauvegarde.sh l\'archive)', compose.volumes?.['bds-worlds']);

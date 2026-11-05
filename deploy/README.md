@@ -47,7 +47,7 @@ SILOOO_TAG=<tag> docker compose -p silooo --project-directory /var/www/silooo -f
 - La base `silooo` sur la MariaDB de SileneMC, et son compte (`SILOOO_DB_USER`, `SILOOO_DB_PASSWORD`).
 - Le fichier d'environnement, à la racine de `/var/www/silooo`, d'après `exemple.env.txt`. Une session ne le lit ni ne
   le crée. La clé d'API (`SILOOO_API_KEY`) est une valeur aléatoire longue.
-- Le nom du réseau Docker de SileneMC (`docker network ls`), si ce n'est pas `silenemc_default` (`SILENEMC_NETWORK`).
+- Le nom du réseau Docker de SileneMC (`docker network ls`), relevé le 5 novembre 2026 : `bw_internal`, où MariaDB et Redis ont les alias `mariadb` et `redis` (`SILENEMC_NETWORK`).
 - `docker login ghcr.io` sur le VPS, avec une clé qui lit les paquets du dépôt : les images y sont privées.
 - Le port TCP `BDS_PORT` (19142 par défaut) et la plage UDP `BDS_UDP_PORTS_PUBLIES` (19143-19174 par défaut)
   ouverts dans le pare-feu, après vérification que cette plage est libre.

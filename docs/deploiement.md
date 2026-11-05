@@ -109,7 +109,7 @@ chiffres du jeu : le jeu reste dans `definitions/`. Le modèle est `deploy/exemp
 | `BDS_SERVER_NAME` | `silooo-bds` | `Silooo` | texte vu par les joueurs : à valider par Kr |
 | `SILOOO_CORE_URL` | `silooo-bds` | `http://silooo-core:8080/` | adresse de silooo-core sur le réseau `silooo` |
 | `SILOOO_BDS_DIR` | Compose et `deploy.sh` | `/var/www/silooo/bds` | dossier de l'hôte monté sur `/data/bds`, où Kr pose le zip de BDS ; propriété de l'uid 10001. Facultatif ; s'il change, l'exporter aussi dans la session avant `deploy.sh` |
-| `SILENEMC_NETWORK` | Compose et les scripts | `silenemc_default` | nom du réseau de SileneMC : une hypothèse, Kr la confirme avec `docker network ls` |
+| `SILENEMC_NETWORK` | Compose et les scripts | `bw_internal` | nom du réseau de SileneMC, relevé sur le VPS le 5 novembre 2026 (`docker network ls`) : MariaDB et Redis y ont les alias `mariadb` et `redis` |
 | `SILOOO_TAG` | Compose | aucun | posé par `deploy.sh` à chaque appel, jamais dans le fichier d'environnement |
 
 Pas de guillemets autour des valeurs : Compose les retire, mais `docker run --env-file` (utilisé par
@@ -327,7 +327,7 @@ branche `main`, branchement restic. La liste à jour est dans [passation.md](pas
 
 - le fichier d'environnement à la racine de `/var/www/silooo`, rempli d'après `deploy/exemple.env.txt` ;
 - la clé de lecture des paquets GitHub, pour `docker login ghcr.io` sur le VPS ;
-- le nom du réseau Docker de SileneMC (`docker network ls`), si ce n'est pas `silenemc_default` ;
+- le nom du réseau Docker de SileneMC : relevé le 5 novembre 2026, `bw_internal` ;
 - l'ouverture du port TCP `BDS_PORT` et de la plage UDP `BDS_UDP_PORTS_PUBLIES` dans le pare-feu du VPS, après
   avoir vérifié que cette plage est libre ;
 - l'adresse IPv4 publique du VPS (`BDS_PUBLIC_IP`) et le DNS ;

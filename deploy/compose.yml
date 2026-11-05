@@ -117,11 +117,11 @@ networks:
     name: silooo
   # Le réseau Docker de SileneMC, rejoint en externe pour atteindre MariaDB et Redis sans ouvrir leurs ports
   # (ADR 0003, recommandation du plan, à valider par Kr). Seuls silooo-migrate et silooo-core y entrent.
-  # Le nom par défaut est une hypothèse : le dépôt ne le dit nulle part. Kr le confirme avec « docker network ls »
-  # et le pose dans SILENEMC_NETWORK si besoin (et deploy/scripts/commun.sh doit porter le même défaut).
+  # Le nom par défaut a été relevé sur le VPS le 5 novembre 2026 (« docker network ls ») ; s'il change, Kr le pose
+  # dans SILENEMC_NETWORK (et deploy/scripts/commun.sh doit porter le même défaut).
   silenemc:
     external: true
-    name: ${SILENEMC_NETWORK:-silenemc_default}
+    name: ${SILENEMC_NETWORK:-bw_internal}
 
 volumes:
   bds-worlds:

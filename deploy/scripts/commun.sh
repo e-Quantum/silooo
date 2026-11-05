@@ -21,7 +21,7 @@ PROJET=silooo
 
 # Le réseau Docker de SileneMC (MariaDB et Redis). Même défaut que deploy/compose.yml : une hypothèse que Kr confirme
 # avec « docker network ls ». S'il le change dans son fichier d'environnement, il doit l'exporter aussi dans sa session.
-SILENEMC_NETWORK="${SILENEMC_NETWORK:-silenemc_default}"
+SILENEMC_NETWORK="${SILENEMC_NETWORK:-bw_internal}"
 # Le dossier de l'hôte où Kr pose le zip de BDS (décision 26) : même défaut que deploy/compose.yml, qui le monte sur
 # /data/bds. S'il le change, il l'exporte aussi dans sa session (le script ne lit pas le fichier d'environnement).
 SILOOO_BDS_DIR="${SILOOO_BDS_DIR:-/var/www/silooo/bds}"
