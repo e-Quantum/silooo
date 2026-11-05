@@ -130,7 +130,7 @@ Un paquet par domaine, sous `src/main/kotlin/com/silooo/core/`.
 | `staff/` | `GET /v1/companies/{companyId}/agency`, `POST .../agency/{slot}/hire`, `PATCH` et `DELETE .../staff/{staffId}` : `StaffRoutes` (HTTP), `StaffService` (`getCandidates`, `hire`, `assignStaff`, `fireStaff`), `AgencyDraw` (la liste du jour), `StaffStore` et `JdbcStaffStore` (`staff`, `agency_candidates`) |
 | `vote/` | `GET /v1/votes/today` et la réception des votes de Hubyy : `VoteRoutes` (HTTP), `VotifierProtocol` et `VotifierServer` (Votifier 2, en TCP), `VoteService` (`today`, `receive`, `relieve`), `VoteRules` (la série et le rang du jour, purs), `VoteStore` et `JdbcVoteStore` (`server_votes`, le versement en Lingots, l'événement) ; `session/PendingVotes` est ce que `join` en sait |
 | `pass/` | `GET /v1/pass` et `POST /v1/pass/claims` : `PassRoutes` (HTTP), `PassService` (`state`, `claim`, les points du prestige, de la commande et des missions, la piste premium de la boutique), `PassRules` (saison, refus, `PassState`, purs), `PassStore` et `JdbcPassStore` (`season_pass`, `season_claims`, Lingots, `player_cosmetics`) ; `CompanyService`, `OrderService`, `MissionService` et `ShopService` l'appellent |
-| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue` ; `discord/jda/` est le seul paquet qui importe JDA |
+| `discord/` | Le bot Discord Oooscar (ADR 0007, docs/discord.md) : `BotConfig` (variables, jeton masqué), `ServerPlan` (le plan `resources/discord/plan-serveur.json`), `DiscordServer` (l'interface, la seule chose que le reste connaît), `PlanApplier` (crée ce qui manque, ne supprime jamais), `DiscordBot` (le fil du bot), `BoundedQueue`, `DiscordEvent` et `Reply` (les événements sans JDA), `BotMessage` (cartes, boutons, menus, formulaires, commandes), `BotRuntime` (la boucle à un fil, les minuteries, les fonctions `Feature`), `DiscordDefinitions` (`definitions/discord.json`) ; `discord/jda/` est le seul paquet qui importe JDA |
 | `src/test/.../simulation/` | Le simulateur du joueur type (code de test, hors du service) : `GameSimulator` rejoue neuf courses avec `EconomyEngine` et `definitions/`, `ThirteenTargetsTest` fait échouer la CI si une des treize cibles du tableur sort de sa fourchette ([economie.md](../docs/economie.md), « Le simulateur ») |
 
 Toute route `/v1/...` pas encore écrite répond 501 avec `{"reason": "PAS_FAIT"}`, et toute route
@@ -650,9 +650,8 @@ par Kr**). La boutique vend les grades, les deux abonnements, les cosmétiques e
   court) : `EconomyEngine.withShopBonuses`, qui rend exactement le calcul d'avant quand les trois sont nuls. C'est le PDG de l'entreprise qui compte (`JdbcShopStore.ceoHoldings`).
   Un achat ne règle pas la production en attente : voir `docs/economie.md`.
 - **Une migration, V9** (`V9__boosts_collectifs.sql`) : la table `server_boosts`. V1 a déjà `shop_deliveries`, `shop_purchases`,
-  `player_ranks`, `player_subscriptions` et `player_cosmetics` ; V7 a `site_registrations`. **V8 est réservé au bot Discord** : tant qu'il
-  n'est pas fusionné, V9 passe seule (Flyway accepte un trou), mais V8, ajoutée après que la base a reçu V9, serait refusée à la
-  validation (Flyway sans `outOfOrder`). La direction doit ordonner les deux fusions ou renuméroter.
+  `player_ranks`, `player_subscriptions` et `player_cosmetics` ; V7 a `site_registrations`. **Le bot Discord a pris V10** (`V10__discord.sql`, ses tables `discord_*`) : V8, réservée au départ, reste un trou, parce que V9 est
+  partie sur `main` avant elle et que Flyway, sans `outOfOrder`, aurait refusé V8 après V9.
 - **Les tests** : `shop/ShopRulesTest` (26 : ordre, catalogue, refus, prolongation, bonus, enchaînement des boosts), `shop/ShopRoutesTest`
   (46, sans base : les deux routes, cosmétiques, boost, refus, 400, rejeu, cadeau), `shop/PioneerTitleTest` (9 : à qui, une fois, ce que
   `join` montre), `shop/DeliveryReliefTest` (18 : à qui revient une livraison, la clé du pseudo, ce qui reste en attente, versement
@@ -893,12 +892,22 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
 - **Le serveur de test** est celui du poste de Kr, avec son propre bot et son propre jeton : `SILOOO_DISCORD_ACTIF=a-blanc`,
   `SILOOO_DISCORD_TOKEN`, `SILOOO_DISCORD_SERVEUR` (l'identifiant numérique du serveur) et les variables de la base et de la clé,
   puis `./gradlew run`. Le serveur doit être en mode Communauté pour les forums et le salon d'annonces ; sinon le bot le dit dans
-  son compte rendu et crée le reste. Le bot a besoin des droits « Gérer les rôles » et « Gérer les salons », et aucune intention
-  privilégiée pour l'instant.
+  son compte rendu et crée le reste. Le bot a besoin des droits « Gérer les rôles » et « Gérer les salons », et de deux intentions
+  privilégiées, « membres du serveur » et « contenu des messages », cochées dans le portail des développeurs.
 - **Le journal** : le salon `journal-du-bot` de la catégorie Staff reçoit un compte rendu à chaque démarrage (ce qui manquait, ce qui
   a été créé ou modifié, les refus de Discord), sans aucune mention ; le résumé va aussi dans les journaux du service.
+- **La boucle.** Hors `a-blanc`, le bot sert ce qui arrive de Discord (arrivées, accueil terminé, départs, messages, réactions,
+  vocaux, commandes, boutons, menus, formulaires : `DiscordEvent`) sur un seul fil, `BotRuntime` : une file bornée (les plus vieux
+  tombent, comptés), des minuteries (`Timer`) sur ce même fil, et des fonctions (`Feature`) isolées les unes des autres : une qui
+  lève n'arrête ni la boucle ni les autres. Un message du bot (`BotMessage`) est une carte à barre ciel (composants récents de
+  Discord) ou du texte, avec boutons, menu, image ; les formulaires et les commandes ont leurs modèles. `discord/jda/JdaMessages`
+  et `JdaEvents` traduisent dans les deux sens. Les chiffres du Discord sont dans `definitions/discord.json`
+  (`DiscordDefinitions`, chargé à part du jeu, vérifié contre le plan : rôles et salons cités, niveaux qui montent) ; ses tables
+  sont celles de la migration V8, toutes préfixées `discord_`.
 - **Les tests** (sans Discord) : `discord/ServerPlanTest` (le plan du dépôt et ses incohérences), `discord/PlanApplierTest` (le plan
   sur `FakeDiscordServer`, à blanc puis pour de vrai, bêta après attente, refus isolé, dérive corrigée), `discord/DiscordBotTest`
-  (rien ne lève, le jeton ne s'affiche pas), `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans
-  `build/mesure-memoire-discord.txt`) et `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
+  (rien ne lève, le jeton ne s'affiche pas, les événements servis jusqu'à `close`), `discord/BotRuntimeTest` (l'ordre, l'isolement,
+  la file pleine, les minuteries), `discord/DiscordDefinitionsTest` (le fichier du dépôt colle au plan, la formule des niveaux),
+  `discord/DiscordMemoryTest` (JDA chargé sans connexion, chiffre écrit dans `build/mesure-memoire-discord.txt`) et
+  `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).

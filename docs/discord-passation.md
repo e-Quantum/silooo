@@ -30,9 +30,10 @@ est recopiée sous l'étape qu'elle touche.
   `jda/JdaMessages` et `jda/JdaEvents` (intentions membres, messages, contenu, réactions, vocaux ; cache des 500
   derniers membres et des membres en vocal). Le bot ne boucle que si des fonctions lui sont données et hors `a-blanc`.
   Aucune fonction du QG n'existe encore : elles viennent case par case, avec `definitions/discord.json` pour leurs
-  chiffres et la migration V8 pour leurs tables.
-- Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V8** reste
-  réservée pour la première table du bot (D2 ou D3, rien en D0).
+  chiffres et la migration V10 pour leurs tables.
+- Numéros : l'ADR **0007** est écrit (`docs/adr/0007-bot-discord-jda.md`, à valider par Kr) ; la migration **V10**
+  est prise (`V10__discord.sql`, toutes les tables du QG ; V8, réservée au départ, reste un trou : V9 est partie sur `main` avant). Le jeu prend V11 et la suite ; une table du Discord qui change
+  prendra le prochain numéro libre, annoncé ici.
 
 ## Les étapes
 
@@ -102,6 +103,11 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
 
 - [x] Le socle des fonctions : les événements, les messages, la boucle, les minuteries, la traduction JDA, les faux
   pour les tests (`FakeConnection`, `FakeReply`, `FakeTimer`), 11 tests de plus, vérificateur vert
+- [x] Les chiffres du Discord dans `definitions/discord.json` et son schéma (accueil, statut, vocaux d'info, coulisses,
+  XP, tableaux, monte-charge, rapport du lundi, rappels, giveaways, concours, Aides ; à valider par Kr), lus par
+  `DiscordDefinitions` à part du jeu et vérifiés contre le plan ; la migration **V10** (`V10__discord.sql`, V8 au départ) : membres,
+  messages vivants du bot, XP, spoils, réactions, meilleurs moments, aide du mois, petits jeux et records, giveaways
+  et lots, tickets, admissions, compteurs du rapport. SQL non joué sur le PC (Docker éteint) : la CI le joue
 - [ ] Les salons et les rôles de la phase `attente` dans le plan, l'accueil guidé (deux questions, rôles de plateforme
   et de mention), le Guide du serveur et ses trois cartes (plaque émaillée et icône, en pixel)
 - [ ] Le bonjour d'Oooscar dans `#💬・discussion` (5 à 10 s après l'accueil guidé, selon la plateforme), les arrivées
@@ -198,7 +204,7 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
    variables, une ligne « Où est quoi », une section « Le Discord »), `tools/anti_ia.py`, `tools/verifier.sh`,
    `tools/tests/run.sh`, et le paquet `discord/` est à la session. `Application.kt` n'est pas touché. Petits commits,
    rebase juste avant la fusion. Dites ici si une tranche y travaille.
-2. **Numéros.** ADR 0007 est écrit ; la migration V8 reste réservée par la session Discord (D2 ou D3).
+2. **Numéros.** ADR 0007 est écrit ; la migration du Discord est V10 (V8, réservée au départ, est restée un trou : V9 est partie avant ; Flyway sans `outOfOrder` aurait refusé V8 après V9).
 8. **Le déploiement.** Les quatre variables du bot sont dans `deploy/exemple.env.txt` avec `SILOOO_DISCORD_ACTIF=non`
    (le test `deploy-compose.mjs` l'exige) et dans le tableau de `docs/deploiement.md` ; rien dans `compose.yml`. Au QG (fin de D2), la direction du jeu pose
    `SILOOO_DISCORD_ACTIF=a-blanc` puis `oui` dans l'environnement du VPS, avec le jeton et l'identifiant donnés par Kr.
@@ -279,6 +285,11 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
 
 - Les noms des salons et des catégories, leurs emoji et leurs sujets, les noms des rôles et leurs couleurs
   (`core/src/main/resources/discord/plan-serveur.json`, D0).
+- Les chiffres de `definitions/discord.json` (D2) : le bonjour à 10, 7 et 5 s selon console, téléphone et PC, les
+  arrivées groupées (30 s, 10 mentions), le statut qui alterne chaque minute, les spoils (40 % des membres proposés,
+  compte chaque minute, nuit de 22 h à 7 h), l'XP (15 à 25 points, une fois par minute, niveau n à 100 × n + 50 × n ×
+  (n - 1) / 2 points, rôles aux niveaux 5, 10, 20, 30, dix au classement), le top réactions à dix, les meilleurs
+  moments à 5 `:prestige:`, le monte-charge toutes les 5 minutes, le rapport du lundi à 9 h, trois rappels par jour.
 - Les lignes du compte rendu d'Oooscar dans `#📒・journal-du-bot` (`PlanReport.text`, D0) : « Plan du serveur, phase
   attente. », « J'ai créé N rôles, N catégories et N salons. », « Je ne supprime jamais rien. », « Il manque… » à blanc.
 - Le bonjour d'Oooscar et le tuto en privé, le format « Gamertag · P3 », les lignes d'Oooscar et les textes des
@@ -314,3 +325,10 @@ Lu à chaque bilan de la direction du jeu. Réponses attendues dans son journal.
   (30 tests Discord), anti-IA vert, `tools/verifier.sh` vert. En parallèle, un sous-agent a ajouté la marque `silooo`
   aux outils de rendu (`Documents\minecraft\contenu-reseaux\_outils`) : vérifié, rien rendu, le rendu de contrôle
   attend Kr. Suite : fusion sur `main`, puis `definitions/discord.json`, la migration V8 et l'accueil.
+- 5 novembre 2026, 16 h 30 à 16 h 50 (session Discord, PC, worktree `silooo-discord`, branche `claude/discord-d2`).
+  Le socle fusionné en avance rapide sur `main` (8919727). Puis `definitions/discord.json` et
+  `definitions/schemas/discord.schema.json` (les chiffres du QG, listés dans « À valider par Kr »), `DiscordDefinitions`
+  (chargé à part du jeu, vérifié contre le plan : rôles, salons, niveaux qui montent, fuseau), cinq tests, les types de
+  l'add-on régénérés (`tools/generer_types.mjs` prend tout `definitions/`), la migration `V8__discord.sql` avec les
+  seize tables du QG (pas jouée sur le PC : Docker éteint, la CI la joue), `docs/README.md` et `core/README.md`.
+  `tools/verifier.sh` vert. Suite : l'accueil guidé, les salons et les rôles de la phase `attente`.

@@ -26,6 +26,7 @@ socle. Ce fichier les regroupe par domaine et rappelle les règles ; les colonne
 | Boutique | `shop_deliveries`, `shop_purchases`, `player_cosmetics` | Commandes de Gemmes du site, achats en jeu, cosmétiques possédés |
 | Boutique, après V1 | `server_boosts` ([V9](../core/src/main/resources/db/migration/V9__boosts_collectifs.sql)) | Les boosts collectifs achetés : acheteur, fenêtre, pourcentage figé |
 | Site, après V1 | `site_registrations` ([V7](../core/src/main/resources/db/migration/V7__site_registrations.sql)) | Les inscriptions du site : pionnier, compte Discord relié, admission |
+| Discord, après V1 | `discord_members`, `discord_bot_messages`, `discord_chat_xp`, `discord_spoils`, `discord_giveaways`, `discord_tickets`, `discord_admissions` et neuf autres `discord_*` ([V10](../core/src/main/resources/db/migration/V10__discord.sql)) | Ce que le bot Oooscar retient du QG : membres accueillis, messages vivants, XP de tchat, coulisses, lots, tickets, admissions, compteurs du rapport |
 | Entreprises et membres | `archipelago_slots`, `companies`, `company_members`, `company_invites` | Case de l'archipel, Donar de la course, époque, étoiles, niveaux de mairie et de Silo, plafond hors ligne, identité ; PDG et associés avec leurs parts ; invitations |
 | Usines et personnel | `company_factories`, `factory_incidents`, `staff`, `agency_candidates` | État et niveau de chaque usine, incidents ouverts, personnel nommé, candidats du jour |
 | Prestige | `prestige_history` | Chaque prestige, son seuil, ses Donar gagnés, ses Lingots et sa durée |

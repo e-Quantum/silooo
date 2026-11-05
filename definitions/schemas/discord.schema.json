@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/discord.schema.json",
+  "title": "Le Discord de Silooo, tenu par le bot Oooscar",
+  "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways et les concours. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides"],
+  "$defs": {
+    "identifiantDuPlan": {
+      "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "heure": {
+      "description": "Une heure du jour, de 0 à 23, dans le fuseau du fichier.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+    },
+    "nomEmoji": {
+      "description": "Le nom d'un emoji du serveur, sans les deux-points.",
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    }
+  },
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "commentaire": { "type": "string" },
+    "fuseau": {
+      "description": "Le fuseau horaire des heures du fichier et du rapport du lundi, au format de la base IANA.",
+      "type": "string",
+      "pattern": "^[A-Za-z_]+/[A-Za-z_]+$"
+    },
+    "accueil": {
+      "description": "Le bonjour d'Oooscar après l'accueil guidé, et les arrivées groupées.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bonjourSecondes", "groupeSecondes", "groupeMentionsMax"],
+      "properties": {
+        "bonjourSecondes": {
+          "description": "Les secondes entre la fin de l'accueil guidé et le bonjour, selon le rôle de plateforme choisi.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["console", "telephone", "pc"],
+          "properties": {
+            "console": { "type": "integer", "minimum": 1, "maximum": 60 },
+            "telephone": { "type": "integer", "minimum": 1, "maximum": 60 },
+            "pc": { "type": "integer", "minimum": 1, "maximum": 60 }
+          }
+        },
+        "groupeSecondes": {
+          "description": "Quand les arrivées se bousculent, un seul bonjour toutes ces secondes.",
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 600
+        },
+        "groupeMentionsMax": {
+          "description": "Combien de nouveaux au plus un bonjour groupé mentionne ; au-delà, une ligne avec leur nombre.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      }
+    },
+    "statut": {
+      "description": "Le statut d'Oooscar, qui alterne deux lignes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alternanceSecondes"],
+      "properties": {
+        "alternanceSecondes": {
+          "description": "Combien de secondes chaque ligne du statut reste affichée.",
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 3600
+        }
+      }
+    },
+    "vocauxInfo": {
+      "description": "Les vocaux verrouillés en tête du serveur, renommés par le bot ; Discord limite ces renommages.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["renommagesMax", "fenetreMinutes"],
+      "properties": {
+        "renommagesMax": {
+          "description": "Combien de renommages au plus par vocal dans la fenêtre.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "fenetreMinutes": {
+          "description": "La fenêtre des renommages, en minutes. Discord en accorde deux par dix minutes.",
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 120
+        }
+      }
+    },
+    "spoils": {
+      "description": "Les coulisses : des spoils déposés à l'avance, publiés quand assez de membres ont réagi au précédent.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["partDesMembres", "miseAJourSecondes", "emoji", "nuitDebutHeure", "nuitFinHeure"],
+      "properties": {
+        "partDesMembres": {
+          "description": "Le seuil proposé par défaut au dépôt d'un spoil, en part des membres du serveur (0,4 = 40 %).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "miseAJourSecondes": {
+          "description": "Toutes ces secondes, le bot met à jour le compte des réactions sous le spoil en cours.",
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "emoji": {
+          "description": "L'emoji du serveur qui compte comme réaction au spoil.",
+          "$ref": "#/$defs/nomEmoji"
+        },
+        "nuitDebutHeure": {
+          "description": "À partir de cette heure, un spoil au seuil attend le matin.",
+          "$ref": "#/$defs/heure"
+        },
+        "nuitFinHeure": {
+          "description": "L'heure du matin où les spoils en attente partent.",
+          "$ref": "#/$defs/heure"
+        }
+      }
+    },
+    "xp": {
+      "description": "L'XP de tchat : des points par message, des rôles aux niveaux, le classement de la semaine.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pointsMin", "pointsMax", "intervalleSecondes", "niveauBase", "niveauCroissance", "salons", "roles", "classementTaille"],
+      "properties": {
+        "pointsMin": {
+          "description": "Le moins de points qu'un message compté rapporte.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "pointsMax": {
+          "description": "Le plus de points qu'un message compté rapporte ; au moins pointsMin.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "intervalleSecondes": {
+          "description": "Un seul message compté par membre dans cet intervalle.",
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 3600
+        },
+        "niveauBase": {
+          "description": "Les points de base d'un niveau : le niveau n demande niveauBase × n + niveauCroissance × n × (n - 1) / 2 points.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "niveauCroissance": {
+          "description": "Ce que chaque niveau demande de plus que le précédent.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "salons": {
+          "description": "Les salons du plan où les messages comptent ; les autres (salons du bot, tchat du jeu) ne donnent rien.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifiantDuPlan" }
+        },
+        "roles": {
+          "description": "Les rôles du plan donnés aux niveaux, du plus bas au plus haut.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["niveau", "role"],
+            "properties": {
+              "niveau": { "type": "integer", "minimum": 1 },
+              "role": { "$ref": "#/$defs/identifiantDuPlan" }
+            }
+          }
+        },
+        "classementTaille": {
+          "description": "Combien de membres le classement de la semaine cite, le lundi.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      }
+    },
+    "reactions": {
+      "description": "Le top réactions de la semaine au Panthéon : qui a donné le plus de réactions, une par message.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topTaille", "salons"],
+      "properties": {
+        "topTaille": {
+          "description": "Combien de membres le tableau cite.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "salons": {
+          "description": "Les salons du plan où les réactions comptent.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifiantDuPlan" }
+        }
+      }
+    },
+    "meilleursMoments": {
+      "description": "Un message assez réagi est recopié dans les meilleurs moments.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["emoji", "seuil"],
+      "properties": {
+        "emoji": {
+          "description": "L'emoji du serveur qui compte.",
+          "$ref": "#/$defs/nomEmoji"
+        },
+        "seuil": {
+          "description": "Le nombre de membres différents, l'auteur et les bots exclus, qui fait recopier le message.",
+          "type": "integer",
+          "minimum": 2
+        }
+      }
+    },
+    "monteCharge": {
+      "description": "Le petit jeu du monte-charge : un bouton par membre, de temps en temps.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attenteMinutes"],
+      "properties": {
+        "attenteMinutes": {
+          "description": "Les minutes qu'un membre attend entre deux appuis sur « +1 étage ».",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        }
+      }
+    },
+    "rapport": {
+      "description": "Le rapport du lundi dans le journal du bot.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["heure", "reliesSousJours", "revenusApresJours"],
+      "properties": {
+        "heure": {
+          "description": "L'heure du lundi où le rapport part.",
+          "$ref": "#/$defs/heure"
+        },
+        "reliesSousJours": {
+          "description": "Le rapport compte les arrivants qui ont relié leur compte dans ce délai, en jours.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        },
+        "revenusApresJours": {
+          "description": "Le rapport compte les membres revenus écrire après ce délai, en jours.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        }
+      }
+    },
+    "rappels": {
+      "description": "Les rappels privés, tous désactivés au départ.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parJour", "nuitDebutHeure", "nuitFinHeure"],
+      "properties": {
+        "parJour": {
+          "description": "Combien de rappels au plus par membre et par jour.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "nuitDebutHeure": {
+          "description": "À partir de cette heure, à l'heure du joueur, aucun rappel sauf les Gemmes reçues.",
+          "$ref": "#/$defs/heure"
+        },
+        "nuitFinHeure": {
+          "description": "L'heure où les rappels reprennent.",
+          "$ref": "#/$defs/heure"
+        }
+      }
+    },
+    "giveaways": {
+      "description": "Les giveaways : gratuits, un bouton pour participer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parMois"],
+      "properties": {
+        "parMois": {
+          "description": "Combien de giveaways par mois, les grandes étapes en plus.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "concours": {
+      "description": "Les concours d'îles et de villes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parMoisAvantBeta", "membresPourHebdo"],
+      "properties": {
+        "parMoisAvantBeta": {
+          "description": "Combien de concours par mois avant la bêta et le seuil de membres.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "membresPourHebdo": {
+          "description": "À partir de ce nombre de membres, et une fois la bêta ouverte, un concours par semaine.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "aides": {
+      "description": "Les Aides sur candidature.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidaturesDesMembres"],
+      "properties": {
+        "candidaturesDesMembres": {
+          "description": "À partir de ce nombre de membres, la commande de candidature s'ouvre.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

@@ -56,7 +56,7 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 
 ## Le socle, hors de `docs/`
 
-- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles et les bornes de l'entreprise partagée, iles : la forme des mini-îles et la cinématique, personnel : l'agence, les raretés et les salaires, incidents : les pannes et l'électricité, ville : les zones, la mairie et les bâtiments ; vote : la récompense par vote, la série et la Vote party) et leurs schémas dans `definitions/schemas/`.
+- `definitions/` : les chiffres du jeu (usines, économie, boutique, monde : la grille des îles et les bornes de l'entreprise partagée, iles : la forme des mini-îles et la cinématique, personnel : l'agence, les raretés et les salaires, incidents : les pannes et l'électricité, ville : les zones, la mairie et les bâtiments ; vote : la récompense par vote, la série et la Vote party ; discord : les chiffres du Discord, tenus par le bot Oooscar) et leurs schémas dans `definitions/schemas/`.
 - `api/silooo-core.openapi.yaml` : le contrat entre l'add-on et silooo-core, 33 opérations.
 - `core/src/main/resources/db/migration/` : les migrations Flyway, V1 en tête.
 - `design/` : le design system Silooo Atelier (charte, composants, textures, icônes, Oooscar, logo).
