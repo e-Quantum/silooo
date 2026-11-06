@@ -44,6 +44,12 @@ membres. Cette reprise part de `main` à `f061665`, avec des worktrees séparés
   pour le rapport). Les scripts Windows, hooks et connexions privées ne sont pas installés sur le VPS.
 - **À valider par Kr** : règles du QG, rejoindre, bienvenue, tuto et formulations d'indisponibilité du rôle Staff,
   ainsi que le rapport. Aucun visuel D1 nouveau ; aucune case D3 à D6 déclarée terminée.
+- Premier déploiement `1dd1433` : commandes installées, V12 appliquée, heartbeat 204. La relecture réelle a
+  trouvé une ancienne interdiction SEND_MESSAGES dans discussion, comptage et médias : le réconciliateur doit
+  aussi retirer les interdictions des droits qu'il gère quand le plan les déclare publics et ouverts à l'écriture.
+  Les autres bits restent conservés. Ce cas est ajouté aux tests avant la seconde livraison.
+- Les rôles Administrateur, dont le rôle manuel « nouveau rôle » et Dyno déjà présents, contournent les restrictions
+  des salons par définition de Discord. La recette de confidentialité distingue ces administrateurs des membres.
 - Vérification et déploiement : voir le journal de livraison ajouté après les contrôles réels.
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction

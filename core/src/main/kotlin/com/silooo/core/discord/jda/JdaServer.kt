@@ -193,7 +193,6 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             ?: throw DiscordRefusal("le salon ou la catégorie $id n'existe plus")
         val view = Permission.VIEW_CHANNEL.rawValue
         val write = WRITE.fold(0L) { bits, permission -> bits or permission.rawValue }
-        val connect = Permission.VOICE_CONNECT.rawValue
         val desired = mutableMapOf<Role, Pair<Long, Long>>()
         fun update(role: Role, allowBits: Long, denyBits: Long, clearBits: Long = 0L) {
             val previous = channel.getPermissionOverride(role)
@@ -204,11 +203,11 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             val deny = (oldDeny and mask.inv()) or denyBits
             if (allow != oldAllow || deny != oldDeny) desired[role] = allow to deny
         }
-        var deny = 0L
-        if (viewers != null) deny = deny or view
-        if (writers != null) deny = deny or write
-        if (locked) deny = deny or connect
-        if (deny != 0L) update(guild.publicRole, 0L, deny)
+        val everyone = channel.getPermissionOverride(guild.publicRole)
+        val oldAllow = everyone?.allowedRaw ?: 0L
+        val oldDeny = everyone?.deniedRaw ?: 0L
+        val publicMasks = planPublicPermissionMasks(oldAllow, oldDeny, viewers != null, writers != null, locked)
+        if (publicMasks != (oldAllow to oldDeny)) desired[guild.publicRole] = publicMasks
         if (viewers != null) {
             for (roleId in managedViewers + viewers) {
                 val allowed = roleId in viewers
@@ -526,3 +525,12 @@ internal fun planPublicDenials(isPrivate: Boolean, readOnly: Boolean, locked: Bo
         if (readOnly) addAll(EnumSet.of(Permission.MESSAGE_SEND, Permission.MESSAGE_SEND_IN_THREADS, Permission.CREATE_PUBLIC_THREADS))
         if (locked) add(Permission.VOICE_CONNECT)
     }
+
+/** Remet les seuls droits tenus par le plan, y compris une ancienne interdiction d'écrire dans un salon public. */
+internal fun planPublicPermissionMasks(
+    oldAllow: Long, oldDeny: Long, isPrivate: Boolean, readOnly: Boolean, locked: Boolean,
+): Pair<Long, Long> {
+    val managed = planPublicDenials(true, true, true).fold(0L) { mask, permission -> mask or permission.rawValue }
+    val denied = planPublicDenials(isPrivate, readOnly, locked).fold(0L) { mask, permission -> mask or permission.rawValue }
+    return (oldAllow and managed.inv()) to ((oldDeny and managed.inv()) or denied)
+}
