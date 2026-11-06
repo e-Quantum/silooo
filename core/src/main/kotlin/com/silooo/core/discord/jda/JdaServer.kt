@@ -526,11 +526,10 @@ internal fun planPublicDenials(isPrivate: Boolean, readOnly: Boolean, locked: Bo
         if (locked) add(Permission.VOICE_CONNECT)
     }
 
-/** Remet les seuls droits tenus par le plan, y compris une ancienne interdiction d'écrire dans un salon public. */
+/** Pose les refus du plan sans retirer les verrouillages manuels (par exemple /lock de Dyno). */
 internal fun planPublicPermissionMasks(
     oldAllow: Long, oldDeny: Long, isPrivate: Boolean, readOnly: Boolean, locked: Boolean,
 ): Pair<Long, Long> {
-    val managed = planPublicDenials(true, true, true).fold(0L) { mask, permission -> mask or permission.rawValue }
     val denied = planPublicDenials(isPrivate, readOnly, locked).fold(0L) { mask, permission -> mask or permission.rawValue }
-    return (oldAllow and managed.inv()) to ((oldDeny and managed.inv()) or denied)
+    return (oldAllow and denied.inv()) to (oldDeny or denied)
 }

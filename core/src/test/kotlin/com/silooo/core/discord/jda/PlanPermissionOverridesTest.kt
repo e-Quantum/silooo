@@ -6,14 +6,14 @@ import org.junit.jupiter.api.Test
 
 class PlanPermissionOverridesTest {
     @Test
-    fun `a writable public channel clears old send denials and preserves unrelated permissions`() {
+    fun `a public channel preserves manual send locks and unrelated permissions`() {
         val masks = planPublicPermissionMasks(
             Permission.MESSAGE_MANAGE.rawValue or Permission.VIEW_CHANNEL.rawValue,
             Permission.MESSAGE_SEND.rawValue or Permission.MANAGE_WEBHOOKS.rawValue,
             isPrivate = false, readOnly = false, locked = false,
         )
-        assertEquals(Permission.MESSAGE_MANAGE.rawValue, masks.first)
-        assertEquals(Permission.MANAGE_WEBHOOKS.rawValue, masks.second)
+        assertEquals(Permission.MESSAGE_MANAGE.rawValue or Permission.VIEW_CHANNEL.rawValue, masks.first)
+        assertEquals(Permission.MANAGE_WEBHOOKS.rawValue or Permission.MESSAGE_SEND.rawValue, masks.second)
         assertEquals(masks, planPublicPermissionMasks(masks.first, masks.second, false, false, false))
     }
 

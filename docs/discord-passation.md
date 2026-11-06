@@ -57,7 +57,7 @@ membres. Cette reprise part de `main` à `f061665`, avec des worktrees séparés
 - Les emojis `donar` et `prestige` sont posés à partir des icônes existantes `design/icones/donar.png` et
   `design/icones/etoile.png`, sans création d'image ; leur apparence reste à valider par Kr. Le rôle Staff est
   donné au seul propriétaire pour les contrôles du bot, sans privilège Discord nouveau pour ce propriétaire.
-- La correction durable du retrait des anciennes interdictions passe `tools/verifier.sh` : 2 294 tests Gradle,
+- Le contrôle précédent des permissions passe `tools/verifier.sh` : 2 294 tests Gradle,
   aucun échec ou test ignoré ; tests SQL sur MariaDB d'essai, 1 696 tests add-on, pack et 170 tests d'outillage.
   Le contrôle Chromium absent localement a passé en CI au premier déploiement. La seconde livraison suit la CI.
 - La recette d'un vrai membre (accueil, `/niveau`, ouvrir et fermer un ticket, vocal, messages privés) reste à
@@ -1033,3 +1033,17 @@ AutoMod), à nettoyer ou à garder avant l'ouverture du QG.
   « Décisions de Kr » point 2, décision 60) et `core/README.md`. Rien n'a encore tourné contre un vrai Discord. Suite : Kr
   démarre Docker Desktop et lance `.\tools\bot-pc.ps1` à blanc ; la session lit le compte rendu, note les essais dans
   « Essais à nettoyer avant l'ouverture », puis le rapport du lundi.
+
+### Précision de Kr du 6 novembre : verrouillages Dyno et ouverture du QG
+
+Kr confirme que `/niveau` et l'ouverture/fermeture des tickets fonctionnent depuis son compte. Il indique avoir
+utilisé Dyno `/lock` pour fermer les salons : les refus SEND_MESSAGES constatés étaient donc des verrouillages
+manuels, pas des overwrites produits par l'ancien code. Les trois salons ont été déverrouillés de façon ciblée
+pour l'accueil guidé. Le réconciliateur conserve désormais les refus manuels lors des prochains démarrages,
+y compris dans un salon déclaré écrivable dans le plan ; il ajoute toujours les refus nécessaires aux salons privés
+et en lecture seule. La nouvelle recette protège cette conservation et la confidentialité.
+
+Pour accueillir les membres au QG avant la bêta Minecraft : `SILOOO_DISCORD_PHASE=attente`,
+`SILOOO_DISCORD_PUBLIC=oui` lorsque Kr ouvre le QG. Les phases suivantes sont `beta`, puis `ouvert` ; les
+blocages de la partie Minecraft ne sont pas levés par cette variable. Kr règle lui-même son fichier d'environnement,
+que la session ne lit ni ne modifie. La livraison suivante recrée uniquement le core et prend ses valeurs en compte.
