@@ -996,13 +996,21 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
 
   return {
     async open(player, initial = MAIN) {
-      const xuid = playerXuid(player);
+      // Le Player Bedrock peut devenir invalide pendant form.show : ne plus relire son nom ensuite.
+      let name: string;
+      let xuid: Xuid;
+      try {
+        name = player.name;
+        xuid = playerXuid({ name });
+      } catch {
+        return;
+      }
       if (inMenu.has(xuid)) return;
       inMenu.add(xuid);
       try {
         await walk(player, initial);
       } catch (error) {
-        log.warn(`menu de ${player.name} : ${describeError(error)}`);
+        log.warn(`menu de ${name} : ${describeError(error)}`);
       } finally {
         inMenu.delete(xuid);
       }

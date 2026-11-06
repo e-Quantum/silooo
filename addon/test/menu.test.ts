@@ -710,6 +710,23 @@ describe("parcours : fermeture, écran occupé, joueur parti", () => {
     assert.equal(presenter.shown.length, 2);
   });
 
+  it("une déconnexion pendant show n'accède plus au nom invalide et libère le menu", async () => {
+    let valid = true;
+    const player = { get name() { if (!valid) throw new Error("Failed to get property 'name'"); return PLAYER.name; } };
+    const { menu, log } = setup([() => { valid = false; throw new Error("formulaire interrompu"); }, close]);
+    await assert.doesNotReject(menu.open(player));
+    assert.match(log.warns.join("\n"), /menu de Alex : Error: formulaire interrompu/);
+    valid = true;
+    await assert.doesNotReject(menu.open(player));
+  });
+
+  it("un joueur déjà invalide n'ouvre pas de formulaire et ne crée pas de rejet", async () => {
+    const { menu, presenter } = setup([]);
+    const player = { get name(): string { throw new Error("Failed to get property 'name'"); } };
+    await assert.doesNotReject(menu.open(player));
+    assert.equal(presenter.shown.length, 0);
+  });
+
   it("un menu déjà ouvert pour le joueur : le second appel est ignoré", async () => {
     let release: (() => void) | undefined;
     const { menu, presenter } = setup([

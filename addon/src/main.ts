@@ -250,6 +250,7 @@ function startScreens(deps: {
       log,
     });
     navigationUse = (player, id) => {
+      if (!player.isValid) return;
       const state = views.get(playerXuid(player))?.state;
       const route = id === "silooo:usine" && state !== undefined
         ? currentFactoryRoute(state, where?.(player)) : navigationRoute(id);
