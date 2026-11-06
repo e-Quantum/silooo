@@ -50,7 +50,21 @@ membres. Cette reprise part de `main` à `f061665`, avec des worktrees séparés
   Les autres bits restent conservés. Ce cas est ajouté aux tests avant la seconde livraison.
 - Les rôles Administrateur, dont le rôle manuel « nouveau rôle » et Dyno déjà présents, contournent les restrictions
   des salons par définition de Discord. La recette de confidentialité distingue ces administrateurs des membres.
-- Vérification et déploiement : voir le journal de livraison ajouté après les contrôles réels.
+- Preuves du premier passage réel : CI `42201633303` verte, V12 appliquée, heartbeat 204, BDS non redémarré.
+  Après correction ciblée des seuls refus SEND_MESSAGES des trois salons, Discord a accepté l'accueil guidé :
+  deux questions, neuf réponses, neuf salons par défaut dont cinq écrivables. Les quatre commandes sont lues
+  par l'API. Règles, bienvenue et rejoindre ont chacun un seul message du bot, et le menu des tickets est présent.
+- Les emojis `donar` et `prestige` sont posés à partir des icônes existantes `design/icones/donar.png` et
+  `design/icones/etoile.png`, sans création d'image ; leur apparence reste à valider par Kr. Le rôle Staff est
+  donné au seul propriétaire pour les contrôles du bot, sans privilège Discord nouveau pour ce propriétaire.
+- La correction durable du retrait des anciennes interdictions passe `tools/verifier.sh` : 2 294 tests Gradle,
+  aucun échec ou test ignoré ; tests SQL sur MariaDB d'essai, 1 696 tests add-on, pack et 170 tests d'outillage.
+  Le contrôle Chromium absent localement a passé en CI au premier déploiement. La seconde livraison suit la CI.
+- La recette d'un vrai membre (accueil, `/niveau`, ouvrir et fermer un ticket, vocal, messages privés) reste à
+  confirmer. Le contrôle du navigateur Discord n'est pas disponible à cette session ; les lectures et réglages
+  réalisables par le bot ont été effectués par l'API. Mode fermé conservé, le site reste en attente.
+- D1 à valider et D3 à D6 restent ouverts : cette livraison rend les fonctions du QG disponibles, elle ne déclare
+  pas la bêta Minecraft ouverte ni les fonctions futures livrées.
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de
