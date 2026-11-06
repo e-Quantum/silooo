@@ -20,6 +20,18 @@ class DiscordDefinitionsTest {
         assertEquals(emptyList<String>(), loaded.problems(plan))
         assertEquals(loaded, DiscordDefinitions.loadChecked(TestDefinitions.directory, plan))
         assertEquals("Europe/Paris", loaded.zone.id)
+        assertEquals(listOf(1, 5, 10, 25, 50), loaded.profiles.prestigeTiers.map { it.minimum })
+        assertEquals("#c8962e", loaded.profiles.prestigeColor)
+        assertEquals("prestige-50", loaded.profiles.roleDefinitions().highest(50))
+    }
+
+    @Test fun `prestige tiers must be increasing and point to roles with the palette color`() {
+        val invalid = loaded.copy(profiles = loaded.profiles.copy(
+            prestigeTiers = listOf(GamePrestigeTier(5, "prestige-5"), GamePrestigeTier(1, "missing-role")),
+        ))
+        val problems = invalid.problems(plan)
+        assertTrue(problems.any { "strictement croissants" in it })
+        assertTrue(problems.any { "missing-role" in it })
     }
 
     @Test

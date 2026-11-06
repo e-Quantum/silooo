@@ -24,7 +24,12 @@ interface GameProfileQueries {
 interface ManagedGameRoleStore {
     suspend fun roleKeys(discordId: String): Set<String>
     suspend fun replace(discordId: String, roleKeys: Set<String>)
+    suspend fun appliedNickname(discordId: String): String?
+    suspend fun appliedNickname(discordId: String, nickname: String?)
     suspend fun knownUsers(): Set<String>
+    /** Claim atomique avant le premier DM d'admission; l'échec ou le DM fermé ne sera jamais retenté. */
+    suspend fun claimInvitation(discordId: String, at: java.time.Instant): Boolean = false
+    suspend fun finishInvitation(discordId: String, status: String) {}
 }
 
 /** Synchronise périodiquement l'état prouvé. Discord refusant un surnom/rôle (hiérarchie notamment), la prochaine
@@ -67,8 +72,9 @@ class GameProfileFeature(
 
     private suspend fun sync(p: GameProfile) {
         val nick = (p.gamertag + (p.courseNumber?.let { " · P$it" } ?: "")).take(32)
-        try { context.server.nickname(p.discordId, nick) }
-        catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        if (context.server.memberName(p.discordId) != nick) {
+            if (safeRole { context.server.nickname(p.discordId, nick) }) roles.appliedNickname(p.discordId, nick)
+        }
         val desired = buildSet {
             add("joueur-relie")
             if (p.companyRole == "PDG") add("pdg")
@@ -79,15 +85,42 @@ class GameProfileFeature(
         }.filterTo(mutableSetOf()) { context.ids.role(it) != null }
         val old = roles.roleKeys(p.discordId)
         val actual = old.toMutableSet()
-        for (key in old - desired) if (safeRole { context.server.takeRole(p.discordId, checkNotNull(context.ids.role(key))) }) actual.remove(key)
-        for (key in desired - old) if (safeRole { context.server.giveRole(p.discordId, checkNotNull(context.ids.role(key))) }) actual.add(key)
+        val actualIds = context.server.rolesOf(p.discordId).toMutableSet()
+        for (key in old - desired) {
+            val id = context.ids.role(key)
+            if (id == null || id !in actualIds) actual.remove(key)
+            else if (safeRole { context.server.takeRole(p.discordId, id) }) { actual.remove(key); actualIds.remove(id) }
+        }
+        for (key in desired) {
+            val id = context.ids.role(key) ?: continue
+            if (id in actualIds) continue // Déjà présent; ne le revendique pas comme rôle attribué par le bot.
+            if (safeRole { context.server.giveRole(p.discordId, id) }) { actual.add(key); actualIds.add(id) }
+        }
         roles.replace(p.discordId, actual)
+        val betaRole = context.ids.role("beta")
+        if (p.beta && betaRole != null && betaRole in actualIds && roles.claimInvitation(p.discordId, context.timer.now())) {
+            val status = try {
+                if (context.server.direct(p.discordId, BotMessage(AdmissionTexts.INVITATION))) "sent" else "dm_closed"
+            } catch (e: CancellationException) { throw e } catch (_: Exception) { "discord_refused" }
+            roles.finishInvitation(p.discordId, status)
+        }
     }
 
     private suspend fun cleanup(id: String) {
         val remaining = mutableSetOf<String>()
-        for (key in roles.roleKeys(id)) context.ids.role(key)?.let { if (!safeRole { context.server.takeRole(id, it) }) remaining.add(key) }
-        try { context.server.nickname(id, null) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        val actualIds = context.server.rolesOf(id)
+        for (key in roles.roleKeys(id)) context.ids.role(key)?.let {
+            if (it in actualIds && !safeRole { context.server.takeRole(id, it) }) remaining.add(key)
+        }
+        val applied = roles.appliedNickname(id)
+        if (applied != null) {
+            if (context.server.memberName(id) == applied) {
+                if (safeRole { context.server.nickname(id, null) }) roles.appliedNickname(id, null)
+            } else {
+                // Le membre a changé son surnom lui-même; ne pas l'écraser à la déliaison.
+                roles.appliedNickname(id, null)
+            }
+        }
         roles.replace(id, remaining)
     }
     private suspend fun safeRole(action: suspend () -> Unit): Boolean = try { action(); true } catch (e: CancellationException) { throw e } catch (_: Exception) { false }

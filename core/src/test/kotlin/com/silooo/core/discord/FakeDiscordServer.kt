@@ -18,7 +18,12 @@ class FakeDiscordServer(
         publicAccessOverrides[id] = PublicChannelAccess(true, true, false)
     }
     val nicknames = mutableMapOf<String, String?>()
-    override suspend fun nickname(userId: String, nickname: String?) { nicknames[userId] = nickname }
+    val nicknameUpdates = mutableListOf<Pair<String, String?>>()
+    var failNextNicknames = 0
+    override suspend fun nickname(userId: String, nickname: String?) {
+        if (failNextNicknames > 0) { failNextNicknames--; throw DiscordRefusal("surnom refusé") }
+        nicknameUpdates += userId to nickname; nicknames[userId] = nickname
+    }
 
     val roles = mutableListOf<ExistingRole>()
     val categories = mutableListOf<ExistingCategory>()
@@ -43,6 +48,8 @@ class FakeDiscordServer(
 
     /** Les rôles donnés par le bot, par membre. */
     val memberRoles = mutableMapOf<String, MutableSet<String>>()
+    var failNextRoleGrants = 0
+    var failNextRoleTakes = 0
     val renames = mutableListOf<Pair<String, String>>()
     val statuses = mutableListOf<String>()
     var members = 0
@@ -211,11 +218,13 @@ class FakeDiscordServer(
     }
 
     override suspend fun giveRole(userId: String, roleId: String) {
+        if (failNextRoleGrants > 0) { failNextRoleGrants--; throw DiscordRefusal("rôle refusé") }
         check(roles.any { it.id == roleId }) { "le rôle $roleId n'existe pas" }
         memberRoles.getOrPut(userId) { mutableSetOf() } += roleId
     }
 
     override suspend fun takeRole(userId: String, roleId: String) {
+        if (failNextRoleTakes > 0) { failNextRoleTakes--; throw DiscordRefusal("rôle refusé") }
         check(roles.any { it.id == roleId }) { "le rôle $roleId n'existe pas" }
         memberRoles[userId]?.remove(roleId)
     }
@@ -256,7 +265,7 @@ class FakeDiscordServer(
 
     override suspend fun voiceMembers(channelId: String): Int = voiceCounts[channelId] ?: 0
 
-    override suspend fun memberName(userId: String): String? = names[userId]
+    override suspend fun memberName(userId: String): String? = nicknames[userId] ?: names[userId]
 
     override suspend fun rolesOf(userId: String): Set<String> = memberRoles[userId]?.toSet() ?: emptySet()
 

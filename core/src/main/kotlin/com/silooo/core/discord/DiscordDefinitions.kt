@@ -41,6 +41,7 @@ data class DiscordDefinitions(
     @SerialName("aides") val helpers: HelperRules,
     @SerialName("admissions") val admissions: AdmissionRules,
     @SerialName("bienvenue") val banner: BannerRules,
+    @SerialName("profils") val profiles: GameProfileRules,
 ) {
     /** Le fuseau des heures du fichier. */
     val zone: ZoneId get() = ZoneId.of(timeZone)
@@ -67,6 +68,20 @@ data class DiscordDefinitions(
         }
         for (channel in reactions.channels) {
             if (channel !in channelIds) problems += "reactions.salons : le salon « $channel » n'est pas dans le plan"
+        }
+        if (profiles.syncSeconds < 15 || profiles.syncSeconds > 3600) problems += "profils.syncSecondes : doit être compris entre 15 et 3600"
+        if (profiles.prestigeTiers.isEmpty()) problems += "profils.paliersPrestige : la liste ne peut pas être vide"
+        for ((lower, upper) in profiles.prestigeTiers.zipWithNext()) {
+            if (upper.minimum <= lower.minimum) problems += "profils.paliersPrestige : les minimums doivent être strictement croissants"
+        }
+        if (profiles.prestigeTiers.any { it.minimum < 1 }) problems += "profils.paliersPrestige : les minimums doivent être au moins 1"
+        if (profiles.prestigeTiers.map { it.role }.distinct().size != profiles.prestigeTiers.size) {
+            problems += "profils.paliersPrestige : un rôle ne peut apparaître qu'une fois"
+        }
+        for (tier in profiles.prestigeTiers) {
+            if (tier.role !in roleIds) problems += "profils.paliersPrestige : le rôle « ${tier.role} » n'est pas dans le plan"
+            val roleColor = plan.roles.firstOrNull { it.id == tier.role }?.couleur
+            if (roleColor != profiles.prestigeColor) problems += "profils.paliersPrestige : la couleur du rôle « ${tier.role} » doit correspondre à couleurPrestige"
         }
         return problems
     }
@@ -253,3 +268,21 @@ data class BannerRules(
     @SerialName("jourHeure") val dayHour: Int,
     @SerialName("nuitHeure") val nightHour: Int,
 )
+
+/** Synchronisation des profils prouvés et rôles cosmétiques. */
+@Serializable
+data class GameProfileRules(
+    @SerialName("syncSecondes") val syncSeconds: Int,
+    @SerialName("paliersPrestige") val prestigeTiers: List<GamePrestigeTier>,
+    @SerialName("couleurPrestige") val prestigeColor: String,
+) {
+    init {
+        require(syncSeconds in 15..3600) { "profils.syncSecondes doit être compris entre 15 et 3600" }
+        require(prestigeColor.matches(Regex("^#[0-9a-f]{6}$"))) { "profils.couleurPrestige doit être un #rrggbb minuscule" }
+        require(prestigeTiers.isNotEmpty()) { "profils.paliersPrestige ne peut pas être vide" }
+    }
+    fun roleDefinitions() = PrestigeRoleDefinitions(prestigeTiers.map { PrestigeRoleTier(it.minimum, it.role) })
+}
+
+@Serializable
+data class GamePrestigeTier(@SerialName("minimum") val minimum: Int, val role: String)

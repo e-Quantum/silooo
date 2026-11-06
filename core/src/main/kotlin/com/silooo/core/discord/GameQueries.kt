@@ -2,6 +2,9 @@ package com.silooo.core.discord
 
 import com.silooo.core.db.Database
 import java.sql.Connection
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 /** Lectures des seules preuves actives et des vues existantes du jeu. */
 class JdbcGameProfileQueries(private val database: Database) : GameProfileQueries {
@@ -46,7 +49,7 @@ class JdbcManagedGameRoleStore(private val database: Database) : ManagedGameRole
         }
     }
     override suspend fun knownUsers(): Set<String> = database.transaction { c ->
-        c.prepareStatement("select distinct discord_user_id from discord_managed_game_roles").use {
+        c.prepareStatement("select discord_user_id from discord_managed_game_roles union select discord_user_id from discord_managed_game_profiles").use {
             it.executeQuery().use { rows -> buildSet { while (rows.next()) add(rows.getString(1)) } }
         }
     }
@@ -55,6 +58,34 @@ class JdbcManagedGameRoleStore(private val database: Database) : ManagedGameRole
         c.prepareStatement("insert into discord_managed_game_roles (discord_user_id, role_key) values (?, ?)").use { ps ->
             roleKeys.forEach { key -> ps.setString(1, discordId); ps.setString(2, key); ps.addBatch() }
             if (roleKeys.isNotEmpty()) ps.executeBatch()
+        }
+    } }
+    override suspend fun appliedNickname(discordId: String): String? = database.transaction { c ->
+        c.prepareStatement("select applied_nickname from discord_managed_game_profiles where discord_user_id = ?").use {
+            it.setString(1, discordId); it.executeQuery().use { rows -> if (rows.next()) rows.getString(1) else null }
+        }
+    }
+    override suspend fun appliedNickname(discordId: String, nickname: String?) { database.transaction { c ->
+        if (nickname == null) {
+            c.prepareStatement("delete from discord_managed_game_profiles where discord_user_id = ?").use {
+                it.setString(1, discordId); it.executeUpdate()
+            }
+        } else {
+            c.prepareStatement("insert into discord_managed_game_profiles (discord_user_id, applied_nickname) values (?, ?) " +
+                "on duplicate key update applied_nickname = values(applied_nickname)").use {
+                it.setString(1, discordId); it.setString(2, nickname); it.executeUpdate()
+            }
+        }
+    } }
+    override suspend fun claimInvitation(discordId: String, at: Instant): Boolean = database.transaction { c ->
+        c.prepareStatement("insert ignore into discord_game_invitations (discord_user_id, attempted_at, status) values (?, ?, 'attempting')").use {
+            it.setString(1, discordId); it.setObject(2, LocalDateTime.ofInstant(at, ZoneOffset.UTC)); it.executeUpdate() == 1
+        }
+    }
+    override suspend fun finishInvitation(discordId: String, status: String) { database.transaction { c ->
+        require(status in setOf("sent", "dm_closed", "discord_refused"))
+        c.prepareStatement("update discord_game_invitations set status = ? where discord_user_id = ?").use {
+            it.setString(1, status); it.setString(2, discordId); it.executeUpdate()
         }
     } }
 }
