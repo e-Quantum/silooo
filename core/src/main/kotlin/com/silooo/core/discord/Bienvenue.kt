@@ -18,7 +18,6 @@ object BienvenueTexts {
 
     const val LINK_BUTTON_ID = "relier-mon-compte"
     const val LINK_BUTTON_LABEL = "Relier mon compte"
-    const val LINK_LATER = "La liaison arrive avec la bêta : tu relieras ton compte ici, ou avec la commande lier."
 
     const val IMAGE_MISSING = "Image d'accueil absente : elle arrive avec D1."
     const val ICON_SET = "Icône du serveur posée."
@@ -40,7 +39,8 @@ object BienvenueTexts {
  * `discord/bienvenue-nuit.png`) ; sans elles, le message part sans image et le journal le dit, une fois.
  *
  * Le bouton « Mes rappels » est celui de [WelcomeFeature], qui répond déjà à son identifiant quel que soit le message :
- * cette fonction l'ignore, sinon le membre recevrait deux réponses.
+ * cette fonction l'ignore, sinon le membre recevrait deux réponses. Le bouton de liaison est traité par
+ * [LinkingFeature], qui ouvre son formulaire.
  *
  * Au démarrage, l'icône du serveur est posée depuis `discord/icone-serveur.png` si la ressource existe et si le
  * serveur n'a pas encore d'icône.
@@ -62,12 +62,6 @@ class BienvenueFeature(
         val channel = context.ids.channel(CHANNEL) ?: return
         attempt("le message") { show(channel) }
         arm()
-    }
-
-    override suspend fun handle(event: DiscordEvent) {
-        if (event is DiscordEvent.ButtonPressed && event.id == BienvenueTexts.LINK_BUTTON_ID) {
-            event.reply.send(BotMessage(BienvenueTexts.LINK_LATER), onlyToUser = true)
-        }
     }
 
     /** Le message, modifié sur place s'il est connu et encore là, posté (et noté) sinon. */

@@ -254,15 +254,14 @@ class BienvenueTest {
     }
 
     @Test
-    @DisplayName("« Relier mon compte » répond au seul membre que la liaison arrive avec la bêta")
-    fun linkButtonAnswersPrivately() {
+    @DisplayName("« Relier mon compte » est laissé à la fonction de liaison, sans deuxième réponse")
+    fun linkButtonIsLeftToLinking() {
         val setup = Setup()
         setup.start()
         val reply = setup.press("relier-mon-compte")
 
-        assertEquals(1, reply.sent.size)
-        assertEquals("La liaison arrive avec la bêta : tu relieras ton compte ici, ou avec la commande lier.", reply.sent[0].first.text)
-        assertTrue(reply.sent[0].second)
+        assertTrue(reply.sent.isEmpty())
+        assertTrue(reply.forms.isEmpty())
         assertEquals(0, reply.acknowledged)
     }
 
