@@ -233,7 +233,7 @@ class SpoilFeature(
             try {
                 context.server.edit(channel, before, BotMessage(SpoilTexts.post(previous.number, previous.text, role, null), previous.image))
             } catch (e: DiscordMessageMissing) {
-                pause(e.channelId, e.messageId)
+                log.info("Bot Discord : ancienne carte des coulisses absente, salon {}, message {}", e.channelId, e.messageId)
             }
         }
     }

@@ -1047,3 +1047,16 @@ Pour accueillir les membres au QG avant la bêta Minecraft : `SILOOO_DISCORD_PHA
 `SILOOO_DISCORD_PUBLIC=oui` lorsque Kr ouvre le QG. Les phases suivantes sont `beta`, puis `ouvert` ; les
 blocages de la partie Minecraft ne sont pas levés par cette variable. Kr règle lui-même son fichier d'environnement,
 que la session ne lit ni ne modifie. La livraison suivante recrée uniquement le core et prend ses valeurs en compte.
+
+### Recette du 6 novembre : message de coulisses supprimé
+
+- Livraison `8643066` confirmée : `phase=attente`, `public=true`, heartbeat 204 ; les valeurs posées par Kr sont
+  prises en compte. Accueil actif : deux questions, neuf réponses et quinze salons par défaut, dont cinq écrivables.
+- Le contrôle après deux minutes a trouvé `Unknown Message` chaque minute : le premier spoil publié pointe un
+  message supprimé, confirmé par HTTP 404. Aucun contenu supprimé n'est republié pour corriger ce cas.
+- Correction : erreur de message absent typée, suivi du spoil suspendu pour cette instance, publication du suivant
+  et minuterie du matin bloquées, alerte unique du staff avec les identifiants pour intervention. État et file
+  conservés en base. Au redémarrage, Discord confirme de nouveau la suppression une seule fois. Les erreurs
+  transitoires restent retentables. Aucun changement des tirages ni des lots de giveaways.
+- Le texte de l'alerte du staff reste à valider par Kr. Le rétablissement du spoil supprimé reste une intervention
+  explicite, sans résurrection automatique d'un message modéré.
