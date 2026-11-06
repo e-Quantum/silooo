@@ -246,6 +246,10 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
   } else if (step !== undefined) {
     entries.push({ text: FICHE_TEXTES.etapes[step - 1]?.bouton ?? "", target: { kind: "restore", factoryId, step } });
   }
+  if (factory.state === "ACTIVE") {
+    entries.push({ text: SILO_TEXTES.encaisser, target: { kind: "collect" } });
+    entries.push({ text: MENU_TEXTES.personnel, target: go({ screen: "equipe", factoryId, page: 0 }) });
+  }
   entries.push({ text: FICHE_TEXTES.retour, target: go({ screen: "usines", page }) });
 
   const lines = [
@@ -573,7 +577,7 @@ export interface Menu<P> {
    * Ouvre le menu principal et suit le joueur d'écran en écran jusqu'à ce qu'il ferme. Un joueur qui a déjà un
    * menu ouvert est ignoré. Ne lève pas.
    */
-  open(player: P): Promise<void>;
+  open(player: P, initial?: Route): Promise<void>;
 }
 
 function parentOf(route: Route): Route {
@@ -808,9 +812,9 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     }
   }
 
-  async function walk(player: P): Promise<void> {
+  async function walk(player: P, initial: Route): Promise<void> {
     const xuid = playerXuid(player);
-    let route: Route = MAIN;
+    let route: Route = initial;
     let notice: Notice | undefined;
     /** Ce que le menu a lu du service pour ses écrans : l'aperçu du prestige, les candidats de l'agence. */
     const reads: Reads = { preview: undefined, candidates: undefined, parcel: undefined, catalog: undefined, pass: undefined, votes: undefined };
@@ -856,6 +860,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       }
       return undefined;
     }
+    notice = await enter(route);
     for (;;) {
       const view = views.get(xuid);
       if (view === undefined) {
@@ -990,12 +995,12 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
   }
 
   return {
-    async open(player) {
+    async open(player, initial = MAIN) {
       const xuid = playerXuid(player);
       if (inMenu.has(xuid)) return;
       inMenu.add(xuid);
       try {
-        await walk(player);
+        await walk(player, initial);
       } catch (error) {
         log.warn(`menu de ${player.name} : ${describeError(error)}`);
       } finally {

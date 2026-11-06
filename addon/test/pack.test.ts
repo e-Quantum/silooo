@@ -117,7 +117,10 @@ describe("scripts/construire.mjs et le dossier statique", () => {
 
   it("met aussi pack/ dans le .mcpack, avec le manifeste et le script", () => {
     const entrees = unzipSync(new Uint8Array(readFileSync(join(sortie, "silooo-addon.mcpack"))));
-    assert.deepEqual(Object.keys(entrees).sort(), ["entities/oooscar.json", "manifest.json", "scripts/main.js"]);
+    assert.deepEqual(Object.keys(entrees).sort(), ["entities/oooscar.json", "items/carte.json", "items/objectif.json", "items/usine.json", "items/ville.json", "manifest.json", "scripts/main.js"]);
+    for (const name of ["carte", "objectif", "usine", "ville"]) {
+      assert.equal(new TextDecoder().decode(entrees[`items/${name}.json`]), readFileSync(join(racine, "pack/items", `${name}.json`), "utf8"));
+    }
     const entree = entrees["entities/oooscar.json"];
     assert.ok(entree !== undefined);
     assert.equal(new TextDecoder().decode(entree), readFileSync(source, "utf8"));

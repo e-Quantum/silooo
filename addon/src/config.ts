@@ -143,7 +143,7 @@ export const config: Config = {
   },
   world: {
     syncSeconds: 5,
-    opsPerBatch: 40,
+    opsPerBatch: 8,
     batchPauseSeconds: 0.05,
     buildRetrySeconds: 2,
     buildRetryMaxSeconds: 30,

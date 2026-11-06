@@ -1,3 +1,5 @@
+> Révision gameplay du 6 novembre 2026 : la boussole décrite dans les sections historiques ci-dessous n’est plus branchée. Quatre objets personnalisés occupent les cases 1 à 4 : Usine, Carte, Objectif, Ville. Usine ouvre la fiche de l’île actuelle avec collecte et personnel ; la Carte reste limitée aux voyages et aux verrous existants, son achat d’usines attend le contrat et le moteur. Le pack 0.1.1 ajoute l’habillage des formulaires. Voir `docs/gameplay-2026-11-06.md` pour les validations et limites.
+
 # addon : le pack de comportement de Silooo
 
 L'add-on tourne dans le serveur Bedrock (BDS) et parle en HTTP à silooo-core. Il n'a aucune règle de jeu :

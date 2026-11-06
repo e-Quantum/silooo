@@ -46,6 +46,8 @@ export interface ArrivalDeps<P extends { readonly name: string }> {
   readonly log: Logger;
   /** Retient l'origine d'archipel d'une entreprise (le relevé périodique s'en sert quand une réponse ne la redonne pas). */
   readonly remember?: (companyId: number, origin: Xz) => void;
+  /** La cinématique est acquittée après sa lecture, jamais au simple join du service. */
+  readonly introduction?: { seen(player: P): boolean; complete(player: P): void };
   readonly settings?: ArrivalSettings;
 }
 
@@ -121,8 +123,9 @@ export function createArrivals<P extends { readonly name: string }>(deps: Arriva
     void placeOooscar(key, arrival.oooscar, arrival.position, connection).catch((error: unknown) => {
       log.warn(`Oooscar : ${describeError(error)}`);
     });
-    if (!join.firstJoin) return;
+    if (!join.firstJoin && (deps.introduction === undefined || deps.introduction.seen(player))) return;
     const outcome = await runner.start(key, player, buildTimeline(defs, arrival, texts));
+    if (outcome !== "aborted") deps.introduction?.complete(player);
     log.info(`cinématique de ${player.name} : ${outcome}`);
   }
 

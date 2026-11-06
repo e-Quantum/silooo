@@ -1,0 +1,353 @@
+{
+  "namespace": "server_form",
+  "long_form": {
+    "type": "panel",
+    "size": [
+      360,
+      246
+    ],
+    "max_size": [
+      "96%",
+      "94%"
+    ],
+    "layer": 2,
+    "controls": [
+      {
+        "background": {
+          "type": "image",
+          "texture": "textures/ui/silooo/panneau-fonte",
+          "size": [
+            "100%",
+            "100%"
+          ],
+          "nineslice_size": 4
+        }
+      },
+      {
+        "title": {
+          "type": "image",
+          "texture": "textures/ui/silooo/plaque-email-bleue",
+          "size": [
+            "100% - 54px",
+            27
+          ],
+          "nineslice_size": 4,
+          "anchor_from": "top_middle",
+          "anchor_to": "top_middle",
+          "offset": [
+            0,
+            -6
+          ],
+          "layer": 3,
+          "controls": [
+            {
+              "label": {
+                "type": "label",
+                "text": "#title_text",
+                "color": [
+                  0.17,
+                  0.13,
+                  0.11
+                ],
+                "font_size": "large",
+                "size": [
+                  "100% - 18px",
+                  18
+                ],
+                "text_alignment": "center",
+                "layer": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "close@common_buttons.light_text_button": {
+          "$pressed_button_name": "button.menu_exit",
+          "$button_text": "×",
+          "size": [
+            24,
+            24
+          ],
+          "anchor_from": "top_right",
+          "anchor_to": "top_right",
+          "offset": [
+            -6,
+            3
+          ],
+          "layer": 5,
+          "$default_button_texture": "textures/ui/silooo/bouton-fonte",
+          "$hover_button_texture": "textures/ui/silooo/bouton-laiton",
+          "$pressed_button_texture": "textures/ui/silooo/bouton-fonte-appuye",
+          "$default_text_color": [
+            0.96,
+            0.91,
+            0.8
+          ]
+        }
+      },
+      {
+        "scroll@common.scrolling_panel": {
+          "size": [
+            "100% - 30px",
+            "100% - 42px"
+          ],
+          "offset": [
+            0,
+            12
+          ],
+          "layer": 2,
+          "$show_background": false,
+          "$scrolling_content": "server_form.silooo_content",
+          "$scroll_size": [
+            4,
+            "100%"
+          ],
+          "$scrolling_pane_size": [
+            "100% - 6px",
+            "100%"
+          ],
+          "$scroll_bar_right_padding_size": [
+            0,
+            0
+          ]
+        }
+      }
+    ]
+  },
+  "silooo_content": {
+    "type": "stack_panel",
+    "size": [
+      "100%",
+      "100%c"
+    ],
+    "orientation": "vertical",
+    "controls": [
+      {
+        "body": {
+          "type": "label",
+          "text": "#form_text",
+          "color": [
+            0.96,
+            0.91,
+            0.8
+          ],
+          "size": [
+            "100% - 6px",
+            "default"
+          ],
+          "anchor_from": "top_left",
+          "anchor_to": "top_left",
+          "shadow": false
+        }
+      },
+      {
+        "gap": {
+          "type": "panel",
+          "size": [
+            "100%",
+            9
+          ]
+        }
+      },
+      {
+        "buttons": {
+          "type": "grid",
+          "size": [
+            "100%",
+            384
+          ],
+          "grid_dimensions": [
+            2,
+            8
+          ],
+          "grid_rescaling_type": "vertical",
+          "grid_fill_direction": "horizontal",
+          "grid_item_template": "server_form.silooo_tile",
+          "collection_name": "form_buttons",
+          "bindings": [
+            {
+              "binding_name": "#form_button_contents",
+              "binding_name_override": "#maximum_grid_items"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "silooo_tile": {
+    "type": "panel",
+    "size": [
+      "50%",
+      48
+    ],
+    "controls": [
+      {
+        "button@common_buttons.light_text_button": {
+          "size": [
+            "100% - 6px",
+            42
+          ],
+          "$pressed_button_name": "button.form_button_click",
+          "$button_text": "#form_button_text",
+          "$button_text_binding_type": "collection",
+          "$button_text_grid_collection_name": "form_buttons",
+          "$button_text_max_size": [
+            "100% - 12px",
+            34
+          ],
+          "$button_text_size": [
+            "100% - 12px",
+            34
+          ],
+          "$button_font_size": "normal",
+          "$default_button_texture": "textures/ui/silooo/bouton-fonte",
+          "$hover_button_texture": "textures/ui/silooo/bouton-laiton",
+          "$pressed_button_texture": "textures/ui/silooo/bouton-fonte-appuye",
+          "$locked_button_texture": "textures/ui/silooo/bouton-fonte",
+          "$button_state_panel": "server_form.silooo_button_state",
+          "$default_text_color": [
+            0.96,
+            0.91,
+            0.8
+          ],
+          "$hover_text_color": [
+            0.17,
+            0.13,
+            0.11
+          ],
+          "$pressed_text_color": [
+            0.96,
+            0.91,
+            0.8
+          ],
+          "bindings": [
+            {
+              "binding_type": "collection_details",
+              "binding_collection_name": "form_buttons"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "silooo_button_state": {
+    "type": "image",
+    "texture": "$new_ui_button_texture",
+    "nineslice_size": 3,
+    "size": [
+      "100%",
+      "100%"
+    ],
+    "controls": [
+      {
+        "icon": {
+          "type": "image",
+          "size": [
+            24,
+            24
+          ],
+          "anchor_from": "left_middle",
+          "anchor_to": "left_middle",
+          "offset": [
+            6,
+            0
+          ],
+          "layer": 2,
+          "bindings": [
+            {
+              "binding_name": "#form_button_texture",
+              "binding_name_override": "#texture",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "binding_name": "#form_button_texture_file_system",
+              "binding_name_override": "#texture_file_system",
+              "binding_type": "collection",
+              "binding_collection_name": "form_buttons"
+            },
+            {
+              "binding_type": "view",
+              "source_property_name": "(not (#texture = ''))",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      },
+      {
+        "label@common_buttons.new_ui_binding_button_label": {
+          "$button_text_size": [
+            "100% - 45px",
+            34
+          ],
+          "$button_text_max_size": [
+            "100% - 45px",
+            34
+          ],
+          "offset": [
+            14,
+            0
+          ]
+        }
+      }
+    ]
+  },
+  "custom_form@common_dialogs.main_panel_no_buttons": {
+    "$title_panel": "server_form.silooo_modal_title",
+    "$title_size": [
+      "100% - 15px",
+      24
+    ],
+    "$title_max_size": [
+      "100% - 15px",
+      24
+    ],
+    "size": [
+      330,
+      236
+    ],
+    "$text_name": "#title_text",
+    "$title_text_binding_type": "none",
+    "$child_control": "server_form.custom_form_panel",
+    "$background": "server_form.silooo_background",
+    "layer": 2
+  },
+  "silooo_background": {
+    "type": "image",
+    "texture": "textures/ui/silooo/panneau-fonte",
+    "size": [
+      "100%",
+      "100%"
+    ],
+    "nineslice_size": 4
+  },
+  "silooo_modal_title": {
+    "type": "image",
+    "texture": "textures/ui/silooo/plaque-email-bleue",
+    "size": [
+      "100%",
+      "100%"
+    ],
+    "nineslice_size": 4,
+    "controls": [
+      {
+        "label": {
+          "type": "label",
+          "text": "#title_text",
+          "color": [
+            0.17,
+            0.13,
+            0.11
+          ],
+          "text_alignment": "center",
+          "size": [
+            "100% - 12px",
+            18
+          ],
+          "layer": 1
+        }
+      }
+    ]
+  }
+}

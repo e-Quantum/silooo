@@ -19,6 +19,7 @@ import {
   createMarkStore,
   createOooscarWorld,
   releaseStaleAreas,
+  validateWorldAssets,
 } from "./monde/bedrock";
 import { createCinematicRunner } from "./monde/cinematique";
 import { createIslandBuilder } from "./monde/constructeur";
@@ -45,7 +46,7 @@ import { createPlayerStore, type PlayerStore } from "./state";
 import { createActions } from "./ui/actions";
 import { createAnnouncements, type Announcements } from "./ui/annonces";
 import { createCityEvents } from "./ui/annonces-ville";
-import { registerMenuItem } from "./ui/boussole";
+import { installNavigation, navigationRoute, currentFactoryRoute, type NAVIGATION } from "./ui/inventaire";
 import { createLinkState, createViewStore, observeApi, type LinkState, type ViewStore } from "./ui/etat";
 import { createFormPresenter } from "./ui/formulaires";
 import { createHud, startHud } from "./ui/hud";
@@ -53,15 +54,15 @@ import { createInvitations, type Invitations } from "./ui/invitations";
 import { createIncidents } from "./ui/incidents";
 import { createMenu } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
-import { BOUSSOLE_TEXTES, CINEMATIQUE_TEXTES } from "./ui/textes";
+import { CINEMATIQUE_TEXTES } from "./ui/textes";
 import { createVotes } from "./ui/votes";
 
 /** L'objet du menu, tel que le joueur le reçoit : nommé, gardé à la mort, impossible à jeter ou à ranger ailleurs. */
-function newMenuItem(): ItemStack {
-  const item = new ItemStack(config.ui.menuItem, 1);
-  item.nameTag = BOUSSOLE_TEXTES.nom;
+function newNavigationItem(entry: typeof NAVIGATION[number]): ItemStack {
+  const item = new ItemStack(entry.id, 1);
+  item.nameTag = entry.name;
   item.keepOnDeath = true;
-  item.lockMode = ItemLockMode.inventory;
+  item.lockMode = ItemLockMode.slot;
   return item;
 }
 
@@ -108,6 +109,8 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
     scheduler.after(
       config.startupDelaySeconds,
       guard(log, "ménage de départ", () => {
+        validateWorldAssets();
+        log.info("matériaux des îles et orientations des enseignes validés par Bedrock");
         const areas = releaseStaleAreas();
         const strays = oooscar.sweep();
         if (areas > 0 || strays > 0) log.info(`ménage de départ : ${areas} zone(s) chargée(s) et ${strays} Oooscar retirée(s)`);
@@ -153,11 +156,21 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
       scheduler,
       log,
       remember: sync.remember,
+      introduction: {
+        seen: (player) => player.getDynamicProperty("silooo:arrival-complete") === true,
+        complete: (player) => player.setDynamicProperty("silooo:arrival-complete", true),
+      },
     });
     return {
       hooks: {
         arriving: arrivals.arriving,
-        joined: arrivals.joined,
+        joined: async (player, join) => {
+          if (join.firstJoin) {
+            player.getComponent("minecraft:inventory")?.container?.clearAll();
+            player.setDynamicProperty("silooo:arrival-complete", false);
+          }
+          await arrivals.joined(player, join);
+        },
         joinFailed: arrivals.failed,
         left: (event) => arrivals.left(leavingXuid(event)),
       },
@@ -236,14 +249,22 @@ function startScreens(deps: {
       wait: (seconds) => pause(scheduler, seconds),
       log,
     });
-    registerMenuItem(world, {
-      inventoryOf: (player) => player.getComponent("minecraft:inventory")?.container,
-      makeItem: newMenuItem,
-      // Pendant l'arrivée et la cinématique, la boussole attend et le menu ne s'ouvre pas.
-      open: (player) => (busy(player) ? undefined : menu.open(player)),
-      waitWhile: busy,
-      scheduler,
-      log,
+    navigationUse = (player, id) => {
+      const state = views.get(playerXuid(player))?.state;
+      const route = id === "silooo:usine" && state !== undefined
+        ? currentFactoryRoute(state, where?.(player)) : navigationRoute(id);
+      if (!busy(player) && route !== undefined) void menu.open(player, route);
+    };
+    function equip(player: Player): void {
+      if (!player.isValid) return;
+      if (busy(player)) { scheduler.after(config.ui.menuItemWaitStepSeconds, () => equip(player)); return; }
+      const inventory = player.getComponent("minecraft:inventory")?.container;
+      if (inventory !== undefined && !installNavigation(inventory, newNavigationItem)) {
+        log.warn(`inventaire de ${player.name} : libère une place pour les objets de navigation`);
+      }
+    }
+    world.afterEvents.playerSpawn.subscribe(({ player }) => {
+      scheduler.after(config.ui.menuItemDelaySeconds, guard(log, "inventaire", () => equip(player)));
     });
     startHud(scheduler, guard(log, "HUD", hud.refresh));
   } catch (error) {
@@ -361,4 +382,13 @@ function main(): void {
   }
 }
 
+let navigationUse: ((player: Player, id: string) => void) | undefined;
+system.beforeEvents.startup.subscribe(({ itemComponentRegistry }) => {
+  itemComponentRegistry.registerCustomComponent("silooo:navigation", {
+    onUse: ({ source, itemStack }) => { if (itemStack !== undefined) system.run(() => navigationUse?.(source, itemStack.typeId)); },
+    onUseOn: ({ source, itemStack }) => {
+      if (source.typeId === "minecraft:player") system.run(() => navigationUse?.(source as Player, itemStack.typeId));
+    },
+  });
+});
 main();

@@ -17,6 +17,7 @@ import {
   type Vector3,
 } from "@minecraft/server";
 import { config } from "../config";
+import { ILES } from "./definitions";
 import type { CursorStore } from "../events";
 import { secondsToTicks } from "../runtime";
 import type { ArrivalWorld } from "./arrivee";
@@ -27,6 +28,12 @@ import type { OooscarHandle, OooscarWorld } from "./oooscar";
 /** La dimension où vit l'archipel : le monde de Silooo n'en a qu'une. */
 function overworld(): Dimension {
   return world.getDimension("overworld");
+}
+
+/** Échec explicite au démarrage si un matériau ne porte pas son identifiant Bedrock. */
+export function validateWorldAssets(): void {
+  for (const block of Object.values(ILES.materiaux)) BlockPermutation.resolve(block);
+  for (const facing of [2, 3, 4, 5]) BlockPermutation.resolve(ILES.materiaux.enseigne, { facing_direction: facing });
 }
 
 // ---------------------------------------------------------------- blocs

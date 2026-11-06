@@ -1,0 +1,18 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:item": {
+    "description": {
+      "identifier": "silooo:objectif"
+    },
+    "components": {
+      "minecraft:display_name": {
+        "value": "Objectif"
+      },
+      "minecraft:icon": "silooo_objectif",
+      "minecraft:max_stack_size": 1,
+      "minecraft:hand_equipped": false,
+      "minecraft:interact_button": true,
+      "silooo:navigation": {}
+    }
+  }
+}

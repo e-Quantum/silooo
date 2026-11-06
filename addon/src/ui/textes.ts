@@ -246,6 +246,11 @@ export const BOUSSOLE_TEXTES = {
   nom: "Menu",
 } as const;
 
+/** Objets personnalisés de la barre rapide, à valider par Kr. */
+export const NAVIGATION_TEXTES = {
+  usine: "Usine", carte: "Carte", objectif: "Objectif", ville: "Ville",
+} as const;
+
 // ---------------------------------------------------------------- les écrans
 
 export const MENU_TEXTES = {

@@ -37,7 +37,7 @@ function reponse(options: { firstJoin?: boolean; island?: Xz | undefined; factor
   });
 }
 
-function banc() {
+function banc(introduction?: { seen(player: Joueur): boolean; complete(player: Joueur): void }) {
   const temps = virtualTime();
   const log = recordingLogger();
   const evenements: string[] = [];
@@ -114,6 +114,7 @@ function banc() {
     scheduler: temps.scheduler,
     log,
     remember: (companyId, origin) => void retenues.push({ companyId, origin }),
+    ...(introduction === undefined ? {} : { introduction }),
   });
   return { temps, log, evenements, attentes, syncs, constructeur, oooscar, lecteur, monde, retenues, arrivees };
 }
@@ -198,6 +199,30 @@ describe("un joueur qui revient", () => {
 });
 
 describe("le premier passage", () => {
+  it("reprend une introduction jamais vue après un join antérieur, et ne l'acquitte qu'une fois lue", async () => {
+    let seen = false;
+    const b = banc({ seen: () => seen, complete: () => { seen = true; } });
+    const joueur = alex();
+    b.arrivees.arriving(joueur);
+    const fin = b.arrivees.joined(joueur, reponse({ firstJoin: false }));
+    await b.temps.flush();
+    b.attentes[0]?.resoudre(true);
+    await b.temps.flush();
+    assert.equal(b.lecteur.departs.length, 1);
+    assert.equal(seen, false);
+    b.lecteur.departs[0]?.finir("aborted");
+    await fin;
+    assert.equal(seen, false, "une déconnexion ne valide pas l'introduction");
+    b.arrivees.left(cle(joueur));
+    b.arrivees.arriving(joueur);
+    const reprise = b.arrivees.joined(joueur, reponse({ firstJoin: false }));
+    await b.temps.flush();
+    b.attentes[1]?.resoudre(true);
+    await b.temps.flush();
+    b.lecteur.departs[1]?.finir("finished");
+    await reprise;
+    assert.equal(seen, true);
+  });
   it("joue la cinématique de vingt secondes après la téléportation, et le joueur est occupé jusqu'à sa fin", async () => {
     const b = banc();
     const joueur = alex();

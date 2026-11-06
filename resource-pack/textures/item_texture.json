@@ -1,0 +1,18 @@
+{
+  "resource_pack_name": "silooo",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "silooo_usine": {
+      "textures": "textures/ui/silooo/icones/usine"
+    },
+    "silooo_carte": {
+      "textures": "textures/ui/silooo/icones/carte"
+    },
+    "silooo_objectif": {
+      "textures": "textures/ui/silooo/icones/engrenage"
+    },
+    "silooo_ville": {
+      "textures": "textures/ui/silooo/icones/ville"
+    }
+  }
+}

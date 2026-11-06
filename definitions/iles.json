@@ -25,7 +25,7 @@
     "mousse": "minecraft:mossy_cobblestone",
     "echafaudage": "minecraft:oak_fence",
     "lumiere": "minecraft:lantern",
-    "enseigne": "minecraft:oak_wall_sign",
+    "enseigne": "minecraft:wall_sign",
     "vide": "minecraft:air"
   },
   "usines": [
