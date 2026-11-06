@@ -402,6 +402,10 @@ export type IlesDefinitions = {
     readonly profondeur: number;
     /** Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne. */
     readonly hauteur: number;
+    /** Rayon propre à cette île ; absent, celui de la plateforme. */
+    readonly rayon?: number;
+    /** Distance du point d’arrivée de cette usine ; absent, celle de l’apparition générale. */
+    readonly apparition?: number;
   }[];
   /** La cinématique d'arrivée (design/composants/Cinematique.md : 20 secondes, 4 plans), filmée autour de la mini-île de départ. Chaque plan part d'un point, glisse vers un autre et regarde un point fixe ; tous les points sont donnés par rapport au centre de cette mini-île. */
   readonly cinematique: {
@@ -415,6 +419,28 @@ export type IlesDefinitions = {
       /** Le point que la caméra regarde pendant tout le plan. */
       readonly regard: IlesVue;
     }[];
+  };
+  readonly atelier: {
+    readonly revision: number;
+    readonly introductionRevision: number;
+    readonly volumes: readonly {
+      readonly de: IlesVue;
+      readonly a: IlesVue;
+      readonly bloc: IlesBlocAtelier;
+    }[];
+    readonly machines: readonly {
+      readonly role: "broyeur" | "convoyeur" | "stock" | "bureau";
+      readonly position: IlesVue;
+      readonly bloc: IlesBlocAtelier;
+    }[];
+    readonly salarie: {
+      readonly position: IlesVue;
+      readonly regard: IlesVue;
+    };
+    readonly enseigne: {
+      readonly position: IlesVue;
+      readonly support: IlesVue;
+    };
   };
 };
 
@@ -443,6 +469,9 @@ export type IlesPoint = {
   readonly x: number;
   readonly z: number;
 };
+
+/** Bloc du décor, vanilla ou personnalisé Silooo. */
+export type IlesBlocAtelier = string;
 
 // ---- incidents.json
 

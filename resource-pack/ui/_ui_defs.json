@@ -1,3 +1,6 @@
 {
-  "ui_defs": ["ui/silooo/hud.json"]
+  "ui_defs": [
+    "ui/silooo/hud.json",
+    "ui/silooo/cinematique.json"
+  ]
 }

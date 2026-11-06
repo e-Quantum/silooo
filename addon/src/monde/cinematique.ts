@@ -15,6 +15,19 @@ import { config } from "../config";
 import { describeError, type Clock, type Logger } from "../runtime";
 import { viewPoint, type Arrival, type Pos } from "./geometrie";
 
+export const CINEMATIC_TITLE_PREFIX = "silooo:cinema|";
+export const CINEMATIC_SUBTITLE_PREFIX = "silooo:parole|";
+
+/** La zone reste chargée pendant toute la séquence, jusque sous les caméras éloignées du joueur. */
+export function cinematicBounds(timeline: Timeline): { from: Pos; to: Pos } {
+  const positions = timeline.steps.flatMap((step) => step.kind === "cut" || step.kind === "move" ? [step.camera, step.facing] : []);
+  if (positions.length === 0) throw new Error("cinématique sans caméra");
+  return {
+    from: { x: Math.floor(Math.min(...positions.map((at) => at.x))) - 1, y: Math.floor(Math.min(...positions.map((at) => at.y))) - 1, z: Math.floor(Math.min(...positions.map((at) => at.z))) - 1 },
+    to: { x: Math.ceil(Math.max(...positions.map((at) => at.x))) + 1, y: Math.ceil(Math.max(...positions.map((at) => at.y))) + 1, z: Math.ceil(Math.max(...positions.map((at) => at.z))) + 1 },
+  };
+}
+
 // ---------------------------------------------------------------- la chronologie
 
 export type Step =

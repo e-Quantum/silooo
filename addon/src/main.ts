@@ -18,6 +18,8 @@ import {
   createEventsCursorStore,
   createMarkStore,
   createOooscarWorld,
+  createWorkshopWorld,
+  withCinematicArea,
   releaseStaleAreas,
   validateWorldAssets,
 } from "./monde/bedrock";
@@ -27,6 +29,7 @@ import { ILES, VILLE } from "./monde/definitions";
 import type { Pos, Xz } from "./monde/geometrie";
 import { createOooscarManager } from "./monde/oooscar";
 import { createWorldSync } from "./monde/synchro";
+import { createWorkshop } from "./monde/atelier";
 import { createCityTravel, createTravel, type CityTravel, type Travel } from "./monde/voyage";
 import {
   consoleLogger,
@@ -54,7 +57,7 @@ import { createInvitations, type Invitations } from "./ui/invitations";
 import { createIncidents } from "./ui/incidents";
 import { createMenu } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
-import { CINEMATIQUE_TEXTES } from "./ui/textes";
+import { CINEMATIQUE_TEXTES, ATELIER_TEXTES } from "./ui/textes";
 import { createVotes } from "./ui/votes";
 
 /** L'objet du menu, tel que le joueur le reçoit : nommé, gardé à la mort, impossible à jeter ou à ranger ailleurs. */
@@ -88,6 +91,7 @@ interface WorldPart {
   readonly where?: (player: Player) => Pos | undefined;
   /** La dernière origine d'archipel connue d'une entreprise. */
   readonly originOf?: (companyId: number) => Xz | undefined;
+  readonly replay?: (player: Player) => Promise<void>;
 }
 
 /** Sans partie « monde » : rien n'est occupé, aucun crochet, aucun voyage. */
@@ -97,7 +101,7 @@ const NO_WORLD: WorldPart = { hooks: {}, busy: () => false };
  * Le monde : îles des usines, arrivée du joueur, cinématique, Oooscar. Isolé du reste : si sa mise en place échoue,
  * le heartbeat, les événements et les écrans tournent quand même, et le journal dit pourquoi le monde manque.
  */
-function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Scheduler; readonly log: Logger }): WorldPart {
+function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerStore; readonly scheduler: Scheduler; readonly log: Logger }): WorldPart {
   const { views, scheduler, log } = deps;
   try {
     const oooscar = createOooscarManager({
@@ -140,6 +144,7 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
       views,
       builder,
       oooscar,
+      workshop: createWorkshop(ILES, createWorkshopWorld()),
       log,
     });
     scheduler.every(config.world.syncSeconds, guard(log, "îles", sync.tick));
@@ -156,9 +161,13 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
       scheduler,
       log,
       remember: sync.remember,
+      withCinematicArea,
       introduction: {
-        seen: (player) => player.getDynamicProperty("silooo:arrival-complete") === true,
-        complete: (player) => player.setDynamicProperty("silooo:arrival-complete", true),
+        seen: (player) => player.getDynamicProperty("silooo:arrival-version") === ILES.atelier.introductionRevision,
+        complete(player) {
+          player.setDynamicProperty("silooo:arrival-version", ILES.atelier.introductionRevision);
+          player.setDynamicProperty("silooo:arrival-complete", true);
+        },
       },
     });
     return {
@@ -179,6 +188,13 @@ function startWorld(deps: { readonly views: ViewStore; readonly scheduler: Sched
       travelCity: createCityTravel<Player>({ defs: ILES, ville: VILLE, builder, world: arrivalWorld, originOf: sync.originOf, log }),
       where: arrivalWorld.locate,
       originOf: sync.originOf,
+      replay: async (player) => {
+        const state = views.get(playerXuid(player))?.state;
+        const joined = deps.store.get(playerXuid(player))?.join;
+        if (state === undefined || joined === undefined || arrivals.busy(player)) return;
+        arrivals.arriving(player);
+        await arrivals.joined(player, { ...joined, companyId: state.companyId, state, firstJoin: false }, true);
+      },
     };
   } catch (error) {
     log.error(`monde indisponible : ${describeError(error)}`);
@@ -203,6 +219,7 @@ function startScreens(deps: {
   readonly travelCity: CityTravel<Player> | undefined;
   readonly where: ((player: Player) => Pos | undefined) | undefined;
   readonly originOf: ((companyId: number) => Xz | undefined) | undefined;
+  readonly replay: ((player: Player) => Promise<void>) | undefined;
   readonly scheduler: Scheduler;
   readonly log: Logger;
 }): void {
@@ -256,6 +273,41 @@ function startScreens(deps: {
         ? currentFactoryRoute(state, where?.(player)) : navigationRoute(id);
       if (!busy(player) && route !== undefined) void menu.open(player, route);
     };
+    const workshopMenus = new Set<string>();
+    workshopUse = async (player, kind, at) => {
+      if (!player.isValid || busy(player)) return;
+      const xuid = playerXuid(player);
+      const state = views.get(xuid)?.state;
+      if (state === undefined) return;
+      const route = currentFactoryRoute(state, at);
+      if (route.screen !== "fiche" || route.factoryId !== ILES.apparition.usine) {
+        player.sendMessage(ATELIER_TEXTES.autreEntreprise);
+        return;
+      }
+      if (kind === "production") { await menu.open(player, route); return; }
+      if (workshopMenus.has(xuid)) return;
+      workshopMenus.add(xuid);
+      try {
+        const answer = await createFormPresenter().show(player, {
+          title: kind === "bureau" ? ATELIER_TEXTES.bureau : ATELIER_TEXTES.production,
+          body: kind === "bureau" ? ATELIER_TEXTES.description : ATELIER_TEXTES.operateur,
+          buttons: [ATELIER_TEXTES.usine, ATELIER_TEXTES.personnel, ATELIER_TEXTES.agence, ATELIER_TEXTES.revoir, ATELIER_TEXTES.retour],
+        });
+        if (answer.kind !== "selected" || !player.isValid) return;
+        if (answer.index === 0) await menu.open(player, route);
+        if (answer.index === 1) await menu.open(player, { screen: "personnel", page: 0 });
+        if (answer.index === 2) await menu.open(player, { screen: "agence" });
+        if (answer.index === 3) await deps.replay?.(player);
+      } finally {
+        workshopMenus.delete(xuid);
+      }
+    };
+    world.afterEvents.playerInteractWithEntity.subscribe(({ player, target }) => {
+      if (target.typeId === "silooo:ouvrier") {
+        const at = { ...target.location };
+        system.run(guard(log, "ouvrier", () => workshopUse?.(player, "ouvrier", at)));
+      }
+    });
     function equip(player: Player): void {
       if (!player.isValid) return;
       if (busy(player)) { scheduler.after(config.ui.menuItemWaitStepSeconds, () => equip(player)); return; }
@@ -307,7 +359,7 @@ function main(): void {
     const votes = createVotes({ api, online, say: tellPlayer, clock: systemClock, log });
     const announcements = createAnnouncements({ views, online, say: tellPlayer, clock: systemClock, log });
 
-    const worldPart = startWorld({ views, scheduler, log });
+    const worldPart = startWorld({ views, store, scheduler, log });
     // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu, ses invitations en attente et le vote
     // du jour s'il ne l'a pas fait lui sont dits.
     const hooks = combineHooks<Player>(log, worldPart.hooks, {
@@ -373,6 +425,7 @@ function main(): void {
       travelCity: worldPart.travelCity,
       where: worldPart.where,
       originOf: worldPart.originOf,
+      replay: worldPart.replay,
       scheduler,
       log,
     });
@@ -384,10 +437,20 @@ function main(): void {
 }
 
 let navigationUse: ((player: Player, id: string) => void) | undefined;
-system.beforeEvents.startup.subscribe(({ itemComponentRegistry }) => {
+let workshopUse: ((player: Player, kind: "bureau" | "ouvrier" | "production", at: Pos) => void | Promise<void>) | undefined;
+system.beforeEvents.startup.subscribe(({ itemComponentRegistry, blockComponentRegistry }) => {
+  blockComponentRegistry.registerCustomComponent("silooo:atelier", {
+    onPlayerInteract: ({ player, block }) => {
+      if (player === undefined) return;
+      const kind = block.typeId === "silooo:bureau_administration" ? "bureau" : "production";
+      const at = { ...block.location };
+      system.run(guard(consoleLogger(), "atelier", () => workshopUse?.(player, kind, at)));
+    },
+  });
   itemComponentRegistry.registerCustomComponent("silooo:navigation", {
     onUse: ({ source, itemStack }) => { if (itemStack !== undefined) system.run(() => navigationUse?.(source, itemStack.typeId)); },
-    onUseOn: ({ source, itemStack }) => {
+    onUseOn: ({ source, itemStack, block }) => {
+      if (ILES.atelier.machines.some((machine) => machine.bloc === block.typeId)) return;
       if (source.typeId === "minecraft:player") system.run(() => navigationUse?.(source as Player, itemStack.typeId));
     },
   });

@@ -9,7 +9,8 @@
 import type { IlesDefinitions } from "../generated/definitions";
 import type { FactoryState } from "../protocol";
 import { factoryName } from "../ui/textes";
-import { discCells, discRows, doorSide, footprint, frameOfIsland, hash32, islandCenter, type Box, type Pos, type UsineIle, type Xz } from "./geometrie";
+import { discCells, discRows, doorSide, footprint, frameOfIsland, hash32, islandCenter, islandRadius, type Box, type Pos, type UsineIle, type Xz } from "./geometrie";
+import { carriereOps } from "./carriere";
 
 export type BlockStates = Readonly<Record<string, string | number | boolean>>;
 
@@ -45,10 +46,10 @@ export function signText(name: string, lineWidth = 12): string {
 }
 
 /** Les blocs de la plateforme, couche par couche, du dessus vers le bas. */
-function baseOps(defs: IlesDefinitions, center: Xz): Op[] {
+function baseOps(defs: IlesDefinitions, center: Xz, islandRadius = defs.plateforme.rayon): Op[] {
   const ops: Op[] = [];
   defs.plateforme.couches.forEach((couche, index) => {
-    const radius = defs.plateforme.rayon - couche.retrait;
+    const radius = islandRadius - couche.retrait;
     const y = defs.hauteur - index;
     const block = defs.materiaux[couche.materiau];
     for (const { dz, demiLargeur } of discRows(radius)) {
@@ -147,12 +148,13 @@ function stateOps(defs: IlesDefinitions, usine: UsineIle, center: Xz, state: Fac
 export function planIsland(defs: IlesDefinitions, usine: UsineIle, origin: Xz, state: FactoryState): IslandPlan {
   const center = islandCenter(origin, usine, defs);
   const frame = frameOfIsland(origin, usine, defs);
-  const reach = Math.max(defs.plateforme.rayon, Math.floor(usine.largeur / 2) + 2, Math.floor(usine.profondeur / 2) + 2);
+  const radius = islandRadius(defs, usine);
+  const reach = Math.max(radius, Math.floor(usine.largeur / 2) + 2, Math.floor(usine.profondeur / 2) + 2);
   const deepest = defs.hauteur - (defs.plateforme.couches.length - 1);
   return {
     center,
     box: { from: at(center.x - reach, deepest, center.z - reach), to: at(center.x + reach, defs.hauteur + usine.hauteur + 3, center.z + reach) },
-    base: baseOps(defs, center),
-    state: stateOps(defs, usine, center, state, doorSide(frame)),
+    base: baseOps(defs, center, radius),
+    state: usine.id === defs.apparition.usine ? carriereOps(defs, frame, state, radius) : stateOps(defs, usine, center, state, doorSide(frame)),
   };
 }

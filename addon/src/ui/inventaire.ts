@@ -3,7 +3,7 @@ import { NAVIGATION_TEXTES } from "./textes";
 import type { Route } from "./ecran";
 import type { CompanyState } from "../protocol";
 import { ILES } from "../monde/definitions";
-import { islandCenter, type Pos } from "../monde/geometrie";
+import { islandCenter, islandRadius, type Pos } from "../monde/geometrie";
 
 export const NAVIGATION = [
   { id: "silooo:usine", slot: 0, name: NAVIGATION_TEXTES.usine, icon: "usine", route: { screen: "carte", page: 0 } },
@@ -30,7 +30,7 @@ export function currentFactoryRoute(state: CompanyState, position: Pos | undefin
       const definition = ILES.usines.find((entry) => entry.id === factory.factoryId);
       if (definition === undefined) continue;
       const center = islandCenter(state.island, definition, ILES);
-      if (Math.hypot(position.x - center.x, position.z - center.z) <= ILES.plateforme.rayon + 2) {
+      if (Math.hypot(position.x - center.x, position.z - center.z) <= islandRadius(ILES, definition) + 2) {
         return { screen: "fiche", factoryId: factory.factoryId, page: 0 };
       }
     }

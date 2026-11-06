@@ -26,6 +26,10 @@ export interface Box {
 
 export type UsineIle = IlesDefinitions["usines"][number];
 
+export function islandRadius(defs: IlesDefinitions, usine: UsineIle): number {
+  return usine.rayon ?? defs.plateforme.rayon;
+}
+
 export function usineIle(defs: IlesDefinitions, id: string): UsineIle | undefined {
   return defs.usines.find((usine) => usine.id === id);
 }
@@ -111,7 +115,8 @@ export function arrivalAt(origin: Xz, defs: IlesDefinitions, factoryId: string):
   const usine = usineIle(defs, factoryId);
   if (usine === undefined) return undefined;
   const frame = frameOfIsland(origin, usine, defs);
-  const { distance, oooscar } = defs.apparition;
+  const distance = usine.apparition ?? defs.apparition.distance;
+  const { oooscar } = defs.apparition;
   return {
     factoryId: usine.id,
     position: standingAt(inFrame(frame, distance, 0), defs),

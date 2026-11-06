@@ -5,10 +5,28 @@
   "description": "Forme de definitions/iles.json : où l'add-on pose les mini-îles des usines autour de l'île principale, et de quoi elles sont faites. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "hauteur", "centreDansLaCase", "anneau", "plateforme", "apparition", "ruine", "materiaux", "usines", "cinematique"],
+  "required": [
+    "version",
+    "commentaire",
+    "hauteur",
+    "centreDansLaCase",
+    "anneau",
+    "plateforme",
+    "apparition",
+    "ruine",
+    "materiaux",
+    "usines",
+    "cinematique",
+    "atelier"
+  ],
   "properties": {
-    "version": { "type": "integer", "minimum": 1 },
-    "commentaire": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "commentaire": {
+      "type": "string"
+    },
     "hauteur": {
       "description": "Altitude (y) de la face du dessus des plateformes, en blocs. Les joueurs se tiennent un bloc au-dessus.",
       "type": "integer",
@@ -23,7 +41,10 @@
       "description": "Où se tiennent les mini-îles : sur un carré autour du centre de l'île principale, qui fait 512 × 512 blocs une fois débloquée.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["ilePrincipaleDemiCote", "demiCote"],
+      "required": [
+        "ilePrincipaleDemiCote",
+        "demiCote"
+      ],
       "properties": {
         "ilePrincipaleDemiCote": {
           "description": "Demi-côté en blocs de l'île principale une fois débloquée (512 × 512, donc 256), autour du même centre : les mini-îles doivent rester en dehors.",
@@ -41,9 +62,16 @@
       "description": "Le sol d'une mini-île : un disque, en couches de plus en plus étroites vers le bas.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["rayon", "couches"],
+      "required": [
+        "rayon",
+        "couches"
+      ],
       "properties": {
-        "rayon": { "description": "Rayon en blocs de la couche du dessus.", "type": "integer", "minimum": 3 },
+        "rayon": {
+          "description": "Rayon en blocs de la couche du dessus.",
+          "type": "integer",
+          "minimum": 3
+        },
         "couches": {
           "description": "De haut en bas. La première couche est la face du dessus, à l'altitude « hauteur ».",
           "type": "array",
@@ -51,10 +79,24 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["materiau", "retrait"],
+            "required": [
+              "materiau",
+              "retrait"
+            ],
             "properties": {
-              "materiau": { "type": "string", "enum": ["herbe", "terre", "pierre"] },
-              "retrait": { "description": "Blocs de rayon en moins que la couche du dessus.", "type": "integer", "minimum": 0 }
+              "materiau": {
+                "type": "string",
+                "enum": [
+                  "herbe",
+                  "terre",
+                  "pierre"
+                ]
+              },
+              "retrait": {
+                "description": "Blocs de rayon en moins que la couche du dessus.",
+                "type": "integer",
+                "minimum": 0
+              }
             }
           }
         }
@@ -64,9 +106,16 @@
       "description": "Le point où le joueur apparaît, sur la mini-île de départ.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["usine", "distance", "oooscar"],
+      "required": [
+        "usine",
+        "distance",
+        "oooscar"
+      ],
       "properties": {
-        "usine": { "description": "L'usine dont le joueur apparaît sur l'île : sa Carrière.", "$ref": "#/$defs/identifiant" },
+        "usine": {
+          "description": "L'usine dont le joueur apparaît sur l'île : sa Carrière.",
+          "$ref": "#/$defs/identifiant"
+        },
         "distance": {
           "description": "Distance en blocs du centre de la mini-île, du côté de l'île principale, hors du bâtiment.",
           "type": "integer",
@@ -82,29 +131,78 @@
       "description": "Ce qui se voit d'une usine en ruine.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["partMursAbimesPourcent", "partSolAbimePourcent"],
+      "required": [
+        "partMursAbimesPourcent",
+        "partSolAbimePourcent"
+      ],
       "properties": {
-        "partMursAbimesPourcent": { "description": "Part des blocs de mur qui manquent ou sont remplacés par des gravats.", "$ref": "#/$defs/pourcentage" },
-        "partSolAbimePourcent": { "description": "Part de la face du dessus où l'herbe est arrachée.", "$ref": "#/$defs/pourcentage" }
+        "partMursAbimesPourcent": {
+          "description": "Part des blocs de mur qui manquent ou sont remplacés par des gravats.",
+          "$ref": "#/$defs/pourcentage"
+        },
+        "partSolAbimePourcent": {
+          "description": "Part de la face du dessus où l'herbe est arrachée.",
+          "$ref": "#/$defs/pourcentage"
+        }
       }
     },
     "materiaux": {
       "description": "Les blocs de Minecraft qui jouent la palette de design/decor/ (herbe, terre, pierre, planches) et les détails.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["herbe", "terre", "pierre", "planches", "toit", "gravats", "mousse", "echafaudage", "lumiere", "enseigne", "vide"],
+      "required": [
+        "herbe",
+        "terre",
+        "pierre",
+        "planches",
+        "toit",
+        "gravats",
+        "mousse",
+        "echafaudage",
+        "lumiere",
+        "enseigne",
+        "vide"
+      ],
       "properties": {
-        "herbe": { "$ref": "#/$defs/bloc" },
-        "terre": { "$ref": "#/$defs/bloc" },
-        "pierre": { "$ref": "#/$defs/bloc" },
-        "planches": { "$ref": "#/$defs/bloc" },
-        "toit": { "description": "Le toit d'une usine active.", "$ref": "#/$defs/bloc" },
-        "gravats": { "description": "Ce qui reste d'un mur de pierre abîmé.", "$ref": "#/$defs/bloc" },
-        "mousse": { "description": "Ce qui reste d'un mur de planches abîmé, et le sol arraché.", "$ref": "#/$defs/bloc" },
-        "echafaudage": { "description": "Les poteaux d'un chantier (usine en remise en état).", "$ref": "#/$defs/bloc" },
-        "lumiere": { "description": "La lanterne d'une usine active.", "$ref": "#/$defs/bloc" },
-        "enseigne": { "description": "L'enseigne murale qui porte le nom de l'usine, au-dessus de sa porte.", "$ref": "#/$defs/bloc" },
-        "vide": { "$ref": "#/$defs/bloc" }
+        "herbe": {
+          "$ref": "#/$defs/bloc"
+        },
+        "terre": {
+          "$ref": "#/$defs/bloc"
+        },
+        "pierre": {
+          "$ref": "#/$defs/bloc"
+        },
+        "planches": {
+          "$ref": "#/$defs/bloc"
+        },
+        "toit": {
+          "description": "Le toit d'une usine active.",
+          "$ref": "#/$defs/bloc"
+        },
+        "gravats": {
+          "description": "Ce qui reste d'un mur de pierre abîmé.",
+          "$ref": "#/$defs/bloc"
+        },
+        "mousse": {
+          "description": "Ce qui reste d'un mur de planches abîmé, et le sol arraché.",
+          "$ref": "#/$defs/bloc"
+        },
+        "echafaudage": {
+          "description": "Les poteaux d'un chantier (usine en remise en état).",
+          "$ref": "#/$defs/bloc"
+        },
+        "lumiere": {
+          "description": "La lanterne d'une usine active.",
+          "$ref": "#/$defs/bloc"
+        },
+        "enseigne": {
+          "description": "L'enseigne murale qui porte le nom de l'usine, au-dessus de sa porte.",
+          "$ref": "#/$defs/bloc"
+        },
+        "vide": {
+          "$ref": "#/$defs/bloc"
+        }
       }
     },
     "usines": {
@@ -114,19 +212,61 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "angle", "murs", "largeur", "profondeur", "hauteur"],
+        "required": [
+          "id",
+          "angle",
+          "murs",
+          "largeur",
+          "profondeur",
+          "hauteur"
+        ],
         "properties": {
-          "id": { "$ref": "#/$defs/identifiant" },
+          "id": {
+            "$ref": "#/$defs/identifiant"
+          },
           "angle": {
             "description": "Direction du centre de l'île principale vers cette mini-île, en degrés : 0 vers l'est (x croissant), 90 vers le sud (z croissant), donc dans le sens des aiguilles d'une montre vu d'en haut.",
             "type": "integer",
             "minimum": 0,
             "maximum": 359
           },
-          "murs": { "type": "string", "enum": ["planches", "pierre"] },
-          "largeur": { "description": "Taille du bâtiment le long de x, en blocs, impaire pour que la porte tombe au milieu.", "type": "integer", "minimum": 3, "maximum": 11 },
-          "profondeur": { "description": "Taille du bâtiment le long de z, en blocs, impaire.", "type": "integer", "minimum": 3, "maximum": 11 },
-          "hauteur": { "description": "Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne.", "type": "integer", "minimum": 3, "maximum": 8 }
+          "murs": {
+            "type": "string",
+            "enum": [
+              "planches",
+              "pierre"
+            ]
+          },
+          "largeur": {
+            "description": "Taille du bâtiment le long de x, en blocs, impaire pour que la porte tombe au milieu.",
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 11
+          },
+          "profondeur": {
+            "description": "Taille du bâtiment le long de z, en blocs, impaire.",
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 11
+          },
+          "hauteur": {
+            "description": "Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne.",
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 8
+          },
+          "rayon": {
+            "description": "Rayon propre à cette île ; absent, celui de la plateforme.",
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 19
+          },
+          "apparition": {
+            "description": "Distance du point d’arrivée de cette usine ; absent, celle de l’apparition générale.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18
+          }
         }
       }
     },
@@ -134,7 +274,9 @@
       "description": "La cinématique d'arrivée (design/composants/Cinematique.md : 20 secondes, 4 plans), filmée autour de la mini-île de départ. Chaque plan part d'un point, glisse vers un autre et regarde un point fixe ; tous les points sont donnés par rapport au centre de cette mini-île.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["plans"],
+      "required": [
+        "plans"
+      ],
       "properties": {
         "plans": {
           "type": "array",
@@ -142,12 +284,138 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["duree", "depart", "arrivee", "regard"],
+            "required": [
+              "duree",
+              "depart",
+              "arrivee",
+              "regard"
+            ],
             "properties": {
-              "duree": { "description": "Durée du plan en secondes.", "type": "number", "exclusiveMinimum": 0, "maximum": 20 },
-              "depart": { "description": "Où la caméra commence.", "$ref": "#/$defs/vue" },
-              "arrivee": { "description": "Où la caméra finit.", "$ref": "#/$defs/vue" },
-              "regard": { "description": "Le point que la caméra regarde pendant tout le plan.", "$ref": "#/$defs/vue" }
+              "duree": {
+                "description": "Durée du plan en secondes.",
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 20
+              },
+              "depart": {
+                "description": "Où la caméra commence.",
+                "$ref": "#/$defs/vue"
+              },
+              "arrivee": {
+                "description": "Où la caméra finit.",
+                "$ref": "#/$defs/vue"
+              },
+              "regard": {
+                "description": "Le point que la caméra regarde pendant tout le plan.",
+                "$ref": "#/$defs/vue"
+              }
+            }
+          }
+        }
+      }
+    },
+    "atelier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "introductionRevision",
+        "volumes",
+        "machines",
+        "salarie",
+        "enseigne"
+      ],
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "introductionRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "de",
+              "a",
+              "bloc"
+            ],
+            "properties": {
+              "de": {
+                "$ref": "#/$defs/vue"
+              },
+              "a": {
+                "$ref": "#/$defs/vue"
+              },
+              "bloc": {
+                "$ref": "#/$defs/blocAtelier"
+              }
+            }
+          }
+        },
+        "machines": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "position",
+              "bloc"
+            ],
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": [
+                  "broyeur",
+                  "convoyeur",
+                  "stock",
+                  "bureau"
+                ]
+              },
+              "position": {
+                "$ref": "#/$defs/vue"
+              },
+              "bloc": {
+                "$ref": "#/$defs/blocAtelier"
+              }
+            }
+          }
+        },
+        "salarie": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "position",
+            "regard"
+          ],
+          "properties": {
+            "position": {
+              "$ref": "#/$defs/vue"
+            },
+            "regard": {
+              "$ref": "#/$defs/vue"
+            }
+          }
+        },
+        "enseigne": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "position",
+            "support"
+          ],
+          "properties": {
+            "position": {
+              "$ref": "#/$defs/vue"
+            },
+            "support": {
+              "$ref": "#/$defs/vue"
             }
           }
         }
@@ -159,34 +427,85 @@
       "description": "Un décalage sur le sol de la mini-île, dans son repère : « avant » va vers le centre de l'île principale, « droite » est à droite quand on regarde vers l'avant. En blocs.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["avant", "droite"],
+      "required": [
+        "avant",
+        "droite"
+      ],
       "properties": {
-        "avant": { "type": "number", "minimum": -200, "maximum": 200 },
-        "droite": { "type": "number", "minimum": -200, "maximum": 200 }
+        "avant": {
+          "type": "number",
+          "minimum": -200,
+          "maximum": 200
+        },
+        "droite": {
+          "type": "number",
+          "minimum": -200,
+          "maximum": 200
+        }
       }
     },
     "vue": {
       "description": "Un point de la mise en scène, dans le repère de la mini-île : avant, droite (voir decalagePlat) et haut, au-dessus de la face du dessus de la plateforme. En blocs.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["avant", "droite", "haut"],
+      "required": [
+        "avant",
+        "droite",
+        "haut"
+      ],
       "properties": {
-        "avant": { "type": "number", "minimum": -200, "maximum": 200 },
-        "droite": { "type": "number", "minimum": -200, "maximum": 200 },
-        "haut": { "type": "number", "minimum": -50, "maximum": 200 }
+        "avant": {
+          "type": "number",
+          "minimum": -200,
+          "maximum": 200
+        },
+        "droite": {
+          "type": "number",
+          "minimum": -200,
+          "maximum": 200
+        },
+        "haut": {
+          "type": "number",
+          "minimum": -50,
+          "maximum": 200
+        }
       }
     },
-    "identifiant": { "description": "Identifiant en kebab-case : minuscules sans accent, chiffres, tirets.", "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
-    "bloc": { "description": "Identifiant d'un type de bloc de Minecraft.", "type": "string", "pattern": "^minecraft:[a-z0-9_]+$" },
-    "pourcentage": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "identifiant": {
+      "description": "Identifiant en kebab-case : minuscules sans accent, chiffres, tirets.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "bloc": {
+      "description": "Identifiant d'un type de bloc de Minecraft.",
+      "type": "string",
+      "pattern": "^minecraft:[a-z0-9_]+$"
+    },
+    "pourcentage": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
     "point": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["x", "z"],
+      "required": [
+        "x",
+        "z"
+      ],
       "properties": {
-        "x": { "type": "integer" },
-        "z": { "type": "integer" }
+        "x": {
+          "type": "integer"
+        },
+        "z": {
+          "type": "integer"
+        }
       }
+    },
+    "blocAtelier": {
+      "description": "Bloc du décor, vanilla ou personnalisé Silooo.",
+      "type": "string",
+      "pattern": "^(minecraft|silooo):[a-z0-9_]+$"
     }
   }
 }

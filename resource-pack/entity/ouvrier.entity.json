@@ -1,0 +1,28 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "silooo:ouvrier",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/ouvrier"
+      },
+      "geometry": {
+        "default": "geometry.silooo_ouvrier"
+      },
+      "animations": {
+        "travail": "animation.silooo_ouvrier.travail"
+      },
+      "scripts": {
+        "animate": [
+          "travail"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.silooo_ouvrier"
+      ]
+    }
+  }
+}

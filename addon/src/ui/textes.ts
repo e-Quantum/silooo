@@ -701,13 +701,28 @@ export const CINEMATIQUE_TEXTES = {
   qui: OOOSCAR,
   /** Une phrase de huit mots au plus par plan, trois secondes à l'écran au moins. Le joueur hérite d'une vieille carrière. */
   plans: [
-    "Bienvenue chez toi, patron.",
-    "Tu hérites d'une vieille carrière abandonnée.",
-    "Les murs tiennent encore, à peu près.",
-    "Remettons-la en état, je t'accompagne.",
+    "Bienvenue dans ta Carrière, patron.",
+    "La pierre passe par le broyeur.",
+    "Ton équipe maintient la production.",
+    "Au bureau, tu gères ton usine.",
   ],
   /** La consigne pour passer, dans la bande du bas. */
   passer: "Reste accroupi pour passer.",
+} as const;
+
+/** Nouveaux textes du chantier Carrière, à valider par Kr. */
+export const ATELIER_TEXTES = {
+  ouvrier: "Ouvrier de la Carrière",
+  bureau: "ADMINISTRATION",
+  production: "PRODUCTION",
+  description: "Gère ta Carrière depuis le bureau.",
+  operateur: "Cet ouvrier assure le travail courant de la Carrière.",
+  usine: "Gérer l'usine",
+  personnel: "Personnel",
+  agence: "Agence",
+  revoir: "Revoir l'arrivée",
+  retour: "Retour",
+  autreEntreprise: "Ce poste appartient à une autre entreprise.",
 } as const;
 
 // ---------------------------------------------------------------- les associés

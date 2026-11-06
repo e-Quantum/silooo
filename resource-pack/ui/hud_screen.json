@@ -1,6 +1,5 @@
 {
   "namespace": "hud",
-
   "hud_title_text/title_frame/title": {
     "bindings": [
       {
@@ -10,12 +9,11 @@
       },
       {
         "binding_type": "view",
-        "source_property_name": "(not (('silooo:hud|' + (#text - 'silooo:hud|')) = #text))",
+        "source_property_name": "(not ((('silooo:hud|' + (#text - 'silooo:hud|')) = #text) or (#text = 'silooo:cinema|')))",
         "target_property_name": "#visible"
       }
     ]
   },
-
   "hud_title_text/title_frame/title_background": {
     "bindings": [
       {
@@ -25,12 +23,11 @@
       },
       {
         "binding_type": "view",
-        "source_property_name": "(not (('silooo:hud|' + (#text - 'silooo:hud|')) = #text))",
+        "source_property_name": "(not ((('silooo:hud|' + (#text - 'silooo:hud|')) = #text) or (#text = 'silooo:cinema|')))",
         "target_property_name": "#visible"
       }
     ]
   },
-
   "hud_title_text/subtitle_frame/subtitle": {
     "bindings": [
       {
@@ -40,12 +37,11 @@
       },
       {
         "binding_type": "view",
-        "source_property_name": "(not (('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text))",
+        "source_property_name": "(not ((('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text) or (('silooo:parole|' + (#text - 'silooo:parole|')) = #text)))",
         "target_property_name": "#visible"
       }
     ]
   },
-
   "hud_title_text/subtitle_frame/subtitle_background": {
     "bindings": [
       {
@@ -55,12 +51,11 @@
       },
       {
         "binding_type": "view",
-        "source_property_name": "(not (('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text))",
+        "source_property_name": "(not ((('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text) or (('silooo:parole|' + (#text - 'silooo:parole|')) = #text)))",
         "target_property_name": "#visible"
       }
     ]
   },
-
   "root_panel": {
     "modifications": [
       {
@@ -69,6 +64,9 @@
         "value": [
           {
             "silooo_zone@silooo_hud.zone": {}
+          },
+          {
+            "silooo_cinema@silooo_cinema.scene": {}
           }
         ]
       }

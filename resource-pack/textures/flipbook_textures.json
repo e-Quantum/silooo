@@ -1,0 +1,26 @@
+[
+  {
+    "flipbook_texture": "textures/blocks/silooo/broyeur_actif",
+    "atlas_tile": "silooo_broyeur_actif",
+    "ticks_per_frame": 3,
+    "frames": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "blend_frames": false
+  },
+  {
+    "flipbook_texture": "textures/blocks/silooo/convoyeur_actif",
+    "atlas_tile": "silooo_convoyeur_actif",
+    "ticks_per_frame": 3,
+    "frames": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "blend_frames": false
+  }
+]

@@ -1,0 +1,42 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:block": {
+    "description": {
+      "identifier": "silooo:broyeur",
+      "states": {
+        "silooo:actif": [
+          false,
+          true
+        ]
+      }
+    },
+    "components": {
+      "minecraft:geometry": {
+        "identifier": "geometry.silooo_broyeur"
+      },
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "silooo_broyeur",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:destructible_by_mining": false,
+      "minecraft:destructible_by_explosion": false,
+      "minecraft:light_dampening": 0,
+      "silooo:atelier": {}
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state('silooo:actif')",
+        "components": {
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "silooo_broyeur_actif",
+              "render_method": "opaque"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

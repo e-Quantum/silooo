@@ -1033,6 +1033,42 @@ L'avant est « rien », sauf pour le nom de la rareté du personnel et la place 
 | Personnel, tuile Associés (elle était dans le menu principal, qui n'a que huit places) | Associés, dans le menu | Associés, dans l'écran PERSONNEL |
 | Personnel, raretés du contrat (le nom vient de `definitions/personnel.json`) | Commun, Rare, Exceptionnel | Ordinaire, Rare, Exceptionnel |
 
+### Carrière et introduction, nouveaux textes à valider par Kr
+
+| Où | Avant | Après |
+| --- | --- | --- |
+| Introduction, plan 1 | Bienvenue chez toi, patron. | Bienvenue dans ta Carrière, patron. |
+| Introduction, plan 2 | Tu hérites d'une vieille carrière abandonnée. | La pierre passe par le broyeur. |
+| Introduction, plan 3 | Les murs tiennent encore, à peu près. | Ton équipe maintient la production. |
+| Introduction, plan 4 | Remettons-la en état, je t'accompagne. | Au bureau, tu gères ton usine. |
+| Salarié | rien | Ouvrier de la Carrière |
+| Bureau, titre | rien | ADMINISTRATION |
+| Ouvrier, titre | rien | PRODUCTION |
+| Bureau, description | rien | Gère ta Carrière depuis le bureau. |
+| Ouvrier, description | rien | Cet ouvrier assure le travail courant de la Carrière. |
+| Bureau, action | rien | Gérer l'usine |
+| Bureau, personnel | rien | Personnel |
+| Bureau, agence | rien | Agence |
+| Bureau, cinématique | rien | Revoir l'arrivée |
+| Bureau, fermeture | rien | Retour |
+| Poste d'autrui | rien | Ce poste appartient à une autre entreprise. |
+
+### Carrière aménagée, visuels à valider par Kr
+
+La Carrière de départ utilise le plan `atelier` de `definitions/iles.json` : fosse, hangar de production,
+convoyeur, stock et bureau vitré. `tools/generer_atelier.mjs` produit les quatre blocs et le salarié ;
+`--verifier` contrôle les copies et modèles pendant la vérification du pack. Les autres usines gardent leur plan.
+
+Le broyeur et le convoyeur s'animent seulement quand `Factory.ratePerHour` est positif et que l'usine fonctionne.
+L'ouvrier représente le travail courant ; il ne crée pas de salarié nommé, d'embauche ni de gain dans le service.
+Le bureau ouvre la fiche d'usine, le personnel, l'agence et la relecture de l'arrivée.
+
+La cinématique conserve quatre plans et vingt secondes, avec les caméras chargées pendant la lecture.
+Le nom d'Oooscar et ses phrases occupent la bande inférieure du HUD. La révision d'introduction fait voir
+la nouvelle version une fois aux joueurs existants, sans effacer leur progression. La révision du décor ne
+reconstruit que la Carrière. Nouveaux visuels : fosse et bâtiments, quatre blocs, ouvrier et bandes de sous-titres,
+tous à valider par Kr sur son client. Les formulaires conservent la hiérarchie native du correctif 0.1.2.
+
 ## Ce qui manque
 
 Au contrat (`api/`, non modifié par cette tranche) :

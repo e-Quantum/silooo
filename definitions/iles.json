@@ -1,20 +1,48 @@
 {
-  "version": 1,
+  "version": 2,
   "commentaire": "Les mini-îles des usines autour de l'île principale. Valeurs de départ, à valider par Kr. L'origine de la case vient du service (CompanyState.island) ; tout le reste est relatif à elle. Les identifiants d'usine sont ceux de usines.json.",
   "hauteur": 100,
-  "centreDansLaCase": { "x": 300, "z": 300 },
-  "anneau": { "ilePrincipaleDemiCote": 256, "demiCote": 280 },
+  "centreDansLaCase": {
+    "x": 300,
+    "z": 300
+  },
+  "anneau": {
+    "ilePrincipaleDemiCote": 256,
+    "demiCote": 280
+  },
   "plateforme": {
     "rayon": 7,
     "couches": [
-      { "materiau": "herbe", "retrait": 0 },
-      { "materiau": "terre", "retrait": 1 },
-      { "materiau": "terre", "retrait": 3 },
-      { "materiau": "pierre", "retrait": 5 }
+      {
+        "materiau": "herbe",
+        "retrait": 0
+      },
+      {
+        "materiau": "terre",
+        "retrait": 1
+      },
+      {
+        "materiau": "terre",
+        "retrait": 3
+      },
+      {
+        "materiau": "pierre",
+        "retrait": 5
+      }
     ]
   },
-  "apparition": { "usine": "carriere", "distance": 5, "oooscar": { "avant": 3, "droite": 2 } },
-  "ruine": { "partMursAbimesPourcent": 35, "partSolAbimePourcent": 30 },
+  "apparition": {
+    "usine": "carriere",
+    "distance": 5,
+    "oooscar": {
+      "avant": 9,
+      "droite": 2
+    }
+  },
+  "ruine": {
+    "partMursAbimesPourcent": 35,
+    "partSolAbimePourcent": 30
+  },
   "materiaux": {
     "herbe": "minecraft:grass_block",
     "terre": "minecraft:dirt",
@@ -29,48 +57,729 @@
     "vide": "minecraft:air"
   },
   "usines": [
-    { "id": "carriere", "angle": 0, "murs": "pierre", "largeur": 5, "profondeur": 5, "hauteur": 4 },
-    { "id": "scierie", "angle": 24, "murs": "planches", "largeur": 7, "profondeur": 5, "hauteur": 4 },
-    { "id": "ferme", "angle": 48, "murs": "planches", "largeur": 7, "profondeur": 5, "hauteur": 3 },
-    { "id": "mine-profonde", "angle": 72, "murs": "pierre", "largeur": 5, "profondeur": 5, "hauteur": 5 },
-    { "id": "fonderie", "angle": 96, "murs": "pierre", "largeur": 7, "profondeur": 5, "hauteur": 5 },
-    { "id": "atelier-outils", "angle": 120, "murs": "planches", "largeur": 5, "profondeur": 5, "hauteur": 4 },
-    { "id": "briqueterie", "angle": 144, "murs": "pierre", "largeur": 7, "profondeur": 5, "hauteur": 4 },
-    { "id": "elevage", "angle": 168, "murs": "planches", "largeur": 7, "profondeur": 7, "hauteur": 3 },
-    { "id": "centrale", "angle": 192, "murs": "pierre", "largeur": 5, "profondeur": 7, "hauteur": 5 },
-    { "id": "verrerie", "angle": 216, "murs": "pierre", "largeur": 5, "profondeur": 5, "hauteur": 4 },
-    { "id": "menuiserie", "angle": 240, "murs": "planches", "largeur": 7, "profondeur": 5, "hauteur": 4 },
-    { "id": "conserverie", "angle": 264, "murs": "planches", "largeur": 5, "profondeur": 5, "hauteur": 4 },
-    { "id": "usine-textile", "angle": 288, "murs": "planches", "largeur": 7, "profondeur": 7, "hauteur": 4 },
-    { "id": "usine-robots", "angle": 312, "murs": "pierre", "largeur": 7, "profondeur": 7, "hauteur": 5 },
-    { "id": "cristallerie", "angle": 336, "murs": "pierre", "largeur": 5, "profondeur": 7, "hauteur": 4 }
+    {
+      "id": "carriere",
+      "angle": 0,
+      "murs": "pierre",
+      "largeur": 5,
+      "profondeur": 5,
+      "hauteur": 7,
+      "rayon": 17,
+      "apparition": 12
+    },
+    {
+      "id": "scierie",
+      "angle": 24,
+      "murs": "planches",
+      "largeur": 7,
+      "profondeur": 5,
+      "hauteur": 4
+    },
+    {
+      "id": "ferme",
+      "angle": 48,
+      "murs": "planches",
+      "largeur": 7,
+      "profondeur": 5,
+      "hauteur": 3
+    },
+    {
+      "id": "mine-profonde",
+      "angle": 72,
+      "murs": "pierre",
+      "largeur": 5,
+      "profondeur": 5,
+      "hauteur": 5
+    },
+    {
+      "id": "fonderie",
+      "angle": 96,
+      "murs": "pierre",
+      "largeur": 7,
+      "profondeur": 5,
+      "hauteur": 5
+    },
+    {
+      "id": "atelier-outils",
+      "angle": 120,
+      "murs": "planches",
+      "largeur": 5,
+      "profondeur": 5,
+      "hauteur": 4
+    },
+    {
+      "id": "briqueterie",
+      "angle": 144,
+      "murs": "pierre",
+      "largeur": 7,
+      "profondeur": 5,
+      "hauteur": 4
+    },
+    {
+      "id": "elevage",
+      "angle": 168,
+      "murs": "planches",
+      "largeur": 7,
+      "profondeur": 7,
+      "hauteur": 3
+    },
+    {
+      "id": "centrale",
+      "angle": 192,
+      "murs": "pierre",
+      "largeur": 5,
+      "profondeur": 7,
+      "hauteur": 5
+    },
+    {
+      "id": "verrerie",
+      "angle": 216,
+      "murs": "pierre",
+      "largeur": 5,
+      "profondeur": 5,
+      "hauteur": 4
+    },
+    {
+      "id": "menuiserie",
+      "angle": 240,
+      "murs": "planches",
+      "largeur": 7,
+      "profondeur": 5,
+      "hauteur": 4
+    },
+    {
+      "id": "conserverie",
+      "angle": 264,
+      "murs": "planches",
+      "largeur": 5,
+      "profondeur": 5,
+      "hauteur": 4
+    },
+    {
+      "id": "usine-textile",
+      "angle": 288,
+      "murs": "planches",
+      "largeur": 7,
+      "profondeur": 7,
+      "hauteur": 4
+    },
+    {
+      "id": "usine-robots",
+      "angle": 312,
+      "murs": "pierre",
+      "largeur": 7,
+      "profondeur": 7,
+      "hauteur": 5
+    },
+    {
+      "id": "cristallerie",
+      "angle": 336,
+      "murs": "pierre",
+      "largeur": 5,
+      "profondeur": 7,
+      "hauteur": 4
+    }
   ],
   "cinematique": {
     "plans": [
       {
         "duree": 5,
-        "depart": { "avant": 70, "droite": -50, "haut": 60 },
-        "arrivee": { "avant": 42, "droite": -30, "haut": 32 },
-        "regard": { "avant": 0, "droite": 0, "haut": 4 }
+        "depart": {
+          "avant": 32,
+          "droite": -22,
+          "haut": 18
+        },
+        "arrivee": {
+          "avant": 23,
+          "droite": -16,
+          "haut": 12
+        },
+        "regard": {
+          "avant": 0,
+          "droite": 0,
+          "haut": 2
+        }
       },
       {
         "duree": 5,
-        "depart": { "avant": 28, "droite": 16, "haut": 10 },
-        "arrivee": { "avant": 15, "droite": 9, "haut": 6 },
-        "regard": { "avant": 0, "droite": 0, "haut": 3 }
+        "depart": {
+          "avant": -14,
+          "droite": 14,
+          "haut": 7
+        },
+        "arrivee": {
+          "avant": -8,
+          "droite": 10,
+          "haut": 5
+        },
+        "regard": {
+          "avant": -6,
+          "droite": 5,
+          "haut": 1
+        }
       },
       {
         "duree": 5,
-        "depart": { "avant": 10, "droite": -9, "haut": 5 },
-        "arrivee": { "avant": 6.5, "droite": -4, "haut": 3.5 },
-        "regard": { "avant": 0, "droite": 0, "haut": 2.5 }
+        "depart": {
+          "avant": 3,
+          "droite": 12,
+          "haut": 5
+        },
+        "arrivee": {
+          "avant": -1,
+          "droite": 10,
+          "haut": 3
+        },
+        "regard": {
+          "avant": -3,
+          "droite": 6,
+          "haut": 2
+        }
       },
       {
         "duree": 5,
-        "depart": { "avant": 12, "droite": 7, "haut": 4 },
-        "arrivee": { "avant": 7.5, "droite": 0.5, "haut": 2.4 },
-        "regard": { "avant": 0, "droite": 0, "haut": 2.5 }
+        "depart": {
+          "avant": 14,
+          "droite": -10,
+          "haut": 7
+        },
+        "arrivee": {
+          "avant": 10,
+          "droite": -7,
+          "haut": 1.2
+        },
+        "regard": {
+          "avant": 3,
+          "droite": -7,
+          "haut": 1
+        }
       }
     ]
+  },
+  "atelier": {
+    "revision": 1,
+    "introductionRevision": 1,
+    "volumes": [
+      {
+        "de": {
+          "avant": -11,
+          "droite": -2,
+          "haut": 0
+        },
+        "a": {
+          "avant": 14,
+          "droite": 1,
+          "haut": 0
+        },
+        "bloc": "minecraft:gravel"
+      },
+      {
+        "de": {
+          "avant": -6,
+          "droite": 2,
+          "haut": 0
+        },
+        "a": {
+          "avant": 8,
+          "droite": 10,
+          "haut": 0
+        },
+        "bloc": "minecraft:stone_bricks"
+      },
+      {
+        "de": {
+          "avant": -12,
+          "droite": 3,
+          "haut": -1
+        },
+        "a": {
+          "avant": -7,
+          "droite": 9,
+          "haut": 0
+        },
+        "bloc": "minecraft:air"
+      },
+      {
+        "de": {
+          "avant": -12,
+          "droite": 3,
+          "haut": -2
+        },
+        "a": {
+          "avant": -7,
+          "droite": 9,
+          "haut": -2
+        },
+        "bloc": "minecraft:stone"
+      },
+      {
+        "de": {
+          "avant": -12,
+          "droite": 3,
+          "haut": -1
+        },
+        "a": {
+          "avant": -12,
+          "droite": 9,
+          "haut": -1
+        },
+        "bloc": "minecraft:stone"
+      },
+      {
+        "de": {
+          "avant": -12,
+          "droite": 9,
+          "haut": -1
+        },
+        "a": {
+          "avant": -7,
+          "droite": 9,
+          "haut": -1
+        },
+        "bloc": "minecraft:coal_ore"
+      },
+      {
+        "de": {
+          "avant": -10,
+          "droite": 5,
+          "haut": -1
+        },
+        "a": {
+          "avant": -8,
+          "droite": 7,
+          "haut": -1
+        },
+        "bloc": "minecraft:stone"
+      },
+      {
+        "de": {
+          "avant": -6,
+          "droite": 2,
+          "haut": 1
+        },
+        "a": {
+          "avant": -6,
+          "droite": 2,
+          "haut": 5
+        },
+        "bloc": "minecraft:polished_deepslate"
+      },
+      {
+        "de": {
+          "avant": -6,
+          "droite": 10,
+          "haut": 1
+        },
+        "a": {
+          "avant": -6,
+          "droite": 10,
+          "haut": 5
+        },
+        "bloc": "minecraft:polished_deepslate"
+      },
+      {
+        "de": {
+          "avant": 8,
+          "droite": 2,
+          "haut": 1
+        },
+        "a": {
+          "avant": 8,
+          "droite": 2,
+          "haut": 5
+        },
+        "bloc": "minecraft:polished_deepslate"
+      },
+      {
+        "de": {
+          "avant": 8,
+          "droite": 10,
+          "haut": 1
+        },
+        "a": {
+          "avant": 8,
+          "droite": 10,
+          "haut": 5
+        },
+        "bloc": "minecraft:polished_deepslate"
+      },
+      {
+        "de": {
+          "avant": -6,
+          "droite": 2,
+          "haut": 6
+        },
+        "a": {
+          "avant": 8,
+          "droite": 10,
+          "haut": 6
+        },
+        "bloc": "minecraft:cut_copper"
+      },
+      {
+        "de": {
+          "avant": -6,
+          "droite": 2,
+          "haut": 5
+        },
+        "a": {
+          "avant": 8,
+          "droite": 2,
+          "haut": 5
+        },
+        "bloc": "minecraft:polished_deepslate"
+      },
+      {
+        "de": {
+          "avant": -6,
+          "droite": 10,
+          "haut": 5
+        },
+        "a": {
+          "avant": 8,
+          "droite": 10,
+          "haut": 5
+        },
+        "bloc": "minecraft:polished_deepslate"
+      },
+      {
+        "de": {
+          "avant": 0,
+          "droite": -11,
+          "haut": 0
+        },
+        "a": {
+          "avant": 8,
+          "droite": -4,
+          "haut": 0
+        },
+        "bloc": "minecraft:stone_bricks"
+      },
+      {
+        "de": {
+          "avant": 0,
+          "droite": -11,
+          "haut": 1
+        },
+        "a": {
+          "avant": 8,
+          "droite": -11,
+          "haut": 4
+        },
+        "bloc": "minecraft:oak_planks"
+      },
+      {
+        "de": {
+          "avant": 0,
+          "droite": -4,
+          "haut": 1
+        },
+        "a": {
+          "avant": 8,
+          "droite": -4,
+          "haut": 4
+        },
+        "bloc": "minecraft:oak_planks"
+      },
+      {
+        "de": {
+          "avant": 0,
+          "droite": -11,
+          "haut": 1
+        },
+        "a": {
+          "avant": 0,
+          "droite": -4,
+          "haut": 4
+        },
+        "bloc": "minecraft:oak_planks"
+      },
+      {
+        "de": {
+          "avant": 8,
+          "droite": -11,
+          "haut": 1
+        },
+        "a": {
+          "avant": 8,
+          "droite": -4,
+          "haut": 4
+        },
+        "bloc": "minecraft:oak_planks"
+      },
+      {
+        "de": {
+          "avant": 8,
+          "droite": -8,
+          "haut": 1
+        },
+        "a": {
+          "avant": 8,
+          "droite": -7,
+          "haut": 2
+        },
+        "bloc": "minecraft:air"
+      },
+      {
+        "de": {
+          "avant": 2,
+          "droite": -4,
+          "haut": 2
+        },
+        "a": {
+          "avant": 6,
+          "droite": -4,
+          "haut": 3
+        },
+        "bloc": "minecraft:glass"
+      },
+      {
+        "de": {
+          "avant": 8,
+          "droite": -6,
+          "haut": 2
+        },
+        "a": {
+          "avant": 8,
+          "droite": -5,
+          "haut": 3
+        },
+        "bloc": "minecraft:glass"
+      },
+      {
+        "de": {
+          "avant": -1,
+          "droite": -12,
+          "haut": 5
+        },
+        "a": {
+          "avant": 9,
+          "droite": -3,
+          "haut": 5
+        },
+        "bloc": "minecraft:cut_copper"
+      },
+      {
+        "de": {
+          "avant": 1,
+          "droite": -10,
+          "haut": 1
+        },
+        "a": {
+          "avant": 1,
+          "droite": -8,
+          "haut": 2
+        },
+        "bloc": "minecraft:bookshelf"
+      },
+      {
+        "de": {
+          "avant": 2,
+          "droite": -10,
+          "haut": 1
+        },
+        "a": {
+          "avant": 5,
+          "droite": -10,
+          "haut": 1
+        },
+        "bloc": "minecraft:oak_slab"
+      },
+      {
+        "de": {
+          "avant": 4,
+          "droite": -7,
+          "haut": 1
+        },
+        "a": {
+          "avant": 4,
+          "droite": -7,
+          "haut": 1
+        },
+        "bloc": "minecraft:oak_stairs"
+      },
+      {
+        "de": {
+          "avant": 7,
+          "droite": -10,
+          "haut": 1
+        },
+        "a": {
+          "avant": 7,
+          "droite": -10,
+          "haut": 1
+        },
+        "bloc": "minecraft:lantern"
+      },
+      {
+        "de": {
+          "avant": -5,
+          "droite": 0,
+          "haut": 1
+        },
+        "a": {
+          "avant": -5,
+          "droite": 0,
+          "haut": 1
+        },
+        "bloc": "minecraft:lantern"
+      },
+      {
+        "de": {
+          "avant": 11,
+          "droite": 2,
+          "haut": 1
+        },
+        "a": {
+          "avant": 11,
+          "droite": 2,
+          "haut": 1
+        },
+        "bloc": "minecraft:lantern"
+      }
+    ],
+    "machines": [
+      {
+        "role": "broyeur",
+        "position": {
+          "avant": -5,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:broyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": -4,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": -3,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": -2,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": -1,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": 0,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": 1,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": 2,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": 3,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "convoyeur",
+        "position": {
+          "avant": 4,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:convoyeur"
+      },
+      {
+        "role": "stock",
+        "position": {
+          "avant": 5,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:bac_pierre"
+      },
+      {
+        "role": "stock",
+        "position": {
+          "avant": 6,
+          "droite": 5,
+          "haut": 1
+        },
+        "bloc": "silooo:bac_pierre"
+      },
+      {
+        "role": "bureau",
+        "position": {
+          "avant": 3,
+          "droite": -7,
+          "haut": 1
+        },
+        "bloc": "silooo:bureau_administration"
+      }
+    ],
+    "salarie": {
+      "position": {
+        "avant": -3,
+        "droite": 7,
+        "haut": 0
+      },
+      "regard": {
+        "avant": -5,
+        "droite": 5,
+        "haut": 1
+      }
+    },
+    "enseigne": {
+      "position": {
+        "avant": 9,
+        "droite": -7,
+        "haut": 3
+      },
+      "support": {
+        "avant": 8,
+        "droite": -7,
+        "haut": 3
+      }
+    }
   }
 }
