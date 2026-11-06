@@ -93,7 +93,7 @@ class GameProfileFeature(
         }
         for (key in desired) {
             val id = context.ids.role(key) ?: continue
-            if (id in actualIds) continue // Déjà présent; ne le revendique pas comme rôle attribué par le bot.
+            if (id in actualIds) { actual.add(key); continue }
             if (safeRole { context.server.giveRole(p.discordId, id) }) { actual.add(key); actualIds.add(id) }
         }
         roles.replace(p.discordId, actual)

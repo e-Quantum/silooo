@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class GameProfileFeatureTest {
-    private class Profiles(private val values: List<GameProfile>) : GameProfileQueries {
+    private class Profiles(private var values: List<GameProfile>) : GameProfileQueries {
+        fun update(profiles: List<GameProfile>) { values = profiles }
         override suspend fun profiles() = values
         override suspend fun profile(discordId: String) = values.firstOrNull { it.discordId == discordId }
     }
@@ -86,5 +87,24 @@ class GameProfileFeatureTest {
         assertTrue(staffRole in server.memberRoles.getValue("42"))
         assertEquals(null, server.nicknames["42"])
         assertTrue(roles.roleKeys("42").isEmpty())
+    }
+
+    @Test fun `preexisting game roles are tracked and removed after proof disappears`() = runBlocking {
+        val server = FakeDiscordServer()
+        val keys = listOf("joueur-relie", "beta", "pdg", "staff", "custom")
+        val ids = keys.associateWith { runBlocking { server.createRole(RoleSpec(it, null, false, false)) } }
+        server.memberRoles["42"] = mutableSetOf(ids.getValue("joueur-relie"), ids.getValue("beta"), ids.getValue("pdg"), ids.getValue("staff"), ids.getValue("custom"))
+        val managed = Roles()
+        val profiles = Profiles(listOf(GameProfile("42", "123", "Ana", 1, 2, "PDG", false, true, 2)))
+        val context = BotContext(server, ServerIds(ids, emptyMap()), FakeTimer(Instant.parse("2026-11-06T12:00:00Z")), ServerPhase.ATTENTE)
+        val feature = GameProfileFeature(context, profiles, managed, PrestigeRoleDefinitions(emptyList()), Duration.ofSeconds(30))
+        feature.start()
+        assertEquals(setOf("joueur-relie", "beta", "pdg"), managed.roleKeys("42"))
+        assertEquals(1, server.directs.size)
+        profiles.update(emptyList()) // Le lien du site a disparu: le profil n'est plus prouvé.
+        GameProfileFeature(context, profiles, managed, PrestigeRoleDefinitions(emptyList()), Duration.ofSeconds(30)).start()
+        assertEquals(setOf(ids.getValue("staff"), ids.getValue("custom")), server.memberRoles.getValue("42"))
+        assertTrue(managed.roleKeys("42").isEmpty())
+        assertEquals(1, server.directs.size)
     }
 }
