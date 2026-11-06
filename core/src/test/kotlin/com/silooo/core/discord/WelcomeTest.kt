@@ -20,7 +20,7 @@ class WelcomeTest {
     private class Setup(val ids: ServerIds, val discussion: String, val rejoindre: String)
 
     private val setup = runBlocking {
-        val roles = WelcomeFeature.PLATFORMS.associateWith { fake.createRole(RoleSpec(it, null, false, false)) }
+        val roles = (WelcomeFeature.PLATFORMS + "entrepreneur").associateWith { fake.createRole(RoleSpec(it, null, false, false)) }
         val category = fake.createCategory(CategorySpec("Accueil", null))
         val discussion = fake.createChannel(category, ChannelSpec("discussion", ChannelKind.TEXTE, null, null, null, false))
         val rejoindre = fake.createChannel(category, ChannelSpec("rejoindre", ChannelKind.TEXTE, null, emptySet(), null, false))
@@ -46,6 +46,14 @@ class WelcomeTest {
     private fun advance(seconds: Long) = runBlocking { timer.advance(Duration.ofSeconds(seconds)) }
 
     @Test
+    fun openPhasesKeepMinecraftInstructions() {
+        for (phase in listOf(ServerPhase.BETA, ServerPhase.OUVERT)) {
+            assertTrue(WelcomeTexts.tutorial("console", "#discussion", phase).contains("HubyOnMC"))
+            assertTrue(WelcomeTexts.tutorial("pc", "#discussion", phase).contains("play.silooo.com"))
+        }
+    }
+
+    @Test
     @DisplayName("Sur console, le bonjour part 10 s après l'accueil, mentionne le membre, et le tuto arrive en privé")
     fun greetsAfterTheDelay() {
         val start = timer.now()
@@ -60,8 +68,10 @@ class WelcomeTest {
         assertTrue(hello.message.buttons.isEmpty())
         val (to, tutorial) = fake.directs.single()
         assertEquals("7", to)
-        assertTrue(tutorial.text.startsWith("Ton tuto Silooo, en trois étapes.\n1. Sur ta console, ajoute HubyOnMC en ami"), tutorial.text)
-        assertTrue(tutorial.text.contains("3. Dis bonjour dans <#" + discussion + ">"))
+        assertTrue(tutorial.text.startsWith("Le jeu est encore fermé."), tutorial.text)
+        assertTrue(tutorial.text.contains("Pionnier"))
+        assertTrue(fake.memberRoles["7"]?.contains(ids.role("entrepreneur")) == true)
+        assertTrue(tutorial.text.contains("3. Retrouve les autres dans <#" + discussion + ">"))
         assertEquals(listOf(WelcomeTexts.REMINDERS_BUTTON_ID), tutorial.buttons.map { it.id })
         val record = checkNotNull(store.records["7"])
         assertEquals(start, record.firstJoinedAt)
@@ -82,7 +92,7 @@ class WelcomeTest {
         advance(30) // prêt à 10 s, 5 s après le premier bonjour : il attend la fenêtre de 30 s
         assertEquals(2, fake.posted.size)
         assertEquals("Bienvenue <@2>, tu es le 1 204e entrepreneur. Tout est dans <#" + rejoindre + ">.", fake.posted[1].message.text)
-        assertTrue(fake.directs[1].second.text.contains("Sur console, ajoute HubyOnMC en ami et rejoins sa partie. Sur téléphone et PC"))
+        assertTrue(fake.directs[1].second.text.contains("Le jeu est encore fermé."))
     }
 
     @Test

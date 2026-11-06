@@ -23,9 +23,11 @@ object BotFeatures {
         val journal = BotJournal(context)
         val messages = JdbcBotMessageStore(database)
         val games = JdbcGameStore(database)
+        val reports = JdbcReportStore(database)
         val records = RecordsBoard(context, games, messages, definitions.zone)
         listOf(
-            WelcomeFeature(context, definitions.welcome, members),
+            WelcomeFeature(context, definitions.welcome, members, reports),
+            ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),
             SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),
@@ -37,6 +39,7 @@ object BotFeatures {
             VoiceRoomFeature(context),
             AutomodFeature(context, journal),
             BienvenueFeature(context, definitions.banner, definitions.zone, messages, journal),
+            QgInfoFeature(context, messages, siteUrl),
             ReactionFeature(context, definitions.reactions, definitions.zone, JdbcReactionStore(database), messages, journal),
             HighlightFeature(context, definitions.highlights, JdbcHighlightStore(database), journal),
             HelpFeature(context, definitions.zone, JdbcHelpStore(database), messages, journal),

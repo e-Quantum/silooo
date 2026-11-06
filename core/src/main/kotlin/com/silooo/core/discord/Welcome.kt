@@ -27,7 +27,11 @@ object WelcomeTexts {
         count.toString() + " nouveaux sont arrivés. Bienvenue à tous : tout est dans " + rejoindre + "."
 
     /** Le tuto en trois étapes, selon la plateforme ; [discussion] : la mention du salon. */
-    fun tutorial(platform: String?, discussion: String): String {
+    fun tutorial(platform: String?, discussion: String, phase: ServerPhase = ServerPhase.OUVERT): String {
+        if (phase == ServerPhase.ATTENTE) return "Le jeu est encore fermé.\n" +
+            "1. Suis le chantier sur silooo.com.\n" +
+            "2. Inscris-toi sur silooo.com pour devenir Pionnier.\n" +
+            "3. Retrouve les autres dans " + discussion + ". Pour une question, utilise le salon aide ou ouvre un ticket."
         val first = when (platform) {
             "console" -> "Sur ta console, ajoute HubyOnMC en ami, puis rejoins sa partie depuis ta liste d'amis."
             "telephone" -> "Dans Minecraft, onglet Serveurs, ajoute un serveur : adresse play.silooo.com, port 19142."
@@ -72,6 +76,7 @@ class WelcomeFeature(
     private val context: BotContext,
     private val rules: WelcomeRules,
     private val members: MemberStore,
+    private val reports: ReportStore? = null,
 ) : Feature {
     override val name = "accueil"
 
@@ -84,7 +89,13 @@ class WelcomeFeature(
 
     override suspend fun handle(event: DiscordEvent) {
         when (event) {
-            is DiscordEvent.MemberJoined -> if (!event.user.isBot) members.joined(event.user.id, event.at)
+            is DiscordEvent.MemberJoined -> if (!event.user.isBot) {
+                members.joined(event.user.id, event.at)
+                context.ids.role("entrepreneur")?.let { role ->
+                    try { context.server.giveRole(event.user.id, role) }
+                    catch (e: DiscordRefusal) { org.slf4j.LoggerFactory.getLogger(WelcomeFeature::class.java).warn("Accueil : rôle refusé : {}", e.message) }
+                }
+            }
             is DiscordEvent.OnboardingCompleted -> onboarded(event)
             is DiscordEvent.MemberLeft -> left(event)
             is DiscordEvent.ButtonPressed -> button(event)
@@ -122,6 +133,7 @@ class WelcomeFeature(
         val now = context.timer.now()
         val sent = context.server.direct(user.id, tutorial(platform))
         members.tutorialSent(user.id, now, refused = !sent)
+        if (!sent) reports?.tutorialDmFailed(user.id, now)
         waiting += Arrival(user, platform, tutorialRefused = !sent)
         val last = lastGreetingAt
         val groupPeriod = Duration.ofSeconds(rules.groupSeconds.toLong())
@@ -156,7 +168,7 @@ class WelcomeFeature(
     }
 
     private fun tutorial(platform: String?): BotMessage = BotMessage(
-        WelcomeTexts.tutorial(platform, mention(DISCUSSION)),
+        WelcomeTexts.tutorial(platform, mention(DISCUSSION), context.phase),
         buttons = listOf(ButtonSpec(WelcomeTexts.REMINDERS_BUTTON_ID, WelcomeTexts.REMINDERS_BUTTON_LABEL)),
     )
 
