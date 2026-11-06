@@ -177,6 +177,10 @@ class ContractTest {
             voteStore = votes,
             voteService = VoteService(TestDefinitions.loaded, votes, clock) { emptySet() },
             pass = pass,
+            gameLinkIssuer = { _, actor ->
+                if (actor.text == stranger) throw com.silooo.core.api.Refusal(io.ktor.http.HttpStatusCode.Conflict, RefusalCodes.UNKNOWN_PLAYER)
+                com.silooo.core.discord.linking.GameLinkCode("ABC234", clock.instant().plusSeconds(600))
+            },
         )
     }
 
@@ -379,9 +383,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 33 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    @DisplayName("Le contrat compte 34 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
     fun thirtyOperations() {
-        assertEquals(33, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+        assertEquals(34, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {
@@ -1676,7 +1680,7 @@ class ContractTest {
 
         /** Les routes écrites et le succès qu'une requête minimale valide leur fait rendre. */
         val WRITTEN = mapOf(
-            "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
+            "issueDiscordLinkCode" to 200, "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
             "todayOrder" to 200, "deliverOrder" to 200, "getFindings" to 200,

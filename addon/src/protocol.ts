@@ -186,6 +186,7 @@ export const REFUSAL_REASONS = [
   "DEJA_RECLAME",
   "PREMIUM_REQUIS",
   "SAISON_INACTIVE",
+  "JOUEUR_INCONNU",
 ] as const;
 
 export type RefusalReason = (typeof REFUSAL_REASONS)[number];
@@ -201,7 +202,31 @@ export const PATHS = {
   heartbeat: "/v1/server/heartbeat",
   join: "/v1/session/join",
   leave: "/v1/session/leave",
+  discordLinkCodes: "/v1/discord/link-codes",
 } as const;
+
+export interface DiscordLinkCode {
+  code: string;
+  expiresAt: string;
+}
+
+export function discordLinkCodeBody(action: ActionBase): ActionBase {
+  return { requestId: action.requestId, actor: action.actor };
+}
+
+/** Lit le code à six caractères et son expiration, tous deux fournis par le service. */
+export function parseDiscordLinkCode(body: unknown): Parsed<DiscordLinkCode> {
+  return attempt(() => {
+    const rec = record(body, "discordLinkCode");
+    const code = str(rec, "code", "discordLinkCode");
+    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) throw new ShapeError("discordLinkCode.code : six caractères attendus");
+    const expiresAt = str(rec, "expiresAt", "discordLinkCode");
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(expiresAt) || !Number.isFinite(Date.parse(expiresAt))) {
+      throw new ShapeError("discordLinkCode.expiresAt : date ISO 8601 attendue");
+    }
+    return { code, expiresAt };
+  });
+}
 
 /** Bornes de `limit` dans l'OpenAPI (pollEvents) : de 1 à 500. */
 export const EVENTS_LIMIT_MIN = 1;

@@ -21,6 +21,7 @@ export type ArticleShelf = "direct" | "grades" | CosmeticCategory;
 /** Où le joueur se trouve. Chaque écran sait quel est son parent : pas de pile à tenir. */
 export type Route =
   | { readonly screen: "main" }
+  | { readonly screen: "compte" }
   | { readonly screen: "silo" }
   | { readonly screen: "objectifs" }
   | { readonly screen: "prestige" }
@@ -76,6 +77,7 @@ export type Route =
 
 /** Ce que fait un bouton. */
 export type Target =
+  | { readonly kind: "discordLink" }
   | { readonly kind: "go"; readonly route: Route }
   /** Une tuile verrouillée : l'écran reste, Oooscar dit que ce n'est pas encore là (ou la bulle donnée). */
   | { readonly kind: "soon"; readonly bubble?: Bubble }

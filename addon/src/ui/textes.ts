@@ -127,6 +127,7 @@ function missing(what: string, amount: number | undefined, fallback: string): Bu
 
 /** Une bulle par code `reason` de `Refused` (409). Le tableau est complet : TypeScript refuse un code oublié. */
 const REFUSAL_BUBBLES: Readonly<Record<RefusalReason, (amount: number | undefined) => Bubble>> = {
+  JOUEUR_INCONNU: () => say("oups", "Reconnecte-toi au jeu."),
   PAS_ASSEZ_DE_DONAR: (amount) => missing("Donar", amount, "Il te manque du Donar."),
   PAS_ASSEZ_DE_LINGOTS: (amount) => missing("Lingots", amount, "Il te manque des Lingots."),
   PAS_ASSEZ_DE_GEMMES: (amount) => missing("Gemmes", amount, "Il te manque des Gemmes."),
@@ -254,6 +255,7 @@ export const MENU_TEXTES = {
   usines: "Usines",
   carte: "Carte",
   prestige: "Prestige",
+  monCompte: "Mon compte",
   objectifs: "Objectifs",
   personnel: "Personnel",
   /** Le mot d'une tuile verrouillée. */
@@ -274,6 +276,22 @@ export const MENU_TEXTES = {
   ville: "Ville",
   /** La tuile qui mène à la boutique en Gemmes (BOUTIQUE_TEXTES). */
   boutique: "Boutique",
+} as const;
+
+/** Textes provisoires du parcours Discord. Le code et son expiration viennent du service. */
+export const DISCORD_TEXTES = {
+  compteTitre: "MON COMPTE",
+  code: (code: string): string => `Code : ${code}`,
+  serviceAbsent: "Le service ne répond pas. Réessaie.",
+  joueurAbsent: "Ton compte n'est pas encore enregistré dans le jeu. Reconnecte-toi.",
+  titre: "DISCORD",
+  relier: "Relier Discord",
+  instructions: "Dans Discord, saisis ton code avec /lier ou le bouton Bienvenue.",
+  expiration: (date: string): string => `Expire le ${date}`,
+  emettre: "Émettre un code",
+  rafraichir: "Rafraîchir le code",
+  reessayer: "Réessayer",
+  retour: "Retour",
 } as const;
 
 export const USINES_TEXTES = {

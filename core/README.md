@@ -33,7 +33,7 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
   (un seul par exécution, vidé avant chaque test : `db/MariaDbSupport`). **Sans Docker ils sont ignorés**
   (« SKIPPED », avec le message « Docker absent »), jamais réussis à vide. Ils tournent dans la CI GitHub : lis le
   journal de l'étape « Vérifier le dépôt » et cherche `SKIPPED` avant de conclure que tout est vert.
-- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 33 opérations. Quand une
+- `contract/ContractTest` lit `api/silooo-core.openapi.yaml` (SnakeYAML) et vérifie les 34 opérations. Quand une
   session écrit une route, elle l'ajoute à `WRITTEN` et branche ses faux dans `contractDependencies()`.
 - Rapport complet : `core/build/reports/tests/test/index.html`.
 
@@ -608,7 +608,7 @@ de chiffres sont dans `docs/economie.md`, section « La ville côté service » 
 
 ## La boutique côté service
 
-Deux routes, déjà nommées au contrat (qui reste à 33 opérations), et maintenant écrites : `catalog` (`GET /v1/shop/catalog?actor=`) et
+Deux routes, déjà nommées au contrat (qui reste à 34 opérations), et maintenant écrites : `catalog` (`GET /v1/shop/catalog?actor=`) et
 `buyItem` (`POST /v1/shop/purchases`, corps : `requestId`, `actor`, `itemId`, et `forXuid` pour un cadeau). S'y ajoute le relevé des
 livraisons de Gemmes, qui n'a pas de route : il tourne dans le service. Le service décide de tout (prix, ordre des grades, bonus) ;
 les règles de jeu et les tableaux de chiffres sont dans `docs/economie.md`, section « La boutique : Gemmes, grades, Pilier, cosmétiques
@@ -681,7 +681,7 @@ par Kr**). La boutique vend les grades, les deux abonnements, les cosmétiques e
 
 ## Les votes côté service
 
-Une route, `todayVotes` (`GET /v1/votes/today?xuid=`), ajoutée au contrat (qui passe à 33 opérations), et une entrée qui n'est pas HTTP :
+Une route, `todayVotes` (`GET /v1/votes/today?xuid=`), ajoutée au contrat (qui passe à 34 opérations), et une entrée qui n'est pas HTTP :
 la réception des votes de Hubyy par Votifier 2, en TCP. Le service décide de tout (ce qui est versé, la série, la Vote party) ; l'add-on
 n'a qu'à afficher ce que `todayVotes` rend. Les règles et le tableau des chiffres sont dans `docs/economie.md`, section « Les votes » ; les
 chiffres eux-mêmes dans `definitions/vote.json`, **tous à valider par Kr**. Le déploiement (port, jeton, déclaration sur Hubyy) est dans
@@ -727,7 +727,7 @@ Ce que le contrat et les docs ne disent pas encore :
 ## Le pass côté service
 
 Deux routes que le contrat déclarait déjà sans les décrire, `getPass` (`GET /v1/pass?actor=`) et `claimPass` (`POST /v1/pass/claims`) : le
-contrat reste à 33 opérations, avec les schémas `PassState` et `PassClaimed` et quatre codes de refus de plus. Un article de plus dans la
+contrat reste à 34 opérations, avec les schémas `PassState` et `PassClaimed` et quatre codes de refus de plus. Un article de plus dans la
 boutique, `pass-premium`. Le service décide de tout (les points, ce qui est
 versé, le prix) ; l'add-on n'a qu'à afficher `PassState`. Les règles et le tableau des chiffres sont dans `docs/economie.md`, section
 « Le pass de saison » ; les chiffres eux-mêmes dans `definitions/pass.json`, **tous à valider par Kr**.

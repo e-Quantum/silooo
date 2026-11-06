@@ -144,7 +144,7 @@ describe("LinkState", () => {
 });
 
 describe("observeApi", () => {
-  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur les vingt-sept routes", async () => {
+  it("rend les résultats tels quels et nourrit LinkState à chaque appel, sur toutes les routes", async () => {
     const answers: ApiResult<unknown>[] = [];
     const result = (): Promise<ApiResult<never>> => {
       const next = answers.shift();
@@ -152,6 +152,7 @@ describe("observeApi", () => {
       return Promise.resolve(next as ApiResult<never>);
     };
     const api: CoreApi = {
+      issueDiscordLinkCode: result,
       heartbeat: result,
       join: result,
       leave: result,

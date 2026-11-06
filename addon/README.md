@@ -524,6 +524,13 @@ Choix faits ici, à relire :
 
 ## Textes à valider
 
+Liaison D3, à valider par Kr : « Mon compte », « MON COMPTE », « DISCORD », « Relier Discord »,
+« Dans Discord, saisis ton code avec /lier ou le bouton Bienvenue. », « Émettre un code »,
+« Rafraîchir le code », « Réessayer », « Expire le », « Code : », « Reconnecte-toi au jeu. »,
+« Le service ne répond pas. Réessaie. », « Ton compte n'est pas encore enregistré dans le jeu. Reconnecte-toi. ».
+Le code et l'expiration affichés sont ceux du service ; aucun code n'est généré ou écrit dans les journaux du client.
+Le chemin est Menu > Mon compte > Relier Discord ; Prestige reste accessible depuis Mon compte.
+
 Tous les textes de joueurs de cette tranche sont à valider par Kr. Ils sont commités, jamais présentés comme
 définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun figure dans ce tableau. L'avant est
 « rien » : ces écrans n'existaient pas, sauf là où la colonne dit autre chose.

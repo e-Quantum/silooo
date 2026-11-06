@@ -23,6 +23,8 @@
 // Deux touches suffisent pour encaisser : Silo, puis Encaisser. Monter une usine en demande trois : Usines, la
 // tuile, le bouton.
 
+import type { CoreApi } from "../api";
+import { playDiscordLink } from "./discord";
 import { playerXuid } from "../identity";
 import { config } from "../config";
 import { isRejectedRequest } from "./associes";
@@ -99,6 +101,7 @@ import {
   FACTORY_IDS,
   FICHE_TEXTES,
   INCIDENT_TEXTES,
+  DISCORD_TEXTES,
   MENU_TEXTES,
   OBJECTIFS_TEXTES,
   PASS_TEXTES,
@@ -154,8 +157,8 @@ export function mainScreen(view: CompanyView, missions: MissionState | undefined
     },
     objectifsTile(missions),
     {
-      text: button(`${ICON.prestige} ${MENU_TEXTES.prestige}`, PRESTIGE_TEXTES.tuile(formatCount(view.state.courseNumber))),
-      target: go({ screen: "prestige" }),
+      text: button(`${ICON.prestige} ${MENU_TEXTES.monCompte}`, PRESTIGE_TEXTES.tuile(formatCount(view.state.courseNumber))),
+      target: go({ screen: "compte" }),
     },
     {
       text: button(`${ICON.personnel} ${MENU_TEXTES.personnel}`, MENU_TEXTES.nombreMembres((view.state.staff ?? []).length)),
@@ -531,6 +534,7 @@ export interface MenuPlayer {
 }
 
 export interface MenuDeps<P extends MenuPlayer> {
+  readonly discordLink?: { readonly api: Pick<CoreApi, "issueDiscordLinkCode">; readonly newRequestId: () => string };
   readonly views: Pick<ViewStore, "get">;
   /** Les missions : lues pour la tuile Objectifs, relues quand le joueur ouvre l'écran des objectifs. */
   readonly missions: Pick<Missions, "get" | "refresh">;
@@ -621,6 +625,7 @@ function parentOf(route: Route): Route {
     case "usines":
     case "silo":
     case "objectifs":
+    case "compte":
     case "prestige":
     case "apres":
     case "carte":
@@ -713,6 +718,12 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     switch (route.screen) {
       case "main":
         return mainScreen(view, missions.get(xuid), notice, deps.cosmetics?.(xuid) ?? []);
+      case "compte":
+        return screenOf(DISCORD_TEXTES.compteTitre, bodyOf(notice, []), [
+          { text: MENU_TEXTES.prestige, target: go({ screen: "prestige" }) },
+          { text: DISCORD_TEXTES.relier, target: { kind: "discordLink" } },
+          { text: MENU_TEXTES.retour, target: go(MAIN) },
+        ]);
       case "silo":
         return siloScreen(view, clock.now(), notice);
       case "objectifs":
@@ -802,6 +813,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       case "buyItem":
       case "giftItem":
       case "claim":
+      case "discordLink":
       case "go":
       case "end":
         return undefined;
@@ -878,6 +890,9 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
       if (target.kind === "go") {
         route = target.route;
         notice = await enter(route);
+      } else if (target.kind === "discordLink") {
+        if (deps.discordLink === undefined) notice = { bubble: BULLES.serviceInjoignable };
+        else await playDiscordLink({ actor: xuid, api: deps.discordLink.api, newRequestId: deps.discordLink.newRequestId, show: (spec) => present(player, spec) });
       } else if (target.kind === "invite") {
         const outcome = await actions.invite(xuid, target.targetXuid);
         notice = associesNotice(outcome, "invite") ?? noticeOf(outcome);

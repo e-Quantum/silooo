@@ -15,6 +15,7 @@ import {
   claimPassBody,
   collectPath,
   companyPath,
+  discordLinkCodeBody,
   eventsUrl,
   fireStaffPath,
   heartbeatBody,
@@ -33,6 +34,7 @@ import {
   parseCandidates,
   parseCatalog,
   parseCollectResponse,
+  parseDiscordLinkCode,
   parseCompanyState,
   parseCompanyUpdated,
   parseEventsPage,
@@ -64,6 +66,7 @@ import {
   type Candidate,
   type CatalogItem,
   type CollectResponse,
+  type DiscordLinkCode,
   type CompanyState,
   type CompanyUpdated,
   type EventsPage,
@@ -140,6 +143,8 @@ export interface CoreApi {
   claimPass(action: ActionBase, tier: number, track: PassTrack): Promise<ApiResult<PassClaimed>>;
   /** GET /v1/votes/today (todayVotes), 200 VotesToday. Avec `xuid`, `mine` donne les votes du joueur et sa série. */
   todayVotes(xuid?: Xuid): Promise<ApiResult<VotesToday>>;
+  /** POST /v1/discord/link-codes (issueDiscordLinkCode), 200 : code et expiration fournis par le service. */
+  issueDiscordLinkCode(action: ActionBase): Promise<ApiResult<DiscordLinkCode>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -324,6 +329,10 @@ export function createCoreApi(client: CoreClient): CoreApi {
       const target = pathOrError(() => votesTodayPath(xuid));
       if ("failure" in target) return target.failure;
       return readBody(await client.get(target.path), parseVotesToday);
+    },
+    async issueDiscordLinkCode(action) {
+      if (!isXuid(action.actor)) return invalidArgument("actor invalide");
+      return readBody(await client.post(PATHS.discordLinkCodes, discordLinkCodeBody(action)), parseDiscordLinkCode);
     },
   };
 }

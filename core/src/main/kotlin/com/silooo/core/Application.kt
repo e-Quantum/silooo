@@ -105,6 +105,11 @@ import com.silooo.core.vote.VoteStore
 import com.silooo.core.vote.VotifierSettings
 import com.silooo.core.vote.launchVotifier
 import com.silooo.core.vote.voteRoutes
+import com.silooo.core.discord.linking.GameDiscordLinks
+import com.silooo.core.discord.linking.GameLinkCode
+import com.silooo.core.discord.linking.gameDiscordLinkRoutes
+import com.silooo.core.db.Xuid
+import java.sql.Connection
 import java.time.Clock
 import java.security.SecureRandom
 import java.time.Duration
@@ -225,6 +230,8 @@ class Dependencies(
      * boutique ne le vend pas et aucune action ne compte de points.
      */
     val pass: PassService? = null,
+    /** Émission du code dans la transaction idempotente ; remplacée par un faux dans les tests de contrat. */
+    val gameLinkIssuer: (Connection, Xuid) -> GameLinkCode = { connection, actor -> GameDiscordLinks(database, clock).issue(connection, actor) },
 )
 
 /**
@@ -265,6 +272,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
 
             serverRoutes(dependencies)
             sessionRoutes(dependencies)
+            gameDiscordLinkRoutes(dependencies)
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
             incidentRoutes(dependencies)

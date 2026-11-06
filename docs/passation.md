@@ -481,6 +481,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- D3 Discord (6 novembre) : **V13 réservée** à la preuve de liaison émise en jeu (codes temporaires, preuves,
+  limites d'essais). Les autres migrations prennent V14 et la suite. D1 attend selon Kr. Les textes de liaison
+  et les choix de sécurité sont provisoires ; aucune fusion d'identités OAuth ni attribution de rôle sans preuve.
+
 - Reprise Discord du 6 novembre : les nouveaux textes de règles, rejoindre, bienvenue et tuto avant ouverture
   ainsi que le rapport hebdomadaire restent à valider. La migration V12 est réservée au rapport du Discord ;
   toute nouvelle migration du jeu prend V13 ou la suivante libre. Voir [discord-passation.md](discord-passation.md).

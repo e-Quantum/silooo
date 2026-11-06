@@ -215,6 +215,7 @@ function startScreens(deps: {
       afterJoin: () => hud.refresh(),
     });
     const menu = createMenu<Player>({
+      discordLink: { api, newRequestId: createRequestIdGenerator() },
       views,
       missions,
       actions,

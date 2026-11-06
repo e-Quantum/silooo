@@ -11,6 +11,9 @@ import java.time.Instant
  * du plan. L'interface ne sait pas effacer ce que Kr voit.
  */
 interface DiscordServer {
+    /** Le surnom du membre ; null le retire. Le bot respecte la hiérarchie de Discord. */
+    suspend fun nickname(userId: String, nickname: String?)
+
     /** Les rôles, catégories et salons tels qu'ils sont maintenant. */
     suspend fun snapshot(): ServerSnapshot
 

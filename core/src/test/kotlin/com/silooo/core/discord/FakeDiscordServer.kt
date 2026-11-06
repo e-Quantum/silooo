@@ -10,6 +10,9 @@ class FakeDiscordServer(
     private val community: Boolean = true,
     private val refused: Set<String> = emptySet(),
 ) : DiscordServer {
+    val nicknames = mutableMapOf<String, String?>()
+    override suspend fun nickname(userId: String, nickname: String?) { nicknames[userId] = nickname }
+
     val roles = mutableListOf<ExistingRole>()
     val categories = mutableListOf<ExistingCategory>()
     val channels = mutableListOf<ExistingChannel>()

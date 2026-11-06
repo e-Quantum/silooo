@@ -80,7 +80,7 @@ const titleOf = (spec: { title: string }) => spec.title;
 describe("menu principal", () => {
   const screen = mainScreen(viewOf({ name: "Les Forges", ratePerHour: 7_200, factories: many(3) }), missionState());
 
-  it("huit tuiles : Silo, Usines, Carte, Objectifs, Prestige, Personnel et Boutique actifs, Ville verrouillée tant que le service ne donne pas de ville (les associés sont sous Personnel)", () => {
+  it("huit tuiles : Silo, Usines, Carte, Objectifs, Mon compte, Personnel et Boutique actifs, Ville verrouillée tant que le service ne donne pas de ville (les associés sont sous Personnel)", () => {
     assert.equal(screen.spec.title, MENU_TEXTES.titre);
     assert.equal(screen.spec.buttons.length, 8);
     assert.deepEqual(screen.targets.map((t) => (t.kind === "go" ? t.route.screen : t.kind)), [
@@ -88,7 +88,7 @@ describe("menu principal", () => {
       "usines",
       "carte",
       "objectifs",
-      "prestige",
+      "compte",
       "personnel",
       "boutique",
       "soon",
@@ -951,8 +951,8 @@ describe("menu principal, tuiles Carte et Prestige", () => {
   });
 
   it("la tuile Prestige est active : le numéro de la course est celui du service", () => {
-    assert.equal(bare(screen.spec.buttons[4] ?? ""), "[P] Prestige\nCourse 4");
-    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "prestige" } });
+    assert.equal(bare(screen.spec.buttons[4] ?? ""), "[P] Mon compte\nCourse 4");
+    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "compte" } });
   });
 
   it("ni l'une ni l'autre n'est grisée ni marquée « Bientôt »", () => {
@@ -1383,17 +1383,17 @@ describe("parcours : prestige", () => {
 
   it("avant puis après : l'aperçu, la confirmation, l'état rafraîchi et les îles qui suivent", async () => {
     const { menu, presenter, api, views } = setup(
-      [press("Prestige"), press("Prestige !"), press("Voir les usines"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), press("Voir les usines"), close],
       { prestigePreview: [ok(prestigePreview())], prestige: [ok(prestiged())] },
       STATE,
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE", "USINES"]);
-    assert.match(bare(presenter.shown[1]?.body ?? ""), /^Course 2 · Époque 1 : Artisanale/);
-    assert.match(bare(presenter.shown[1]?.body ?? ""), /Lingots en tout 1.200/);
-    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[fier\] Prestige accompli, patron !\n\nCourse 3 · Époque 2 : Vapeur/);
-    assert.match(bare(presenter.shown[2]?.body ?? ""), /Tu as 1.200 Lingots/);
-    assert.ok(presenter.shown[3]?.buttons.map(bare).includes("[X] Scierie\nEn ruine"));
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MON COMPTE", "PRESTIGE", "PRESTIGE", "USINES"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Course 2 · Époque 1 : Artisanale/);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /Lingots en tout 1.200/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[fier\] Prestige accompli, patron !\n\nCourse 3 · Époque 2 : Vapeur/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Tu as 1.200 Lingots/);
+    assert.ok(presenter.shown[4]?.buttons.map(bare).includes("[X] Scierie\nEn ruine"));
     assert.deepEqual(api.calls, [
       { op: "prestigePreview", companyId: 7 },
       { op: "prestige", companyId: 7, action: { requestId: "id-1", actor: XUID } },
@@ -1404,37 +1404,37 @@ describe("parcours : prestige", () => {
 
   it("après le prestige, le menu montre la course suivante", async () => {
     const { menu, presenter } = setup(
-      [press("Prestige"), press("Prestige !"), press("Retour"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), press("Retour"), close],
       { prestigePreview: [ok(prestigePreview())], prestige: [ok(prestiged())] },
       STATE,
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE", "MENU"]);
-    assert.equal(bare(presenter.shown[0]?.buttons[4] ?? ""), "[P] Prestige\nCourse 2");
-    assert.equal(bare(presenter.shown[3]?.buttons[4] ?? ""), "[P] Prestige\nCourse 3");
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MON COMPTE", "PRESTIGE", "PRESTIGE", "MENU"]);
+    assert.equal(bare(presenter.shown[0]?.buttons[4] ?? ""), "[P] Mon compte\nCourse 2");
+    assert.equal(bare(presenter.shown[4]?.buttons[4] ?? ""), "[P] Mon compte\nCourse 3");
   });
 
   it("l'aperçu est relu à chaque ouverture de l'écran", async () => {
     const { menu, presenter, api } = setup(
-      [press("Prestige"), press("Retour"), press("Prestige"), close],
+      [press("Mon compte"), press("Prestige"), press("Retour"), press("Mon compte"), press("Prestige"), close],
       { prestigePreview: [ok(prestigePreview()), ok(prestigePreview({ lingotsTotal: 1_900 }))] },
       STATE,
     );
     await menu.open(PLAYER);
     assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview", "prestigePreview"]);
-    assert.match(bare(presenter.shown[1]?.body ?? ""), /Lingots en tout 1.200/);
-    assert.match(bare(presenter.shown[3]?.body ?? ""), /Lingots en tout 1.900/);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /Lingots en tout 1.200/);
+    assert.match(bare(presenter.shown[5]?.body ?? ""), /Lingots en tout 1.900/);
   });
 
   it("refus PAS_LE_PDG : l'écran revient avec la bulle, l'aperçu relu, rien n'a changé", async () => {
     const { menu, presenter, api, views } = setup(
-      [press("Prestige"), press("Prestige !"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), close],
       { prestigePreview: [ok(prestigePreview()), ok(prestigePreview())], prestige: [refused("PAS_LE_PDG")] },
       STATE,
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE"]);
-    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[oups\] Seul le PDG peut le faire\.\n\nCourse 2/);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MON COMPTE", "PRESTIGE", "PRESTIGE"]);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[oups\] Seul le PDG peut le faire\.\n\nCourse 2/);
     assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview", "prestige", "prestigePreview"]);
     assert.equal(views.get(XUID)?.state.version, 1);
   });
@@ -1443,20 +1443,20 @@ describe("parcours : prestige", () => {
     const stale = prestigePreview();
     const now = prestigePreview({ allowed: false, lingotsTotal: 0, lingotsIfDoubled: 0, shares: [] });
     const { menu, presenter } = setup(
-      [press("Prestige"), press("Prestige !"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), close],
       { prestigePreview: [ok(stale), ok(now)], prestige: [refused("SEUIL_NON_ATTEINT", 4_000)] },
       STATE,
     );
     await menu.open(PLAYER);
-    const body = bare(presenter.shown[2]?.body ?? "");
+    const body = bare(presenter.shown[3]?.body ?? "");
     assert.ok(body.startsWith(`Oooscar [oups] Il te manque ${formatAmount(4_000)} Donar.`), body);
     assert.ok(body.includes(PRESTIGE_TEXTES.avant.pasEncore), body);
-    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+    assert.deepEqual(presenter.shown[3]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
   });
 
   it("CONFLIT_REESSAYER : l'état est rechargé, le prestige rejoué une fois avec le même requestId, le joueur ne voit que le succès", async () => {
     const { menu, presenter, api } = setup(
-      [press("Prestige"), press("Prestige !"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), close],
       {
         prestigePreview: [ok(prestigePreview())],
         prestige: [refused("CONFLIT_REESSAYER"), ok(prestiged(6))],
@@ -1469,35 +1469,35 @@ describe("parcours : prestige", () => {
     const ids = api.calls.flatMap((call) => (call.op === "prestige" ? [call.action.requestId] : []));
     assert.equal(ids.length, 2);
     assert.equal(ids[0], ids[1]);
-    assert.match(bare(presenter.shown[2]?.body ?? ""), /Prestige accompli/);
-    assert.equal(presenter.shown.length, 3);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /Prestige accompli/);
+    assert.equal(presenter.shown.length, 4);
   });
 
   it("service injoignable pendant le prestige : l'écran revient avec la panique d'Oooscar, rien n'est affiché comme fait", async () => {
     const { menu, presenter, views } = setup(
-      [press("Prestige"), press("Prestige !"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), close],
       { prestigePreview: [ok(prestigePreview()), unreachable()], prestige: [unreachable()] },
       STATE,
     );
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "PRESTIGE"]);
-    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[panique\]/);
-    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MON COMPTE", "PRESTIGE", "PRESTIGE"]);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[panique\]/);
+    assert.deepEqual(presenter.shown[3]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
     assert.equal(views.get(XUID)?.state.version, 1);
   });
 
   it("aperçu injoignable à l'ouverture : la panique d'Oooscar, « Retour » seul, aucun prestige possible", async () => {
-    const { menu, presenter, api } = setup([press("Prestige"), press("Retour"), close], { prestigePreview: [unreachable()] }, STATE);
+    const { menu, presenter, api } = setup([press("Mon compte"), press("Prestige"), press("Retour"), close], { prestigePreview: [unreachable()] }, STATE);
     await menu.open(PLAYER);
-    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "PRESTIGE", "MENU"]);
-    assert.match(bare(presenter.shown[1]?.body ?? ""), /^Oooscar \[panique\]/);
-    assert.deepEqual(presenter.shown[1]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
+    assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "MON COMPTE", "PRESTIGE", "MENU"]);
+    assert.match(bare(presenter.shown[2]?.body ?? ""), /^Oooscar \[panique\]/);
+    assert.deepEqual(presenter.shown[2]?.buttons.map(bare), [PRESTIGE_TEXTES.avant.retour]);
     assert.deepEqual(api.calls.map((call) => call.op), ["prestigePreview"]);
   });
 
   it("le texte brut des écrans du prestige ne contient ni emoji ni point de suspension", async () => {
     const { menu, presenter } = setup(
-      [press("Prestige"), press("Prestige !"), press("Retour"), close],
+      [press("Mon compte"), press("Prestige"), press("Prestige !"), press("Retour"), close],
       { prestigePreview: [ok(prestigePreview())], prestige: [ok(prestiged())] },
       STATE,
     );

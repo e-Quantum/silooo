@@ -123,6 +123,15 @@ class JdaConnection private constructor(
  */
 class JdaServer(private val guild: Guild, private val rest: DiscordRest) : DiscordServer {
 
+    override suspend fun nickname(userId: String, nickname: String?) {
+        try {
+            guild.modifyNickname(guild.retrieveMemberById(userId).submit().await(), nickname).submit().await()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            throw DiscordRefusal("le surnom n'a pas pu être modifié, vérifie la hiérarchie des rôles")
+        }
+    }
+
     override suspend fun rulesChannelId(): String? = guild.rulesChannel?.id
 
     override suspend fun snapshot(): ServerSnapshot = ServerSnapshot(

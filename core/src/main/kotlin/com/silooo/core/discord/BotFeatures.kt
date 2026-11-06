@@ -19,6 +19,7 @@ object BotFeatures {
         onlineCount: () -> Int,
     ): (BotContext) -> List<Feature> = { context ->
         val definitions = DiscordDefinitions.loadChecked(definitionsDir, ServerPlan.fromClasspath())
+        val links = com.silooo.core.discord.linking.GameDiscordLinks(database)
         val members = JdbcMemberStore(database)
         val journal = BotJournal(context)
         val messages = JdbcBotMessageStore(database)
@@ -27,6 +28,7 @@ object BotFeatures {
         val records = RecordsBoard(context, games, messages, definitions.zone)
         listOf(
             WelcomeFeature(context, definitions.welcome, members, reports),
+            LinkingFeature(context, GameDiscordLinkGateway(links), context.server::nickname),
             ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),

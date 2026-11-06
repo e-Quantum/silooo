@@ -25,6 +25,29 @@ security:
   - cleServeur: []
 
 paths:
+  /v1/discord/link-codes:
+    post:
+      summary: Montrer en jeu un code de liaison Discord valable dix minutes
+      operationId: issueDiscordLinkCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+      responses:
+        '200':
+          description: Code à saisir dans Discord ; une nouvelle intention remplace le précédent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscordLinkCode' }
+        '409': { $ref: '#/components/responses/Refused' }
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+
   /v1/server/heartbeat:
     post:
       summary: Le serveur Bedrock signale qu'il tourne et qui est en ligne
@@ -995,7 +1018,7 @@ components:
                 enum: [PAS_ASSEZ_DE_DONAR, PAS_ASSEZ_DE_LINGOTS, PAS_ASSEZ_DE_GEMMES, PAS_LE_PDG, SEUIL_NON_ATTEINT,
                        USINE_VERROUILLEE, ZONE_VERROUILLEE, EMPLACEMENT_OCCUPE, ENTREPRISE_PLEINE, DEJA_POSSEDE,
                        GRADE_PRECEDENT_REQUIS, CONFLIT_REESSAYER, ENTREPRISE_EN_COURS, PALIER_NON_ATTEINT, DEJA_RECLAME,
-                       PREMIUM_REQUIS, SAISON_INACTIVE]
+                       PREMIUM_REQUIS, SAISON_INACTIVE, JOUEUR_INCONNU]
               missing: { type: number, description: 'ce qui manque, quand c''est une somme' }
     Erreur:
       description: >-
@@ -1014,6 +1037,12 @@ components:
                 enum: [REQUETE_INVALIDE, CLE_INVALIDE, ERREUR_INTERNE, PAS_FAIT]
 
   schemas:
+    DiscordLinkCode:
+      type: object
+      required: [code, expiresAt]
+      properties:
+        code: { type: string, pattern: '^[A-HJ-NP-Z2-9]{6}$' }
+        expiresAt: { type: string, format: date-time }
     Xuid:
       type: string
       pattern: '^[0-9]{1,20}$'

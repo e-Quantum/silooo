@@ -1065,3 +1065,27 @@ que la session ne lit ni ne modifie. La livraison suivante recrée uniquement le
   `design/icones/usine.png`, sans image nouvelle. Son apparence reste à valider par Kr comme les deux autres emojis.
 - Vérification du cas supprimé : `tools/verifier.sh` vert, 2 299 tests Gradle sans échec ni test ignoré,
   dont cinq régressions nouvelles sur la suppression, la pause et les reprises après panne transitoire.
+
+### D2 et première tranche D3 du 6 novembre
+
+D1 est reporté par Kr. Le QG reste public en phase attente. Kr déploie et teste lui-même BDS en whitelist ; la
+session livre seulement le core, et communique le tag de l'add-on correspondant sans redémarrer le jeu à sa place.
+
+- D2 opérationnel : code en production, accueil API et permissions vérifiés, `/niveau` et tickets confirmés par Kr.
+  Le parcours assemblé `QgJourneySqlTest` rejoue arrivée, tuto, Entrepreneur, déblocage du spoil, ticket, admission
+  et reprise sans doublon sur MariaDB. Cela ne remplace pas des captures d'une arrivée réelle complète.
+- Le rapport du lundi est livré (V12) : les données réellement reçues sont comptées. Date de preuve, provenance et
+  signalements non mesurés restent explicitement indisponibles tant que leurs producteurs D3/D4 ne sont pas livrés.
+  La case complète de recette réelle reste ouverte ; elle ne bloque pas l'implémentation D3.
+- Première tranche D3 : `POST /v1/discord/link-codes`, `issueDiscordLinkCode`, porte le contrat à **34 opérations**.
+  Le code émis dans le jeu expire à dix minutes ; nouvelle intention = rotation, même requestId = même réponse.
+  V13 conserve le hash du code, la preuve unique joueur/Discord et les limites persistantes de tentatives.
+- `/lier`, formulaire de bienvenue et `/delier` sont branchés au service : réponses privées, confirmation liée au
+  membre et à la version de preuve, sans effacer progression ni XP. Le site garde ses identités OAuth ; aucune
+  fusion de comptes ni admission n'est inventée. Une simple connexion Discord du site ne donne pas la preuve jeu.
+- Add-on : Menu > Mon compte > Relier Discord. Le menu garde huit tuiles, Prestige passe sous Mon compte. Le code
+  et sa date d'expiration sont affichés tels que reçus ; aucun calcul de code ni journal contenant le code.
+- **À valider par Kr** : nouveaux textes de liaison, refus `JOUEUR_INCONNU` et choix de sécurité. Les tests de
+  contrat échouaient en 501 avant l'implémentation ; SQL et commandes privées sont vérifiés avant livraison.
+- D3 reste en cours : synchronisation complète des rôles/pseudos, cartes jeu, rappels, bureaux et tableaux, puis
+  D4–D6. La phase beta du bot attend que ce parcours soit prêt ; la whitelist BDS peut être testée indépendamment.
