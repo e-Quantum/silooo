@@ -9,7 +9,8 @@ import kotlinx.coroutines.CancellationException
 interface DiscordLinkGateway {
     suspend fun redeem(discordId: String, typed: String): LinkOutcome
     suspend fun findByDiscord(discordId: String): LinkIdentity?
-    suspend fun unlink(discordId: String): LinkIdentity?
+    /** Supprime atomiquement seulement la liaison dont le XUID et linkedAt correspondent à [expected]. */
+    suspend fun unlink(discordId: String, expected: LinkIdentity): LinkIdentity?
 }
 
 data class LinkIdentity(val xuid: String, val gamertag: String, val linkedAt: Instant)
@@ -21,7 +22,7 @@ object LinkingTexts {
     const val FORM_ID = "liaison-code"
     const val CODE_FIELD = "code"
     const val CONFIRM_PREFIX = "liaison-delier:"
-    const val CODE_HELP = "Dans Minecraft Bedrock, ouvre le menu Silooo puis Relier Discord pour obtenir un code de six caractères, valable dix minutes."
+    const val CODE_HELP = "Dans Minecraft Bedrock, ouvre Menu > Mon compte > Relier Discord pour obtenir un code de six caractères, valable dix minutes."
     const val WAIT_HELP = "Le jeu est encore fermé : tu pourras obtenir ce code quand tu auras accès au jeu."
     const val INVALID = "Ce code n'est pas reconnu. Recopie le code affiché dans Minecraft, sans le partager."
     const val EXPIRED = "Ce code a expiré. Demande un nouveau code dans Minecraft."
@@ -76,11 +77,7 @@ class LinkingFeature(
                                 LinkingTexts.CODE_FIELD,
                                 "Code Minecraft (six caractères)",
                                 maxLength = 6,
-                                placeholder = if (context.phase == ServerPhase.ATTENTE) {
-                                    "Menu Silooo > Relier Discord ; jeu fermé, accès requis (valable 10 min)"
-                                } else {
-                                    "Menu Silooo > Relier Discord (valable 10 min)"
-                                },
+                                placeholder = "Menu > Mon compte > Relier Discord",
                             ),
                         ),
                     ),
@@ -161,12 +158,7 @@ class LinkingFeature(
         // Consommé avant le geste : un second clic n'agit jamais sur une nouvelle liaison.
         pending.remove(token)
         val removed = try {
-            val current = links.findByDiscord(userId)
-            if (current != confirmation.link) {
-                reply.send(BotMessage(LinkingTexts.STALE), onlyToUser = true)
-                return
-            }
-            links.unlink(userId)
+            links.unlink(userId, confirmation.link)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

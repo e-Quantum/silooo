@@ -21,6 +21,8 @@ class LinkingTest {
         var current: LinkIdentity? = null
         val attempts = mutableListOf<Pair<String, String>>()
         var unlinks = 0
+        var finds = 0
+        val unlinkAttempts = mutableListOf<Pair<String, LinkIdentity>>()
         var failure: Exception? = null
 
         override suspend fun redeem(discordId: String, typed: String): LinkOutcome {
@@ -31,14 +33,18 @@ class LinkingTest {
         }
 
         override suspend fun findByDiscord(discordId: String): LinkIdentity? {
+            finds++
             failure?.let { throw it }
             return current
         }
 
-        override suspend fun unlink(discordId: String): LinkIdentity? {
+        override suspend fun unlink(discordId: String, expected: LinkIdentity): LinkIdentity? {
+            unlinkAttempts += discordId to expected
             failure?.let { throw it }
+            val stored = current ?: return null
+            if (stored.xuid != expected.xuid || stored.linkedAt != expected.linkedAt) return null
             unlinks++
-            return current.also { current = null }
+            return stored.also { current = null }
         }
     }
 
@@ -85,6 +91,7 @@ class LinkingTest {
         val form = reply.forms.single()
         assertEquals(LinkingTexts.FORM_ID, form.id)
         assertEquals(6, form.fields.single().maxLength)
+        assertEquals("Menu > Mon compte > Relier Discord", form.fields.single().placeholder)
         assertTrue(form.fields.single().required)
         assertTrue(reply.sent.isEmpty())
         assertTrue(s.links.attempts.isEmpty())
@@ -188,6 +195,8 @@ class LinkingTest {
         assertEquals(0, s.links.unlinks)
         assertEquals(LinkingTexts.UNLINKED, s.button(id).sent.single().first.text)
         assertEquals(1, s.links.unlinks)
+        assertEquals(listOf(user.id to identity), s.links.unlinkAttempts)
+        assertEquals(1, s.links.finds) // L'aperçu seul lit ; la confirmation supprime avec sa condition atomique.
         s.assertNoPublicMessages()
     }
 
@@ -206,6 +215,7 @@ class LinkingTest {
         assertEquals(LinkingTexts.STALE, s.button(id).sent.single().first.text)
         assertEquals(1, s.links.unlinks)
         assertEquals(1, s.nicknames.size)
+        assertEquals(listOf(user.id to identity), s.links.unlinkAttempts)
     }
 
     @Test
@@ -224,8 +234,26 @@ class LinkingTest {
         val s = Setup()
         s.links.current = identity
         val id = s.confirmButton()
-        s.links.current = identity.copy(linkedAt = now.plusSeconds(1))
+        val newer = identity.copy(linkedAt = now.plusSeconds(1))
+        s.links.current = newer
         assertEquals(LinkingTexts.STALE, s.button(id).sent.single().first.text)
+        assertEquals(listOf(user.id to identity), s.links.unlinkAttempts)
+        assertEquals(newer, s.links.current)
+        assertEquals(1, s.links.finds)
+        assertEquals(0, s.links.unlinks)
+        assertTrue(s.nicknames.isEmpty())
+    }
+
+    @Test
+    fun confirmationCannotUnlinkAnotherXuidEvenWithTheSameTimestamp() {
+        val s = Setup()
+        s.links.current = identity
+        val id = s.confirmButton()
+        val another = identity.copy(xuid = "999999")
+        s.links.current = another
+        assertEquals(LinkingTexts.STALE, s.button(id).sent.single().first.text)
+        assertEquals(listOf(user.id to identity), s.links.unlinkAttempts)
+        assertEquals(another, s.links.current)
         assertEquals(0, s.links.unlinks)
         assertTrue(s.nicknames.isEmpty())
     }
