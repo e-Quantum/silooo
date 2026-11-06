@@ -52,6 +52,7 @@ class ReportFeature(
         val until = at(monday)
         val from = maxOf(at(monday.minusWeeks(1)), captureFrom)
         val counts = store.counts(from, until, rules.returnedAfterDays, zone)
+        val linked = store.linkedWithin(from, until, rules.linkedWithinDays)
         val text = buildString {
             append("Rapport du lundi ").append(monday).append("\n")
             append("Période : ").append(from.atZone(zone)).append(" au ").append(until.atZone(zone)).append(" (fin exclue).\n")
@@ -68,7 +69,7 @@ class ReportFeature(
                 day = day.plusDays(1)
             }
             append("Comptes reliés sous ").append(rules.linkedWithinDays)
-                .append(" jours : indisponible (date de liaison non mesurée).\n")
+                .append(" jours : ").append(linked?.toString() ?: "indisponible (date de liaison non mesurée)").append("\n")
             append("Signalements : indisponible (événements non mesurés).\n")
             append("Provenance des arrivants : indisponible (source non mesurée).")
         }

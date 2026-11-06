@@ -1149,3 +1149,8 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   bilan final est poussé et vert. Un fichier `bedrock-server-1.26.62.1.zip` non suivi est apparu à la racine du
   dépôt après le bilan : jamais à ajouter au dépôt (ligne de Kr). Fin de la session de direction : aucune session
   lancée, aucun worktree, `main` = `origin/main`. Vérifier : `gh run list --branch main --limit 2`.
+
+
+### D3 — répartition du 6 novembre 2026
+
+V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.

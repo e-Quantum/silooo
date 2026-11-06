@@ -10,6 +10,13 @@ class FakeDiscordServer(
     private val community: Boolean = true,
     private val refused: Set<String> = emptySet(),
 ) : DiscordServer {
+    val bureauWriters = mutableMapOf<String, Set<String>>()
+    val bureauStaff = mutableMapOf<String, Set<String>>()
+    override suspend fun syncPublicBureauWriters(id: String, members: Set<String>, staffRoles: Set<String>) {
+        bureauWriters[id] = members
+        bureauStaff[id] = staffRoles
+        publicAccessOverrides[id] = PublicChannelAccess(true, true, false)
+    }
     val nicknames = mutableMapOf<String, String?>()
     override suspend fun nickname(userId: String, nickname: String?) { nicknames[userId] = nickname }
 

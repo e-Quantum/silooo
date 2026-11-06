@@ -89,7 +89,7 @@ internal class JdaEvents(
     }
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
-        if (event.guild?.idLong != guildId) return
+        if (event.guild?.idLong != guildId && event.name !in ACCOUNT_COMMANDS) return
         val options = event.options.filter { it.type != OptionType.ATTACHMENT }.associate { it.name to it.asString }
         val attachments = event.options.filter { it.type == OptionType.ATTACHMENT }
         val user = actor(event)
@@ -134,7 +134,7 @@ internal class JdaEvents(
     }
 
     override fun onButtonInteraction(event: ButtonInteractionEvent) {
-        if (event.guild?.idLong != guildId) return
+        if (event.guild?.idLong != guildId && !isAccountButton(event.componentId)) return
         offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event)))
     }
 
@@ -199,3 +199,7 @@ internal class JdaReply(
         if (target != null) target.deferEdit().submit().await() else replies.deferReply(true).submit().await()
     }
 }
+
+/** Hors du QG, seules les cartes du joueur et ses boutons privés sont routés. Aucun geste staff. */
+internal val ACCOUNT_COMMANDS = setOf("entreprise", "usine")
+internal fun isAccountButton(id: String): Boolean = id.startsWith("jeu-montrer:") || id.startsWith("rappels-arreter:")

@@ -1,5 +1,6 @@
 package com.silooo.core.discord
 
+import com.silooo.core.Dependencies
 import com.silooo.core.Config
 import com.silooo.core.db.Database
 import com.silooo.core.registration.JdbcSiteRegistrationStore
@@ -16,6 +17,7 @@ object BotFeatures {
         definitionsDir: Path,
         database: Database,
         siteUrl: String = Config.DEFAULT_SITE_URL,
+        game: Dependencies? = null,
         onlineCount: () -> Int,
     ): (BotContext) -> List<Feature> = { context ->
         val definitions = DiscordDefinitions.loadChecked(definitionsDir, ServerPlan.fromClasspath())

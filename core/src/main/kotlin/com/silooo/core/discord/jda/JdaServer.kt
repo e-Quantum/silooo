@@ -239,6 +239,32 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         return desired.isNotEmpty()
     }
 
+    override suspend fun syncPublicBureauWriters(id: String, members: Set<String>, staffRoles: Set<String>) {
+        val channel = guild.getTextChannelById(id) ?: throw DiscordRefusal("le bureau $id n'existe plus")
+        val write = WRITE.fold(0L) { bits, permission -> bits or permission.rawValue }
+        val view = VIEW.fold(0L) { bits, permission -> bits or permission.rawValue }
+        suspend fun rolePermissions(role: Role, allow: Long, deny: Long) {
+            val old = channel.getPermissionOverride(role)
+            val masks = bureauPermissionMasks(old?.allowedRaw ?: 0L, old?.deniedRaw ?: 0L, allow, deny)
+            if (masks != ((old?.allowedRaw ?: 0L) to (old?.deniedRaw ?: 0L))) {
+                channel.upsertPermissionOverride(role).setPermissions(masks.first, masks.second).submit().await()
+            }
+        }
+        // La lecture est explicite, même si la catégorie a été modifiée manuellement.
+        rolePermissions(guild.publicRole, view, write)
+        for (roleId in staffRoles) rolePermissions(role(roleId), view or write, 0L)
+        val knownMembers = channel.permissionOverrides.filter { it.isMemberOverride }.map { it.id }.toSet()
+        for (userId in knownMembers + members + guild.selfMember.id) {
+            val old = channel.permissionOverrides.firstOrNull { it.isMemberOverride && it.id == userId }
+            val active = userId in members || userId == guild.selfMember.id
+            val masks = bureauPermissionMasks(old?.allowedRaw ?: 0L, old?.deniedRaw ?: 0L,
+                if (active) write else 0L, if (active) 0L else write)
+            if (masks != ((old?.allowedRaw ?: 0L) to (old?.deniedRaw ?: 0L))) {
+                channel.manager.putMemberPermissionOverride(userId.toLong(), masks.first, masks.second).submit().await()
+            }
+        }
+    }
+
     override suspend fun publicChannelAccess(id: String): PublicChannelAccess {
         val channel = guild.getGuildChannelById(id) ?: throw DiscordRefusal("le salon $id n'existe plus")
         val permissions = guild.publicRole.getPermissions(channel)
@@ -428,6 +454,27 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
 
     override suspend fun installCommands(commands: List<CommandSpec>) {
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
+        // Discord n'accepte USER_INSTALL que si l'application l'autorise dans son portail.
+        try {
+        val application = guild.jda.retrieveApplicationInfo().submit().await()
+        if (net.dv8tion.jda.api.interactions.IntegrationType.USER_INSTALL in application.integrationTypesConfig) {
+            val account = commands.filter { it.name in ACCOUNT_COMMANDS }.map {
+                JdaMessages.command(it)
+                    .setIntegrationTypes(net.dv8tion.jda.api.interactions.IntegrationType.USER_INSTALL)
+                    .setContexts(net.dv8tion.jda.api.interactions.InteractionContextType.GUILD,
+                        net.dv8tion.jda.api.interactions.InteractionContextType.BOT_DM,
+                        net.dv8tion.jda.api.interactions.InteractionContextType.PRIVATE_CHANNEL)
+            }
+            guild.jda.updateCommands().addCommands(account).submit().await()
+        } else {
+            org.slf4j.LoggerFactory.getLogger(JdaServer::class.java)
+                .warn("Installation sur le compte : activer User Install dans le portail Discord ; les commandes du QG restent disponibles")
+        }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) {
+            org.slf4j.LoggerFactory.getLogger(JdaServer::class.java)
+                .warn("Installation des commandes sur le compte indisponible : {}", e.javaClass.simpleName)
+        }
     }
 
     override suspend fun onboarding(): OnboardingState = rest.onboarding(guild.id)
@@ -548,4 +595,10 @@ internal fun planPublicPermissionMasks(
 ): Pair<Long, Long> {
     val denied = planPublicDenials(isPrivate, readOnly, locked).fold(0L) { mask, permission -> mask or permission.rawValue }
     return (oldAllow and denied.inv()) to (oldDeny or denied)
+}
+
+/** N'écrase que les bits explicitement gérés par le bureau ; conserve les autres exceptions. */
+internal fun bureauPermissionMasks(oldAllow: Long, oldDeny: Long, allow: Long, deny: Long): Pair<Long, Long> {
+    val managed = allow or deny
+    return ((oldAllow and managed.inv()) or allow) to ((oldDeny and managed.inv()) or deny)
 }

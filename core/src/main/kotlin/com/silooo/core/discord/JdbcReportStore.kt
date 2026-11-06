@@ -80,6 +80,20 @@ class JdbcReportStore(private val database: Database) : ReportStore {
         ReportCounts(totals["join"] ?: 0, totals["onboard"] ?: 0, returns, totals["dm_failed"] ?: 0, days)
     }
 
+    override suspend fun linkedWithin(activityFrom: Instant, activityUntil: Instant, days: Int): Long = database.transaction { connection ->
+        connection.prepareStatement(
+            "select count(*) from (select user_id, min(occurred_at) arrived from discord_report_events where kind = 'join' group by user_id) j " +
+                "join discord_report_events l on l.kind = 'linked' and l.user_id = j.user_id " +
+                "where j.arrived >= ? and j.arrived < ? and l.occurred_at >= j.arrived " +
+                "and l.occurred_at <= timestampadd(day, ?, j.arrived)",
+        ).use {
+            it.setObject(1, utc(activityFrom))
+            it.setObject(2, utc(activityUntil))
+            it.setInt(3, days)
+            it.executeQuery().use { rows -> check(rows.next()); rows.getLong(1) }
+        }
+    }
+
     override suspend fun claim(weekStart: LocalDate, at: Instant): Boolean = database.transaction { connection ->
         connection.prepareStatement("insert ignore into discord_report_claims (week_start, claimed_at) values (?, ?)").use {
             it.setObject(1, weekStart)

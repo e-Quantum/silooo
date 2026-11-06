@@ -37,6 +37,9 @@ interface ReportStore {
         zone: ZoneId,
     ): ReportCounts
 
+    /** Premières liaisons prouvées de la cohorte arrivée dans la période, observées dans le délai demandé. */
+    suspend fun linkedWithin(activityFrom: Instant, activityUntil: Instant, days: Int): Long? = null
+
     /** Réserve une semaine une seule fois avant tout envoi externe : doublons et redémarrages ne repostent pas. */
     suspend fun claim(weekStart: LocalDate, at: Instant): Boolean
 

@@ -121,7 +121,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
         val site = embeddedServer(CIO, port = config.sitePort, host = "0.0.0.0") { siteModule(dependencies) }
         // Le bot Discord Oooscar (ADR 0007) : seulement sur demande, dans son propre fil. S'il tombe, le jeu et le site continuent.
         val bot = config.bot?.let {
-            DiscordBot(it, JdaConnection::open, features = BotFeatures.build(config.definitionsDir, database, config.siteUrl) { presence.onlineXuids().size })
+            DiscordBot(it, JdaConnection::open, features = BotFeatures.build(config.definitionsDir, database, config.siteUrl, game = dependencies) { presence.onlineXuids().size })
         }
         try {
             site.start(wait = false)

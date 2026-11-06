@@ -40,6 +40,15 @@ class GameDiscordLinksSqlTest {
         assertNull(s.findByDiscord("11")); assertEquals(1L, Db.count("players"))
     }
 
+    @Test fun reproofAndUnlinkDoNotInflateReportMetric() = runBlocking {
+        val s = service()
+        assertEquals(GameLinkStatus.LINKED, s.redeem("11", issue(s).code).status)
+        assertEquals(GameLinkStatus.LINKED, s.redeem("11", issue(s).code).status)
+        assertEquals(1L, Db.long("select count(*) from discord_report_events where kind='linked' and user_id='11'"))
+        s.unlink("11")
+        assertEquals(1L, Db.long("select count(*) from discord_report_events where kind='linked' and user_id='11'"))
+    }
+
     @Test fun unsignedXuidDoesNotLosePrecision() = runBlocking {
         val raw = "18446744073709551615"
         Db.insertPlayer(raw, "GrandXuid")

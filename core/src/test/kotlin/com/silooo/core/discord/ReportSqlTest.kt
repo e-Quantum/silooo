@@ -17,6 +17,30 @@ class ReportSqlTest {
     fun prepare() = MariaDbSupport.prepare()
 
     @Test
+    fun firstProofCountsOnlyOnceWithinFirstObservedArrivalWindow() = runBlocking {
+        val store = JdbcReportStore(MariaDbSupport.database)
+        val from = Instant.parse("2026-11-02T08:00:00Z")
+        val until = from + Duration.ofDays(7)
+        store.joined("11", from, 7)
+        store.joined("12", from, 7)
+        store.joined("13", from - Duration.ofDays(8), 7)
+        store.joined("13", from, 7) // Un retour ne remplace pas la première arrivée.
+        store.joined("14", from, 7)
+        MariaDbSupport.database.transaction { connection ->
+            connection.prepareStatement("insert into discord_report_events (kind,event_id,user_id,occurred_at) values ('linked',?,?,?)").use {
+                for ((id, at) in listOf("11" to from.plusSeconds(1), "12" to until.plusSeconds(1), "13" to from, "14" to from.minusSeconds(1))) {
+                    it.setString(1, id); it.setString(2, id)
+                    it.setObject(3, java.time.LocalDateTime.ofInstant(at, java.time.ZoneOffset.UTC))
+                    it.addBatch()
+                }
+                it.executeBatch()
+            }
+        }
+        assertEquals(1L, store.linkedWithin(from, until, 7))
+        assertEquals(0L, store.linkedWithin(until, until + Duration.ofDays(7), 7))
+    }
+
+    @Test
     fun persistsCaptureDeduplicatesEventsAndBoundsCounts() = runBlocking {
         val store = JdbcReportStore(MariaDbSupport.database)
         val from = Instant.parse("2026-11-02T08:00:00Z")

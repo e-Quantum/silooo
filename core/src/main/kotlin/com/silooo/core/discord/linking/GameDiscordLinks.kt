@@ -157,6 +157,15 @@ class GameDiscordLinks(
                 it.setString(1, hash)
                 check(it.executeUpdate() == 1)
             }
+            // Une première preuve par membre, conservée après déliaison : les confirmations ne gonflent pas le rapport.
+            connection.prepareStatement(
+                "insert ignore into discord_report_events (kind, event_id, user_id, occurred_at) values ('linked', ?, ?, ?)",
+            ).use {
+                it.setString(1, discordId)
+                it.setString(2, discordId)
+                it.setObject(3, now.sql())
+                it.executeUpdate()
+            }
             GameLinkResult(GameLinkStatus.LINKED, VerifiedDiscordLink(code.xuid.text, gamertag, linkedAt))
         }
     }

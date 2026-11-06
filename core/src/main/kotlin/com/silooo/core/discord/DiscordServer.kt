@@ -31,6 +31,11 @@ interface DiscordServer {
     /** Vérifie et, sauf à blanc, réconcilie les bits de permission gérés par le plan. */
     suspend fun reconcilePlanPermissions(id: String, viewers: Set<String>?, writers: Set<String>?, locked: Boolean, managedViewers: Set<String>, dryRun: Boolean): Boolean
 
+    /** Bureau public : seuls les membres courants et le staff écrivent. N'affecte aucun autre salon. */
+    suspend fun syncPublicBureauWriters(id: String, members: Set<String>, staffRoles: Set<String>) {
+        throw DiscordRefusal("les permissions des bureaux ne sont pas prises en charge")
+    }
+
     /** Permissions effectives du seul rôle @everyone dans un salon existant. */
     suspend fun publicChannelAccess(id: String): PublicChannelAccess
 
