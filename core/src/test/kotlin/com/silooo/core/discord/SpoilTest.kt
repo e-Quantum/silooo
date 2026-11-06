@@ -22,6 +22,27 @@ class SpoilTest {
     /** Un serveur, un temps et des spoils à part pour chaque test ; [start] : l'heure de départ du temps du test. */
     private inner class Setup(start: Instant = Instant.parse("2026-11-05T10:00:00Z"), withChannel: Boolean = true) {
         val fake = FakeDiscordServer().also { it.members = 375 }
+        var missingOnRead = false
+        var missingOnEdit = false
+        var editFailures = 0
+        var readCalls = 0
+        var editCalls = 0
+        val server = object : DiscordServer by fake {
+            override suspend fun reactors(channelId: String, messageId: String, emojiName: String): Set<String> {
+                readCalls++
+                if (missingOnRead) throw DiscordMessageMissing(channelId, messageId)
+                return fake.reactors(channelId, messageId, emojiName)
+            }
+            override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {
+                editCalls++
+                if (missingOnEdit) throw DiscordMessageMissing(channelId, messageId)
+                if (editFailures > 0) {
+                    editFailures--
+                    throw DiscordRefusal("Discord temporairement indisponible")
+                }
+                fake.edit(channelId, messageId, message)
+            }
+        }
         val timer = FakeTimer(start)
         val store = InMemorySpoilStore()
         val staff: String = runBlocking { fake.createRole(RoleSpec("staff", null, false, false)) }
@@ -35,7 +56,7 @@ class SpoilTest {
             null
         }
         val ids = ServerIds(mapOf("staff" to staff, "coulisses" to role), if (channel == null) emptyMap() else mapOf("coulisses" to channel))
-        val feature = SpoilFeature(BotContext(fake, ids, timer, ServerPhase.ATTENTE), rules, zone, store)
+        val feature = SpoilFeature(BotContext(server, ids, timer, ServerPhase.ATTENTE), rules, zone, store)
 
         fun start() = runBlocking { feature.start() }
 
@@ -72,6 +93,96 @@ class SpoilTest {
     private fun answer(reply: FakeReply): String = reply.sent.single().first.text
 
     private fun header(setup: Setup, number: Int): String = "<@&" + setup.role + "> Spoil n°" + number
+
+    @Test
+    fun missingMessagePausesTheQueueAfterRestart() {
+        val setup = Setup()
+        setup.spoil("Un.", threshold = "1")
+        setup.spoil("Deux.")
+        val timer = FakeTimer(setup.timer.now())
+        val restarted = SpoilFeature(BotContext(setup.server, setup.ids, timer, ServerPhase.ATTENTE), rules, zone, setup.store)
+        setup.missingOnRead = true
+        runBlocking { restarted.start(); timer.advance(Duration.ofMinutes(5)) }
+        assertEquals(1, setup.readCalls)
+        assertEquals(1, setup.fake.posted.size)
+        assertNull(setup.spoilWithId(2).messageId)
+        assertEquals(0, setup.spoilWithId(1).reactions)
+    }
+
+    @Test
+    fun missingOnEditPausesWithoutRetryingOrRepublishing() {
+        val setup = Setup()
+        setup.start()
+        setup.spoil("Un.", threshold = "1")
+        setup.missingOnEdit = true
+        setup.spoil("Deux.")
+        val edits = setup.editCalls
+        setup.react(1, "1")
+        setup.advance(Duration.ofMinutes(5))
+        setup.spoil("Trois.")
+        assertEquals(edits, setup.editCalls)
+        assertEquals(0, setup.readCalls)
+        assertEquals(1, setup.fake.posted.size)
+        assertNull(setup.spoilWithId(2).messageId)
+        assertNull(setup.spoilWithId(3).messageId)
+    }
+
+    @Test
+    fun removalCancelsMorningAndKeepsPendingSpoil() {
+        val setup = Setup(start = Instant.parse("2026-11-05T21:30:30Z"))
+        setup.start()
+        setup.spoil("Un.", threshold = "1")
+        setup.spoil("Deux.")
+        setup.react(1, "1")
+        setup.advance(Duration.ofMinutes(1))
+        assertEquals(2, setup.timer.pending)
+        val event = DiscordEvent.MessageRemoved(checkNotNull(setup.channel), checkNotNull(setup.spoilWithId(1).messageId))
+        runBlocking { setup.feature.handle(event); setup.feature.handle(event) }
+        assertEquals(1, setup.timer.pending)
+        setup.advance(Duration.ofHours(12))
+        assertEquals(1, setup.fake.posted.size)
+        assertNull(setup.spoilWithId(2).messageId)
+    }
+
+    @Test
+    fun missingAtThresholdStopsPublicationAndAlertsStaffOnce() {
+        val setup = Setup()
+        setup.spoil("Un.", threshold = "1")
+        setup.spoil("Deux.")
+        val journal = runBlocking {
+            val category = setup.fake.createCategory(CategorySpec("staff", emptySet()))
+            setup.fake.createChannel(category, ChannelSpec("journal", ChannelKind.TEXTE, null, emptySet(), emptySet(), false))
+        }
+        val ids = ServerIds(emptyMap(), mapOf("coulisses" to checkNotNull(setup.channel), ServerPlan.JOURNAL_ID to journal))
+        val timer = FakeTimer(setup.timer.now())
+        val feature = SpoilFeature(BotContext(setup.server, ids, timer, ServerPhase.ATTENTE), rules, zone, setup.store)
+        setup.react(1, "1")
+        setup.missingOnEdit = true
+        runBlocking { feature.start(); timer.advance(Duration.ofMinutes(5)) }
+        val alerts = setup.fake.posted.filter { it.channelId == journal }
+        assertEquals(1, alerts.size)
+        assertTrue(alerts.single().message.text.contains(checkNotNull(setup.spoilWithId(1).messageId)))
+        assertTrue(alerts.single().message.text.contains(checkNotNull(setup.channel)))
+        assertEquals(1, setup.fake.posted.count { it.channelId == setup.channel })
+        assertNull(setup.spoilWithId(2).messageId)
+        assertEquals(1, setup.readCalls)
+        assertEquals(0, setup.spoilWithId(1).reactions)
+    }
+
+    @Test
+    fun temporaryEditFailureCanBeRetried() {
+        val setup = Setup()
+        setup.start()
+        setup.spoil("Un.")
+        setup.spoil("Deux.")
+        setup.react(1, "1")
+        setup.editFailures = 1
+        org.junit.jupiter.api.Assertions.assertThrows(DiscordRefusal::class.java) { setup.advance(Duration.ofMinutes(1)) }
+        val attempts = setup.editCalls
+        setup.advance(Duration.ofMinutes(1))
+        assertEquals(attempts + 1, setup.editCalls)
+        assertTrue(setup.fake.edits.last().message.text.endsWith(": 1."))
+    }
 
     @Test
     @DisplayName("Le premier dépôt publie tout de suite, avec le rôle Coulisses, l'image et la ligne « pas encore déposé »")

@@ -11,6 +11,7 @@ import com.silooo.core.discord.ChannelSpec
 import com.silooo.core.discord.CommandSpec
 import com.silooo.core.discord.DiscordConnection
 import com.silooo.core.discord.DiscordEvent
+import com.silooo.core.discord.DiscordMessageMissing
 import com.silooo.core.discord.DiscordRefusal
 import com.silooo.core.discord.DiscordServer
 import com.silooo.core.discord.ExistingCategory
@@ -244,7 +245,12 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         messageChannel(channelId).sendMessage(JdaMessages.create(message)).submit().await().id
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {
-        messageChannel(channelId).editMessageById(messageId, JdaMessages.edit(message)).submit().await()
+        try {
+            messageChannel(channelId).editMessageById(messageId, JdaMessages.edit(message)).submit().await()
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_MESSAGE) throw DiscordMessageMissing(channelId, messageId)
+            throw e
+        }
     }
 
     override suspend fun direct(userId: String, message: BotMessage): Boolean =
@@ -283,6 +289,7 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             val users = message.retrieveReactionUsers(emoji).takeAsync(MAX_REACTORS).await()
             return users.filter { !it.isBot }.map { it.id }.toSet()
         } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_MESSAGE) throw DiscordMessageMissing(channelId, messageId)
             throw DiscordRefusal("Discord refuse de lire les réactions du message " + messageId + " : " + e.meaning)
         } catch (e: InsufficientPermissionException) {
             throw DiscordRefusal("le bot n'a pas le droit de lire les réactions du salon " + channelId)

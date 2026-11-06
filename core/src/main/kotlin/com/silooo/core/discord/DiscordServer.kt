@@ -156,7 +156,11 @@ sealed interface AutomodTrigger {
 }
 
 /** Discord a refusé quelque chose que le bot sait expliquer ; le message ne contient jamais le jeton. */
-class DiscordRefusal(message: String) : Exception(message)
+open class DiscordRefusal(message: String) : Exception(message)
+
+/** Discord confirme que ce message a disparu : une nouvelle tentative ne le restaurera pas. */
+class DiscordMessageMissing(val channelId: String, val messageId: String) :
+    DiscordRefusal("le message $messageId du salon $channelId n’existe plus")
 
 /** Une connexion ouverte à Discord ; [close] la coupe proprement. */
 interface DiscordConnection : AutoCloseable {

@@ -8,6 +8,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.slf4j.LoggerFactory
 
 /**
  * Les mots du bot pour les coulisses (`docs/discord.md`, « Le serveur en direct »), **à valider par Kr**. Sans emoji,
@@ -113,6 +114,9 @@ class SpoilFeature(
 
     private val gate = Mutex()
 
+    /** Pause de cette instance ; au redémarrage, Discord confirme de nouveau la suppression. */
+    private val missingMessages = mutableSetOf<String>()
+
     override suspend fun start() {
         if (channel() == null) return
         context.timer.every(Duration.ofSeconds(rules.refreshSeconds.toLong())) { tick() }
@@ -120,6 +124,10 @@ class SpoilFeature(
 
     override suspend fun handle(event: DiscordEvent) {
         if (event is DiscordEvent.CommandUsed && event.name == SpoilTexts.COMMAND) deposit(event)
+        if (event is DiscordEvent.MessageRemoved && event.channelId == channel()) {
+            val current = store.current()
+            if (current?.messageId == event.messageId) pause(event.channelId, event.messageId)
+        }
     }
 
     private suspend fun deposit(event: DiscordEvent.CommandUsed) {
@@ -173,13 +181,19 @@ class SpoilFeature(
             return
         }
         val messageId = current.messageId ?: return
+        if (messageId in missingMessages) return
         val count = try {
             context.server.reactors(channel, messageId, rules.emoji).size
+        } catch (e: DiscordMessageMissing) {
+            pause(e.channelId, e.messageId)
+            return
         } catch (e: DiscordRefusal) {
-            current.reactions
+            return
         }
-        if (count != current.reactions) store.reactions(current.number, count)
         val pending = store.nextPending()
+        showLine(current, count, pending, waiting = morning != null)
+        if (messageId in missingMessages) return
+        if (count != current.reactions) store.reactions(current.number, count)
         if (pending != null && count >= current.nextThreshold) {
             if (!isNight(context.timer.now())) {
                 publish(pending)
@@ -201,6 +215,7 @@ class SpoilFeature(
         morning = null
         planned?.cancel()
         val previous = store.current()
+        if (previous?.messageId in missingMessages) return@withLock
         val role = context.ids.role(COULISSES)
         val line = SpoilTexts.missing(spoil.number + 1)
         val messageId = context.server.post(
@@ -215,7 +230,11 @@ class SpoilFeature(
         showLine(spoil.copy(messageId = messageId, publishedAt = at), 0, store.nextPending(), waiting = false)
         val before = previous?.messageId
         if (previous != null && before != null) {
-            context.server.edit(channel, before, BotMessage(SpoilTexts.post(previous.number, previous.text, role, null), previous.image))
+            try {
+                context.server.edit(channel, before, BotMessage(SpoilTexts.post(previous.number, previous.text, role, null), previous.image))
+            } catch (e: DiscordMessageMissing) {
+                pause(e.channelId, e.messageId)
+            }
         }
     }
 
@@ -223,6 +242,7 @@ class SpoilFeature(
     private suspend fun showLine(current: Spoil, count: Int, pending: Spoil?, waiting: Boolean) {
         val channel = channel() ?: return
         val messageId = current.messageId ?: return
+        if (messageId in missingMessages) return
         val line = when {
             pending == null -> SpoilTexts.missing(current.number + 1)
             waiting -> SpoilTexts.waitingForMorning(pending.number, current.nextThreshold, count, rules.nightEndHour)
@@ -230,7 +250,12 @@ class SpoilFeature(
         }
         if (current.number == shownNumber && line == shownLine) return
         val role = context.ids.role(COULISSES)
-        context.server.edit(channel, messageId, BotMessage(SpoilTexts.post(current.number, current.text, role, line), current.image))
+        try {
+            context.server.edit(channel, messageId, BotMessage(SpoilTexts.post(current.number, current.text, role, line), current.image))
+        } catch (e: DiscordMessageMissing) {
+            pause(e.channelId, e.messageId)
+            return
+        }
         shownNumber = current.number
         shownLine = line
     }
@@ -242,7 +267,24 @@ class SpoilFeature(
         morning = context.timer.after(Duration.between(now, nextMorning(now))) {
             morning = null
             val next = store.nextPending()
-            if (next != null && next.number == pending.number) publish(next)
+            if (next != null && next.number == pending.number) tick()
+        }
+    }
+
+    /** Alerte du staff, à valider par Kr. Aucun contenu supprimé n’est recréé, la file reste en base. */
+    private suspend fun pause(channelId: String, messageId: String) {
+        if (!missingMessages.add(messageId)) return
+        morning?.cancel()
+        morning = null
+        val alert = "Coulisses en pause : message " + messageId + " supprimé dans le salon " + channelId +
+            ". La file est conservée ; intervention du staff nécessaire."
+        log.warn("Bot Discord : {}", alert)
+        try {
+            BotJournal(context).line(alert)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warn("Bot Discord, alerte coulisses : {}", e.toString())
         }
     }
 
@@ -261,6 +303,7 @@ class SpoilFeature(
     private fun channel(): String? = context.ids.channel(COULISSES)
 
     private companion object {
+        val log = LoggerFactory.getLogger(SpoilFeature::class.java)
         const val COULISSES = "coulisses"
         const val STAFF = "staff"
         const val LAST_ONES = 3
