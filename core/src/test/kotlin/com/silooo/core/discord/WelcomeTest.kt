@@ -110,7 +110,8 @@ class WelcomeTest {
         runBlocking { feature.handle(DiscordEvent.ButtonPressed(WelcomeTexts.TUTORIAL_BUTTON_ID, user("9", "telephone"), discussion, hello.messageId, reply)) }
         val (message, onlyToUser) = reply.sent.single()
         assertTrue(onlyToUser)
-        assertTrue(message.text.contains("1. Dans Minecraft, onglet Serveurs, ajoute un serveur : adresse play.silooo.com, port 19142."), message.text)
+        assertTrue(message.text.contains("Le jeu est encore fermé."), message.text)
+        assertFalse(message.text.contains("play.silooo.com"), message.text)
 
         val later = FakeReply()
         runBlocking { feature.handle(DiscordEvent.ButtonPressed(WelcomeTexts.REMINDERS_BUTTON_ID, user("9", "telephone"), null, "m", later)) }
@@ -197,6 +198,6 @@ class WelcomeTest {
         advance(60)
         assertTrue(fake.posted.isEmpty())
         assertEquals(1, fake.directs.size, "le tuto part quand même, avec le nom du salon")
-        assertTrue(fake.directs[0].second.text.contains("Dis bonjour dans #discussion."))
+        assertTrue(fake.directs[0].second.text.contains("Retrouve les autres dans #discussion."))
     }
 }

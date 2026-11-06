@@ -30,7 +30,7 @@ object WelcomeTexts {
     fun tutorial(platform: String?, discussion: String, phase: ServerPhase = ServerPhase.OUVERT): String {
         if (phase == ServerPhase.ATTENTE) return "Le jeu est encore fermé.\n" +
             "1. Suis le chantier sur silooo.com.\n" +
-            "2. Inscris-toi sur silooo.com pour devenir Pionnier.\n" +
+            "2. Inscris-toi sur silooo.com pour demander une place de Pionnier.\n" +
             "3. Retrouve les autres dans " + discussion + ". Pour une question, utilise le salon aide ou ouvre un ticket."
         val first = when (platform) {
             "console" -> "Sur ta console, ajoute HubyOnMC en ami, puis rejoins sa partie depuis ta liste d'amis."
