@@ -73,5 +73,16 @@
   "bienvenue": {
     "jourHeure": 7,
     "nuitHeure": 22
+  },
+  "profils": {
+    "syncSecondes": 30,
+    "paliersPrestige": [
+      { "minimum": 1, "role": "prestige-1" },
+      { "minimum": 5, "role": "prestige-5" },
+      { "minimum": 10, "role": "prestige-10" },
+      { "minimum": 25, "role": "prestige-25" },
+      { "minimum": 50, "role": "prestige-50" }
+    ],
+    "couleurPrestige": "#c8962e"
   }
 }

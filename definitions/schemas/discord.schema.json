@@ -5,7 +5,7 @@
   "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue"],
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils"],
   "$defs": {
     "identifiantDuPlan": {
       "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
@@ -361,6 +361,24 @@
         "nuitHeure": {
           "description": "L'heure où l'image d'accueil passe à la nuit.",
           "$ref": "#/$defs/heure"
+        }
+      }
+    },
+    "profils": {
+      "description": "Synchronisation des profils et rôles cosmétiques de prestige.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["syncSecondes", "paliersPrestige", "couleurPrestige"],
+      "properties": {
+        "syncSecondes": { "type": "integer", "minimum": 15, "maximum": 3600 },
+        "couleurPrestige": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+        "paliersPrestige": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["minimum", "role"],
+            "properties": { "minimum": { "type": "integer", "minimum": 1 }, "role": { "$ref": "#/$defs/identifiantDuPlan" } }
+          }
         }
       }
     }
