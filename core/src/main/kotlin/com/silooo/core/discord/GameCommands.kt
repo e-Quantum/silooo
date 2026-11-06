@@ -108,7 +108,7 @@ class GameCommandsFeature(
         if (card == null) { e.reply.send(BotMessage("Ces données ne sont pas disponibles pour le moment."), onlyToUser = true); return }
         val nonce = UUID.randomUUID().toString()
         val text = "**${card.title}**\n${card.text}"
-        val message = BotMessage(text, card = true)
+        val message = BotMessage(text, image = GameCardImages.render(text), card = true)
         pending.entries.removeAll { !it.value.expires.isAfter(context.timer.now()) }
         if (pending.size >= 1000) pending.remove(pending.keys.first())
         pending[nonce] = Pending(e.user.id, proof.linkedAt, message, context.timer.now().plus(Duration.ofMinutes(5)))

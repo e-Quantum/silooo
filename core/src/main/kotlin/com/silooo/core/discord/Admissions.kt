@@ -75,7 +75,7 @@ object AdmissionTexts {
  * postée : un redémarrage ne double rien. Les boutons vérifient le rôle Staff de celui qui clique.
  *
  * Admettre pose `admitted_at` sur l'inscription (le jeu laisse alors entrer le joueur), donne le rôle Bêta et écrit
- * l'invitation en privé. **Sans liaison Discord prouvée** (`discord_user_id` nul), l'inscrit attend : l'admission est
+ * l'invitation en privé. **Sans liaison Discord prouvée** (preuve en jeu absente), l'inscrit attend : l'admission est
  * posée, mais le rôle et le message ne partent pas. Ils viendront à la liaison (D3, `/lier`), qui lira
  * `admitted_at` et donnera alors le rôle et écrira l'invitation. Refuser et Plus tard ne touchent pas à
  * l'inscription : Plus tard laisse les deux autres boutons. Chaque geste va dans `#journal-du-bot`.
@@ -88,6 +88,8 @@ class AdmissionFeature(
     private val registrations: SiteRegistrationStore,
     private val database: Database,
     private val journal: BotJournal,
+    private val hasGameProof: suspend (String) -> Boolean = { false },
+    private val claimInvitation: suspend (String) -> Boolean = { false },
 ) : Feature {
     override val name = "admissions"
 
@@ -160,7 +162,7 @@ class AdmissionFeature(
         val discordUserId = registration.discordUserId
         val betaRole = context.ids.role(BETA)
         val note = when {
-            discordUserId == null -> AdmissionTexts.NOT_LINKED
+            discordUserId == null || !hasGameProof(discordUserId) -> AdmissionTexts.NOT_LINKED
             betaRole == null -> AdmissionTexts.NO_ROLE
             else -> invite(discordUserId, betaRole)
         }
@@ -172,7 +174,8 @@ class AdmissionFeature(
     private suspend fun invite(discordUserId: String, betaRole: String): String? =
         try {
             context.server.giveRole(discordUserId, betaRole)
-            if (context.server.direct(discordUserId, BotMessage(AdmissionTexts.INVITATION))) null else AdmissionTexts.DIRECT_CLOSED
+            if (!claimInvitation(discordUserId)) null
+            else if (context.server.direct(discordUserId, BotMessage(AdmissionTexts.INVITATION))) null else AdmissionTexts.DIRECT_CLOSED
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

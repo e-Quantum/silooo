@@ -56,7 +56,7 @@ class QgJourneySqlTest {
         val card = Db.string("select message_id from discord_admissions where gamertag_key='nouveau'")!!
         event(DiscordEvent.ButtonPressed(AdmissionTexts.ADMIT_PREFIX + "nouveau", owner, plan.ids.channel("admissions"), card, FakeReply()))
         assertNotNull(Db.string("select admitted_at from site_registrations where gamertag_key='nouveau'"))
-        assertTrue(plan.ids.role("beta") in server.memberRoles.getValue("99"))
+        assertFalse(plan.ids.role("beta") in server.memberRoles.getValue("99"), "Une association déclarée sur le site ne prouve pas le compte en jeu")
 
         val count = server.posted.count { it.channelId == menu.channelId }
         val second = build(context).filter { it.name == "tickets" || it.name == "bienvenue" }

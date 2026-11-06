@@ -21,7 +21,7 @@ object BotFeatures {
         onlineCount: () -> Int,
     ): (BotContext) -> List<Feature> = { context ->
         val definitions = DiscordDefinitions.loadChecked(definitionsDir, ServerPlan.fromClasspath())
-        val links = com.silooo.core.discord.linking.GameDiscordLinks(database)
+        val links = com.silooo.core.discord.linking.GameDiscordLinks(database, game?.clock ?: java.time.Clock.systemUTC())
         val members = JdbcMemberStore(database)
         val journal = BotJournal(context)
         val messages = JdbcBotMessageStore(database)

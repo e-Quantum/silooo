@@ -43,7 +43,7 @@ class AdmissionTest {
         }
         val ids = ServerIds(if (withBeta) mapOf("staff" to staff, "beta" to beta) else mapOf("staff" to staff), channels)
         val context = BotContext(fake, ids, timer, ServerPhase.ATTENTE)
-        val feature = AdmissionFeature(context, rules, zone, store, site, database, BotJournal(context))
+        val feature = AdmissionFeature(context, rules, zone, store, site, database, BotJournal(context), hasGameProof = { true }, claimInvitation = { true })
 
         val cards: List<FakeDiscordServer.Posted> get() = fake.posted.filter { it.channelId == channels["admissions"] }
         val journal: List<String> get() = fake.posted.filter { it.channelId == channels["journal-du-bot"] }.map { it.message.text }
@@ -101,7 +101,7 @@ class AdmissionTest {
         setup.advance(180)
         assertEquals(1, setup.cards.size, "une carte déjà postée n'est jamais repostée")
 
-        val restarted = AdmissionFeature(setup.context, rules, zone, setup.store, setup.site, setup.database, BotJournal(setup.context))
+        val restarted = AdmissionFeature(setup.context, rules, zone, setup.store, setup.site, setup.database, BotJournal(setup.context), hasGameProof = { true }, claimInvitation = { true })
         runBlocking { restarted.start() }
         setup.advance(120)
         assertEquals(1, setup.cards.size, "un redémarrage ne double rien")
@@ -232,7 +232,7 @@ class AdmissionTest {
         val refused = Setup()
         val brokenIds = ServerIds(mapOf("staff" to refused.staff, "beta" to "999"), refused.channels)
         val context = BotContext(refused.fake, brokenIds, refused.timer, ServerPhase.ATTENTE)
-        val feature = AdmissionFeature(context, rules, zone, refused.store, refused.site, refused.database, BotJournal(context))
+        val feature = AdmissionFeature(context, rules, zone, refused.store, refused.site, refused.database, BotJournal(context), hasGameProof = { true }, claimInvitation = { true })
         val other = refused.register("Autre", discord = "556")
         runBlocking { feature.start() }
         refused.advance(60)
