@@ -40,11 +40,15 @@ class GameProfileFeature(
     private val roles: ManagedGameRoleStore,
     private val prestige: PrestigeRoleDefinitions,
     private val syncInterval: Duration,
+    private val positionRoles: suspend () -> Unit = {},
 ) : Feature {
     override val name = "profils-jeu"
     private var timer: Scheduled? = null
 
     override suspend fun start() {
+        try { positionRoles() } catch (e: CancellationException) { throw e } catch (_: Exception) {
+            org.slf4j.LoggerFactory.getLogger(GameProfileFeature::class.java).warn("Vérifier la hiérarchie des rôles de prestige Discord")
+        }
         syncAll()
         timer = context.timer.every(syncInterval) { syncAll() }
     }

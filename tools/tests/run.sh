@@ -187,7 +187,7 @@ for dossier in tools/tests/definitions-invalides/*/; do
   attendu="$(head -n 1 "$dossier/attendu.txt")"
   sortie="$(node tools/verifier_definitions.mjs "$dossier" 2>&1)"
   code=$?
-  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu"; then
+  if [ "$code" -eq 1 ] && grep -qF -- "$attendu" <<< "$sortie"; then
     ok "$cas est refusé"
   else
     ko "$cas devrait être refusé avec « $attendu » (code $code)" "$sortie"
@@ -208,7 +208,7 @@ essai_pack() {
   (cd "$TMP/pack" && "$@") >/dev/null 2>&1
   sortie="$(node tools/verifier_pack.mjs "$TMP_NATIF/pack" 2>&1)"
   code=$?
-  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu"; then
+  if [ "$code" -eq 1 ] && grep -qF -- "$attendu" <<< "$sortie"; then
     ok "$cas est refusé"
   else
     ko "$cas devrait être refusé avec « $attendu » (code $code)" "$sortie"
@@ -269,7 +269,7 @@ essai_plan() {
   ' core/src/main/resources/discord/plan-serveur.json "$TMP_NATIF/plan.json" "$script"
   sortie="$(node tools/verifier_plan_discord.mjs "$TMP_NATIF/plan.json" 2>&1)"
   code=$?
-  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu"; then
+  if [ "$code" -eq 1 ] && grep -qF -- "$attendu" <<< "$sortie"; then
     ok "$cas est refusé"
   else
     ko "$cas devrait être refusé avec « $attendu » (code $code)" "$sortie"
@@ -348,7 +348,7 @@ for dossier in tools/tests/generateur/mot-cle-inconnu tools/tests/generateur/san
   attendu="$(head -n 1 "$dossier/attendu.txt")"
   sortie="$(generer "$dossier" --sortie "$TMP_NATIF/echec.ts")"
   code=$?
-  if [ "$code" -eq 1 ] && printf '%s\n' "$sortie" | grep -qF -- "$attendu" && [ ! -e "$TMP/echec.ts" ]; then
+  if [ "$code" -eq 1 ] && grep -qF -- "$attendu" <<< "$sortie" && [ ! -e "$TMP/echec.ts" ]; then
     ok "$cas échoue sans rien écrire"
   else
     ko "$cas devrait échouer avec « $attendu » (code $code)" "$sortie"

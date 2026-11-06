@@ -14,6 +14,9 @@ interface DiscordServer {
     /** Le surnom du membre ; null le retire. Le bot respecte la hiérarchie de Discord. */
     suspend fun nickname(userId: String, nickname: String?)
 
+    /** Place les seuls rôles de jeu, du moins au plus élevé, au-dessus de la couleur d'accueil. */
+    suspend fun positionGameRoles(orderedRoleIds: List<String>, aboveRoleId: String) {}
+
     /** Les rôles, catégories et salons tels qu'ils sont maintenant. */
     suspend fun snapshot(): ServerSnapshot
 

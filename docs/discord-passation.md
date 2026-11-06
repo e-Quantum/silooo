@@ -314,24 +314,28 @@ membres ; un concours par mois avant la bêta et 200 membres (point 3) ; aucune 
 ### D3 : le jeu sur Discord
 
 Critère de fin : un joueur simulé relie son compte, prend son pseudo et ses rôles, et voit sa carte `/entreprise` ; les
-rappels respectent 22 h à 7 h. Corrections de la critique : la liaison par le code montré en jeu, et seulement elle,
-pour les pseudos, les rôles du jeu, les lots et les votes (point 2) ; les bureaux visibles, jamais verrouillés, le staff
-y entre toujours (point 1).
+rappels respectent 22 h à 7 h. La recette SQL `GameJourneySqlTest` et `ReminderSqlTest` couvre ce critère. La recette
+sur les clients Bedrock/Discord de Kr suit l'installation de l'add-on ; le BDS reste déployé par Kr en whitelist.
 
-- [ ] La liaison : `/lier` et le bouton de `#👋・bienvenue`, le code de 10 minutes montré en jeu et saisi sur Discord,
-  la même liaison que le site (`site_registrations`), `/delier` ; l'écran en jeu est demandé à la direction du jeu
-- [ ] Les pseudos « Gamertag · P3 », les rôles PDG, Associé, Prestige N (paliers à choisir par Kr) et Pionnier, le
-  laiton à partir du prestige 5 ; mis à jour à chaque événement
-- [ ] `#🏭・le-silo` (un message modifié toutes les 30 s, image dessinée par silooo-core, texte dessous, trois boutons,
-  l'incident en direct) et `#📈・records` (prestiges groupés, Vote party, records, commande livrée, époque)
-- [ ] Les commandes et leurs cartes : `/entreprise`, `/usine`, `/classement`, `/vote`, `/rappels`, `/niveau`,
-  `/parrainage`, `/bureau`, le bouton « Montrer » ; l'installation sur le compte du joueur
-- [ ] Les rappels privés, désactivés au départ, trois par jour au plus, aucun de 22 h à 7 h sauf les Gemmes reçues,
-  « Arrêter ce rappel » sur chacun ; migration des préférences
-- [ ] Les bureaux d'entreprise et les sondages du bot (une voix par joueur relié) ; l'apparition des salons de la
-  phase `beta`
-- [ ] Les tableaux reliés au jeu : le Panthéon en direct, `#🆕・patch-notes`, le suivi des suggestions, les résultats de
-  sondage en carte
+- [x] La liaison : `/lier`, bouton de bienvenue, code de dix minutes affiché en jeu, même paire que le site,
+  `/delier` confirmé et protégé contre les confirmations périmées ; aucun compte de connexion fusionné
+- [x] Pseudo `Gamertag · Pn`, rôles PDG/Associé, Pionnier et Bêta selon preuves et données du site ; paliers proposés
+  1/5/10/25/50 dans les définitions, laiton à partir de 5 ; mise à jour toutes les trente secondes et nettoyage des
+  preuves retirées, avec conservation de Staff/XP/rôles personnalisés
+- [x] `#le-silo` : message persistant, image du core, production canonique, présence, votes, commande et incidents ;
+  records groupés des prestiges, Vote party, livraison de commande et nouvelles époques observées
+- [x] Cartes privées `/entreprise`, `/usine`, `/classement`, `/vote`, `/rappels`, `/niveau`, `/bureau` ; bouton Montrer
+  lié au membre et à sa preuve, installation sur le compte pour entreprise/usine (support application vérifié)
+- [x] Rappels des événements existants, désactivés au départ, préférences durables, fuseau par joueur, trois tentatives
+  par jour, heures calmes de 22 h à 7 h sauf Gemmes, arrêt par catégorie et invalidation après déliaison
+- [x] Bureaux publics en lecture, membres actuels prouvés et staff en écriture ; sondages persistants avec une voix
+  par XUID ; salons de la phase beta dans le plan, activés quand Kr choisit cette phase
+- [x] Classement Panthéon, nouvelles patch-notes, suivi staff des suggestions dans leur fil et cartes de résultat des sondages
+- [ ] Rappel Silo plein : le jeu ne définit aucune capacité ni état de Silo. Indisponible explicitement, sans seuil inventé
+- [ ] `/parrainage` et ses données : dépendance D5, maintenue à D5 ; aucune récompense fictive ajoutée dans D3
+
+Tous les textes et cartes nouveaux restent **à valider par Kr** ; D1 reste reporté. La phase du serveur reste attente
+pendant les essais en whitelist ; le site reste en attente.
 
 ### D4 : le tchat relié
 
@@ -1089,3 +1093,20 @@ session livre seulement le core, et communique le tag de l'add-on correspondant 
   contrat échouaient en 501 avant l'implémentation ; SQL et commandes privées sont vérifiés avant livraison.
 - D3 reste en cours : synchronisation complète des rôles/pseudos, cartes jeu, rappels, bureaux et tableaux, puis
   D4–D6. La phase beta du bot attend que ce parcours soit prêt ; la whitelist BDS peut être testée indépendamment.
+
+
+### Livraison D3 du 6 novembre 2026
+
+- Trois agents économiques GPT-6 Luna, worktrees isolés, intégration/compilation centralisées ; V13 preuve, V14 profils
+  et invitations, V15 rappels, V16 communauté. Aucun accès des sous-agents aux secrets ni aux comptes externes.
+- Admission corrigée : `discord_user_id` déclaré sur le site ne suffit pas pour recevoir Bêta/invitation. La preuve
+  du jeu est obligatoire et l'invitation ne fait qu'une tentative persistée, même si les messages privés sont fermés.
+- Le rapport mesure désormais les premières liaisons prouvées dans les sept jours de la première arrivée observée.
+  Provenance et signalements restent indisponibles tant que leurs producteurs ne sont pas livrés.
+- Quatorze commandes assemblées et testées avec le convertisseur JDA ; les options obligatoires précèdent les
+  facultatives. Les deux commandes de compte sont seules autorisées hors du QG, avec leurs boutons de carte.
+- La recette automatique utilise une MariaDB de test, jamais les joueurs réels du serveur. Kr garde le déploiement
+  BDS et sa whitelist ; cette session ne livre que le core.
+- Textes à valider par Kr : instructions de liaison et déliaison, cartes entreprise/usine/classement/vote, préférences
+  et messages des rappels, bureaux publics, sondages et résultats, tableau du jeu, records, états de suggestions.
+- Décision autonome provisoire : paliers de prestige 1/5/10/25/50, laiton à partir de 5. Aucun effet économique.

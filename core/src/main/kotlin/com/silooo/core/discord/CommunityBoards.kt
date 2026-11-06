@@ -64,6 +64,7 @@ object CommunityBoardTexts {
     const val NO_DATA = "Les données du jeu ne sont pas encore disponibles."
     fun live(lines: List<String>, siteUrl: String): BotMessage = BotMessage(
         lines.ifEmpty { listOf(NO_DATA) }.joinToString("\n"),
+        image = GameCardImages.render(lines.ifEmpty { listOf(NO_DATA) }.joinToString("\n")),
         buttons = listOf(
             ButtonSpec("silo-rejoindre", "Rejoindre", url = siteUrl.trimEnd('/') + "/rejoindre/"),
             ButtonSpec("silo-vote", "Voter", url = siteUrl.trimEnd('/') + "/vote/"),
@@ -84,6 +85,7 @@ class CommunityGameBoardsFeature(
     override val name = "tableaux-jeu-discord"
     private var refresh: Scheduled? = null
     override suspend fun start() {
+        if (context.phase == ServerPhase.ATTENTE) return
         refreshSilo()
         refreshPantheon()
         refresh = context.timer.every(LIVE_REFRESH) { refreshSilo() }
@@ -143,7 +145,21 @@ class CommunityGameBoardsFeature(
         val alive = game.serverPresence.all().any {
             !it.receivedAt.isBefore(game.clock.instant().minus(com.silooo.core.server.ServerPresence.DEFAULT_MAX_BEAT_AGE))
         }
-        lines += "${if (alive) "Serveur ouvert" else "Serveur sans signal récent"} · $online joueur${if (online == 1) "" else "s"} en ligne"
+        lines += "${if (alive) (if (context.phase == ServerPhase.BETA) "Serveur en bêta, accès sur admission" else "Serveur ouvert") else "Serveur sans signal récent"} · $online joueur${if (online == 1) "" else "s"} en ligne"
+        val (production, highestEra) = game.database.transaction { connection ->
+            val ids = connection.createStatement().use { it.executeQuery("select id from companies").use { rows ->
+                buildList { while (rows.next()) add(rows.getLong(1)) }
+            } }
+            val service = gameCompanyService(game)
+            val states = ids.mapNotNull { service.read(connection, it) }
+            states.sumOf { it.ratePerHour } to states.maxOfOrNull { it.era }
+        }
+        highestEra?.let { publishNewEras(it) }
+        lines += "Production du serveur · ${"%.2f".format(java.util.Locale.ROOT, production)} Donar/h"
+        val incidents = game.database.transaction { c -> c.createStatement().use {
+            it.executeQuery("select count(*) from factory_incidents where resolved_at is null").use { rows -> rows.next(); rows.getLong(1) }
+        } }
+        lines += "Incidents d'usine en cours · $incidents"
         val today = game.clock.instant().atOffset(ZoneOffset.UTC).toLocalDate()
         val votes = game.database.transaction { game.voteStore.countOn(it, today) }
         val party = game.definitions.vote.party
@@ -155,6 +171,19 @@ class CommunityGameBoardsFeature(
         val latest = latestGlobalPrestige()
         if (latest != null) lines += "Dernier prestige · ${latest.payload["companyName"]?.jsonPrimitive?.content.orEmpty()}"
         return CommunityBoardTexts.live(lines, siteUrl)
+    }
+
+    /** Au premier relevé, pose une référence sans rediffuser l'histoire. Les nouvelles époques sont durables. */
+    private suspend fun publishNewEras(highest: Int) {
+        val channel = context.ids.channel("records") ?: return
+        val state = JdbcCommunityStateStore(game.database)
+        val previous = state.get("highest-observed-era")?.toIntOrNull()
+        if (previous != null && highest > previous) {
+            for (era in (previous + 1)..highest) {
+                showRecord(channel, 0, "discord-record-first-era-$era" to "Une entreprise a atteint l'époque $era pour la première fois.")
+            }
+        }
+        if (previous == null || highest > previous) state.put("highest-observed-era", highest.toString())
     }
 
     private suspend fun weeklyTop(today: LocalDate, limit: Int = 3): List<RankedPlayer> {
@@ -204,7 +233,7 @@ class CommunityGameBoardsFeature(
                 val companyId = payload["companyId"]?.jsonPrimitive?.content ?: return null
                 val incidentId = payload["incidentId"]?.jsonPrimitive?.content ?: return null
                 if (action !in setOf("opened", "resolved")) return null
-                "discord-record-incident-$companyId-$incidentId-$action" to if (action == "opened") "Un incident d'usine a été signalé." else "Un incident d'usine a été résolu."
+                "discord-record-incident-$companyId-$incidentId" to if (action == "opened") "Un incident d'usine a été signalé." else "Un incident d'usine a été résolu."
             }
             kind == GameEventKind.ANNONCE && event.xuid == null && payload["action"]?.jsonPrimitive?.content == "voteParty" -> {
                 val day = payload["day"]?.jsonPrimitive?.content ?: return null
@@ -222,8 +251,9 @@ class CommunityGameBoardsFeature(
     private suspend fun prestigeCompanies(hour: String): Set<String> = game.database.transaction { c ->
         val start = java.time.LocalDateTime.parse(hour + ":00:00")
         val end = start.plusHours(1)
-        c.prepareStatement("select kind, payload from game_events where created_at >= ? and created_at < ? and kind in ('PRESTIGE_ENTREPRISE', 'ANNONCE')").use { ps ->
+        c.prepareStatement("select kind, payload from game_events where created_at >= ? and created_at < ? and kind in (?, ?)").use { ps ->
             ps.setObject(1, start); ps.setObject(2, end)
+            ps.setString(3, GameEventKind.PRESTIGE_ENTREPRISE.name); ps.setString(4, GameEventKind.ANNONCE.name)
             ps.executeQuery().use { rows ->
                 buildSet {
                     while (rows.next()) {
@@ -239,7 +269,7 @@ class CommunityGameBoardsFeature(
     }
     private suspend fun showRecord(channel: String, eventId: Long, publication: Pair<String, String>) {
         val (key, text) = publication
-        if (key.startsWith("discord-record-prestige-")) {
+        if (key.startsWith("discord-record-prestige-") || key.startsWith("discord-record-incident-")) {
             showCommunityLiving(context.server, messages, key, channel, BotMessage(text, card = true))
             return
         }

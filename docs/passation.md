@@ -1154,3 +1154,16 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.
+
+
+### Livraison D3 Discord — 6 novembre 2026
+
+Liaison prouvée en jeu, profils/pseudos, cartes privées et installation sur le compte, rappels opt-in, bureaux publics,
+sondages à voix unique par XUID et tableaux sont intégrés. V13 à V16 sont réservées à ce lot. Le critère D3 est
+recetté avec la vraie MariaDB et un réseau Discord simulé ; la recette client utilise l'add-on du même SHA installé
+par Kr. Seul le core est déployé ici, le BDS reste géré par Kr en whitelist. Phase Discord attente et site attente.
+
+Décisions prises sans Kr : paliers de prestige 1/5/10/25/50 et laiton dès 5, purement cosmétiques et configurables.
+Tous les textes et cartes D3 restent **à valider par Kr**. D1 attend. Le rappel Silo plein reste indisponible faute
+d'état/capacité dans le jeu ; le parrainage reste à D5 et le relais du tchat/signalements à D4. Les actions Discord
+et déploiements du seul core restent dans l'autorisation explicite de Kr consignée dans la passation Discord.

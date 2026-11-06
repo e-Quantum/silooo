@@ -105,7 +105,7 @@ object PollTexts {
     fun card(poll: CommunityPoll, tally: PollTally? = null): BotMessage {
         val lines = poll.options.mapIndexed { i, option ->
             val count = tally?.counts?.getOrNull(i)
-            val suffix = if (tally == null) "" else " — ${count ?: 0} voix"
+            val suffix = if (tally == null) "" else " : ${count ?: 0} voix"
             "${i + 1}. ${option.answer}$suffix\n   ${option.consequence}"
         }
         val ended = poll.closedAt != null

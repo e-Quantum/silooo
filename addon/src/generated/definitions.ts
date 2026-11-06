@@ -238,6 +238,16 @@ export type DiscordDefinitions = {
     /** L'heure où l'image d'accueil passe à la nuit. */
     readonly nuitHeure: DiscordHeure;
   };
+  /** Synchronisation des profils et rôles cosmétiques de prestige. */
+  readonly profils: {
+    readonly syncSecondes: number;
+    readonly laitonDesPrestige: number;
+    readonly couleurPrestige: string;
+    readonly paliersPrestige: readonly {
+      readonly minimum: number;
+      readonly role: DiscordIdentifiantDuPlan;
+    }[];
+  };
 };
 
 /** Un identifiant du plan du serveur : minuscules, chiffres et tirets. */

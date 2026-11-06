@@ -132,6 +132,17 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         }
     }
 
+    override suspend fun positionGameRoles(orderedRoleIds: List<String>, aboveRoleId: String) {
+        val anchor = guild.getRoleById(aboveRoleId) ?: return
+        val ordered = orderedRoleIds.mapNotNull(guild::getRoleById)
+        if (ordered.isEmpty()) return
+        if (ordered.map { it.position }.zipWithNext().all { (a, b) -> a < b } && ordered.first().position > anchor.position) return
+        if (ordered.any { !guild.selfMember.canInteract(it) }) throw DiscordRefusal("le bot ne peut pas placer les rôles de prestige")
+        val action = guild.modifyRolePositions(true)
+        ordered.forEachIndexed { index, role -> action.selectPosition(role).moveTo(anchor.position + index + 1) }
+        action.submit().await()
+    }
+
     override suspend fun rulesChannelId(): String? = guild.rulesChannel?.id
 
     override suspend fun snapshot(): ServerSnapshot = ServerSnapshot(
@@ -458,20 +469,20 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
         // Discord n'accepte USER_INSTALL que si l'application l'autorise dans son portail.
         try {
-        val application = guild.jda.retrieveApplicationInfo().submit().await()
-        if (net.dv8tion.jda.api.interactions.IntegrationType.USER_INSTALL in application.integrationTypesConfig) {
-            val account = commands.filter { it.name in ACCOUNT_COMMANDS }.map {
-                JdaMessages.command(it)
-                    .setIntegrationTypes(net.dv8tion.jda.api.interactions.IntegrationType.USER_INSTALL)
-                    .setContexts(net.dv8tion.jda.api.interactions.InteractionContextType.GUILD,
-                        net.dv8tion.jda.api.interactions.InteractionContextType.BOT_DM,
-                        net.dv8tion.jda.api.interactions.InteractionContextType.PRIVATE_CHANNEL)
+            val application = guild.jda.retrieveApplicationInfo().submit().await()
+            if (net.dv8tion.jda.api.interactions.IntegrationType.USER_INSTALL in application.integrationTypesConfig) {
+                val account = commands.filter { it.name in ACCOUNT_COMMANDS }.map {
+                    JdaMessages.command(it)
+                        .setIntegrationTypes(net.dv8tion.jda.api.interactions.IntegrationType.USER_INSTALL)
+                        .setContexts(net.dv8tion.jda.api.interactions.InteractionContextType.GUILD,
+                            net.dv8tion.jda.api.interactions.InteractionContextType.BOT_DM,
+                            net.dv8tion.jda.api.interactions.InteractionContextType.PRIVATE_CHANNEL)
+                }
+                guild.jda.updateCommands().addCommands(account).submit().await()
+            } else {
+                org.slf4j.LoggerFactory.getLogger(JdaServer::class.java)
+                    .warn("Installation sur le compte : activer User Install dans le portail Discord ; les commandes du QG restent disponibles")
             }
-            guild.jda.updateCommands().addCommands(account).submit().await()
-        } else {
-            org.slf4j.LoggerFactory.getLogger(JdaServer::class.java)
-                .warn("Installation sur le compte : activer User Install dans le portail Discord ; les commandes du QG restent disponibles")
-        }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) {
             org.slf4j.LoggerFactory.getLogger(JdaServer::class.java)

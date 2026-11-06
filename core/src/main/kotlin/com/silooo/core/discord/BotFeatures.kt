@@ -56,9 +56,21 @@ object BotFeatures {
             ElevatorFeature(context, definitions.elevator, definitions.zone, games, messages, records, journal),
         ) + if (game == null) emptyList() else listOf(
             GameProfileFeature(context, JdbcGameProfileQueries(database), managedRoles,
-                definitions.profiles.roleDefinitions(), java.time.Duration.ofSeconds(definitions.profiles.syncSeconds.toLong())),
+                definitions.profiles.roleDefinitions(), java.time.Duration.ofSeconds(definitions.profiles.syncSeconds.toLong()),
+                positionRoles = {
+                    context.ids.role("entrepreneur")?.let { above -> context.server.positionGameRoles(
+                        definitions.profiles.prestigeTiers.mapNotNull { context.ids.role(it.role) }, above)
+                    }
+                }),
             GameCommandsFeature(context, JdbcGameCommandQueries(database, gameCompanyService(game), game.siteStatsStore,
                 game.voteService, game.clock), GameDiscordLinkGateway(links)),
+            PollsFeature(context, JdbcPollStore(database), links),
+            BureauxFeature(context, game, links, JdbcBureauStore(database), EnsureCompanyBureau { company, name, channel, writers ->
+                ensureCompanyBureau(context, company, name, channel, writers)
+            }),
+            CommunityGameBoardsFeature(context, game, links, messages, JdbcGameEventCursorStore(database), siteUrl),
+            PatchNotesFeature(context, siteUrl, JdbcCommunityStateStore(database)),
+            SuggestionStatusFeature(context, JdbcCommunityStateStore(database), messages),
         )
     }
 }
