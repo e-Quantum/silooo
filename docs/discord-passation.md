@@ -1060,3 +1060,8 @@ que la session ne lit ni ne modifie. La livraison suivante recrée uniquement le
   transitoires restent retentables. Aucun changement des tirages ni des lots de giveaways.
 - Le texte de l'alerte du staff reste à valider par Kr. Le rétablissement du spoil supprimé reste une intervention
   explicite, sans résurrection automatique d'un message modéré.
+
+- La règle de réactions des spoils utilise aussi l'emoji `silo` : reprendre l'icône existante
+  `design/icones/usine.png`, sans image nouvelle. Son apparence reste à valider par Kr comme les deux autres emojis.
+- Vérification du cas supprimé : `tools/verifier.sh` vert, 2 299 tests Gradle sans échec ni test ignoré,
+  dont cinq régressions nouvelles sur la suppression, la pause et les reprises après panne transitoire.
