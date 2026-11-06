@@ -481,6 +481,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- Reprise Discord du 6 novembre : les nouveaux textes de règles, rejoindre, bienvenue et tuto avant ouverture
+  ainsi que le rapport hebdomadaire restent à valider. La migration V12 est réservée au rapport du Discord ;
+  toute nouvelle migration du jeu prend V13 ou la suivante libre. Voir [discord-passation.md](discord-passation.md).
+
 - Les huit points d'interprétation du tableur et la règle d'arrondi des Lingots
   (`core/src/test/resources/golden/README.md`) : le moteur suit le tableur en attendant.
 - Le nom d'entreprise provisoire « Entreprise de <gamertag> » (`core/.../session/CompanyNaming.kt`), premier

@@ -1,6 +1,50 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 5 novembre 2026, 20 h 58, D2 (session Discord).
+Dernière mise à jour : 6 novembre 2026, reprise des correctifs D2 sur le VPS.
+
+### Reprise du 5 novembre 2026 sur le VPS
+
+Kr a demandé de reprendre le bot, de corriger les erreurs et les permissions du serveur Silooo, puis de poursuivre le
+plan en autonomie avec plusieurs agents. Son accord couvre les opérations sur ce serveur Discord avec le bot et la
+livraison du code Silooo ; les autres projets du VPS restent hors périmètre. La priorité est l'accueil de nouveaux
+membres. Cette reprise part de `main` à `f061665`, avec des worktrees séparés par lot.
+
+- La livraison examinée sur le VPS est `5dcc5ae`. Les sources de la session précédente ont été récupérées sans les
+  réécrire. Le défaut de l'ordre des options de `/giveaway` est toujours présent dans cette base.
+- L'audit API a confirmé que l'accueil guidé est désactivé, qu'aucune des quatre commandes n'est installée pour cette
+  application sur le serveur, et que les quatre règles AutoMod sont actives.
+- Les trois salons internes avaient leur propre overwrite d'écriture, sans refus de lecture à `@everyone` : la
+  catégorie ne suffisait pas à les protéger. Une correction ciblée de la visibilité a été appliquée et relue par
+  l'API : journal et admissions pour Staff et Modération, signalements pour Modération. La correction durable du
+  réconciliateur est intégrée, avec des tests de dérive et de second passage. Les refus de confidentialité
+  empêchent le démarrage des fonctions qui écrivent des données internes.
+- **V12 est réservée au rapport hebdomadaire du Discord** : historique minimal des faits comptés et reprise sans
+  doublon après redémarrage. Elle est écrite, en vérification avant livraison. Les autres tranches prennent V13 et la suite.
+- Lots en cours : permissions et accueil guidé ; commandes et contrôles du staff ; rapport du lundi et parcours
+  d'accueil. La vérification Gradle et l'intégration sont centralisées, un seul Gradle à la fois sur le VPS.
+- Les nouveaux textes d'accueil et du rapport restent **à valider par Kr**. Les cases de recette réelle et la mise
+  en ligne ne sont pas cochées sur la seule présence du code.
+
+### Reprise du 6 novembre : intégration
+
+- `/giveaway` place désormais `duree` avant les options facultatives. `CommandSpec` refuse tout ordre invalide ;
+  le catalogue réel des quatre commandes est converti par JDA dans les tests.
+- Les actions staff refusent une configuration sans rôle Staff et la publication d'une annonce revérifie le rôle.
+- Les permissions de lecture, écriture et connexion sont combinées dans un seul overwrite lors de la création.
+  Le plan réconcilie les droits existants et vérifie les droits effectifs des salons de l'accueil guidé ; les vocaux
+  en sont exclus. Le salon médias existant est repris, sans suppression de salons.
+- `QgInfoFeature` remplit le salon officiel des règles et `rejoindre`, avec des messages à clé modifiés au redémarrage.
+  Le texte d'attente annonce le jeu fermé ; bienvenue ne prétend plus qu'on joue depuis Discord.
+- Le rapport du lundi mesure les événements reçus seulement. Liaison rapide, provenance et signalements restent
+  explicitement indisponibles. Une réservation SQL évite les doublons ; un envoi refusé est marqué `failed`,
+  journalisé et demande une reprise manuelle. Un arrêt après réservation peut laisser `attempting`.
+- Le rôle Entrepreneur est donné aux arrivants humains. Le tuto ATTENTE explique le chantier et l'inscription
+  pionnier ; les instructions Minecraft sont conservées pour la bêta et l'ouverture.
+- Setup Claude fourni par Kr : règles de consommation appliquées (lectures ciblées, sorties limitées, un agent
+  pour le rapport). Les scripts Windows, hooks et connexions privées ne sont pas installés sur le VPS.
+- **À valider par Kr** : règles du QG, rejoindre, bienvenue, tuto et formulations d'indisponibilité du rôle Staff,
+  ainsi que le rapport. Aucun visuel D1 nouveau ; aucune case D3 à D6 déclarée terminée.
+- Vérification et déploiement : voir le journal de livraison ajouté après les contrôles réels.
 
 Ce fichier est tenu par la session Discord. Il ne remplace pas [passation.md](passation.md), qui reste à la direction
 du jeu, ni [site-passation.md](site-passation.md), qui reste à la direction du site : ici, seulement le Discord de

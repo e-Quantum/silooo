@@ -46,7 +46,8 @@ class DiscordBot(
             log.info("Bot Discord : {}.", report.summary())
             report.failures.forEach { log.warn("Bot Discord, échec : {}.", config.token.mask(it)) }
             val build = features
-            if (build != null && !config.dryRun) {
+            if (!report.permissionsVerified) log.warn("Bot Discord : fonctions suspendues, les droits privés doivent être vérifiés.")
+            if (build != null && !config.dryRun && report.permissionsVerified) {
                 val staff = setOfNotNull(report.ids.role("staff"), report.ids.role("moderation"))
                 val server = if (config.public) opened.server else ClosedServer(opened.server, staff)
                 log.info(

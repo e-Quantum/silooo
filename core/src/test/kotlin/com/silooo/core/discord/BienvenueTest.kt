@@ -78,7 +78,7 @@ class BienvenueTest {
         val message = posted.message
         assertEquals(
             "Bienvenue au QG de Silooo. Le jeu se construit sous tes yeux : les coulisses, les sondages et les giveaways sont ouverts, " +
-                "le reste arrive avec la bêta. Relie ton compte pour jouer depuis Discord, règle tes rappels, et dis bonjour dans <#" +
+                "le jeu arrive avec la bêta sur Minecraft Bedrock. Dis bonjour dans <#" +
                 setup.channels.getValue("discussion") + ">.",
             message.text,
         )
@@ -340,7 +340,7 @@ class BienvenueTest {
     @Test
     @DisplayName("Sans #discussion sur le serveur, le texte porte son nom")
     fun textWithoutDiscussionChannel() {
-        assertTrue(BienvenueTexts.text("#discussion").endsWith("et dis bonjour dans #discussion."))
+        assertTrue(BienvenueTexts.text("#discussion").endsWith("Dis bonjour dans #discussion."))
         assertFalse(BienvenueTexts.text("#discussion").contains("!"))
     }
 

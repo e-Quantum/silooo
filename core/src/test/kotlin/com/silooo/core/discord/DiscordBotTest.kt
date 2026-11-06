@@ -74,6 +74,27 @@ class DiscordBotTest {
         assertTrue(checkNotNull(result.get()).channelIds.containsKey(ServerPlan.JOURNAL_ID))
     }
 
+    @Test
+    fun `Un journal expose empeche de demarrer les fonctions`() = runBlocking {
+        val connection = FakeConnection()
+        val plan = ServerPlan.fromClasspath()
+        val initial = PlanApplier(plan, connection.server, ServerPhase.ATTENTE, false).run()
+        connection.server.publicAccessOverrides[initial.channelIds.getValue(ServerPlan.JOURNAL_ID)] = PublicChannelAccess(true, true, false)
+        var built = false
+        val bot = DiscordBot(config, { connection }, features = { built = true; listOf(Recording()) })
+        val thread = Thread { bot.runGuarded() }
+        try {
+            thread.start()
+            thread.join(2000)
+            assertFalse(thread.isAlive)
+            assertFalse(built)
+            assertFalse(connection.listening)
+        } finally {
+            bot.close()
+            thread.join(2000)
+        }
+    }
+
     /** Le serveur que les fonctions reçoivent, une fois la boucle lancée ; le bot est ensuite fermé. */
     private fun serverSeenByFeatures(config: BotConfig, connection: FakeConnection): DiscordServer {
         val seen = AtomicReference<DiscordServer?>()

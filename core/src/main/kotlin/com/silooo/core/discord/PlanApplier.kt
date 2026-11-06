@@ -59,7 +59,7 @@ class PlanApplier(
             }
             categoryId?.let { report.categoryIds[category.id] = it }
             if (categoryId != null && snapshot.categories.any { it.id == categoryId } && (category.visible == null || viewers?.size == category.visible.size)) {
-                report.attempt("les droits de la catégorie « ${category.nom} »") {
+                report.attempt("les droits de la catégorie « ${category.nom} »", guardsPrivacy = true) {
                     if (server.reconcilePlanPermissions(categoryId!!, viewers, null, false, managedViewers, dryRun)) report.changedPermissions += category.nom
                 }
             }
@@ -95,7 +95,7 @@ class PlanApplier(
                     val requestedViewers = channel.visible ?: category.visible
                     if (requestedViewers == null || spec.viewers?.size == requestedViewers.size) {
                         if (channel.ecriture == null || spec.writers?.size == channel.ecriture.size) {
-                            report.attempt("les droits du salon « ${channel.discordName} »") {
+                            report.attempt("les droits du salon « ${channel.discordName} »", guardsPrivacy = true) {
                                 if (server.reconcilePlanPermissions(existing.id, spec.viewers, spec.writers, spec.locked, managedViewers, dryRun)) report.changedPermissions += channel.discordName
                             }
                         }
@@ -114,7 +114,7 @@ class PlanApplier(
         if (journal == null) {
             report.failures += "pas de salon du journal : le compte rendu reste dans les journaux du service"
         } else {
-            report.attempt("le compte rendu dans le journal") {
+            report.attempt("le compte rendu dans le journal", guardsPrivacy = true) {
                 if (report.failures.any { it.startsWith("les droits") }) throw DiscordRefusal("les droits privés n'ont pas tous pu être vérifiés")
                 if (server.publicChannelAccess(journal).view) throw DiscordRefusal("le journal est visible par tous")
                 server.send(journal, report.text())
@@ -143,6 +143,10 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
     val changedPermissions = mutableListOf<String>()
     val failures = mutableListOf<String>()
 
+    /** Une confidentialité non vérifiée empêche de lancer les fonctions qui écrivent des données internes. */
+    var permissionsVerified = true
+        private set
+
     /** L'accueil guidé : ce qu'il en est ; `null` tant que le plan n'en a pas. */
     var onboarding: OnboardingOutcome? = null
 
@@ -158,10 +162,11 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
             changedRoles.isEmpty() && changedChannels.isEmpty() && changedPermissions.isEmpty()
 
     /** Tente une action de Discord ; un échec s'écrit dans [failures] avec [what], sans le détail des jetons. */
-    internal suspend fun attempt(what: String, action: suspend () -> Unit) {
+    internal suspend fun attempt(what: String, guardsPrivacy: Boolean = false, action: suspend () -> Unit) {
         try {
             action()
         } catch (e: Exception) {
+            if (guardsPrivacy) permissionsVerified = false
             failures += "$what : ${e.message ?: e::class.simpleName}"
         }
     }

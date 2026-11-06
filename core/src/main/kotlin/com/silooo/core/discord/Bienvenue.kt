@@ -26,7 +26,7 @@ object BienvenueTexts {
     /** [discussion] : la mention du salon de discussion, ou son nom. */
     fun text(discussion: String): String =
         "Bienvenue au QG de Silooo. Le jeu se construit sous tes yeux : les coulisses, les sondages et les giveaways sont ouverts, " +
-            "le reste arrive avec la bêta. Relie ton compte pour jouer depuis Discord, règle tes rappels, et dis bonjour dans " + discussion + "."
+            "le jeu arrive avec la bêta sur Minecraft Bedrock. Dis bonjour dans " + discussion + "."
 
     fun iconRefused(reason: String?): String = "L'icône du serveur n'a pas pu être posée : " + (reason ?: "Discord a refusé") + "."
 }
