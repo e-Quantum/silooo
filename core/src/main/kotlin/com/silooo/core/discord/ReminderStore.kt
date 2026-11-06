@@ -20,7 +20,15 @@ data class ReminderPreferences(
     val enabled: Set<ReminderCategory> = emptySet(),
 )
 
-data class ReminderDelivery(val id: String, val userId: String, val category: ReminderCategory, val message: String, val occurredAt: Instant)
+data class ReminderDelivery(
+    val id: String,
+    val userId: String,
+    val category: ReminderCategory,
+    val message: String,
+    val occurredAt: Instant,
+    val proofXuid: String,
+    val proofLinkedAt: Instant,
+)
 data class ReminderSourceEvent(val id: Long, val xuid: String?, val kind: String, val payload: String, val occurredAt: Instant)
 
 /** Persistent opt-in and delivery claims. A delivery id is the source event's stable id, never a generated retry id. */
@@ -66,9 +74,10 @@ class JdbcReminderStore(private val database: Database) : ReminderStore {
     }
 
     override suspend fun enqueue(delivery: ReminderDelivery): Boolean = database.transaction { c ->
-        c.prepareStatement("insert ignore into discord_reminder_deliveries (delivery_id, discord_user_id, category, message, occurred_at) values (?, ?, ?, ?, ?)").use {
+        c.prepareStatement("insert ignore into discord_reminder_deliveries (delivery_id, discord_user_id, category, proof_xuid, proof_linked_at, message, occurred_at) values (?, ?, ?, ?, ?, ?, ?)").use {
             it.setString(1, delivery.id); it.setString(2, delivery.userId); it.setString(3, delivery.category.column)
-            it.setString(4, delivery.message); it.setObject(5, utc(delivery.occurredAt)); it.executeUpdate() == 1
+            it.setString(4, delivery.proofXuid); it.setObject(5, utc(delivery.proofLinkedAt)); it.setString(6, delivery.message)
+            it.setObject(7, utc(delivery.occurredAt)); it.executeUpdate() == 1
         }
     }
 
@@ -96,15 +105,24 @@ class JdbcReminderStore(private val database: Database) : ReminderStore {
     }
 
     override suspend fun advanceCursor(id: Long) {
-        database.transaction { c -> c.prepareStatement("update discord_reminder_cursor set last_event_id = greatest(last_event_id, ?) where id = 1").use { it.setLong(1, id); it.executeUpdate() } }
+        database.transaction { c -> c.prepareStatement(
+            "insert into discord_reminder_cursor (id, last_event_id) values (1, ?) " +
+                "on duplicate key update last_event_id = greatest(last_event_id, values(last_event_id))",
+        ).use { it.setLong(1, id); it.executeUpdate() } }
     }
 
     override suspend fun due(now: Instant, defaultZone: ZoneId, rules: ReminderRules): List<ReminderDelivery> = database.transaction { c ->
-        c.prepareStatement("select delivery_id, discord_user_id, category, message, occurred_at from discord_reminder_deliveries where status = 'pending' and occurred_at <= ? order by occurred_at, delivery_id limit 100").use {
+        c.prepareStatement("select d.delivery_id, d.discord_user_id, d.category, d.message, d.occurred_at, d.proof_xuid, d.proof_linked_at, p.time_zone from discord_reminder_deliveries d join discord_reminder_preferences p on p.discord_user_id = d.discord_user_id where d.status = 'pending' and d.occurred_at <= ? order by (d.category = 'gems') desc, d.occurred_at, d.delivery_id limit 500").use {
             it.setObject(1, utc(now)); it.executeQuery().use { rs -> buildList {
                 while (rs.next()) {
                     val cat = ReminderCategory.from(rs.getString(3)) ?: continue
-                    add(ReminderDelivery(rs.getString(1), rs.getString(2), cat, rs.getString(4), instant(rs.getObject(5, LocalDateTime::class.java))))
+                    val local = now.atZone(rs.getString(8)?.let { zone -> runCatching { ZoneId.of(zone) }.getOrNull() } ?: defaultZone)
+                    val quiet = local.hour >= rules.nightStartHour || local.hour < rules.nightEndHour
+                    if (quiet && cat != ReminderCategory.GEMS) continue
+                    add(ReminderDelivery(
+                        rs.getString(1), rs.getString(2), cat, rs.getString(4), instant(rs.getObject(5, LocalDateTime::class.java)),
+                        rs.getString(6), instant(rs.getObject(7, LocalDateTime::class.java)),
+                    ))
                 }
             } }
         }
@@ -132,7 +150,7 @@ class JdbcReminderStore(private val database: Database) : ReminderStore {
         val quiet = local.hour >= rules.nightStartHour || local.hour < rules.nightEndHour
         if (category != ReminderCategory.GEMS && quiet) return@transaction false
         val day: LocalDate = local.toLocalDate()
-        val count = c.prepareStatement("select count(*) from discord_reminder_deliveries where discord_user_id = ? and status in ('claimed','sent') and attempted_at >= ? and attempted_at < ?").use {
+        val count = c.prepareStatement("select count(*) from discord_reminder_deliveries where discord_user_id = ? and attempted_at >= ? and attempted_at < ?").use {
             it.setString(1, userId); it.setObject(2, utc(day.atStartOfDay(zone).toInstant())); it.setObject(3, utc(day.plusDays(1).atStartOfDay(zone).toInstant()))
             it.executeQuery().use { rs -> rs.next(); rs.getInt(1) }
         }

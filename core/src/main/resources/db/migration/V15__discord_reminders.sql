@@ -18,6 +18,8 @@ CREATE TABLE discord_reminder_deliveries (
     delivery_id VARCHAR(160) NOT NULL,
     discord_user_id VARCHAR(32) NOT NULL,
     category VARCHAR(32) NOT NULL,
+    proof_xuid BIGINT UNSIGNED NOT NULL,
+    proof_linked_at DATETIME(3) NOT NULL,
     message VARCHAR(1000) NOT NULL,
     occurred_at DATETIME(3) NOT NULL,
     status ENUM('pending','claimed','sent','failed') NOT NULL DEFAULT 'pending',
@@ -36,4 +38,6 @@ CREATE TABLE discord_reminder_cursor (
     PRIMARY KEY (id),
     CONSTRAINT ck_discord_reminder_cursor CHECK (id = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-INSERT INTO discord_reminder_cursor (id, last_event_id) VALUES (1, 0);
+-- Démarre au dernier événement existant : activer les rappels ne rejoue pas l'historique du jeu.
+INSERT INTO discord_reminder_cursor (id, last_event_id)
+SELECT 1, coalesce(max(id), 0) FROM game_events;

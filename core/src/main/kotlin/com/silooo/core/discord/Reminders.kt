@@ -19,9 +19,10 @@ object ReminderTexts {
     const val BAD_ZONE = "Ce fuseau IANA n'est pas reconnu."
     const val STOPPED = "Tes rappels sont arrêtés."
     const val UNKNOWN_CATEGORY = "Cette catégorie de rappel n'existe pas."
-    const val SILO_UNAVAILABLE = "Le rappel Silo plein n'est pas disponible : le jeu ne publie pas encore un état canonique de capacité du Silo."
+    const val SILO_UNAVAILABLE = "Le rappel Silo plein n'est pas encore proposé."
     const val CONFIRM = "Préférences enregistrées."
     const val MENU_ID = "rappels-choix"
+    const val TOGGLE_PREFIX = "rappels-toggle:"
 
     fun message(category: ReminderCategory, payload: String): String = when (category) {
         ReminderCategory.SILO -> "Ton Silo est plein."
@@ -51,9 +52,7 @@ class ReminderFeature(
             ReminderTexts.COMMAND,
             "Régler tes rappels Silooo",
             listOf(
-                CommandOption("categorie", "Catégorie à régler", choices = ReminderCategory.entries.filter { it != ReminderCategory.SILO }.map { it.column }),
-                CommandOption("actif", "Activer ou couper", choices = listOf("oui", "non")),
-                CommandOption("fuseau", "Fuseau IANA, par exemple Europe/Paris"),
+                CommandOption("fuseau", "Fuseau horaire, par exemple Europe/Paris"),
             ),
         ),
     )
@@ -70,6 +69,7 @@ class ReminderFeature(
             event is DiscordEvent.CommandUsed && event.name == ReminderTexts.COMMAND -> configure(event)
             event is DiscordEvent.ButtonPressed && event.id == WelcomeTexts.REMINDERS_BUTTON_ID -> showSettings(event)
             event is DiscordEvent.ButtonPressed && event.id.startsWith(ReminderTexts.STOP_PREFIX) -> stop(event)
+            event is DiscordEvent.ButtonPressed && event.id.startsWith(ReminderTexts.TOGGLE_PREFIX) -> toggle(event)
             event is DiscordEvent.MenuChosen && event.id == ReminderTexts.MENU_ID -> choose(event)
         }
     }
@@ -80,18 +80,10 @@ class ReminderFeature(
         if (game.findByDiscord(event.user.id) == null) return answer(event.reply, ReminderTexts.UNLINKED)
         val zoneText = event.options["fuseau"]?.trim()?.takeIf { it.isNotEmpty() }
         if (zoneText != null && runCatching { ZoneId.of(zoneText) }.isFailure) return answer(event.reply, ReminderTexts.BAD_ZONE)
-        val categoryText = event.options["categorie"]
-        val category = categoryText?.let(ReminderCategory::from)
-        if (categoryText != null && category == null) return answer(event.reply, ReminderTexts.UNKNOWN_CATEGORY)
-        if (category == ReminderCategory.SILO) return answer(event.reply, ReminderTexts.SILO_UNAVAILABLE)
-        val enable = event.options["actif"]?.let { it == "oui" }
-        if (category == null && zoneText == null) {
-            val preferences = store.preferences(event.user.id)
-            val enabled = preferences?.enabled.orEmpty().joinToString(", ") { it.column }.ifEmpty { "aucun" }
-            return event.reply.send(settings("Rappels actifs : $enabled. Fuseau : ${preferences?.timeZone ?: zone.id}."), onlyToUser = true)
-        }
-        store.set(event.user.id, category, enable ?: false, zoneText, context.timer.now())
-        answer(event.reply, ReminderTexts.CONFIRM)
+        if (zoneText != null) store.set(event.user.id, null, false, zoneText, context.timer.now())
+        val preferences = store.preferences(event.user.id)
+        val enabled = preferences?.enabled.orEmpty().joinToString(", ") { label(it) }.ifEmpty { "aucun" }
+        event.reply.send(settings("Rappels actifs : $enabled. Fuseau : ${preferences?.timeZone ?: zone.id}."), onlyToUser = true)
     }
 
     private suspend fun showSettings(event: DiscordEvent.ButtonPressed) {
@@ -106,10 +98,32 @@ class ReminderFeature(
         if (event.user.isBot) return
         if (game.findByDiscord(event.user.id) == null) return answer(event.reply, ReminderTexts.UNLINKED)
         val selected = event.values.mapNotNull(ReminderCategory::from).toSet()
-        if (selected.size != event.values.size) return answer(event.reply, ReminderTexts.UNKNOWN_CATEGORY)
-        if (ReminderCategory.SILO in selected) return answer(event.reply, ReminderTexts.SILO_UNAVAILABLE)
-        for (category in selected) store.set(event.user.id, category, true, null, context.timer.now())
-        event.reply.edit(BotMessage(ReminderTexts.CONFIRM))
+        if (selected.size != event.values.size || selected.size != 1) return answer(event.reply, ReminderTexts.UNKNOWN_CATEGORY)
+        val category = selected.single()
+        val preferences = store.preferences(event.user.id)
+        val active = category in preferences?.enabled.orEmpty()
+        event.reply.send(
+            BotMessage(
+                "${label(category)} : ${if (active) "actif" else "arrêté"}.",
+                buttons = listOf(
+                    ButtonSpec(ReminderTexts.TOGGLE_PREFIX + category.column + ":oui", "Activer"),
+                    ButtonSpec(ReminderTexts.TOGGLE_PREFIX + category.column + ":non", "Couper", ButtonStyle.DANGER),
+                ),
+            ),
+            onlyToUser = true,
+        )
+    }
+
+    private suspend fun toggle(event: DiscordEvent.ButtonPressed) {
+        if (event.user.isBot) return
+        if (game.findByDiscord(event.user.id) == null) return answer(event.reply, ReminderTexts.UNLINKED)
+        val parts = event.id.removePrefix(ReminderTexts.TOGGLE_PREFIX).split(':')
+        val category = parts.getOrNull(0)?.let(ReminderCategory::from)
+        if (parts.size != 2 || category == null || category == ReminderCategory.SILO || parts[1] !in setOf("oui", "non")) {
+            return answer(event.reply, ReminderTexts.UNKNOWN_CATEGORY)
+        }
+        store.set(event.user.id, category, parts[1] == "oui", null, context.timer.now())
+        answer(event.reply, ReminderTexts.CONFIRM)
     }
 
     private suspend fun stop(event: DiscordEvent.ButtonPressed) {
@@ -130,12 +144,12 @@ class ReminderFeature(
             for (source in events) {
                 for ((category, xuid, text) in relevant(source)) {
                     for ((discordId, linkedXuid) in store.linkedRecipients(xuid, category)) {
-                        if (linkedXuid != xuid) continue
+                        if (xuid != null && linkedXuid != xuid) continue
                         val proof = game.findByDiscord(discordId) ?: continue
                         if (proof.xuid != linkedXuid) continue
                         val prefs = store.preferences(discordId) ?: continue
                         if (category !in prefs.enabled) continue
-                        store.enqueue(ReminderDelivery("game:${source.id}:${category.column}:$discordId", discordId, category, text, source.occurredAt))
+                        store.enqueue(ReminderDelivery("game:${source.id}:${category.column}:$discordId", discordId, category, text, source.occurredAt, proof.xuid, proof.linkedAt))
                     }
                 }
                 cursor = source.id
@@ -153,6 +167,10 @@ class ReminderFeature(
                 store.finish(delivery.id, sent = false, failure = "no-active-game-link", now = now)
                 continue
             }
+            if (identity.xuid != delivery.proofXuid || identity.linkedAt != delivery.proofLinkedAt) {
+                store.finish(delivery.id, sent = false, failure = "game-link-changed", now = now)
+                continue
+            }
             // The proof precedes the preference lookup and every DM attempt.
             val prefs = store.preferences(delivery.userId)
             if (prefs == null || delivery.category !in prefs.enabled) {
@@ -160,6 +178,11 @@ class ReminderFeature(
                 continue
             }
             if (!store.claim(delivery.id, now, zone, rules)) continue
+            val currentProof = game.findByDiscord(delivery.userId)
+            if (currentProof == null || currentProof.xuid != delivery.proofXuid || currentProof.linkedAt != delivery.proofLinkedAt) {
+                store.finish(delivery.id, sent = false, failure = "game-link-changed", now = context.timer.now())
+                continue
+            }
             var failure: String? = null
             val delivered = try {
                 context.server.direct(delivery.userId, BotMessage(delivery.message, buttons = listOf(ButtonSpec(ReminderTexts.STOP_PREFIX + delivery.category.column, ReminderTexts.STOP_LABEL, ButtonStyle.DANGER))))
@@ -201,13 +224,22 @@ class ReminderFeature(
     private suspend fun answer(reply: Reply, text: String) = reply.send(BotMessage(text), onlyToUser = true)
 
     private fun settings(text: String): BotMessage = BotMessage(
-        text + " Active des catégories dans le menu. Pour en couper une, utilise /rappels avec catégorie et actif=non. " + ReminderTexts.SILO_UNAVAILABLE,
+        text + " Choisis une catégorie dans le menu pour l'activer ou la couper. " + ReminderTexts.SILO_UNAVAILABLE,
         menu = MenuSpec(
             ReminderTexts.MENU_ID,
-            "Catégories de rappels",
-            ReminderCategory.entries.filter { it != ReminderCategory.SILO }.map { MenuOption(it.column, it.column) },
-            maxValues = ReminderCategory.entries.size - 1,
+            "Choisir un rappel",
+            ReminderCategory.entries.filter { it != ReminderCategory.SILO }.map { MenuOption(it.column, label(it)) },
         ),
         buttons = listOf(ButtonSpec(WelcomeTexts.REMINDERS_BUTTON_ID, WelcomeTexts.REMINDERS_BUTTON_LABEL)),
     )
+
+    private fun label(category: ReminderCategory): String = when (category) {
+        ReminderCategory.SILO -> "Silo plein"
+        ReminderCategory.VOTE -> "Votes et Vote party"
+        ReminderCategory.VOTE_STREAK -> "Série de votes"
+        ReminderCategory.ORDER_DONE -> "Commande du jour"
+        ReminderCategory.COMPANY_INVITE -> "Invitation d'entreprise"
+        ReminderCategory.PRESTIGE -> "Prestige d'entreprise"
+        ReminderCategory.GEMS -> "Gemmes reçues"
+    }
 }
