@@ -452,6 +452,8 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         return member.roles.map { it.id }.toSet()
     }
 
+    override suspend fun parentChannelId(channelId: String): String? = guild.getThreadChannelById(channelId)?.parentChannel?.id
+
     override suspend fun installCommands(commands: List<CommandSpec>) {
         guild.updateCommands().addCommands(commands.map(JdaMessages::command)).submit().await()
         // Discord n'accepte USER_INSTALL que si l'application l'autorise dans son portail.

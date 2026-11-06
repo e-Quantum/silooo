@@ -77,6 +77,7 @@ class WelcomeFeature(
     private val rules: WelcomeRules,
     private val members: MemberStore,
     private val reports: ReportStore? = null,
+    private val remindersAvailable: Boolean = false,
 ) : Feature {
     override val name = "accueil"
 
@@ -124,7 +125,7 @@ class WelcomeFeature(
     private suspend fun button(event: DiscordEvent.ButtonPressed) {
         when (event.id) {
             WelcomeTexts.TUTORIAL_BUTTON_ID -> event.reply.send(tutorial(platformOf(event.user)), onlyToUser = true)
-            WelcomeTexts.REMINDERS_BUTTON_ID -> event.reply.send(BotMessage(WelcomeTexts.REMINDERS_LATER), onlyToUser = true)
+            WelcomeTexts.REMINDERS_BUTTON_ID -> if (!remindersAvailable) event.reply.send(BotMessage(WelcomeTexts.REMINDERS_LATER), onlyToUser = true)
         }
     }
 

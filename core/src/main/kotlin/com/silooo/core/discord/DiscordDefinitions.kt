@@ -81,7 +81,7 @@ data class DiscordDefinitions(
         for (tier in profiles.prestigeTiers) {
             if (tier.role !in roleIds) problems += "profils.paliersPrestige : le rôle « ${tier.role} » n'est pas dans le plan"
             val roleColor = plan.roles.firstOrNull { it.id == tier.role }?.couleur
-            if (roleColor != profiles.prestigeColor) problems += "profils.paliersPrestige : la couleur du rôle « ${tier.role} » doit correspondre à couleurPrestige"
+            if (tier.minimum >= profiles.brassFromPrestige && roleColor != profiles.prestigeColor) problems += "profils.paliersPrestige : la couleur du rôle « ${tier.role} » doit correspondre à couleurPrestige"
         }
         return problems
     }
@@ -275,8 +275,10 @@ data class GameProfileRules(
     @SerialName("syncSecondes") val syncSeconds: Int,
     @SerialName("paliersPrestige") val prestigeTiers: List<GamePrestigeTier>,
     @SerialName("couleurPrestige") val prestigeColor: String,
+    @SerialName("laitonDesPrestige") val brassFromPrestige: Int,
 ) {
     init {
+        require(brassFromPrestige > 0) { "profils.laitonDesPrestige doit être positif" }
         require(syncSeconds in 15..3600) { "profils.syncSecondes doit être compris entre 15 et 3600" }
         require(prestigeColor.matches(Regex("^#[0-9a-f]{6}$"))) { "profils.couleurPrestige doit être un #rrggbb minuscule" }
         require(prestigeTiers.isNotEmpty()) { "profils.paliersPrestige ne peut pas être vide" }

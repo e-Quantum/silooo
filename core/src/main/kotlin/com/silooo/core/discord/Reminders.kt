@@ -13,7 +13,7 @@ import kotlinx.coroutines.CancellationException
 object ReminderTexts {
     const val COMMAND = "rappels"
     const val STOP_PREFIX = "rappels-arreter:"
-    const val STOP_LABEL = "Arrêter ces rappels"
+    const val STOP_LABEL = "Arrêter ce rappel"
     const val UNLINKED = "Relie d'abord ton compte Minecraft avec /lier pour régler les rappels."
     const val HELP = "Avec /rappels, choisis une catégorie, active-la ou coupe-la. Tu peux aussi régler ton fuseau IANA."
     const val BAD_ZONE = "Ce fuseau IANA n'est pas reconnu."
@@ -90,7 +90,7 @@ class ReminderFeature(
         if (event.user.isBot) return
         if (game.findByDiscord(event.user.id) == null) return answer(event.reply, ReminderTexts.UNLINKED)
         val preferences = store.preferences(event.user.id)
-        val enabled = preferences?.enabled.orEmpty().joinToString(", ") { it.column }.ifEmpty { "aucun" }
+        val enabled = preferences?.enabled.orEmpty().joinToString(", ") { label(it) }.ifEmpty { "aucun" }
         event.reply.send(settings("Rappels actifs : $enabled. Fuseau : ${preferences?.timeZone ?: zone.id}."), onlyToUser = true)
     }
 
@@ -132,7 +132,7 @@ class ReminderFeature(
         val category = ReminderCategory.from(event.id.removePrefix(ReminderTexts.STOP_PREFIX))
             ?: return answer(event.reply, ReminderTexts.UNKNOWN_CATEGORY)
         store.set(event.user.id, category, false, null, context.timer.now())
-        answer(event.reply, "Le rappel ${category.column} est arrêté.")
+        answer(event.reply, "Le rappel ${label(category)} est arrêté.")
     }
 
     /** The game event cursor and delivery ids make polling/restarts safe. Unknown events are skipped unchanged. */

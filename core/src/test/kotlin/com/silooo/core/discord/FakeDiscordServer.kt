@@ -17,6 +17,8 @@ class FakeDiscordServer(
         bureauStaff[id] = staffRoles
         publicAccessOverrides[id] = PublicChannelAccess(true, true, false)
     }
+    val parents = mutableMapOf<String, String>()
+    override suspend fun parentChannelId(channelId: String): String? = parents[channelId]
     val nicknames = mutableMapOf<String, String?>()
     val nicknameUpdates = mutableListOf<Pair<String, String?>>()
     var failNextNicknames = 0

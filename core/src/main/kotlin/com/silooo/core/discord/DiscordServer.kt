@@ -108,6 +108,9 @@ interface DiscordServer {
     /** Le message [messageId] du salon [channelId] ; `null` s'il n'existe plus. */
     suspend fun message(channelId: String, messageId: String): ChannelMessage?
 
+    /** Le forum parent d’un fil, null pour un salon ordinaire. */
+    suspend fun parentChannelId(channelId: String): String? = null
+
     /** Le lien que Discord ouvre sur le message [messageId] du salon [channelId]. */
     fun messageLink(channelId: String, messageId: String): String
 

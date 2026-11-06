@@ -22,6 +22,7 @@ object BotFeatures {
     ): (BotContext) -> List<Feature> = { context ->
         val definitions = DiscordDefinitions.loadChecked(definitionsDir, ServerPlan.fromClasspath())
         val links = com.silooo.core.discord.linking.GameDiscordLinks(database, game?.clock ?: java.time.Clock.systemUTC())
+        val managedRoles = JdbcManagedGameRoleStore(database)
         val members = JdbcMemberStore(database)
         val journal = BotJournal(context)
         val messages = JdbcBotMessageStore(database)
@@ -29,13 +30,16 @@ object BotFeatures {
         val reports = JdbcReportStore(database)
         val records = RecordsBoard(context, games, messages, definitions.zone)
         listOf(
-            WelcomeFeature(context, definitions.welcome, members, reports),
+            WelcomeFeature(context, definitions.welcome, members, reports, remindersAvailable = true),
+            ReminderFeature(context, definitions.reminders, definitions.zone, JdbcReminderStore(database), links),
             LinkingFeature(context, GameDiscordLinkGateway(links), context.server::nickname),
             ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),
             SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),
-            AdmissionFeature(context, definitions.admissions, definitions.zone, JdbcAdmissionStore(database), JdbcSiteRegistrationStore(), database, journal),
+            AdmissionFeature(context, definitions.admissions, definitions.zone, JdbcAdmissionStore(database), JdbcSiteRegistrationStore(), database, journal,
+                hasGameProof = { id -> links.findByDiscord(id) != null },
+                claimInvitation = { id -> managedRoles.claimInvitation(id, context.timer.now()) }),
             AnnounceFeature(context, journal),
             XpFeature(context, definitions.xp, definitions.report, definitions.zone, JdbcXpStore(database)),
             GiveawayFeature(context, definitions.giveaways, definitions.zone, JdbcGiveawayStore(database), journal),
@@ -50,6 +54,11 @@ object BotFeatures {
             ChantierFeature(context, messages, journal, siteUrl),
             CountingFeature(context, games, records, journal),
             ElevatorFeature(context, definitions.elevator, definitions.zone, games, messages, records, journal),
+        ) + if (game == null) emptyList() else listOf(
+            GameProfileFeature(context, JdbcGameProfileQueries(database), managedRoles,
+                definitions.profiles.roleDefinitions(), java.time.Duration.ofSeconds(definitions.profiles.syncSeconds.toLong())),
+            GameCommandsFeature(context, JdbcGameCommandQueries(database, gameCompanyService(game), game.siteStatsStore,
+                game.voteService, game.clock), GameDiscordLinkGateway(links)),
         )
     }
 }

@@ -368,9 +368,10 @@
       "description": "Synchronisation des profils et rôles cosmétiques de prestige.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["syncSecondes", "paliersPrestige", "couleurPrestige"],
+      "required": ["syncSecondes", "paliersPrestige", "couleurPrestige", "laitonDesPrestige"],
       "properties": {
         "syncSecondes": { "type": "integer", "minimum": 15, "maximum": 3600 },
+        "laitonDesPrestige": { "type": "integer", "minimum": 1 },
         "couleurPrestige": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
         "paliersPrestige": {
           "type": "array", "minItems": 1, "uniqueItems": true,

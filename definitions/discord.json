@@ -83,6 +83,7 @@
       { "minimum": 25, "role": "prestige-25" },
       { "minimum": 50, "role": "prestige-50" }
     ],
+    "laitonDesPrestige": 5,
     "couleurPrestige": "#c8962e"
   }
 }
