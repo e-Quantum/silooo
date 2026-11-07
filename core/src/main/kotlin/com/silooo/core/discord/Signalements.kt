@@ -10,13 +10,17 @@ data class SignalementRules(
     val cooldown: Duration = Duration.ofSeconds(30),
     val formLifetime: Duration = Duration.ofMinutes(10),
     val retention: Duration = Duration.ofDays(30),
+    val purgeInterval: Duration = Duration.ofHours(6),
     val reasonMaxLength: Int = 500,
+    val contentMaxLength: Int = 1000,
 ) {
     init {
         require(!cooldown.isNegative && !cooldown.isZero)
         require(!formLifetime.isNegative && !formLifetime.isZero)
         require(retention == Duration.ofDays(30)) { "les dossiers sont conservés trente jours" }
+        require(!purgeInterval.isNegative && !purgeInterval.isZero)
         require(reasonMaxLength in 1..1000)
+        require(contentMaxLength in 1..1000)
     }
 }
 
@@ -37,7 +41,7 @@ class SignalementFeature(
     override suspend fun start() {
         context.ids.channel(SIGNALMENTS_CHANNEL)
             ?: throw DiscordRefusal("le salon des signalements n'est pas configuré")
-        context.timer.every(Duration.ofHours(6)) {
+        context.timer.every(rules.purgeInterval) {
             val now = context.timer.now()
             forms.entries.removeIf { it.value.expiresAt <= now }
             purgeExpired(now.minus(rules.retention))
@@ -55,6 +59,8 @@ class SignalementFeature(
     }
 
     private suspend fun begin(event: DiscordEvent.MessageReported) {
+        val now = context.timer.now()
+        forms.entries.removeIf { it.value.expiresAt <= now }
         if (event.user.isBot) return event.reply.send(BotMessage("Un message de bot ne peut pas être signalé."))
         if (event.channelId.isBlank() || event.messageId.isBlank() || !canView(event.channelId, event.user.id)) {
             return event.reply.send(BotMessage("Tu ne peux pas signaler ce message depuis ce compte."))
@@ -63,6 +69,9 @@ class SignalementFeature(
             ?: return event.reply.send(BotMessage("Ce message n'est plus disponible."))
         if (target.authorId == event.user.id || target.bot) {
             return event.reply.send(BotMessage("Ce message ne peut pas être signalé."))
+        }
+        if (forms.size >= MAX_PENDING_FORMS) {
+            return event.reply.send(BotMessage("Les formulaires de signalement sont temporairement occupés. Réessaie dans quelques minutes."))
         }
         val nonce = token()
         forms[nonce] = Pending(event.user.id, event.channelId, event.messageId, context.timer.now().plus(rules.formLifetime))
@@ -74,11 +83,16 @@ class SignalementFeature(
 
     private suspend fun submit(event: DiscordEvent.FormSubmitted) {
         val nonce = event.id.removePrefix(FORM_PREFIX)
-        val pending = forms.remove(nonce)
+        val pending = forms[nonce]
         val now = context.timer.now()
-        if (pending == null || pending.reporterId != event.user.id || pending.expiresAt <= now) {
+        if (pending == null || pending.reporterId != event.user.id) {
             return event.reply.send(BotMessage("Ce formulaire a expiré. Relance le signalement depuis le message."))
         }
+        if (pending.expiresAt <= now) {
+            forms.remove(nonce, pending)
+            return event.reply.send(BotMessage("Ce formulaire a expiré. Relance le signalement depuis le message."))
+        }
+        if (!forms.remove(nonce, pending)) return event.reply.send(BotMessage("Ce formulaire a déjà été utilisé."))
         val reason = event.fields["reason"]?.trim().orEmpty()
         if (reason.isBlank() || reason.length > rules.reasonMaxLength || !canView(pending.channelId, event.user.id)) {
             return event.reply.send(BotMessage("Le motif est vide ou le message n'est plus accessible."))
@@ -95,7 +109,7 @@ class SignalementFeature(
             "Auteur : ${target.authorName} (${target.authorId})\n" +
             "Publié : ${target.at}\n" +
             "Message : ${context.server.messageLink(pending.channelId, pending.messageId)}\n" +
-            "Contenu signalé : ${target.text.take(1200)}\n" +
+            "Contenu signalé : ${target.text.take(rules.contentMaxLength)}\n" +
             "Motif : ${reason.take(rules.reasonMaxLength)}\n" +
             "État : nouveau"
         val posted = try {
@@ -106,6 +120,7 @@ class SignalementFeature(
             ), card = true))
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) {
+            try { store.publicationFailed(report.id) } catch (_: Exception) {}
             org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} réservé, publication à reprendre manuellement", report.id)
             return event.reply.send(BotMessage("Ton signalement est enregistré. Sa publication dans le salon privé a échoué."))
         }
@@ -164,9 +179,9 @@ class SignalementFeature(
                 if (report.postChannelId != null && report.postMessageId != null) {
                     context.server.deleteMessage(report.postChannelId, report.postMessageId)
                 }
-                store.purge(report.id)
+                store.purge(report.id, before)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: DiscordMessageMissing) { store.purge(report.id) }
+            catch (e: DiscordMessageMissing) { store.purge(report.id, before) }
             catch (e: Exception) {
                 org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java)
                     .warn("Signalement #{} expiré : suppression du contexte impossible, reprise requise", report.id)
@@ -175,6 +190,7 @@ class SignalementFeature(
     }
 
     companion object {
+        const val MAX_PENDING_FORMS = 1000
         const val SIGNALMENTS_CHANNEL = "signalements"
         const val STAFF_ROLE_ID = "staff"
         const val MODERATION_ROLE_ID = "moderation"

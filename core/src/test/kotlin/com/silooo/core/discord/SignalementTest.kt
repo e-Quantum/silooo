@@ -12,17 +12,20 @@ class SignalementTest {
     private class Store : SignalementStore {
         val entries = mutableListOf<Signalement>()
         val states = mutableMapOf<Long, String>()
+        val removed = mutableListOf<Long>()
         override suspend fun create(reporterId: String, channelId: String, messageId: String, reason: String, at: Instant, cooldown: Duration): Signalement? {
             if (entries.any { it.reporterId == reporterId && it.messageId == messageId } || entries.lastOrNull { it.reporterId == reporterId }?.createdAt?.plus(cooldown)?.isAfter(at) == true) return null
             return Signalement((entries.size + 1).toLong(), reporterId, channelId, messageId, reason, "nouveau", null, at).also { entries += it }
         }
         override suspend fun setState(id: Long, state: String, staffId: String, at: Instant): Boolean {
             if (states[id] in setOf("resolu", "sans-suite") || entries.none { it.id == id }) return false
+            if (state == "pris" && states[id] != null) return false
             states[id] = state; return true
         }
         override suspend fun posted(id: Long, channelId: String, messageId: String) {}
-        override suspend fun expired(before: Instant): List<Signalement> = emptyList()
-        override suspend fun purge(id: Long): Int = 0
+        override suspend fun publicationFailed(id: Long) {}
+        override suspend fun expired(before: Instant): List<Signalement> = entries.filter { it.createdAt.isBefore(before) }
+        override suspend fun purge(id: Long, before: Instant): Int { removed += id; entries.removeIf { it.id == id }; return 1 }
         override suspend fun count(from: Instant, until: Instant): Long = entries.count { !it.createdAt.isBefore(from) && it.createdAt.isBefore(until) }.toLong()
     }
 
@@ -81,5 +84,22 @@ class SignalementTest {
         val accepted = FakeReply()
         feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:resolved", DiscordUser("staff-user", "Staff"), reports, "post", accepted))
         assertEquals("resolu", store.states[1])
+    }
+
+    @Test
+    fun retentionDeletesThePrivateDiscordCardAndItsStoredContext() = runBlocking {
+        val server = FakeDiscordServer()
+        val modRole = server.createRole(RoleSpec("Modération", "#e0614f", true, false))
+        val reports = server.createChannel(server.createCategory(CategorySpec("Staff", setOf(modRole))), ChannelSpec("signalements", ChannelKind.TEXTE, null, setOf(modRole), setOf(modRole), false))
+        val now = Instant.parse("2026-12-08T12:00:00Z")
+        val timer = FakeTimer(now)
+        val store = Store().also {
+            it.entries += Signalement(8, "reporter", "target-channel", "target-message", "motif", "resolu", "mod", now.minus(Duration.ofDays(31)), reports, "card-8", "publie", "mod", "mod")
+        }
+        server.messagesById[reports to "card-8"] = ChannelMessage("bot", "Oooscar", "Signalement #8\nContenu signalé : contexte privé", now.minus(Duration.ofDays(31)), bot = true)
+        val context = BotContext(server, ServerIds(mapOf("moderation" to modRole), mapOf(SignalementFeature.SIGNALMENTS_CHANNEL to reports)), timer, ServerPhase.ATTENTE)
+        SignalementFeature(context, store, SignalementRules()) { _, _ -> true }.start()
+        assertEquals(listOf(8L), store.removed)
+        assertFalse(server.messagesById.containsKey(reports to "card-8"))
     }
 }
