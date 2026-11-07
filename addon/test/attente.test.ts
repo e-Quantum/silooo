@@ -125,3 +125,137 @@ it("issueLobbyLinkCode envoie le gamertag au contrat et refuse un gamertag vide 
   assert.notEqual(vide.kind, "ok");
   assert.equal(envois.length, 1);
 });
+
+// ---------------------------------------------------------------- v2 : paliers, accueil, vitrine, rappels
+
+import { actionChoisie, construireAccueil, montrerAccueil, type EtatAccueil } from "../src/attente/accueil";
+import { ATTENTE, nouveauPalier, palierDe } from "../src/attente/regles";
+import { ACCUEIL_TEXTES } from "../src/attente/textes";
+import { creerRappels, lignesClassement, texteHologramme } from "../src/attente/vitrine";
+import type { LobbyBoard } from "../src/protocol";
+
+const TABLEAU: LobbyBoard = {
+  allTime: [
+    { rank: 1, gamertag: "Ana", score: 80 },
+    { rank: 2, gamertag: "Bob", score: 40 },
+    { rank: 2, gamertag: "Bob", score: 40 },
+  ],
+  week: [
+    { rank: 1, gamertag: "Ana", score: 50 },
+    { rank: 2, gamertag: "Cid", score: 20 },
+    { rank: 3, gamertag: "Dan", score: 10 },
+    { rank: 4, gamertag: "Moi", score: 5 },
+  ],
+  pioneers: 12,
+  news: [{ title: "Les plans du jeu sont prêts", date: "2026-11-05" }],
+};
+
+it("les paliers : le dernier seuil atteint s'applique, et seul le passage d'un seuil au-delà de 0 compte", () => {
+  assert.equal(palierDe(0).des, 0);
+  assert.equal(palierDe(29).des, 0);
+  assert.equal(palierDe(30).des, 30);
+  assert.equal(palierDe(500).des, ATTENTE.parcours.paliers.at(-1)!.des);
+  assert.equal(nouveauPalier(29, 30), true);
+  assert.equal(nouveauPalier(30, 31), false);
+  assert.equal(nouveauPalier(0, 1), false);
+});
+
+it("au palier le plus dur, chaque bloc tiré reste atteignable", () => {
+  for (let s = 1; s <= 10; s += 1) {
+    const hasard = graine(100 + s);
+    let pas: Pas = depart(2);
+    for (let i = 0; i < 2000; i += 1) {
+      const suivant = prochainBloc(pas, hasard, 200);
+      const dy = suivant.bloc.y - pas.bloc.y;
+      const dist = Math.abs(suivant.bloc.x - pas.bloc.x) + Math.abs(suivant.bloc.z - pas.bloc.z);
+      assert.ok(dy >= -1 && dy <= 1);
+      assert.ok(dist - 1 <= trouMax(dy as -1 | 0 | 1) + 1, `écart ${dist} pour une marche ${dy}`);
+      pas = suivant;
+    }
+  }
+});
+
+function etat(partiel: Partial<EtatAccueil>): EtatAccueil {
+  return { pseudo: "Moi", nouveau: true, testeur: false, tableau: TABLEAU, ...partiel };
+}
+
+it("l'accueil d'un nouveau venu : ce qu'est Silooo d'abord, Pionnier puis Sauter, les infos sous les boutons", () => {
+  const a = construireAccueil(etat({}));
+  assert.deepEqual(a.actions, ["pionnier", "sauter"]);
+  assert.ok(a.spec.body.includes(ACCUEIL_TEXTES.cestQuoi));
+  const kinds = a.spec.elements!.map((e) => e.kind);
+  assert.ok(kinds.indexOf("button") < kinds.indexOf("label"), "les sections viennent sous les boutons");
+  assert.deepEqual(a.spec.buttons, [ACCUEIL_TEXTES.pionnier, ACCUEIL_TEXTES.sauter]);
+});
+
+it("l'accueil d'un joueur qui revient : la dernière info d'abord", () => {
+  const a = construireAccueil(etat({ nouveau: false }));
+  assert.ok(a.spec.body.includes("Les plans du jeu sont prêts"));
+  assert.equal(a.spec.elements![0]!.kind, "label");
+});
+
+it("l'accueil d'un joueur relié ne le relance plus, et seul un testeur voit « Rejoindre Silooo »", () => {
+  const relie = construireAccueil(etat({ joueur: { linked: true, pioneer: true, best: 3, weekBest: 3 } }));
+  assert.equal(relie.spec.buttons[0], ACCUEIL_TEXTES.dejaPionnier);
+  const testeur = construireAccueil(etat({ testeur: true }));
+  assert.deepEqual(testeur.actions, ["pionnier", "sauter", "rejoindre"]);
+  assert.equal(actionChoisie(testeur, { kind: "selected", index: 2 }), "rejoindre");
+  assert.equal(actionChoisie(testeur, { kind: "closed" }), undefined);
+});
+
+it("le classement de l'accueil montre le top 3, le rang du joueur au-delà, et les pionniers", () => {
+  const a = construireAccueil(etat({}));
+  const texte = a.spec.elements!.filter((e) => e.kind === "label").map((e) => (e as { text: string }).text).join("\n");
+  assert.ok(texte.includes(ACCUEIL_TEXTES.tonRang(4)));
+  assert.ok(texte.includes(ACCUEIL_TEXTES.pionniers(12)));
+});
+
+it("sans service, l'accueil reste utilisable", () => {
+  const a = construireAccueil({ pseudo: "Moi", nouveau: true, testeur: false });
+  assert.deepEqual(a.actions, ["pionnier", "sauter"]);
+});
+
+it("l'accueil réessaie quand le jeu est occupé, au plus le nombre d'essais", async () => {
+  const a = construireAccueil(etat({}));
+  let appels = 0;
+  const choix = await montrerAccueil(a, {
+    show: async () => (++appels < 3 ? { kind: "busy" } : { kind: "selected", index: 0 }),
+    attendre: async () => undefined,
+    essais: 5,
+  });
+  assert.equal(choix, "pionnier");
+  assert.equal(appels, 3);
+  appels = 0;
+  const rien = await montrerAccueil(a, { show: async () => (appels++, { kind: "busy" }), attendre: async () => undefined, essais: 2 });
+  assert.equal(rien, undefined);
+  assert.equal(appels, 2);
+});
+
+it("la barre latérale : une ligne par nom, jamais deux fois le même joueur", () => {
+  assert.deepEqual(lignesClassement(TABLEAU), [
+    { nom: "Ana", score: 80 },
+    { nom: "Bob", score: 40 },
+  ]);
+});
+
+it("les hologrammes : liens fixes, actus et semaine tirées du tableau", () => {
+  assert.ok(texteHologramme("liens", undefined).includes("silooo.com"));
+  assert.ok(texteHologramme("liens", undefined).includes("discord.gg/ySnDWk4Dus"));
+  assert.ok(texteHologramme("infos", TABLEAU).includes("Les plans du jeu sont prêts"));
+  const semaine = texteHologramme("semaine", TABLEAU);
+  assert.ok(semaine.includes("Ana") && semaine.includes("Moi"));
+  assert.ok(semaine.includes(ACCUEIL_TEXTES.pionniers(12)));
+});
+
+it("les rappels : un par intervalle au plus, aucun pour un joueur relié", () => {
+  const r = creerRappels();
+  const pas = ATTENTE.rappels.tousLesPoints;
+  const intervalle = ATTENTE.rappels.intervalleSecondes * 1000;
+  assert.equal(r.auScore(pas, 0, true), false, "relié : jamais");
+  assert.equal(r.auScore(pas - 1, 0, false), false, "pas un multiple");
+  assert.equal(r.auScore(pas, 0, false), true);
+  assert.equal(r.auScore(2 * pas, 1000, false), false, "trop tôt");
+  assert.equal(r.auRecord(intervalle, false), true);
+  assert.equal(r.auRecord(3 * intervalle, false), false, "le record n'est rappelé qu'une fois");
+  assert.equal(r.auScore(3 * pas, 3 * intervalle, false), true);
+});

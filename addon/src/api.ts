@@ -15,7 +15,8 @@ import {
   claimPassBody,
   collectPath,
   companyPath,
-  discordLinkCodeBody, lobbyLinkCodeBody,
+  discordLinkCodeBody, lobbyLinkCodeBody, lobbyRunBody, lobbyPlayerPath, parseLobbyBoard, parseLobbyRunResult, parseLobbyPlayer,
+  type LobbyBoard, type LobbyRunResult, type LobbyPlayer,
   eventsUrl,
   fireStaffPath,
   heartbeatBody,
@@ -147,6 +148,12 @@ export interface CoreApi {
   issueDiscordLinkCode(action: ActionBase): Promise<ApiResult<DiscordLinkCode>>;
   /** POST /v1/lobby/link-codes (issueLobbyLinkCode), 200 : le visiteur de la salle d'attente est inscrit pionnier, voici son code. */
   issueLobbyLinkCode(action: ActionBase, gamertag: string): Promise<ApiResult<DiscordLinkCode>>;
+  /** POST /v1/lobby/runs (recordLobbyRun), 200 : records, rangs et classements ; 400 pour une course hors du jeu. */
+  recordLobbyRun(action: ActionBase, gamertag: string, score: number, seconds: number): Promise<ApiResult<LobbyRunResult>>;
+  /** GET /v1/lobby/board (getLobbyBoard), 200 : classements, pionniers et actus du site. */
+  lobbyBoard(): Promise<ApiResult<LobbyBoard>>;
+  /** GET /v1/lobby/players/{xuid} (getLobbyPlayer), 200 : relié, pionnier, records. */
+  lobbyPlayer(xuid: Xuid): Promise<ApiResult<LobbyPlayer>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -345,6 +352,24 @@ export function createCoreApi(client: CoreClient): CoreApi {
         return invalidArgument(describeError(error));
       }
       return readBody(await client.post(PATHS.lobbyLinkCodes, body), parseDiscordLinkCode);
+    },
+    async recordLobbyRun(action, gamertag, score, seconds) {
+      if (!isXuid(action.actor)) return invalidArgument("actor invalide");
+      let body: ReturnType<typeof lobbyRunBody>;
+      try {
+        body = lobbyRunBody(action, gamertag, score, seconds);
+      } catch (error) {
+        return invalidArgument(describeError(error));
+      }
+      return readBody(await client.post(PATHS.lobbyRuns, body), parseLobbyRunResult);
+    },
+    async lobbyBoard() {
+      return readBody(await client.get(PATHS.lobbyBoard), parseLobbyBoard);
+    },
+    async lobbyPlayer(xuid) {
+      const target = pathOrError(() => lobbyPlayerPath(xuid));
+      if ("failure" in target) return target.failure;
+      return readBody(await client.get(target.path), parseLobbyPlayer);
     },
   };
 }

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "commentaire": "La salle d'attente, avant l'ouverture : le saut infini, son classement et ses rappels. Valeurs de départ, à valider par Kr. Un trou est le nombre de blocs d'air entre deux blocs ; trouMax dit le plus grand trou selon la marche (monte d'un bloc, à plat, descend d'un bloc), tous franchissables à pied en courant. Chaque palier s'applique dès son score : la chance de tourner et la chance de tirer le plus grand trou montent. plafondParSeconde : au-delà de ce nombre de blocs par seconde de course, le service refuse la course. La semaine du classement part du lundi à minuit, dans le fuseau donné.",
+  "parcours": {
+    "yMin": 90,
+    "yMax": 130,
+    "chute": 4,
+    "trouMax": { "monte": 2, "plat": 3, "descend": 4 },
+    "paliers": [
+      { "des": 0, "chanceVirage": 0.1, "chanceGrandTrou": 0.1 },
+      { "des": 30, "chanceVirage": 0.18, "chanceGrandTrou": 0.25 },
+      { "des": 60, "chanceVirage": 0.25, "chanceGrandTrou": 0.4 }
+    ],
+    "plafondParSeconde": 3
+  },
+  "classement": {
+    "taille": 10,
+    "fuseau": "Europe/Paris",
+    "actus": 3,
+    "hologramme": 5,
+    "podiumDiscord": 3
+  },
+  "rappels": {
+    "tousLesPoints": 25,
+    "intervalleSecondes": 300
+  },
+  "rythmes": {
+    "accueilSecondes": 2,
+    "accueilEssais": 5,
+    "lienSecondes": 30,
+    "tableauSecondes": 60,
+    "boussoleSecondes": 2
+  }
+}

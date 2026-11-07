@@ -182,6 +182,8 @@ class ContractTest {
                 com.silooo.core.discord.linking.GameLinkCode("ABC234", clock.instant().plusSeconds(600))
             },
             lobbyLinkIssuer = { _, _, _ -> com.silooo.core.discord.linking.GameLinkCode("ABC234", clock.instant().plusSeconds(600)) },
+            lobby = com.silooo.core.lobby.LobbyDefinitions.load(TestDefinitions.directory),
+            lobbyStore = com.silooo.core.lobby.InMemoryLobbyStore(pioneerCount = 3),
         )
     }
 
@@ -384,9 +386,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 35 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    @DisplayName("Le contrat compte 38 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
     fun thirtyOperations() {
-        assertEquals(35, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+        assertEquals(38, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {
@@ -601,6 +603,16 @@ class ContractTest {
             "heartbeat" to listOf(
                 "{}", "pas du json", """{"serverId":"bds-1"}""", """{"serverId":"bds-1","onlineXuids":["abc"]}""",
                 """{"serverId":"","onlineXuids":[]}""",
+            ),
+            "recordLobbyRun" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid","gamertag":"Kr","score":1}""",
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"","score":1,"seconds":1}""",
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"Kr","score":-1,"seconds":1}""",
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"Kr","score":1,"seconds":-1}""",
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"Kr","score":"un","seconds":1}""",
+                """{"requestId":"abc","actor":"$krXuid","gamertag":"Kr","score":1,"seconds":1}""",
+                // Plus rapide que le plafond de definitions/attente.json : hors du jeu.
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"Kr","score":100000,"seconds":1}""",
             ),
             "issueLobbyLinkCode" to listOf(
                 "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"abc","actor":"$krXuid","gamertag":"Kr"}""",
@@ -1687,7 +1699,7 @@ class ContractTest {
 
         /** Les routes écrites et le succès qu'une requête minimale valide leur fait rendre. */
         val WRITTEN = mapOf(
-            "issueDiscordLinkCode" to 200, "issueLobbyLinkCode" to 200, "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
+            "issueDiscordLinkCode" to 200, "issueLobbyLinkCode" to 200, "recordLobbyRun" to 200, "getLobbyBoard" to 200, "getLobbyPlayer" to 200, "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
             "todayOrder" to 200, "deliverOrder" to 200, "getFindings" to 200,

@@ -80,6 +80,78 @@ paths:
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
 
+  /v1/lobby/runs:
+    post:
+      summary: Une course terminée dans la salle d'attente
+      description: |
+        Le service garde le meilleur score de chaque joueur (une ligne par XUID, le gamertag n'est que le dernier vu) et
+        son meilleur score de la semaine (la semaine part du lundi à minuit, fuseau de `definitions/attente.json`).
+        Une course plus rapide que `parcours.plafondParSeconde` blocs par seconde est hors du jeu : 400, rien n'est
+        écrit. La réponse donne les records du joueur, ses rangs et les deux classements.
+      operationId: recordLobbyRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [gamertag, score, seconds]
+                  properties:
+                    gamertag: { type: string, minLength: 1, maxLength: 32 }
+                    score: { type: integer, minimum: 0, maximum: 1000000 }
+                    seconds: { type: integer, minimum: 0, maximum: 86400, description: "durée de la course, en secondes entières" }
+      responses:
+        '200':
+          description: La course est comptée ; `newRecord` dit si elle bat le record du joueur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LobbyRunResult' }
+        '409': { $ref: '#/components/responses/Refused' }
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+
+  /v1/lobby/board:
+    get:
+      summary: Ce que la salle d'attente affiche à tous
+      description: |
+        Les classements de la salle d'attente (de tous les temps, et de la semaine), le nombre de pionniers inscrits et
+        les dernières actus publiées du site (titre et date, la même source que silooo.com/actus/).
+      operationId: getLobbyBoard
+      responses:
+        '200':
+          description: Les classements, les pionniers et les actus
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LobbyBoard' }
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+
+  /v1/lobby/players/{xuid}:
+    get:
+      summary: Ce que la salle d'attente sait d'un visiteur
+      description: |
+        Relié à Discord (preuve du code), inscrit pionnier, et ses records. Un visiteur que le service ne connaît pas
+        rend des valeurs nulles : il n'a ni lien, ni inscription, ni course.
+      operationId: getLobbyPlayer
+      parameters:
+        - { $ref: '#/components/parameters/XuidPath' }
+      responses:
+        '200':
+          description: L'état du visiteur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LobbyPlayer' }
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+
   /v1/server/heartbeat:
     post:
       summary: Le serveur Bedrock signale qu'il tourne et qui est en ligne
@@ -1069,6 +1141,46 @@ components:
                 enum: [REQUETE_INVALIDE, CLE_INVALIDE, ERREUR_INTERNE, PAS_FAIT]
 
   schemas:
+    LobbyEntry:
+      type: object
+      required: [rank, gamertag, score]
+      properties:
+        rank: { type: integer, minimum: 1, description: les égalités partagent le rang }
+        gamertag: { type: string }
+        score: { type: integer, minimum: 0 }
+    LobbyBoard:
+      type: object
+      required: [allTime, week, pioneers, news]
+      properties:
+        allTime: { type: array, items: { $ref: '#/components/schemas/LobbyEntry' } }
+        week: { type: array, items: { $ref: '#/components/schemas/LobbyEntry' } }
+        pioneers: { type: integer, format: int64, minimum: 0 }
+        news:
+          type: array
+          items:
+            type: object
+            required: [title]
+            properties:
+              title: { type: string }
+              date: { type: string, format: date, nullable: true }
+    LobbyRunResult:
+      type: object
+      required: [best, rank, weekBest, weekRank, newRecord, board]
+      properties:
+        best: { type: integer, minimum: 0 }
+        rank: { type: integer, minimum: 1 }
+        weekBest: { type: integer, minimum: 0 }
+        weekRank: { type: integer, minimum: 1 }
+        newRecord: { type: boolean }
+        board: { $ref: '#/components/schemas/LobbyBoard' }
+    LobbyPlayer:
+      type: object
+      required: [linked, pioneer, best, weekBest]
+      properties:
+        linked: { type: boolean, description: relié à Discord par un code montré en jeu }
+        pioneer: { type: boolean }
+        best: { type: integer, minimum: 0 }
+        weekBest: { type: integer, minimum: 0 }
     DiscordLinkCode:
       type: object
       required: [code, expiresAt]

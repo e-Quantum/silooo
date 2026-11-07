@@ -74,6 +74,13 @@ internal fun runService(env: Map<String, String>): Int = guarded {
     // Les définitions d'abord : un fichier manquant ou abîmé arrête le démarrage avant de toucher à la base.
     val definitions = DefinitionsLoader.load(config.definitionsDir)
     log.info("Définitions chargées depuis {}.", config.definitionsDir)
+    // La salle d'attente lit attente.json à part : un fichier abîmé coupe ses records, jamais le jeu.
+    val lobby = try {
+        com.silooo.core.lobby.LobbyDefinitions.load(config.definitionsDir)
+    } catch (e: com.silooo.core.definitions.DefinitionsException) {
+        log.warn("Salle d'attente sans records : {}", e.message)
+        null
+    }
     Migrations.validate(config.database)
     val database = HikariDatabase.connect(config.database)
     try {
@@ -87,6 +94,7 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             log.info("Votifier éteint : {} n'est pas posée, les votes de Hubyy ne sont pas reçus.", Config.VOTIFIER_TOKEN)
         }
         val dependencies = Dependencies(
+            lobby = lobby,
             serverPresence = presence,
             voteStore = voteStore,
             voteService = votes,

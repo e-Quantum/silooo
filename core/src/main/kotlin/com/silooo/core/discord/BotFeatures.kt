@@ -29,7 +29,16 @@ object BotFeatures {
         val games = JdbcGameStore(database)
         val reports = JdbcReportStore(database)
         val records = RecordsBoard(context, games, messages, definitions.zone)
-        listOf(
+        // La salle d'attente lit attente.json à part : sans lui, pas de podium du lundi, le reste du bot tourne.
+        val lobby = try {
+            com.silooo.core.lobby.LobbyDefinitions.load(definitionsDir)
+        } catch (e: com.silooo.core.definitions.DefinitionsException) {
+            org.slf4j.LoggerFactory.getLogger(BotFeatures::class.java).warn("Podium de la salle d'attente éteint : {}", e.message)
+            null
+        }
+        listOfNotNull(
+            lobby?.let { LobbyPodiumFeature(context, definitions.report, it.zone, it.classement.podium, JdbcLobbyPodiumStore(database)) },
+        ) + listOf(
             WelcomeFeature(context, definitions.welcome, members, reports, remindersAvailable = true),
             ReminderFeature(context, definitions.reminders, definitions.zone, JdbcReminderStore(database), links),
             LinkingFeature(context, GameDiscordLinkGateway(links), context.server::nickname),

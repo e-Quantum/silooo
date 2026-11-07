@@ -109,7 +109,7 @@ import com.silooo.core.vote.voteRoutes
 import com.silooo.core.discord.linking.GameDiscordLinks
 import com.silooo.core.discord.linking.GameLinkCode
 import com.silooo.core.discord.linking.gameDiscordLinkRoutes
-import com.silooo.core.discord.linking.lobbyLinkRoutes
+import com.silooo.core.lobby.lobbyRoutes
 import com.silooo.core.db.Xuid
 import java.sql.Connection
 import java.time.Clock
@@ -238,6 +238,14 @@ class Dependencies(
      * La salle d'attente : inscrit le visiteur pionnier (ligne `players`, `site_registrations`) puis émet son code, dans la
      * transaction idempotente ; remplacée par un faux dans les tests de contrat.
      */
+    /** `definitions/attente.json`, lu à part comme discord.json ; `null` : les routes des records de la salle d'attente répondent 501. */
+    val lobby: com.silooo.core.lobby.LobbyDefinitions? = null,
+    /** Les accès SQL des records de la salle d'attente (`lobby_records`, `lobby_week_bests`). */
+    val lobbyStore: com.silooo.core.lobby.LobbyStore = com.silooo.core.lobby.JdbcLobbyStore(),
+    /** Les actus publiées du site, la plus récente en tête : la même source que silooo.com/actus/. */
+    val lobbyNews: () -> List<com.silooo.core.site.NewsArticle> = {
+        com.silooo.core.site.NewsArticles.published(com.silooo.core.site.NewsArticles.fromClasspath())
+    },
     val lobbyLinkIssuer: (Connection, Xuid, String) -> GameLinkCode = { connection, actor, gamertag ->
         GameDiscordLinks(database, clock).enrollLobbyVisitor(connection, actor, gamertag, siteAdmission.admitsAt(AdmissionMoment.REGISTRATION))
     },
@@ -282,7 +290,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             serverRoutes(dependencies)
             sessionRoutes(dependencies)
             gameDiscordLinkRoutes(dependencies)
-            lobbyLinkRoutes(dependencies)
+            lobbyRoutes(dependencies)
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
             incidentRoutes(dependencies)

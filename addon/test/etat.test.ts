@@ -154,6 +154,9 @@ describe("observeApi", () => {
     const api: CoreApi = {
       issueDiscordLinkCode: result,
       issueLobbyLinkCode: result,
+      recordLobbyRun: result,
+      lobbyBoard: result,
+      lobbyPlayer: result,
       heartbeat: result,
       join: result,
       leave: result,

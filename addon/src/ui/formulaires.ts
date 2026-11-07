@@ -8,11 +8,27 @@
 import type { Player } from "@minecraft/server";
 import { ActionFormData, FormCancelationReason, ModalFormData } from "@minecraft/server-ui";
 
-/** Un écran à boutons : un titre, un corps de texte, des boutons dans l'ordre où on les montre. */
+/**
+ * Un élément d'un écran à sections (server-ui 2.3.0 : header, label, divider, button avec icône), sur le modèle de
+ * l'écran d'accueil de Hubyy : une section (son nom en capitales et quelques mots dessous), une note, un séparateur,
+ * un bouton (son texte, une icône facultative du pack de textures).
+ */
+export type FormElement =
+  | { readonly kind: "header"; readonly text: string }
+  | { readonly kind: "label"; readonly text: string }
+  | { readonly kind: "divider" }
+  | { readonly kind: "button"; readonly text: string; readonly icon?: string };
+
+/**
+ * Un écran à boutons : un titre, un corps de texte, des boutons dans l'ordre où on les montre. Avec [elements], l'écran
+ * suit ces éléments à la place de [buttons] (qui reste la liste des textes de ses boutons, dans le même ordre) : la
+ * réponse donne toujours le rang du bouton, sans compter les autres éléments.
+ */
 export interface ActionFormSpec {
   readonly title: string;
   readonly body: string;
   readonly buttons: readonly string[];
+  readonly elements?: readonly FormElement[];
 }
 
 /**
@@ -63,7 +79,17 @@ export function createFormPresenter(): FormPresenter<Player> {
   return {
     async show(player, spec) {
       const form = new ActionFormData().title(spec.title).body(spec.body);
-      for (const button of spec.buttons) form.button(button);
+      if (spec.elements === undefined) {
+        for (const button of spec.buttons) form.button(button);
+      } else {
+        for (const element of spec.elements) {
+          if (element.kind === "header") form.header(element.text);
+          else if (element.kind === "label") form.label(element.text);
+          else if (element.kind === "divider") form.divider();
+          else if (element.icon === undefined) form.button(element.text);
+          else form.button(element.text, element.icon);
+        }
+      }
       const response = await form.show(player);
       if (response.canceled) {
         return response.cancelationReason === FormCancelationReason.UserBusy ? { kind: "busy" } : { kind: "closed" };

@@ -17,12 +17,14 @@ services:
       - silooo-core
     environment:
       SILOOO_MODE: attente
-      BDS_SERVER_NAME: ${BDS_SERVER_NAME:-}
+      # Le nom de la salle d'attente dans les listes de serveurs (Hubyy, le jeu) : à valider par Kr.
+      BDS_SERVER_NAME: ${BDS_ATTENTE_SERVER_NAME:-Silooo · ouverture bientôt}
       BDS_PORT: ${BDS_ATTENTE_PORT:-19142}
       BDS_UDP_PORTS: ${BDS_ATTENTE_UDP_PORTS:-19175-19206}
       BDS_UDP_PORTS_PUBLIES: ${BDS_ATTENTE_UDP_PORTS:-19175-19206}
       BDS_PUBLIC_IP: ${BDS_PUBLIC_IP:-}
-      BDS_MAX_PLAYERS: ${BDS_ATTENTE_MAX_PLAYERS:-30}
+      BDS_MAX_PLAYERS: ${BDS_ATTENTE_MAX_PLAYERS:-32}
+      BDS_IDLE_MINUTES: ${BDS_ATTENTE_IDLE_MINUTES:-10}
       BDS_TRANSFERT_HOTE: ${BDS_TRANSFERT_HOTE:-}
       BDS_TRANSFERT_PORT: ${BDS_TRANSFERT_PORT:-}
       SILOOO_CORE_URL: ${SILOOO_CORE_URL:-}

@@ -2,6 +2,66 @@
 // Pour le refaire : node tools/generer_types.mjs
 // Pour vérifier qu'il est à jour : node tools/generer_types.mjs --verifier
 
+// ---- attente.json
+
+/** Forme de definitions/attente.json : le parcours du saut infini, son classement, ses rappels et ses rythmes. Les chiffres vivent dans le fichier de données : le schéma ne fixe que les types et les bornes. */
+export type AttenteDefinitions = {
+  readonly version: number;
+  readonly commentaire: string;
+  readonly parcours: {
+    /** Hauteur la plus basse d'un bloc. */
+    readonly yMin: number;
+    /** Hauteur la plus haute d'un bloc. */
+    readonly yMax: number;
+    /** Le joueur est tombé quand ses pieds passent ce nombre de blocs sous le dernier bloc atteint. */
+    readonly chute: number;
+    /** Le plus grand trou selon la marche. Au-delà de 4 à plat, un saut n'est plus franchissable à pied. */
+    readonly trouMax: {
+      readonly monte: number;
+      readonly plat: number;
+      readonly descend: number;
+    };
+    /** Les paliers de difficulté, du premier (des 0) au dernier, dans l'ordre croissant de leur score. */
+    readonly paliers: readonly {
+      readonly des: number;
+      readonly chanceVirage: number;
+      readonly chanceGrandTrou: number;
+    }[];
+    /** Blocs par seconde de course au-delà desquels le service refuse la course. */
+    readonly plafondParSeconde: number;
+  };
+  readonly classement: {
+    /** Lignes des classements rendus par le service et de la barre latérale (15 au plus, la limite de Bedrock). */
+    readonly taille: number;
+    /** Le fuseau de la semaine du classement. */
+    readonly fuseau: string;
+    /** Les dernières actus du site montrées dans le lobby. */
+    readonly actus: number;
+    /** Lignes du classement de la semaine sur l'hologramme. */
+    readonly hologramme: number;
+    /** Places du classement de la semaine postées par Oooscar le lundi. */
+    readonly podiumDiscord: number;
+  };
+  readonly rappels: {
+    /** Un rappel Discord à chaque multiple de ce score. */
+    readonly tousLesPoints: number;
+    /** Au plus un rappel par joueur dans cet intervalle. */
+    readonly intervalleSecondes: number;
+  };
+  readonly rythmes: {
+    /** Délai du popup d'accueil après l'arrivée. */
+    readonly accueilSecondes: number;
+    /** Essais du popup quand le jeu répond qu'un écran est déjà ouvert. */
+    readonly accueilEssais: number;
+    /** Intervalle du contrôle de la liaison Discord des joueurs présents. */
+    readonly lienSecondes: number;
+    /** Intervalle de relecture du classement et des actus. */
+    readonly tableauSecondes: number;
+    /** Intervalle du contrôle de la boussole. */
+    readonly boussoleSecondes: number;
+  };
+};
+
 // ---- boutique.json
 
 /** Identifiants de boutique.json, tableau « grades ». */

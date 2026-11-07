@@ -517,6 +517,29 @@ function controlesVille(fichier, d, dossier) {
   }
 }
 
+/** La salle d'attente : une bande de hauteur non vide, des paliers du score 0 vers le haut, un fuseau qui existe. */
+function controlesAttente(fichier, d) {
+  const p = d.parcours ?? {};
+  if (typeof p.yMin === "number" && typeof p.yMax === "number" && p.yMin >= p.yMax) {
+    signaler(fichier, "$.parcours.yMax", `doit dépasser yMin (${p.yMin})`);
+  }
+  const paliers = liste(p.paliers);
+  if (paliers.length > 0 && paliers[0]?.des !== 0) signaler(fichier, "$.parcours.paliers[0].des", "le premier palier part de 0");
+  for (let i = 1; i < paliers.length; i += 1) {
+    if (!(paliers[i]?.des > paliers[i - 1]?.des)) signaler(fichier, `$.parcours.paliers[${i}].des`, "les paliers vont dans l'ordre croissant");
+  }
+  const fuseau = d.classement?.fuseau;
+  if (typeof fuseau === "string") {
+    try { new Intl.DateTimeFormat("fr-FR", { timeZone: fuseau }); } catch { signaler(fichier, "$.classement.fuseau", `fuseau inconnu : ${fuseau}`); }
+  }
+  if (typeof d.classement?.hologramme === "number" && d.classement.hologramme > d.classement.taille) {
+    signaler(fichier, "$.classement.hologramme", "pas plus de lignes que le classement rendu par le service");
+  }
+  if (typeof d.classement?.podiumDiscord === "number" && d.classement.podiumDiscord > d.classement.taille) {
+    signaler(fichier, "$.classement.podiumDiscord", "pas plus de places que le classement rendu par le service");
+  }
+}
+
 function controlesVote(fichier, d) {
   doublons(fichier, "$.sites", liste(d.sites), "le site");
 }
@@ -578,7 +601,7 @@ function controlesPass(fichier, d, dossier) {
 
 const CONTROLES = {
   usines: controlesUsines, economie: controlesEconomie, boutique: controlesBoutique, missions: controlesMissions,
-  personnel: controlesPersonnel, incidents: controlesIncidents, ville: controlesVille, vote: controlesVote,
+  personnel: controlesPersonnel, incidents: controlesIncidents, ville: controlesVille, vote: controlesVote, attente: controlesAttente,
   pass: controlesPass,
 };
 

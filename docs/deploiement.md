@@ -226,32 +226,43 @@ le HUD en dépend ([design.md](design.md), « Où vont les fichiers dans `resour
 
 Avant l'ouverture, les curieux qui tapent `play.silooo.com:19142` tombent sur une salle d'attente au lieu d'un refus de
 la liste blanche : un second serveur Bedrock, ouvert à tous, dans un monde vide. Chaque joueur apparaît sur un bloc, le
-suivant est à 1 à 4 blocs (toujours atteignable), et ainsi de suite ; une chute et il repart de zéro. Son meilleur score
-entre dans le classement de la barre latérale (« Meilleurs sauts », gardé dans le monde). Une boussole ouvre « Devenir
-Pionnier » : l'invitation Discord, puis un code de silooo-core (`POST /v1/lobby/link-codes`) que le joueur saisit avec
-`/lier` sur Discord. Le service l'inscrit pionnier (`site_registrations.pioneer`, et sa ligne `players` sans entreprise) :
+suivant est à 1 à 4 blocs (toujours atteignable), et les sauts s'allongent par paliers (`definitions/attente.json`) ;
+une chute et il repart de zéro. Chaque course part à silooo-core (`POST /v1/lobby/runs`, table `lobby_records`, une ligne
+par XUID) : la barre latérale (« Meilleurs sauts ») et les hologrammes du départ affichent ce que le service rend
+(`GET /v1/lobby/board` : classements, nombre de pionniers, trois dernières actus du site). Le lundi, Oooscar poste le
+podium de la semaine finie dans `#discussion`. À chaque entrée, puis à chaque ouverture de la boussole (« Menu »), un
+accueil sur le modèle de celui de Hubyy propose « Devenir Pionnier » : l'invitation Discord, puis un code de silooo-core
+(`POST /v1/lobby/link-codes`) que le joueur saisit avec `/lier` sur Discord. La salle d'attente voit la liaison au
+contrôle suivant (`GET /v1/lobby/players/{xuid}`, toutes les 30 s) : le joueur devient « Pionnier · pseudo » et n'est
+plus relancé. Le service l'inscrit pionnier (`site_registrations.pioneer`, et sa ligne `players` sans entreprise) :
 le bot lui donne le rôle Pionnier une fois relié, et il fait partie des inscrits prévenus de la bêta.
 
-- Code : `addon/src/attente/` (pack à part, `addon/attente.manifest.json`, construit dans `addon/dist/attente/`),
-  `deploy/compose.attente.yml` (service `silooo-attente`), `deploy/bds/start.sh` en mode `SILOOO_MODE=attente`.
+- Code : `addon/src/attente/` (pack à part, `addon/attente.manifest.json`, construit dans `addon/dist/attente/` avec
+  l'entité `silooo:hologramme` de `addon/pack-attente/`), `resource-pack-attente/` (le client de cette entité, installé
+  dans `resource_packs/silooo-attente`), `deploy/compose.attente.yml` (service `silooo-attente`), `deploy/bds/start.sh`
+  en mode `SILOOO_MODE=attente`.
 - Le monde : `deploy/bds/attente/level.dat`, fabriqué par `tools/monde_attente.py` à partir du level.dat de BDS 1.26.62
   du monde de test : plat sans couche, aventure, jour figé, pas de dégâts ni de monstres, expérience `gametest`
   (« Beta APIs ») posée dans le fichier. Essai sur un BDS 1.26.62.1 local le 7 novembre 2026 : « Experiment(s) active:
   gtst », le pack et ses modules bêta se chargent, le classement est créé. Un monde existant n'est jamais écrasé.
 - Le monde de test (silooo-bds) quitte alors 19142. Dans le fichier d'environnement, Kr pose par exemple
   `BDS_PORT=19207`, `BDS_UDP_PORTS=19208-19239` et `BDS_UDP_PORTS_PUBLIES=19208-19239`, puis ouvre ces ports. La salle
-  d'attente prend 19142 en TCP et 19175-19206 en UDP (`BDS_ATTENTE_PORT`, `BDS_ATTENTE_UDP_PORTS`, 30 joueurs par
-  défaut : `BDS_ATTENTE_MAX_PLAYERS`).
+  d'attente prend 19142 en TCP et 19175-19206 en UDP (`BDS_ATTENTE_PORT`, `BDS_ATTENTE_UDP_PORTS`, 32 joueurs par
+  défaut, la taille de la plage : `BDS_ATTENTE_MAX_PLAYERS`). Un visiteur immobile 10 minutes est déconnecté
+  (`BDS_ATTENTE_IDLE_MINUTES`, `player-idle-timeout`). Son nom dans les listes de serveurs : « Silooo · ouverture
+  bientôt » (`BDS_ATTENTE_SERVER_NAME`, à valider par Kr).
 - Testeurs : un joueur présent dans l'`allowlist.json` de la salle d'attente (volume `silooo-attente-config`, même
-  commande `allowlist add` par `docker attach`) est transféré vers `BDS_TRANSFERT_HOTE:BDS_TRANSFERT_PORT` (l'adresse
-  publique et le `BDS_PORT` du monde de test). Sans ces deux variables, pas de transfert. Le transfert par adresse avec
+  commande `allowlist add` par `docker attach`) voit dans le menu le bouton « Rejoindre Silooo », qui le transfère vers
+  `BDS_TRANSFERT_HOTE:BDS_TRANSFERT_PORT` (l'adresse publique et le `BDS_PORT` du monde de test). Plus de transfert
+  automatique à l'arrivée. Sans ces deux variables, pas de bouton. Le transfert par adresse avec
   NetherNet n'a pas encore été essayé avec un vrai client.
 - Déployer avec la salle d'attente : `SILOOO_ATTENTE=oui bash deploy/scripts/deploy.sh <tag>` (la variable s'exporte
   dans la session, comme `SILENEMC_NETWORK`). Sans elle, `deploy.sh` ne touche pas au conteneur `silooo-attente`.
   À l'ouverture : l'arrêter (`docker compose -p silooo --project-directory . -f deploy/compose.yml -f
   deploy/compose.attente.yml rm -sf silooo-attente`), remettre le monde de test ou le vrai serveur sur 19142.
 - Mémoire : `mem_limit` à 768 Mo ; la consommation réelle se mesure au premier déploiement (le VPS partage sa mémoire
-  avec Hubyy). `sauvegarde.sh` n'archive pas ce monde : il ne contient que le classement.
+  avec Hubyy). `sauvegarde.sh` n'archive pas ce monde : les records sont dans la base, le monde ne garde que la marque « déjà venu »
+  des joueurs.
 
 ## Envoyer les fichiers tant que le VPS n'a pas d'accès GitHub
 

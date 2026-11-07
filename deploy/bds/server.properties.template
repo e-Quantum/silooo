@@ -7,6 +7,8 @@
 server-name={{BDS_SERVER_NAME}}
 level-name={{BDS_LEVEL_NAME}}
 max-players={{BDS_MAX_PLAYERS}}
+# Minutes d'inactivité avant la déconnexion (BDS_IDLE_MINUTES : 30 en jeu, 10 dans la salle d'attente).
+player-idle-timeout={{BDS_IDLE_MINUTES}}
 
 # Seul transport accepté par les clients 26.60 (RakNet est déprécié). Avec NetherNet, server-port est un port TCP
 # de signalisation HTTP (GET /v1/join) et le jeu passe en UDP dans la plage de server-udp-ports.

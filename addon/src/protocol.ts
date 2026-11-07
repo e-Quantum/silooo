@@ -204,6 +204,8 @@ export const PATHS = {
   leave: "/v1/session/leave",
   discordLinkCodes: "/v1/discord/link-codes",
   lobbyLinkCodes: "/v1/lobby/link-codes",
+  lobbyRuns: "/v1/lobby/runs",
+  lobbyBoard: "/v1/lobby/board",
 } as const;
 
 export interface DiscordLinkCode {
@@ -233,6 +235,108 @@ export function parseDiscordLinkCode(body: unknown): Parsed<DiscordLinkCode> {
       throw new ShapeError("discordLinkCode.expiresAt : date ISO 8601 attendue");
     }
     return { code, expiresAt };
+  });
+}
+
+// ---------------------------------------------------------------- la salle d'attente
+
+/** Une ligne d'un classement de la salle d'attente : les égalités partagent le rang. */
+export interface LobbyEntry {
+  rank: number;
+  gamertag: string;
+  score: number;
+}
+
+export interface LobbyNews {
+  title: string;
+  date: string | null;
+}
+
+export interface LobbyBoard {
+  allTime: LobbyEntry[];
+  week: LobbyEntry[];
+  pioneers: number;
+  news: LobbyNews[];
+}
+
+export interface LobbyRunResult {
+  best: number;
+  rank: number;
+  weekBest: number;
+  weekRank: number;
+  newRecord: boolean;
+  board: LobbyBoard;
+}
+
+export interface LobbyPlayer {
+  linked: boolean;
+  pioneer: boolean;
+  best: number;
+  weekBest: number;
+}
+
+/** Corps de recordLobbyRun : une course terminée, son score et sa durée en secondes entières (bornes du contrat). */
+export function lobbyRunBody(action: ActionBase, gamertag: string, score: number, seconds: number) {
+  const base = lobbyLinkCodeBody(action, gamertag);
+  if (!Number.isInteger(score) || score < 0 || score > 1_000_000) throw new Error("score invalide");
+  if (!Number.isInteger(seconds) || seconds < 0 || seconds > 86_400) throw new Error("durée invalide");
+  return { ...base, score, seconds };
+}
+
+export function lobbyPlayerPath(xuid: Xuid): string {
+  if (!XUID_PATTERN.test(xuid)) throw new RangeError(`xuid invalide : ${xuid}`);
+  return `/v1/lobby/players/${xuid}`;
+}
+
+function readLobbyEntries(value: unknown, path: string): LobbyEntry[] {
+  return list(value, path).map((item, index) => {
+    const rec = record(item, `${path}[${index}]`);
+    return { rank: num(rec, "rank", path), gamertag: str(rec, "gamertag", path), score: num(rec, "score", path) };
+  });
+}
+
+function readLobbyBoard(value: unknown, path: string): LobbyBoard {
+  const rec = record(value, path);
+  return {
+    allTime: readLobbyEntries(rec["allTime"], `${path}.allTime`),
+    week: readLobbyEntries(rec["week"], `${path}.week`),
+    pioneers: num(rec, "pioneers", path),
+    news: list(rec["news"], `${path}.news`).map((item, index) => {
+      const news = record(item, `${path}.news[${index}]`);
+      const date = news["date"];
+      if (date !== undefined && date !== null && typeof date !== "string") throw new ShapeError(`${path}.news[${index}].date : chaîne attendue`);
+      return { title: str(news, "title", path), date: typeof date === "string" ? date : null };
+    }),
+  };
+}
+
+export function parseLobbyBoard(body: unknown): Parsed<LobbyBoard> {
+  return attempt(() => readLobbyBoard(body, "lobbyBoard"));
+}
+
+export function parseLobbyRunResult(body: unknown): Parsed<LobbyRunResult> {
+  return attempt(() => {
+    const rec = record(body, "lobbyRun");
+    return {
+      best: num(rec, "best", "lobbyRun"),
+      rank: num(rec, "rank", "lobbyRun"),
+      weekBest: num(rec, "weekBest", "lobbyRun"),
+      weekRank: num(rec, "weekRank", "lobbyRun"),
+      newRecord: bool(rec, "newRecord", "lobbyRun"),
+      board: readLobbyBoard(rec["board"], "lobbyRun.board"),
+    };
+  });
+}
+
+export function parseLobbyPlayer(body: unknown): Parsed<LobbyPlayer> {
+  return attempt(() => {
+    const rec = record(body, "lobbyPlayer");
+    return {
+      linked: bool(rec, "linked", "lobbyPlayer"),
+      pioneer: bool(rec, "pioneer", "lobbyPlayer"),
+      best: num(rec, "best", "lobbyPlayer"),
+      weekBest: num(rec, "weekBest", "lobbyPlayer"),
+    };
   });
 }
 

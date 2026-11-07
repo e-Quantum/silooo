@@ -70,12 +70,15 @@ case "$MODE" in
     PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack}" # le pack construit par l'image, copié dans BDS à chaque démarrage
     RESSOURCES_SOURCE="${SILOOO_RESOURCE_PACK_DIR:-$DIR_SCRIPT/resource-pack}" # le pack de ressources de l'image, copié de même
     PACK_NOM=silooo
+    RESSOURCES_NOM=silooo
     INSTANCE="${BDS_INSTANCE:-}"
     ;;
   attente)
     PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack-attente}"
-    RESSOURCES_SOURCE="" # la salle d'attente n'a pas de pack de ressources : ni HUD ni Oooscar
+    # Le petit pack de ressources de la salle d'attente : l'entité des hologrammes, sans le HUD ni Oooscar du jeu.
+    RESSOURCES_SOURCE="${SILOOO_RESOURCE_PACK_DIR:-$DIR_SCRIPT/resource-pack-attente}"
     PACK_NOM=silooo-attente
+    RESSOURCES_NOM=silooo-attente
     INSTANCE="${BDS_INSTANCE:-attente}"
     MONDE_VIDE="${SILOOO_ATTENTE_LEVEL_DAT:-$DIR_SCRIPT/attente/level.dat}"
     ;;
@@ -114,6 +117,9 @@ udp_local="${BDS_UDP_PORTS:-19143-19174}"       # plage UDP dans le conteneur
 udp_public="${BDS_UDP_PORTS_PUBLIES:-$udp_local}" # plage UDP publiée sur l'hôte, même taille
 ip_publique="${BDS_PUBLIC_IP:-}"
 max_joueurs="${BDS_MAX_PLAYERS:-20}"
+# Minutes avant qu'un joueur immobile soit déconnecté (player-idle-timeout ; 0 : jamais). 30, le défaut de BDS, en jeu ;
+# 10 dans la salle d'attente, pour qu'un visiteur parti ne garde pas une place.
+if [ "$MODE" = jeu ]; then inactivite="${BDS_IDLE_MINUTES:-30}"; else inactivite="${BDS_IDLE_MINUTES:-10}"; fi
 if [ "$MODE" = jeu ]; then nom_monde="${BDS_LEVEL_NAME:-silooo}"; else nom_monde="${BDS_LEVEL_NAME:-attente}"; fi
 allow_list="${BDS_ALLOW_LIST:-true}"
 transfert_hote="${BDS_TRANSFERT_HOTE:-}"
@@ -150,6 +156,7 @@ if [[ $nom_serveur == *';'* ]]; then echec 78 "BDS_SERVER_NAME ne doit pas conte
 
 exiger_entier BDS_PORT "$port" 1 65535
 exiger_entier BDS_MAX_PLAYERS "$max_joueurs" 1 1000
+exiger_entier BDS_IDLE_MINUTES "$inactivite" 0 1440
 
 analyser_plage BDS_UDP_PORTS "$udp_local"
 local_taille=$((PLAGE_FIN - PLAGE_DEBUT + 1))
@@ -383,6 +390,7 @@ declare -A VALEURS=(
   [BDS_SERVER_NAME]="$nom_serveur"
   [BDS_LEVEL_NAME]="$nom_monde"
   [BDS_MAX_PLAYERS]="$((10#$max_joueurs))"
+  [BDS_IDLE_MINUTES]="$((10#$inactivite))"
   [BDS_PORT]="$((10#$port))"
   [BDS_UDP_PORTS_VALEUR]="$udp_valeur"
   [BDS_ALLOW_LIST]="$allow_list"
@@ -546,7 +554,7 @@ fi
 # Même logique que le pack de comportement : recopié de l'image à chaque démarrage (jamais celui d'un démarrage
 # précédent), puis listé dans le monde. Le HUD, les textures et Oooscar viennent de lui. Le manifeste est de type
 # resources : pas de module script, seuls header.uuid et header.version comptent.
-RESSOURCES_DIR="$BDS_DIR/resource_packs/silooo"
+RESSOURCES_DIR="$BDS_DIR/resource_packs/$RESSOURCES_NOM"
 RESSOURCES_MANIFESTE="$RESSOURCES_DIR/manifest.json"
 if [ -n "$RESSOURCES_SOURCE" ] && [ -f "$RESSOURCES_SOURCE/manifest.json" ]; then
   mkdir -p "$BDS_DIR/resource_packs"
@@ -554,9 +562,7 @@ if [ -n "$RESSOURCES_SOURCE" ] && [ -f "$RESSOURCES_SOURCE/manifest.json" ]; the
   cp -a "$RESSOURCES_SOURCE" "$RESSOURCES_DIR"
   dire "pack de ressources Silooo copié de $RESSOURCES_SOURCE dans $RESSOURCES_DIR"
 fi
-if [ "$MODE" = attente ]; then
-  dire "salle d'attente : pas de pack de ressources"
-elif [ -f "$RESSOURCES_MANIFESTE" ]; then
+if [ -f "$RESSOURCES_MANIFESTE" ]; then
   command -v jq >/dev/null 2>&1 || echec 78 "jq est introuvable : il lit manifest.json"
   RESSOURCES_UUID="$(jq -er '.header.uuid' "$RESSOURCES_MANIFESTE")" || echec 65 "$RESSOURCES_MANIFESTE : header.uuid manque ou le JSON est invalide"
   RESSOURCES_VERSION="$(jq -ec '.header.version' "$RESSOURCES_MANIFESTE")" || echec 65 "$RESSOURCES_MANIFESTE : header.version manque"
