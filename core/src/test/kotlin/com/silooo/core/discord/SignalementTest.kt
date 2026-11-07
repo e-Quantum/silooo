@@ -83,22 +83,23 @@ class SignalementTest {
         val feature = SignalementFeature(BotContext(server, ids, FakeTimer(), ServerPhase.ATTENTE), store, SignalementRules()) { _, _ -> allowed }
         server.memberRoles["staff-user"] = mutableSetOf(staff)
         server.names["staff-user"] = "Modérateur A"
+        val post = server.post(reports, BotMessage("Signalement #1\nÉtat : nouveau", card = true))
         val denied = FakeReply()
-        feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:resolved", DiscordUser("staff-user", "Staff"), reports, "post", denied))
+        feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:resolved", DiscordUser("staff-user", "Modérateur A"), reports, post, denied))
         assertTrue(store.states.isEmpty())
         allowed = true
         server.names["staff-user"] = "Modérateur A"
-        server.messagesById[reports to "post"] = ChannelMessage("bot", "Oooscar", "Signalement #1\nÉtat : nouveau", Instant.EPOCH, bot = true)
+        server.messagesById[reports to post] = ChannelMessage("bot", "Oooscar", "Signalement #1\nÉtat : nouveau", Instant.EPOCH, bot = true)
         val accepted = FakeReply()
-        feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:claim", DiscordUser("staff-user", "Staff"), reports, "post", accepted))
+        feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:claim", DiscordUser("staff-user", "Modérateur A"), reports, post, accepted))
         assertEquals("pris", store.states[1])
         val aClaimed = server.edits.last().message.text
         assertTrue(aClaimed.contains("Modérateur A"))
-        server.messagesById[reports to "post"] = ChannelMessage("bot", "Oooscar", aClaimed, Instant.EPOCH, bot = true)
+        server.messagesById[reports to post] = ChannelMessage("bot", "Oooscar", aClaimed, Instant.EPOCH, bot = true)
         val closedByB = FakeReply()
         server.names["staff-b"] = "Modérateur B"
         server.memberRoles["staff-b"] = mutableSetOf(mod)
-        feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:resolved", DiscordUser("staff-b", "Staff B"), reports, "post", closedByB))
+        feature.handle(DiscordEvent.ButtonPressed("${SignalementFeature.ACTION_PREFIX}1:resolved", DiscordUser("staff-b", "Modérateur B"), reports, post, closedByB))
         val closedCard = server.edits.last().message.text
         assertTrue(closedCard.contains("Pris en charge par : Modérateur A"))
         assertTrue(closedCard.contains("Clôturé par : Modérateur B"))

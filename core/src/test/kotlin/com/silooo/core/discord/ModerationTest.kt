@@ -139,7 +139,7 @@ class ModerationTest {
         val (message, private) = first.sent.single()
         assertTrue(private)
         assertTrue(message.text.length <= 2000)
-        assertTrue(message.text.contains("…"))
+        assertEquals(10, message.text.lineSequence().drop(1).count { it.endsWith(" (abrégé)") })
         assertTrue(message.text.contains("Avertissement"))
         assertTrue(message.text.contains("Effectué"))
         val next = message.buttons.single { it.label == "Suivant" }
