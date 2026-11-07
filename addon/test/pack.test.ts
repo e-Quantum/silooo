@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -14,6 +14,14 @@ import { config } from "../src/config";
 const racine = resolve(".");
 const script = join(racine, "scripts", "construire.mjs");
 const source = join(racine, "pack", "entities", "oooscar.json");
+
+/** Les fichiers du dossier statique pack/, en chemins relatifs avec des « / » : ce que le .mcpack doit contenir. */
+function fichiersStatiques(dossier: string, prefixe = ""): string[] {
+  return readdirSync(dossier).flatMap((nom) => {
+    const complet = join(dossier, nom);
+    return statSync(complet).isDirectory() ? fichiersStatiques(complet, `${prefixe}${nom}/`) : [`${prefixe}${nom}`];
+  });
+}
 
 interface Sortie {
   readonly status: number | null;
@@ -117,7 +125,10 @@ describe("scripts/construire.mjs et le dossier statique", () => {
 
   it("met aussi pack/ dans le .mcpack, avec le manifeste et le script", () => {
     const entrees = unzipSync(new Uint8Array(readFileSync(join(sortie, "silooo-addon.mcpack"))));
-    assert.deepEqual(Object.keys(entrees).sort(), ["blocks/bac_pierre.json", "blocks/broyeur.json", "blocks/bureau_administration.json", "blocks/convoyeur.json", "entities/oooscar.json", "entities/ouvrier.json", "entities/production.json", "items/carte.json", "items/objectif.json", "items/usine.json", "items/ville.json", "manifest.json", "scripts/main.js", "structures/silooo/carriere_depart.mcstructure"]);
+    // Tout le dossier statique (Oooscar, blocs Silooo, structures de la Carrière), plus le manifeste et le script.
+    const attendus = [...fichiersStatiques(join(racine, "pack")), "manifest.json", "scripts/main.js"].sort();
+    assert.ok(attendus.includes("entities/oooscar.json"));
+    assert.deepEqual(Object.keys(entrees).sort(), attendus);
     for (const name of ["carte", "objectif", "usine", "ville"]) {
       assert.equal(new TextDecoder().decode(entrees[`items/${name}.json`]), readFileSync(join(racine, "pack/items", `${name}.json`), "utf8"));
     }
