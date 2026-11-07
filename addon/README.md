@@ -1038,6 +1038,28 @@ L'avant est « rien », sauf pour le nom de la rareté du personnel et la place 
 | Personnel, tuile Associés (elle était dans le menu principal, qui n'a que huit places) | Associés, dans le menu | Associés, dans l'écran PERSONNEL |
 | Personnel, raretés du contrat (le nom vient de `definitions/personnel.json`) | Commun, Rare, Exceptionnel | Ordinaire, Rare, Exceptionnel |
 
+## Textes à valider, salle d'attente
+
+Le pack de la salle d'attente (`src/attente/`, `docs/deploiement.md`, « La salle d'attente »). Tout est nouveau : l'avant
+est « rien ». Les textes sont dans `src/attente/textes.ts`.
+
+| Où | Après |
+| --- | --- |
+| Titre et sous-titre à l'arrivée | Silooo ; Le serveur ouvre bientôt |
+| Tchat, à l'arrivée | Bienvenue `<pseudo>`. Silooo n'est pas encore ouvert. En attendant, saute de bloc en bloc : chaque bloc atteint vaut un point, une chute et tu repars de zéro. |
+| Tchat, à l'arrivée | Deviens Pionnier : rejoins le Discord (discord.gg/ySnDWk4Dus), puis ouvre la boussole pour obtenir ton code et relier ton compte. Tu seras prévenu de la bêta. |
+| Barre d'action | Score `<n>`   Record `<n>` |
+| Sous-titre à la chute | Chute à `<n>` |
+| Tchat, record battu | Nouveau record : `<n>` |
+| Classement (barre latérale) | Meilleurs sauts |
+| Nom de la boussole | Devenir Pionnier |
+| Tchat, testeur transféré | Tu es sur la liste des testeurs : direction le monde de test. |
+| Écran Pionnier, corps | 1. Rejoins le Discord de Silooo : discord.gg/ySnDWk4Dus ; 2. Obtiens ton code ici. ; 3. Sur Discord, tape /lier puis ton code. ; Tu reçois le grade Pionnier et tu seras prévenu de l'ouverture de la bêta. |
+| Écran Pionnier, code | Ton code : `<code>` ; Sur Discord : /lier `<code>` ; Il reste valable 10 minutes. |
+| Écran Pionnier, boutons | Obtenir mon code, Nouveau code, Réessayer, Fermer |
+| Écran Pionnier, panne | Le code n'a pas pu être créé. Réessaie dans un instant. |
+| Écran Pionnier, sans service | Les codes ne sont pas encore disponibles ici. Rejoins le Discord en attendant. |
+
 ## Ce qui manque
 
 Au contrat (`api/`, non modifié par cette tranche) :

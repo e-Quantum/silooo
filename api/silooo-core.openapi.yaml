@@ -48,6 +48,38 @@ paths:
         '500': { $ref: '#/components/responses/Erreur' }
         '501': { $ref: '#/components/responses/Erreur' }
 
+  /v1/lobby/link-codes:
+    post:
+      summary: Inscrire un visiteur de la salle d'attente comme pionnier et lui montrer un code de liaison Discord
+      description: |
+        La salle d'attente (serveur Bedrock ouvert à tous avant l'ouverture) n'appelle que cette route. Le joueur y est
+        connu de Xbox, pas encore du service : la route crée sa ligne `players` (sans entreprise : `join` la créera),
+        l'inscrit pionnier dans `site_registrations` (admis selon `SILOOO_SITE_ADMISSION`, moment de l'inscription),
+        puis émet le même code que `issueDiscordLinkCode`, à saisir avec `/lier` sur Discord.
+      operationId: issueLobbyLinkCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ActionBase'
+                - type: object
+                  required: [gamertag]
+                  properties:
+                    gamertag: { type: string, minLength: 1, maxLength: 32 }
+      responses:
+        '200':
+          description: Visiteur inscrit pionnier ; code à saisir dans Discord, une nouvelle intention remplace le précédent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscordLinkCode' }
+        '409': { $ref: '#/components/responses/Refused' }
+        '400': { $ref: '#/components/responses/Erreur' }
+        '401': { $ref: '#/components/responses/Erreur' }
+        '500': { $ref: '#/components/responses/Erreur' }
+        '501': { $ref: '#/components/responses/Erreur' }
+
   /v1/server/heartbeat:
     post:
       summary: Le serveur Bedrock signale qu'il tourne et qui est en ligne

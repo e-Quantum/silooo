@@ -82,6 +82,7 @@ import com.silooo.core.registration.WebAccountStore
 import com.silooo.core.registration.WebSessionStore
 import com.silooo.core.registration.XboxIdentity
 import com.silooo.core.registration.JdbcSiteRegistrationStore
+import com.silooo.core.registration.AdmissionMoment
 import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.SiteRegistrationStore
 import com.silooo.core.site.SiteCaches
@@ -108,6 +109,7 @@ import com.silooo.core.vote.voteRoutes
 import com.silooo.core.discord.linking.GameDiscordLinks
 import com.silooo.core.discord.linking.GameLinkCode
 import com.silooo.core.discord.linking.gameDiscordLinkRoutes
+import com.silooo.core.discord.linking.lobbyLinkRoutes
 import com.silooo.core.db.Xuid
 import java.sql.Connection
 import java.time.Clock
@@ -232,6 +234,13 @@ class Dependencies(
     val pass: PassService? = null,
     /** Émission du code dans la transaction idempotente ; remplacée par un faux dans les tests de contrat. */
     val gameLinkIssuer: (Connection, Xuid) -> GameLinkCode = { connection, actor -> GameDiscordLinks(database, clock).issue(connection, actor) },
+    /**
+     * La salle d'attente : inscrit le visiteur pionnier (ligne `players`, `site_registrations`) puis émet son code, dans la
+     * transaction idempotente ; remplacée par un faux dans les tests de contrat.
+     */
+    val lobbyLinkIssuer: (Connection, Xuid, String) -> GameLinkCode = { connection, actor, gamertag ->
+        GameDiscordLinks(database, clock).enrollLobbyVisitor(connection, actor, gamertag, siteAdmission.admitsAt(AdmissionMoment.REGISTRATION))
+    },
 )
 
 /**
@@ -273,6 +282,7 @@ fun Application.siloooModule(dependencies: Dependencies) {
             serverRoutes(dependencies)
             sessionRoutes(dependencies)
             gameDiscordLinkRoutes(dependencies)
+            lobbyLinkRoutes(dependencies)
             eventsRoutes(dependencies)
             economyRoutes(dependencies)
             incidentRoutes(dependencies)

@@ -1,0 +1,61 @@
+# La salle d'attente de Silooo, avant l'ouverture (docs/deploiement.md, « La salle d'attente »). Ajoutée au projet
+# « silooo » par deploy/scripts/deploy.sh quand Kr exporte SILOOO_ATTENTE=oui dans sa session :
+#   docker compose -p silooo --project-directory . -f deploy/compose.yml -f deploy/compose.attente.yml <commande>
+#
+# Un second serveur Bedrock, ouvert à tous, sur le port public des joueurs (play.silooo.com:19142) : un monde vide, le
+# saut infini, son classement, et l'écran « Devenir Pionnier » (le code de liaison Discord de silooo-core,
+# POST /v1/lobby/link-codes). Même image que silooo-bds, en mode attente (deploy/bds/start.sh).
+#
+# Le monde de test (silooo-bds) doit alors quitter le port 19142 : Kr pose dans le fichier d'environnement
+# BDS_PORT, BDS_UDP_PORTS et BDS_UDP_PORTS_PUBLIES sur une autre plage (19207 et 19208-19239 par exemple), et les ouvre
+# dans le pare-feu. Les joueurs de la liste blanche de la salle d'attente y sont transférés si BDS_TRANSFERT_HOTE et
+# BDS_TRANSFERT_PORT sont posés.
+services:
+  silooo-attente:
+    image: "ghcr.io/e-quantum/silooo-bds:${SILOOO_TAG:?SILOOO_TAG manque, lance deploy/scripts/deploy.sh avec un tag}"
+    depends_on:
+      - silooo-core
+    environment:
+      SILOOO_MODE: attente
+      BDS_SERVER_NAME: ${BDS_SERVER_NAME:-}
+      BDS_PORT: ${BDS_ATTENTE_PORT:-19142}
+      BDS_UDP_PORTS: ${BDS_ATTENTE_UDP_PORTS:-19175-19206}
+      BDS_UDP_PORTS_PUBLIES: ${BDS_ATTENTE_UDP_PORTS:-19175-19206}
+      BDS_PUBLIC_IP: ${BDS_PUBLIC_IP:-}
+      BDS_MAX_PLAYERS: ${BDS_ATTENTE_MAX_PLAYERS:-30}
+      BDS_TRANSFERT_HOTE: ${BDS_TRANSFERT_HOTE:-}
+      BDS_TRANSFERT_PORT: ${BDS_TRANSFERT_PORT:-}
+      SILOOO_CORE_URL: ${SILOOO_CORE_URL:-}
+      SILOOO_API_KEY: "${SILOOO_API_KEY:?SILOOO_API_KEY manque dans le fichier d'environnement}"
+    ports:
+      - "${BDS_ATTENTE_PORT:-19142}:${BDS_ATTENTE_PORT:-19142}/tcp"
+      - "${BDS_ATTENTE_UDP_PORTS:-19175-19206}:${BDS_ATTENTE_UDP_PORTS:-19175-19206}/udp"
+    volumes:
+      # Son monde (les records du classement) et sa config, à part de ceux du jeu.
+      - attente-worlds:/data/worlds
+      - attente-config:/data/config
+      # Le même dossier du zip que silooo-bds ; start.sh décompresse BDS à part, dans <version>-attente.
+      - type: bind
+        source: "${SILOOO_BDS_DIR:-/var/www/silooo/bds}"
+        target: /data/bds
+        bind:
+          create_host_path: false
+    networks: [silooo]
+    # Un monde vide et peu de joueurs : bien moins que le 1,5 Gio du jeu. La consommation réelle se mesure au premier déploiement.
+    mem_limit: 768m
+    restart: on-failure:5
+    stdin_open: true
+    tty: true
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  attente-worlds:
+    name: silooo-attente-worlds
+  attente-config:
+    name: silooo-attente-config

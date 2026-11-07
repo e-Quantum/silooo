@@ -7,6 +7,9 @@
 //   dist/pack/scripts/main.js      <- contrat avec deploy/ : ce dossier, ce nom, ce chemin
 //   dist/pack/entities/*.json      <- copié de addon/pack/ (le dossier statique)
 //   dist/silooo-addon.mcpack       <- le même contenu en zip
+//   dist/attente/manifest.json     <- le pack de la salle d'attente (src/attente/main.ts, attente.manifest.json),
+//   dist/attente/scripts/main.js      que start.sh installe en mode attente
+//   dist/silooo-attente.mcpack
 //
 // Usage : node scripts/construire.mjs [--sortie <dossier>] [--statique <dossier>]
 //         (ou npm run build, qui vérifie d'abord les types)
@@ -117,6 +120,33 @@ async function main() {
     logLevel: "warning",
   });
   const imports = verifierImports(readFileSync(sortieScript, "utf8"));
+
+  // Le pack de la salle d'attente : son propre script et son manifeste, sans le dossier statique (ni entité ni Oooscar).
+  const attente = join(dist, "attente");
+  const scriptAttente = join(attente, "scripts", "main.js");
+  mkdirSync(join(attente, "scripts"), { recursive: true });
+  await build({
+    absWorkingDir: racine,
+    entryPoints: ["src/attente/main.ts"],
+    outfile: scriptAttente,
+    bundle: true,
+    format: "esm",
+    target: "es2023",
+    platform: "neutral",
+    external: ["@minecraft/*"],
+    minify: false,
+    legalComments: "none",
+    tsconfig: "tsconfig.json",
+    logLevel: "warning",
+  });
+  verifierImports(readFileSync(scriptAttente, "utf8"));
+  copyFileSync(join(racine, "attente.manifest.json"), join(attente, "manifest.json"));
+  const entreesAttente = {};
+  for (const fichier of fichiersDe(attente)) {
+    entreesAttente[relative(attente, fichier).replaceAll("\\", "/")] = [readFileSync(fichier), { level: 9, mtime: new Date(2000, 0, 1) }];
+  }
+  writeFileSync(join(dist, "silooo-attente.mcpack"), zipSync(entreesAttente));
+  console.log(`dist/attente/scripts/main.js : ${statSync(scriptAttente).size} octets`);
 
   copyFileSync(join(racine, "manifest.json"), join(pack, "manifest.json"));
   const copies = copierStatique();

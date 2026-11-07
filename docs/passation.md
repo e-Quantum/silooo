@@ -169,6 +169,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À faire par Kr
 
+- [ ] Salle d'attente (`docs/deploiement.md`, « La salle d'attente ») : déplacer le monde de test hors de 19142
+  (`BDS_PORT`, `BDS_UDP_PORTS`, `BDS_UDP_PORTS_PUBLIES` dans le fichier d'environnement), ouvrir 19175-19206 en UDP et
+  les nouveaux ports du test, poser `BDS_TRANSFERT_HOTE` et `BDS_TRANSFERT_PORT` si les testeurs doivent être transférés,
+  puis `SILOOO_ATTENTE=oui bash deploy/scripts/deploy.sh <tag>` ; ajouter les testeurs à la liste blanche de
+  `silooo-attente` ; au premier essai avec un client, vérifier le saut (blocs atteignables, chute, classement), l'écran
+  « Devenir Pionnier », `/lier` sur Discord et le transfert NetherNet
+
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
 - [ ] Choisir le port Bedrock (recommandé : 19142) et l'ouvrir : 19142 en TCP (signalisation NetherNet) plus une plage UDP contiguë pour le jeu, un port par joueur (le compose de `deploy/` propose 19143 à 19174 pour 32 joueurs ; `docs/adr/0004-port-bedrock.md`)
 - [ ] Télécharger `bedrock-server-1.26.62.1.zip` dans un navigateur (minecraft.net refuse `curl`, même avec un User-Agent honnête, depuis le PC comme depuis les runners GitHub), calculer `sha256sum`, écrire la somme dans `deploy/bds/bds.sha256`, créer `/var/www/silooo/bds/` sur le VPS (`mkdir -p`, puis `chown 10001:10001` : l'uid du conteneur), y poser le zip (décision 26, `docs/deploiement.md`, « Le zip de BDS »)
@@ -221,6 +228,17 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   (`docs/deploiement.md`, décision 26) ou l'ignorer
 
 ## Décisions prises sans Kr
+
+48. **La salle d'attente (7 novembre 2026).** Kr a choisi le port public 19142 pour la salle d'attente, le monde de
+    test déplacé et ses testeurs transférés, et l'inscription Pionnier par code en jeu. Tranché sans Kr : un second
+    serveur (`silooo-attente`, même image, `SILOOO_MODE=attente`) plutôt qu'une zone du monde du jeu, pour que les
+    visiteurs ne voient rien du jeu ; un monde plat sans couche écrit par `tools/monde_attente.py` (Beta APIs posé
+    dans le level.dat) ; une nouvelle route `issueLobbyLinkCode` (`POST /v1/lobby/link-codes`, 35 opérations) qui crée
+    la ligne `players` sans entreprise, inscrit pionnier dans `site_registrations` (admission selon
+    `SILOOO_SITE_ADMISSION`) et émet le même code que `issueDiscordLinkCode` ; la saisie `/lier` reste inchangée et
+    n'admet personne. Aucune migration. Le score du saut est un objectif de tableau du monde, sous le gamertag ; il ne
+    vaut rien dans le jeu. Le XUID envoyé est celui de l'add-on (empreinte du gamertag, décision 25). À relire par Kr :
+    un visiteur de la salle d'attente compte désormais dans `players` avant d'avoir joué.
 
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en
@@ -480,6 +498,9 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     événements : effacer la propriété avec la table (ligne de Kr). À relire par Kr.
 
 ## À valider par Kr
+
+- Salle d'attente (7 novembre) : tous ses textes (`addon/src/attente/textes.ts`, liste dans `addon/README.md`,
+  « Textes à valider, salle d'attente »), le nom du classement, les couleurs des blocs, la boussole comme objet du menu.
 
 - D3 Discord (6 novembre) : **V13 réservée** à la preuve de liaison émise en jeu (codes temporaires, preuves,
   limites d'essais). Les autres migrations prennent V14 et la suite. D1 attend selon Kr. Les textes de liaison

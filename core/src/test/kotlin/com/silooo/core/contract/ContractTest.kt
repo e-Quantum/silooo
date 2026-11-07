@@ -181,6 +181,7 @@ class ContractTest {
                 if (actor.text == stranger) throw com.silooo.core.api.Refusal(io.ktor.http.HttpStatusCode.Conflict, RefusalCodes.UNKNOWN_PLAYER)
                 com.silooo.core.discord.linking.GameLinkCode("ABC234", clock.instant().plusSeconds(600))
             },
+            lobbyLinkIssuer = { _, _, _ -> com.silooo.core.discord.linking.GameLinkCode("ABC234", clock.instant().plusSeconds(600)) },
         )
     }
 
@@ -383,9 +384,9 @@ class ContractTest {
     // --- le contrat lui-même
 
     @Test
-    @DisplayName("Le contrat compte 34 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
+    @DisplayName("Le contrat compte 35 opérations, chacune déclare 400, 401, 500 et 501 avec le corps Erreur")
     fun thirtyOperations() {
-        assertEquals(34, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
+        assertEquals(35, operations.size, "Le contrat gagne ou perd une opération : relire ce test et tous ceux qui comptent")
         assertEquals(operations.size, operations.map { it.id }.toSet().size, "operationId en double")
         for (op in operations) {
             for (code in listOf(400, 401, 500, 501)) {
@@ -600,6 +601,12 @@ class ContractTest {
             "heartbeat" to listOf(
                 "{}", "pas du json", """{"serverId":"bds-1"}""", """{"serverId":"bds-1","onlineXuids":["abc"]}""",
                 """{"serverId":"","onlineXuids":[]}""",
+            ),
+            "issueLobbyLinkCode" to listOf(
+                "{}", "pas du json", """{"requestId":"$ID","actor":"$krXuid"}""", """{"requestId":"abc","actor":"$krXuid","gamertag":"Kr"}""",
+                """{"requestId":"$ID","actor":"abc","gamertag":"Kr"}""", """{"requestId":"$ID","actor":"$krXuid","gamertag":""}""",
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"   "}""", """{"requestId":"$ID","actor":"$krXuid","gamertag":12}""",
+                """{"requestId":"$ID","actor":"$krXuid","gamertag":"${"x".repeat(GAMERTAG_MAX_LENGTH + 1)}"}""",
             ),
             "join" to listOf(
                 "{}", "[]", """{"xuid":"$krXuid"}""", """{"xuid":"abc","gamertag":"Kr"}""", """{"xuid":"$krXuid","gamertag":""}""",
@@ -1680,7 +1687,7 @@ class ContractTest {
 
         /** Les routes écrites et le succès qu'une requête minimale valide leur fait rendre. */
         val WRITTEN = mapOf(
-            "issueDiscordLinkCode" to 200, "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
+            "issueDiscordLinkCode" to 200, "issueLobbyLinkCode" to 200, "heartbeat" to 204, "join" to 200, "leave" to 204, "pollEvents" to 200,
             "getCompany" to 200, "collect" to 200, "buyLevels" to 200, "restoreStep" to 200,
             "prestigePreview" to 200, "prestige" to 200, "getMissions" to 200,
             "todayOrder" to 200, "deliverOrder" to 200, "getFindings" to 200,

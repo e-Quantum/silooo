@@ -73,6 +73,15 @@ verifier_dossier_bds() {
 # Le compose du projet silooo. Le dossier de projet est la racine (là où vit le fichier d'environnement), pas deploy/.
 # TAG_CIBLE est le tag des images pour cet appel ; il ne vient jamais du fichier d'environnement.
 TAG_CIBLE=""
+# La salle d'attente (deploy/compose.attente.yml, docs/deploiement.md) : Kr exporte SILOOO_ATTENTE=oui dans sa session tant
+# que le serveur n'est pas ouvert. Avec non (le défaut), rien ne change : un seul fichier de compose, deux services.
+SILOOO_ATTENTE="${SILOOO_ATTENTE:-non}"
+case "$SILOOO_ATTENTE" in oui | non) ;; *) printf 'SILOOO_ATTENTE vaut oui ou non\n' >&2; exit 64 ;; esac
+COMPOSE_ATTENTE="$DEPLOY_DIR/compose.attente.yml"
+SERVICES=(silooo-core silooo-bds)
+if [ "$SILOOO_ATTENTE" = oui ]; then SERVICES+=(silooo-attente); fi
 compose() {
-  SILOOO_TAG="$TAG_CIBLE" docker compose -p "$PROJET" --project-directory "$RACINE" -f "$COMPOSE_FICHIER" "$@"
+  local fichiers=(-f "$COMPOSE_FICHIER")
+  if [ "$SILOOO_ATTENTE" = oui ]; then fichiers+=(-f "$COMPOSE_ATTENTE"); fi
+  SILOOO_TAG="$TAG_CIBLE" docker compose -p "$PROJET" --project-directory "$RACINE" "${fichiers[@]}" "$@"
 }

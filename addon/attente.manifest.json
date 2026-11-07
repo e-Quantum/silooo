@@ -1,0 +1,25 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Silooo, salle d'attente",
+    "description": "Le saut infini des visiteurs, avant l'ouverture de Silooo.",
+    "uuid": "10b1bc06-099b-47c9-836d-84c9e0ebb0a8",
+    "version": [0, 1, 0],
+    "min_engine_version": [1, 26, 60]
+  },
+  "modules": [
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "f2e525de-0c93-47cc-a78f-087b8fd45b29",
+      "version": [0, 1, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    { "module_name": "@minecraft/server", "version": "2.11.0" },
+    { "module_name": "@minecraft/server-ui", "version": "2.3.0" },
+    { "module_name": "@minecraft/server-admin", "version": "1.0.0-beta" },
+    { "module_name": "@minecraft/server-net", "version": "1.0.0-beta" }
+  ]
+}

@@ -10,7 +10,7 @@
 #   3. sauvegarde de la base et du monde (sauvegarde.sh) vers sauvegardes/<horodatage>
 #   4. docker compose pull
 #   5. docker compose run --rm silooo-migrate
-#   6. docker compose up -d silooo-core silooo-bds
+#   6. docker compose up -d silooo-core silooo-bds (et silooo-attente avec SILOOO_ATTENTE=oui, deploy/compose.attente.yml)
 #   7. test de fumée : POST /v1/server/heartbeat avec la clé, 204 attendu dans les 60 s ; sinon retour au tag précédent
 #   8. free -m après, avertissement sous 800 Mo ; nettoyage des seules images silooo
 #
@@ -115,12 +115,12 @@ compose run --rm -T silooo-migrate ||
   echec 1 "les migrations ont échoué : les services en cours n'ont pas été touchés, la base peut être à moitié migrée (lis les journaux ci-dessus)"
 
 # ------------------------------------------------------------------ 6. démarrage
-etape "6. Démarrage de silooo-core et silooo-bds"
+etape "6. Démarrage de ${SERVICES[*]}"
 # silooo-bds s'arrête de lui-même, avec un message pour Kr, si le zip de BDS manque ou n'a pas la bonne somme : le test de
 # fumée ci-dessous ne vérifie que silooo-core, il faut lire « docker logs » de silooo-bds au premier déploiement.
 # --no-deps : les migrations viennent de tourner à l'étape 5, inutile de les rejouer. Le compose garde son
 # depends_on pour un « up » lancé à la main.
-compose up -d --no-deps silooo-core silooo-bds ||
+compose up -d --no-deps "${SERVICES[@]}" ||
   echec 1 "le démarrage a échoué : regarde docker ps --filter name=silooo- et docker logs (le dossier $SILOOO_BDS_DIR, monté sur /data/bds, doit exister)"
 
 # ------------------------------------------------------------------ 7. test de fumée
@@ -158,7 +158,7 @@ if ! fumee; then
   fi
   etape "Retour arrière vers le tag $precedent (même compose, sans migration : la base ne se défait pas)"
   TAG_CIBLE="$precedent"
-  compose up -d --no-deps silooo-core silooo-bds ||
+  compose up -d --no-deps "${SERVICES[@]}" ||
     echec 2 "le retour arrière n'a pas pu démarrer le tag $precedent : intervention de Kr, docker ps --filter name=silooo-"
   if fumee; then
     dire "Retour arrière réussi : le tag $precedent répond. Le tag $TAG n'est pas déployé."

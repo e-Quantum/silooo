@@ -15,7 +15,7 @@ import {
   claimPassBody,
   collectPath,
   companyPath,
-  discordLinkCodeBody,
+  discordLinkCodeBody, lobbyLinkCodeBody,
   eventsUrl,
   fireStaffPath,
   heartbeatBody,
@@ -145,6 +145,8 @@ export interface CoreApi {
   todayVotes(xuid?: Xuid): Promise<ApiResult<VotesToday>>;
   /** POST /v1/discord/link-codes (issueDiscordLinkCode), 200 : code et expiration fournis par le service. */
   issueDiscordLinkCode(action: ActionBase): Promise<ApiResult<DiscordLinkCode>>;
+  /** POST /v1/lobby/link-codes (issueLobbyLinkCode), 200 : le visiteur de la salle d'attente est inscrit pionnier, voici son code. */
+  issueLobbyLinkCode(action: ActionBase, gamertag: string): Promise<ApiResult<DiscordLinkCode>>;
 }
 
 /** Remplace le corps d'un succès par sa lecture ; une forme hors contrat devient une erreur. */
@@ -333,6 +335,16 @@ export function createCoreApi(client: CoreClient): CoreApi {
     async issueDiscordLinkCode(action) {
       if (!isXuid(action.actor)) return invalidArgument("actor invalide");
       return readBody(await client.post(PATHS.discordLinkCodes, discordLinkCodeBody(action)), parseDiscordLinkCode);
+    },
+    async issueLobbyLinkCode(action, gamertag) {
+      if (!isXuid(action.actor)) return invalidArgument("actor invalide");
+      let body: ReturnType<typeof lobbyLinkCodeBody>;
+      try {
+        body = lobbyLinkCodeBody(action, gamertag);
+      } catch (error) {
+        return invalidArgument(describeError(error));
+      }
+      return readBody(await client.post(PATHS.lobbyLinkCodes, body), parseDiscordLinkCode);
     },
   };
 }

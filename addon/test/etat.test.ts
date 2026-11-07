@@ -153,6 +153,7 @@ describe("observeApi", () => {
     };
     const api: CoreApi = {
       issueDiscordLinkCode: result,
+      issueLobbyLinkCode: result,
       heartbeat: result,
       join: result,
       leave: result,

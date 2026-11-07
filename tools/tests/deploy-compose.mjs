@@ -161,11 +161,22 @@ verifier(variablesCore.length >= 5 && oubliees.length === 0, 'chaque variable lu
 // start.sh : toute variable BDS_* qu'il lit est passée par le compose, et les défauts concordent partout.
 const startSh = lire('deploy/bds/start.sh');
 // Réglages pour les essais, ou posés par le Dockerfile (BDS_VERSION, BDS_USER_AGENT) : pas pour le compose.
-const internes = new Set(['BDS_DIR', 'BDS_GABARIT', 'BDS_RACINE', 'BDS_DONNEES', 'BDS_SOMMES_SHA256', 'BDS_SOMME_MD5', 'BDS_URL', 'BDS_VERSION', 'BDS_USER_AGENT']);
+// BDS_INSTANCE : le défaut de chaque mode (rien pour le jeu, attente pour la salle d'attente) suffit, aucun compose ne le pose.
+const internes = new Set(['BDS_DIR', 'BDS_GABARIT', 'BDS_RACINE', 'BDS_DONNEES', 'BDS_SOMMES_SHA256', 'BDS_SOMME_MD5', 'BDS_URL', 'BDS_VERSION', 'BDS_USER_AGENT', 'BDS_INSTANCE']);
+// Les variables de la seule salle d'attente : deploy/compose.attente.yml les passe à silooo-attente, jamais compose.yml à silooo-bds.
+const attenteSeules = new Set(['BDS_TRANSFERT_HOTE', 'BDS_TRANSFERT_PORT']);
 const lues = [...new Set([...startSh.matchAll(/\$\{(BDS_[A-Z_]+|SILOOO_CORE_URL|SILOOO_API_KEY)[:}]/g)].map((m) => m[1]))].filter((n) => !internes.has(n));
 const passees = new Set(Object.keys(bds.environment ?? {}));
-const nonPassees = lues.filter((nom) => !passees.has(nom));
+const nonPassees = lues.filter((nom) => !passees.has(nom) && !attenteSeules.has(nom));
 verifier(lues.length >= 8 && nonPassees.length === 0, 'chaque variable lue par start.sh est passée par le compose à silooo-bds', nonPassees);
+const attente = parse(lire('deploy/compose.attente.yml')).services?.['silooo-attente'] ?? {};
+const passeesAttente = new Set(Object.keys(attente.environment ?? {}));
+const manquantesAttente = lues.filter((nom) => !passeesAttente.has(nom) && !['BDS_ALLOW_LIST', 'BDS_LEVEL_NAME'].includes(nom));
+verifier(attente.environment?.SILOOO_MODE === 'attente' && manquantesAttente.length === 0,
+  'silooo-attente : SILOOO_MODE=attente et chaque variable de start.sh (sauf la liste blanche et le nom du monde, fixés par le mode)', manquantesAttente);
+verifier(!passees.has('SILOOO_MODE') && [...attenteSeules].every((nom) => !passees.has(nom)), 'silooo-bds reste en mode jeu, sans les variables de la salle d\'attente', [...passees]);
+verifier(String(attente.image) === String(bds.image) && attente.mem_limit === '768m' && egal(noms(attente.networks), ['silooo']),
+  'silooo-attente : même image que silooo-bds, 768 Mo, seulement le réseau silooo', [attente.image, attente.mem_limit, attente.networks]);
 
 const defautStart = (nom) => new RegExp(`\\$\\{${nom}:-([^}]*)\\}`).exec(startSh)?.[1];
 const defautCompose = (nom) => [...(variablesCompose.get(nom)?.defauts ?? [])][0];
