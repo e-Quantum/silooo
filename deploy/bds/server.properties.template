@@ -15,8 +15,10 @@ server-port={{BDS_PORT}}
 # [IP:]public:local, forme décrite dans le server.properties livré avec BDS. Derrière Docker, l'IP publique est
 # obligatoire : BDS ne la devine pas, et le client doit recevoir une adresse qu'il peut joindre.
 server-udp-ports={{BDS_UDP_PORTS_VALEUR}}
-# Inutile dans un conteneur : la découverte sur le réseau local utilise l'UDP 7551.
-enable-lan-visibility=false
+# Vrai : sans elle, la signalisation NetherNet répond à GET /v1/join par un corps vide, et les listes de serveurs
+# (Hubyy, le jeu) ne voient ni le nom ni les joueurs. Relevé le 7 novembre 2026 sur BDS 1.26.62.1 (docs/bedrock.md).
+# La découverte locale passe par l'UDP 7551, que le compose ne publie pas : rien ne sort du conteneur.
+enable-lan-visibility=true
 
 # Écrit explicitement : la valeur par défaut diffère selon les sources (docs/bedrock.md, fait 6).
 allow-list={{BDS_ALLOW_LIST}}
