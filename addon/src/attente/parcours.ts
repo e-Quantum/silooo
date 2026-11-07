@@ -2,8 +2,13 @@
 // joueur est tombé. Tout est pur et testé (test/attente.test.ts) ; attente/main.ts n'y ajoute que les blocs et les joueurs.
 //
 // Un saut de Minecraft Bedrock, à pied et sans effet : un trou de 3 blocs se franchit en courant, 4 en descendant d'un
-// bloc. En montant d'un bloc, 2 au plus. Les écarts tirés restent dans ces bornes, et un pas de côté n'est permis que sur
-// les petits trous (1 en montant, 2 sinon) : tout bloc tiré est atteignable.
+// bloc. En montant d'un bloc, 2 au plus. Les écarts tirés restent dans les bornes de definitions/attente.json (trouMax),
+// et un pas de côté n'est permis que sur les petits trous (1 en montant, 2 sinon) : tout bloc tiré est atteignable.
+// La difficulté monte par paliers (attente.json, paliers) : plus de virages et plus de grands trous.
+
+import { palierDe, REGLES, type ReglesParcours } from "./regles";
+
+export { REGLES, type ReglesParcours } from "./regles";
 
 export interface Bloc {
   readonly x: number;
@@ -27,21 +32,9 @@ const VIRAGES: Readonly<Record<Cap, readonly [Cap, Cap]>> = {
   ouest: ["sud", "nord"],
 };
 
-export interface ReglesParcours {
-  /** Hauteur la plus basse et la plus haute d'un bloc : le parcours ondule dans cette bande. */
-  readonly yMin: number;
-  readonly yMax: number;
-  /** Chance, de 0 à 1, que le parcours tourne d'un quart de tour au bloc suivant. */
-  readonly chanceVirage: number;
-  /** Le joueur est tombé quand ses pieds passent à cette distance sous le dernier bloc atteint. */
-  readonly chute: number;
-}
-
-export const REGLES: ReglesParcours = { yMin: 90, yMax: 130, chanceVirage: 0.15, chute: 4 };
-
 /** Le trou le plus grand (en blocs d'air entre deux blocs) selon la marche : +1 monte, 0 à plat, -1 descend. */
-export function trouMax(marche: -1 | 0 | 1): number {
-  return marche === 1 ? 2 : marche === 0 ? 3 : 4;
+export function trouMax(marche: -1 | 0 | 1, regles: ReglesParcours = REGLES): number {
+  return marche === 1 ? regles.trouMax.monte : marche === 0 ? regles.trouMax.plat : regles.trouMax.descend;
 }
 
 export interface Pas {
@@ -55,16 +48,19 @@ function tirer(hasard: () => number, min: number, max: number): number {
 }
 
 /**
- * Le bloc suivant : un trou de 1 à 4 blocs selon la marche, un pas de côté d'au plus un bloc sur un trou de 2 au plus,
- * parfois un virage. La hauteur reste dans [yMin, yMax] : en haut on ne monte plus, en bas on ne descend plus.
+ * Le bloc suivant, pour un joueur à [score] : un trou de 1 au plus grand trou de la marche (le plus grand avec la chance
+ * du palier, sinon un plus petit au hasard), un pas de côté d'au plus un bloc sur un petit trou, parfois un virage. La
+ * hauteur reste dans [yMin, yMax] : en haut on ne monte plus, en bas on ne descend plus.
  */
-export function prochainBloc(depuis: Pas, hasard: () => number, regles: ReglesParcours = REGLES): Pas {
+export function prochainBloc(depuis: Pas, hasard: () => number, score = 0, regles: ReglesParcours = REGLES): Pas {
+  const palier = palierDe(score, regles);
   const bas = depuis.bloc.y <= regles.yMin ? 0 : -1;
   const haut = depuis.bloc.y >= regles.yMax ? 0 : 1;
   const marche = tirer(hasard, bas, haut) as -1 | 0 | 1;
-  const trou = tirer(hasard, 1, trouMax(marche));
+  const max = trouMax(marche, regles);
+  const trou = max <= 1 || hasard() < palier.chanceGrandTrou ? max : tirer(hasard, 1, max - 1);
   let cap = depuis.cap;
-  if (hasard() < regles.chanceVirage) cap = VIRAGES[cap][tirer(hasard, 0, 1) as 0 | 1];
+  if (hasard() < palier.chanceVirage) cap = VIRAGES[cap][tirer(hasard, 0, 1) as 0 | 1];
   // Le pas de côté allonge le saut : seulement sur un petit trou (1 en montant, 2 sinon).
   const cote = trou <= (marche === 1 ? 1 : 2) ? tirer(hasard, -1, 1) : 0;
   const avant = AVANCE[cap];

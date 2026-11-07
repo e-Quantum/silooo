@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://silooo.com/schemas/attente.schema.json",
+  "title": "Salle d'attente de Silooo",
+  "description": "Forme de definitions/attente.json : le parcours du saut infini, son classement, ses rappels et ses rythmes. Les chiffres vivent dans le fichier de données : le schéma ne fixe que les types et les bornes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "commentaire", "parcours", "classement", "rappels", "rythmes"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "commentaire": { "type": "string" },
+    "parcours": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["yMin", "yMax", "chute", "trouMax", "paliers", "plafondParSeconde"],
+      "properties": {
+        "yMin": { "description": "Hauteur la plus basse d'un bloc.", "type": "integer", "minimum": -60, "maximum": 300 },
+        "yMax": { "description": "Hauteur la plus haute d'un bloc.", "type": "integer", "minimum": -60, "maximum": 300 },
+        "chute": { "description": "Le joueur est tombé quand ses pieds passent ce nombre de blocs sous le dernier bloc atteint.", "type": "integer", "minimum": 1, "maximum": 30 },
+        "trouMax": {
+          "description": "Le plus grand trou selon la marche. Au-delà de 4 à plat, un saut n'est plus franchissable à pied.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["monte", "plat", "descend"],
+          "properties": {
+            "monte": { "type": "integer", "minimum": 1, "maximum": 3 },
+            "plat": { "type": "integer", "minimum": 1, "maximum": 4 },
+            "descend": { "type": "integer", "minimum": 1, "maximum": 4 }
+          }
+        },
+        "paliers": {
+          "description": "Les paliers de difficulté, du premier (des 0) au dernier, dans l'ordre croissant de leur score.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["des", "chanceVirage", "chanceGrandTrou"],
+            "properties": {
+              "des": { "type": "integer", "minimum": 0 },
+              "chanceVirage": { "type": "number", "minimum": 0, "maximum": 1 },
+              "chanceGrandTrou": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "plafondParSeconde": { "description": "Blocs par seconde de course au-delà desquels le service refuse la course.", "type": "number", "exclusiveMinimum": 0, "maximum": 20 }
+      }
+    },
+    "classement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taille", "fuseau", "actus", "hologramme", "podiumDiscord"],
+      "properties": {
+        "taille": { "description": "Lignes des classements rendus par le service et de la barre latérale (15 au plus, la limite de Bedrock).", "type": "integer", "minimum": 1, "maximum": 15 },
+        "fuseau": { "description": "Le fuseau de la semaine du classement.", "type": "string", "minLength": 1 },
+        "actus": { "description": "Les dernières actus du site montrées dans le lobby.", "type": "integer", "minimum": 0, "maximum": 10 },
+        "hologramme": { "description": "Lignes du classement de la semaine sur l'hologramme.", "type": "integer", "minimum": 1, "maximum": 10 },
+        "podiumDiscord": { "description": "Places du classement de la semaine postées par Oooscar le lundi.", "type": "integer", "minimum": 1, "maximum": 10 }
+      }
+    },
+    "rappels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tousLesPoints", "intervalleSecondes"],
+      "properties": {
+        "tousLesPoints": { "description": "Un rappel Discord à chaque multiple de ce score.", "type": "integer", "minimum": 1 },
+        "intervalleSecondes": { "description": "Au plus un rappel par joueur dans cet intervalle.", "type": "integer", "minimum": 30 }
+      }
+    },
+    "rythmes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accueilSecondes", "accueilEssais", "lienSecondes", "tableauSecondes", "boussoleSecondes"],
+      "properties": {
+        "accueilSecondes": { "description": "Délai du popup d'accueil après l'arrivée.", "type": "number", "exclusiveMinimum": 0 },
+        "accueilEssais": { "description": "Essais du popup quand le jeu répond qu'un écran est déjà ouvert.", "type": "integer", "minimum": 1 },
+        "lienSecondes": { "description": "Intervalle du contrôle de la liaison Discord des joueurs présents.", "type": "integer", "minimum": 5 },
+        "tableauSecondes": { "description": "Intervalle de relecture du classement et des actus.", "type": "integer", "minimum": 10 },
+        "boussoleSecondes": { "description": "Intervalle du contrôle de la boussole.", "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

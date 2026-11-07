@@ -76,6 +76,8 @@ COPY --chown=10001:10001 deploy/bds/attente/level.dat /opt/silooo/attente/level.
 # Le pack de ressources du dépôt (resource-pack/), tel quel : ce sont des fichiers, pas une construction. start.sh le copie
 # dans resource_packs/silooo de BDS à chaque démarrage et le liste dans world_resource_packs.json.
 COPY --chown=10001:10001 resource-pack /opt/silooo/resource-pack/
+# Le pack de ressources de la salle d'attente (l'entité des hologrammes), copié de même en mode attente.
+COPY --chown=10001:10001 resource-pack-attente /opt/silooo/resource-pack-attente/
 COPY --chown=10001:10001 --chmod=0755 deploy/bds/start.sh /opt/silooo/start.sh
 COPY --chown=10001:10001 deploy/bds/server.properties.template deploy/bds/bds.sha256 deploy/bds/bds.md5 /opt/silooo/
 

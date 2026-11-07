@@ -395,7 +395,7 @@ mv "$TMP/attente-pack-tmp/behavior_packs/silooo" "$ATTENTE_SOURCE"
 printf 'level.dat factice\n' >"$TMP/attente-level.dat"
 A="$TMP/attente-bds"
 lancer "$A" SILOOO_MODE=attente SILOOO_API_KEY=cle-de-test SILOOO_PACK_DIR="$ATTENTE_SOURCE" SILOOO_ATTENTE_LEVEL_DAT="$TMP/attente-level.dat" \
-  BDS_ALLOW_LIST=true BDS_TRANSFERT_HOTE=203.0.113.10 BDS_TRANSFERT_PORT=19207 SILOOO_RESOURCE_PACK_DIR="$TMP/ne-doit-pas-servir"
+  BDS_ALLOW_LIST=true BDS_TRANSFERT_HOTE=203.0.113.10 BDS_TRANSFERT_PORT=19207 SILOOO_RESOURCE_PACK_DIR="$RACINE/resource-pack-attente"
 if [ "$CODE" -eq 0 ]; then ok "mode attente : rendu sans erreur"; else ko "mode attente : code 0 attendu (code $CODE)" "$SORTIE"; fi
 if [ "$(propriete "$A" allow-list)" = false ]; then ok "mode attente : liste blanche jamais exigée, même avec BDS_ALLOW_LIST=true"; else ko "mode attente : allow-list=false attendu" "$(propriete "$A" allow-list)"; fi
 if [ "$(propriete "$A" level-name)" = attente ]; then ok "mode attente : monde « attente » par défaut"; else ko "mode attente : level-name attente attendu" "$(propriete "$A" level-name)"; fi
@@ -410,7 +410,13 @@ if [ "$(lire_json "$A/config/$UUID_MODULE/variables.json" 'd.transfert_hote + ":
 else
   ko "mode attente : transfert_hote et transfert_port attendus" "$(cat "$A/config/$UUID_MODULE/variables.json" 2>&1)"
 fi
-if [ ! -e "$A/resource_packs" ] && [ ! -e "$A/worlds/attente/world_resource_packs.json" ]; then ok "mode attente : aucun pack de ressources"; else ko "mode attente : pas de pack de ressources attendu" "$(ls "$A" 2>&1)"; fi
+UUID_RESSOURCES_ATTENTE="$(lire_json "$RACINE/resource-pack-attente/manifest.json" 'd.header.uuid')"
+if [ -f "$A/resource_packs/silooo-attente/entity/hologramme.entity.json" ] && [ ! -e "$A/resource_packs/silooo" ] &&
+  grep -q "$UUID_RESSOURCES_ATTENTE" "$A/worlds/attente/world_resource_packs.json"; then
+  ok "mode attente : le pack de ressources des hologrammes est copié dans resource_packs/silooo-attente et listé dans le monde"
+else
+  ko "mode attente : resource_packs/silooo-attente listé dans le monde attendu" "$(ls "$A/resource_packs" 2>&1; cat "$A/worlds/attente/world_resource_packs.json" 2>&1)"
+fi
 printf 'monde existant\n' >"$A/worlds/attente/level.dat"
 lancer "$A" SILOOO_MODE=attente SILOOO_API_KEY=cle-de-test SILOOO_PACK_DIR="$ATTENTE_SOURCE" SILOOO_ATTENTE_LEVEL_DAT="$TMP/attente-level.dat"
 if [ "$CODE" -eq 0 ] && grep -q "monde existant" "$A/worlds/attente/level.dat"; then ok "mode attente : un monde existant n'est jamais écrasé"; else ko "mode attente : le monde existant devait rester" "$SORTIE"; fi

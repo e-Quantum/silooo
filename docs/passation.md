@@ -239,6 +239,16 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     n'admet personne. Aucune migration. Le score du saut est un objectif de tableau du monde, sous le gamertag ; il ne
     vaut rien dans le jeu. Le XUID envoyé est celui de l'add-on (empreinte du gamertag, décision 25). À relire par Kr :
     un visiteur de la salle d'attente compte désormais dans `players` avant d'avoir joué.
+49. **La salle d'attente v2 (7 novembre 2026).** Décisions de Kr : les records dans silooo-core, aucune récompense
+    promise. Tranché sans Kr : **V17 provisoire** (`V17__salle_attente.sql` : `lobby_records`, `lobby_week_bests`,
+    `lobby_week_posts`), à renuméroter au rebase si la 0.1.4 a pris V17 ; trois routes (38 opérations) :
+    `recordLobbyRun` (refus au-delà de `plafondParSeconde` blocs par seconde), `getLobbyBoard`, `getLobbyPlayer` ; la
+    semaine part du lundi à minuit, heure de Paris ; le podium du lundi part à l'heure du rapport de `discord.json`
+    dans `#discussion`, une fois par semaine (`lobby_week_posts`), les non reliés restent anonymes. Le lobby garde le
+    joueur « déjà venu » dans une propriété dynamique du monde. La boussole perd `lockMode` (le texte de verrou) et
+    revient si elle est jetée. 32 places au lieu de 40 : la plage UDP ouverte (19175-19206) en compte 32, et 19207 est
+    déjà pris par le monde de test. Le XUID reste l'empreinte du gamertag (décision 25) : un gamertag qui change donne
+    encore une nouvelle ligne, jusqu'au vrai XUID.
 
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en
@@ -499,6 +509,11 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- Salle d'attente v2 (7 novembre) : l'accueil, les hologrammes, les rappels, le podium du lundi d'Oooscar
+  (`core/.../discord/LobbyPodium.kt`, `LobbyPodiumTexts`), « Pionnier · pseudo », le nom « Silooo · ouverture bientôt »,
+  le nom et la description du pack de ressources `resource-pack-attente/`, les paliers et le plafond de
+  `definitions/attente.json`, le salon du podium (`#discussion` en attendant le plan du serveur).
+
 - Salle d'attente (7 novembre) : tous ses textes (`addon/src/attente/textes.ts`, liste dans `addon/README.md`,
   « Textes à valider, salle d'attente »), le nom du classement, les couleurs des blocs, la boussole comme objet du menu.
 
@@ -628,6 +643,12 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## Journal
 
+- **7 novembre 2026, soir : salle d'attente v2** (branche `claude/salle-attente`, en local : ce VPS ne pousse pas).
+  Records dans silooo-core, accueil sur le modèle de Hubyy, hologrammes, boussole sans verrou, transfert des testeurs
+  par le menu, podium du lundi, paliers, rappels. Vérifié : tests du service (lobby, contrat, podium ; les tests SQL
+  demandent Docker et restent ignorés ici), 1721 tests de l'add-on, tests de `start.sh` et du compose, pack chargé sur
+  un BDS 1.26.62.1 local (« salle d'attente prête », hologramme invoqué). Pas essayé avec un vrai client. Pas déployé :
+  le compte `ubuntu` n'a pas Docker.
 - **5 novembre 2026, début de nuit : direction.** Kit de départ commité et poussé sur `main`
   (85 fichiers). Règle d'arrêt de `docs/direction.md` mise à jour. Trois sessions de phase 0 lancées :
   docs et ADR, outillage (schémas, vérificateur, anti-IA, CI, hooks), recettes `.claude/skills/`.

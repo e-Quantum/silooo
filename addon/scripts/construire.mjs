@@ -60,11 +60,11 @@ function fichiersDe(dossier) {
  * Copie le dossier statique pack/ dans dist/pack. Un fichier .json doit être du JSON valide ; manifest.json et scripts/
  * viennent de la construction et ne peuvent pas être écrasés par le dossier statique. Rend les chemins copiés.
  */
-function copierStatique() {
-  if (!existsSync(statique)) return [];
+function copierStatique(source = statique, cible = pack) {
+  if (!existsSync(source)) return [];
   const copies = [];
-  for (const fichier of fichiersDe(statique)) {
-    const nom = relative(statique, fichier).replaceAll("\\", "/");
+  for (const fichier of fichiersDe(source)) {
+    const nom = relative(source, fichier).replaceAll("\\", "/");
     if (nom === "manifest.json" || nom.startsWith("scripts/")) {
       throw new Error(`pack/${nom} : manifest.json et scripts/ sont produits par la construction, pas par pack/`);
     }
@@ -75,8 +75,8 @@ function copierStatique() {
         throw new Error(`pack/${nom} n'est pas du JSON valide : ${erreur instanceof Error ? erreur.message : erreur}`);
       }
     }
-    mkdirSync(dirname(join(pack, nom)), { recursive: true });
-    copyFileSync(fichier, join(pack, nom));
+    mkdirSync(dirname(join(cible, nom)), { recursive: true });
+    copyFileSync(fichier, join(cible, nom));
     copies.push(nom);
   }
   return copies;
@@ -121,7 +121,8 @@ async function main() {
   });
   const imports = verifierImports(readFileSync(sortieScript, "utf8"));
 
-  // Le pack de la salle d'attente : son propre script et son manifeste, sans le dossier statique (ni entité ni Oooscar).
+  // Le pack de la salle d'attente : son propre script, son manifeste et son dossier statique pack-attente/ (l'entité
+  // hologramme), sans celui du jeu (ni Oooscar).
   const attente = join(dist, "attente");
   const scriptAttente = join(attente, "scripts", "main.js");
   mkdirSync(join(attente, "scripts"), { recursive: true });
@@ -141,6 +142,7 @@ async function main() {
   });
   verifierImports(readFileSync(scriptAttente, "utf8"));
   copyFileSync(join(racine, "attente.manifest.json"), join(attente, "manifest.json"));
+  copierStatique(join(racine, "pack-attente"), attente);
   const entreesAttente = {};
   for (const fichier of fichiersDe(attente)) {
     entreesAttente[relative(attente, fichier).replaceAll("\\", "/")] = [readFileSync(fichier), { level: 9, mtime: new Date(2000, 0, 1) }];
