@@ -167,6 +167,20 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 `docs/discord-passation.md`, paquet `core/.../discord/`, ADR 0007, migration V8) : la phase 5 du jeu publie les
 événements que le bot lit, elle n'écrit rien sur Discord (décision 43). Le filet 501 des tests (`ApiTest`) passe de `/v1/shop/catalog` à `/v1/market/listings`, qui reste « pas fait ».
 
+## La boucle active (ADR 0008)
+
+Décidée par Kr le 7 novembre 2026 : reprendre de Money Maker (GommeHD.net) ses mécaniques, jamais son habillage
+([adr/0008-boucle-active.md](adr/0008-boucle-active.md), [game-design.md](game-design.md), « La boucle active »).
+Décision 61 : cette ADR et ses trois choix (deux boucles de poids égal, un seul Gisement commun au serveur, une seule
+entreprise par joueur pour toujours). Les migrations prennent la suivante libre au moment d'écrire (V16 est au Discord).
+
+- [x] ADR 0008 et la section « La boucle active » de `docs/game-design.md`
+- [ ] Compétences du personnel : bloc par rareté dans `personnel.json`, heure d'activation tenue par le service, bouton dans `ui/personnel.ts`
+- [ ] Boosts personnels : objet à usage unique hors vente, appliqué à `collect`, inventaire dans l'add-on
+- [ ] Quêtes quotidiennes : trois par jour tirées de `missions.json`, points du pass
+- [ ] Le Gisement sans danger : `gisement.json`, dépôt borné par le service, monde à bâtir, monte-charge, sac
+- [ ] Le Gisement dangereux et son classement de la semaine, après mesure de son économie
+
 ## À faire par Kr
 
 - [ ] Créer la base `silooo` et l'utilisateur `silooo` dans MariaDB (mot de passe dans le fichier d'environnement de `/var/www/silooo`)
@@ -481,6 +495,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- Boucle active (7 novembre) : les noms (Gisement, monte-charge, sac, « coup de collier », « ronde de sécurité »),
+  les deux effets de départ et la cible « une heure de Gisement vaut une heure de production » sont des propositions ;
+  aucune valeur n'est encore dans `definitions/`.
+
 - D3 Discord (6 novembre) : **V13 réservée** à la preuve de liaison émise en jeu (codes temporaires, preuves,
   limites d'essais). Les autres migrations prennent V14 et la suite. D1 attend selon Kr. Les textes de liaison
   et les choix de sécurité sont provisoires ; aucune fusion d'identités OAuth ni attribution de rôle sans preuve.
@@ -606,6 +624,12 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   pionnier) et la tuile Associés déplacée sous Personnel. Les points d'exclamation des bulles sont à relire.
 
 ## Journal
+
+- **7 novembre 2026 : boucle active.** Kr compare Silooo à Money Maker et tranche trois choix (décision 61, ADR 0008) :
+  deux boucles de poids égal, un Gisement commun au serveur, une seule entreprise par joueur. Écrits : l'ADR, la
+  section « La boucle active » du game design, sa liste de cases ci-dessus. Aucun code, aucune définition, rien de
+  déployé. Branche `claude/adaptation-money-maker`, clonée sur le VPS dans `source/` du dossier de déploiement (le
+  VPS lit le dépôt en HTTPS mais ne peut pas pousser).
 
 - **5 novembre 2026, début de nuit : direction.** Kit de départ commité et poussé sur `main`
   (85 fichiers). Règle d'arrêt de `docs/direction.md` mise à jour. Trois sessions de phase 0 lancées :

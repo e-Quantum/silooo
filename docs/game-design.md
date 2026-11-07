@@ -80,7 +80,7 @@ Réponses du 4 nov. 2026 ; le reste du document les applique.
 
 ## Boucle de jeu
 
-Deux boucles imbriquées : une boucle courte qui fait progresser à chaque session, et le prestige qui relance tout avec un bonus permanent.
+Deux boucles imbriquées : une boucle courte qui fait progresser à chaque session, et le prestige qui relance tout avec un bonus permanent. À côté, une boucle active de poids égal, où le joueur mine lui-même : voir La boucle active.
 
 &#91;embedded content: boucle de jeu · courte et longue\]
 
@@ -279,6 +279,31 @@ L'île principale devient peu à peu la ville du joueur : il débloque des zones
 **Technique** : bâtiments posés comme des structures préfabriquées de l'add-on, placées par script ; habitants visibles en petit nombre, le reste en chiffres. À valider pendant le prototype.
 
 **Périmètre en solo** : la ville est presque un second jeu. Au lancement, seulement la mairie, votre maison, les logements des salariés et les routes ; magasins, garages, banque et civils arrivent pendant la saison 1 et après.
+
+## La boucle active
+
+Décidé par Kr le 7 novembre 2026 ([ADR 0008](adr/0008-boucle-active.md)). Silooo reprend de Money Maker (GommeHD.net) ses mécaniques, jamais son habillage. La gestion des usines a déjà sa boucle ; celle-ci ajoute une boucle où le joueur agit lui-même, de poids égal. Chiffres et noms ci-dessous : propositions, **à valider par Kr**, et leurs valeurs vivront dans `definitions/`.
+
+**Le principe** : toute récompense de cette boucle se compte en heures de revenu de l'entreprise, comme le coût d'un salarié. Un minerai, un boost ou une quête pèse donc autant au départ qu'après dix prestiges. Une heure de Gisement vise à rapporter à peu près une heure de production. Les deux boucles se nourrissent : l'Atelier d'outils et la Fonderie fixent la pioche et l'épée du joueur, donc la profondeur qu'il atteint ; le Gisement donne des boosts et des minerais rares qui entrent dans certaines améliorations d'usine.
+
+| Pour qui | Ce que la boucle lui apporte |
+| --- | --- |
+| Le joueur de sessions courtes, sur mobile ou console | Les compétences du personnel à relancer, les quêtes quotidiennes |
+| Le joueur qui joue longtemps | Le Gisement, ses étages, son risque, son classement de la semaine |
+| L'associé | Ce qu'il mine crédite l'entreprise ; un lieu où l'on se croise |
+| Celui qui soutient le jeu | Du confort (une place de plus pour ses boosts), jamais de minerai ni de profondeur à vendre |
+
+**Les compétences du personnel** : chaque rareté donne au salarié un effet à déclencher, actif un temps puis en recharge ; la rareté en fixe la force, la durée et la recharge, le chef d'équipe en a une plus forte. Deux effets pour commencer : « coup de collier » (production augmentée) et « ronde de sécurité » (aucun incident sur l'usine pendant la durée). N'importe quel associé peut déclencher. Le service tient l'heure d'activation et refuse un effet en recharge.
+
+**Les boosts personnels** : à usage unique, gagnés par les quêtes, puis trouvés dans le Gisement ; jamais vendus. Ils s'appliquent à l'encaissement au Silo, s'ajoutent au boost collectif, et se suivent entre eux sans s'empiler, comme lui.
+
+**Les quêtes quotidiennes** : les trois quêtes de 5 minutes de la section Contenu, tirées chaque jour d'une liste qui mêle les deux boucles (encaisser, réparer un incident, descendre au Gisement), pour faire essayer à chacun la boucle qu'il ne joue pas. Leurs points font avancer le pass de saison.
+
+**Le Gisement** : un seul lieu, commun à tout le serveur, rejoint par la carte comme une île : un rocher creusé en étages, reliés par un monte-charge. Plus on descend, plus le minerai rapporte ; l'étage atteint dépend de la pioche. Les blocs repoussent après un délai, pour qu'un lieu partagé tienne malgré le monde. Le minerai remplit un sac de taille limitée, vidé au comptoir du Gisement : c'est là que l'entreprise est créditée, comme au Silo. D'abord sans danger ; ensuite, des étages profonds avec des monstres, où mourir fait perdre une part du sac, jamais le solde de l'entreprise, et un classement de la semaine (minerai déposé, étage atteint), qui mesure la progression et pas la richesse. Le boss du week-end peut y vivre.
+
+**L'ordre** : les compétences, les boosts personnels et les quêtes d'abord, parce qu'ils prolongent le personnel, la boutique, les missions et le pass qui existent ; puis le Gisement sans danger, avec son monde à bâtir et le contrôle du débit par le service ; enfin ses étages dangereux et son classement, une fois son économie mesurée sur de vrais joueurs.
+
+**Ce qu'on ne reprend pas** : les profils multiples (une seule entreprise par joueur, pour toujours) et la perte d'une part du solde à la mort.
 
 ## Contenu
 
@@ -550,6 +575,7 @@ Pas de date imposée : chaque étape démarre quand la précédente est prête. 
 | Social | Hub minimal, entreprise à 4, visites, classement hebdomadaire | Concours de villes, alliances |
 | Événements | Commandes mondiales | Boss du week-end |
 | Boutique | Cosmétiques, un grade, boosts collectifs | Pass de saison, autres grades, abonnement |
+| Boucle active | Compétences du personnel, boosts personnels, quêtes quotidiennes | Le Gisement, puis ses étages dangereux et son classement |
 
 Le marché entre joueurs arrive après le lancement à dessein : il faut d'abord observer l'économie quelques semaines avant d'ouvrir les échanges.
 

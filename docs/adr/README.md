@@ -15,6 +15,7 @@ applique une décision cite son numéro.
 | [0005](0005-langues-du-code.md) | Les langues du code, des textes et de la documentation | Acceptée |
 | [0006](0006-site-silooo-com.md) | Le site silooo.com vit dans silooo-core, sur son propre port, en deux modes | Proposée, à valider par Kr |
 | [0007](0007-bot-discord-jda.md) | Le bot Discord Oooscar vit dans silooo-core, sur JDA, derrière une interface | Proposée, à valider par Kr |
+| [0008](0008-boucle-active.md) | Une boucle active à côté de la gestion, reprise des mécaniques de Money Maker | Acceptée |
 
 ## La règle d'écriture
 
