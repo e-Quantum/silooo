@@ -240,8 +240,9 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     vaut rien dans le jeu. Le XUID envoyé est celui de l'add-on (empreinte du gamertag, décision 25). À relire par Kr :
     un visiteur de la salle d'attente compte désormais dans `players` avant d'avoir joué.
 49. **La salle d'attente v2 (7 novembre 2026).** Décisions de Kr : les records dans silooo-core, aucune récompense
-    promise. Tranché sans Kr : **V17 provisoire** (`V17__salle_attente.sql` : `lobby_records`, `lobby_week_bests`,
-    `lobby_week_posts`), à renuméroter au rebase si la 0.1.4 a pris V17 ; trois routes (38 opérations) :
+    promise. Tranché sans Kr : **V17** (`V17__salle_attente.sql` : `lobby_records`, `lobby_week_bests`,
+    `lobby_week_posts`), confirmé au rebase sur la 0.1.4, qui n'ajoute aucune migration ; appliquée sur le VPS le
+    7 novembre, son fichier ne change plus (son commentaire dit encore « provisoire ») ; trois routes (38 opérations) :
     `recordLobbyRun` (refus au-delà de `plafondParSeconde` blocs par seconde), `getLobbyBoard`, `getLobbyPlayer` ; la
     semaine part du lundi à minuit, heure de Paris ; le podium du lundi part à l'heure du rapport de `discord.json`
     dans `#discussion`, une fois par semaine (`lobby_week_posts`), les non reliés restent anonymes. Le lobby garde le
