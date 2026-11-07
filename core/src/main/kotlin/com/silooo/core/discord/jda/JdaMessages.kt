@@ -4,6 +4,8 @@ import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.ButtonSpec
 import com.silooo.core.discord.ButtonStyle
 import com.silooo.core.discord.CommandSpec
+import com.silooo.core.discord.CommandKind
+import com.silooo.core.discord.CommandPermission
 import com.silooo.core.discord.FormSpec
 import com.silooo.core.discord.MenuSpec
 import com.silooo.core.discord.OptionKind
@@ -22,6 +24,7 @@ import net.dv8tion.jda.api.components.textinput.TextInputStyle
 import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions
 import net.dv8tion.jda.api.interactions.commands.OptionType
+import net.dv8tion.jda.api.interactions.commands.build.CommandData
 import net.dv8tion.jda.api.interactions.commands.build.Commands
 import net.dv8tion.jda.api.interactions.commands.build.OptionData
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
@@ -99,15 +102,29 @@ internal object JdaMessages {
         return builder.build()
     }
 
-    fun command(spec: CommandSpec): SlashCommandData {
+    fun command(spec: CommandSpec): CommandData {
+        if (spec.kind == CommandKind.MESSAGE) return permissions(Commands.message(spec.name), spec)
         val data = Commands.slash(spec.name, spec.description)
         for (option in spec.options) {
-            val type = if (option.kind == OptionKind.FICHIER) OptionType.ATTACHMENT else OptionType.STRING
+            val type = when (option.kind) {
+                OptionKind.FICHIER -> OptionType.ATTACHMENT
+                OptionKind.MEMBRE -> OptionType.USER
+                OptionKind.TEXTE -> OptionType.STRING
+            }
             val optionData = OptionData(type, option.name, option.description, option.required)
             option.choices.forEach { optionData.addChoice(it, it) }
             data.addOptions(optionData)
         }
-        if (spec.staffOnly) data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER))
+        return permissions(data, spec)
+    }
+
+    private fun permissions(data: CommandData, spec: CommandSpec): CommandData {
+        val permission = when (spec.defaultPermission) {
+            CommandPermission.MANAGE_SERVER -> Permission.MANAGE_SERVER
+            CommandPermission.MODERATE_MEMBERS -> Permission.MODERATE_MEMBERS
+            null -> null
+        }
+        if (permission != null) data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(permission))
         return data
     }
 }

@@ -1167,3 +1167,8 @@ Décisions prises sans Kr : paliers de prestige 1/5/10/25/50 et laiton dès 5, p
 Tous les textes et cartes D3 restent **à valider par Kr**. D1 attend. Le rappel Silo plein reste indisponible faute
 d'état/capacité dans le jeu ; le parrainage reste à D5 et le relais du tchat/signalements à D4. Les actions Discord
 et déploiements du seul core restent dans l'autorisation explicite de Kr consignée dans la passation Discord.
+
+
+### Gestion et modération Discord — 7 novembre 2026
+
+V17 réservée aux dossiers/actions de modération, V18 aux signalements de messages. Trois agents économiques travaillent dans des worktrees isolés ; intégration et compilations centralisées. Cette tranche concerne le staff et le serveur Discord, sans nouveau relais du tchat ni déploiement BDS. Les nouveaux textes restent à valider par Kr.

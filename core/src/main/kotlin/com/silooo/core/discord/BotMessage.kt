@@ -108,10 +108,18 @@ data class CommandSpec(
     val description: String,
     val options: List<CommandOption> = emptyList(),
     val staffOnly: Boolean = false,
+    val defaultPermission: CommandPermission? = if (staffOnly) CommandPermission.MANAGE_SERVER else null,
+    val kind: CommandKind = CommandKind.SLASH,
 ) {
     init {
-        require(NAME.matches(name)) { "un nom de commande en minuscules, sans espace" }
-        require(description.length in 1..MAX_DESCRIPTION) { "une description de commande de 1 à " + MAX_DESCRIPTION + " caractères" }
+        if (kind == CommandKind.SLASH) {
+            require(NAME.matches(name)) { "un nom de commande en minuscules, sans espace" }
+            require(description.length in 1..MAX_DESCRIPTION) { "une description de commande de 1 à " + MAX_DESCRIPTION + " caractères" }
+        } else {
+            require(name.length in 1..32 && name.none { it.isISOControl() }) { "un nom de menu de 1 à 32 caractères" }
+            require(description.isEmpty() && options.isEmpty()) { "un menu de message n'a ni description ni options" }
+        }
+        require(defaultPermission == null || staffOnly) { "une permission de commande implique une commande réservée au staff" }
         var optionalSeen = false
         for (option in options) {
             require(!optionalSeen || !option.required) {
@@ -139,4 +147,6 @@ data class CommandOption(
     val kind: OptionKind = OptionKind.TEXTE,
 )
 
-enum class OptionKind { TEXTE, FICHIER }
+enum class OptionKind { TEXTE, FICHIER, MEMBRE }
+enum class CommandKind { SLASH, MESSAGE }
+enum class CommandPermission { MANAGE_SERVER, MODERATE_MEMBERS }

@@ -18,6 +18,7 @@ import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateFlagsEven
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent
@@ -90,12 +91,15 @@ internal class JdaEvents(
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
         if (event.guild?.idLong != guildId && event.name !in ACCOUNT_COMMANDS) return
-        val options = event.options.filter { it.type != OptionType.ATTACHMENT }.associate { it.name to it.asString }
+        val options = event.options.filter { it.type != OptionType.ATTACHMENT }.associate { it.name to if (it.type == OptionType.USER) it.asUser.id else it.asString }
         val attachments = event.options.filter { it.type == OptionType.ATTACHMENT }
         val user = actor(event)
         val channelId = event.channel.id
         if (attachments.isEmpty()) {
-            offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null)))
+            val deferred = event.name in MODERATION_COMMANDS
+            if (deferred) {
+                event.deferReply(true).queue({ offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null, deferred = true))) })
+            } else offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null)))
             return
         }
         // Recevoir un fichier peut prendre plus de trois secondes : on accuse réception d'abord (visible du membre
@@ -131,6 +135,11 @@ internal class JdaEvents(
     private fun imageName(attachment: Message.Attachment, extension: String): String {
         val base = attachment.fileName.substringBeforeLast('.').lowercase().replace(NOT_IN_NAME, "-").trim('-').take(MAX_NAME).trim('-')
         return base.ifEmpty { "fichier" } + "." + extension
+    }
+
+    override fun onMessageContextInteraction(event: MessageContextInteractionEvent) {
+        if (event.guild?.idLong != guildId || event.name != "Signaler") return
+        offer(DiscordEvent.MessageReported(actor(event), event.target.channelId, event.target.id, JdaReply(event, event, null)))
     }
 
     override fun onButtonInteraction(event: ButtonInteractionEvent) {
@@ -176,8 +185,8 @@ internal class JdaReply(
     private val deferred: Boolean = false,
 ) : Reply {
     override suspend fun send(message: BotMessage, onlyToUser: Boolean) {
-        if (deferred) {
-            replies.hook.sendMessage(JdaMessages.create(message)).submit().await()
+        if (deferred || replies.isAcknowledged) {
+            replies.hook.sendMessage(JdaMessages.create(message)).setEphemeral(onlyToUser).submit().await()
         } else {
             replies.reply(JdaMessages.create(message)).setEphemeral(onlyToUser).submit().await()
         }
@@ -190,7 +199,8 @@ internal class JdaReply(
 
     override suspend fun edit(message: BotMessage) {
         val target = edits ?: throw DiscordRefusal("ce geste n'a pas de message à modifier")
-        target.editMessage(JdaMessages.edit(message)).submit().await()
+        if (replies.isAcknowledged) replies.hook.editOriginal(JdaMessages.edit(message)).submit().await()
+        else target.editMessage(JdaMessages.edit(message)).submit().await()
     }
 
     override suspend fun acknowledge() {
@@ -203,3 +213,5 @@ internal class JdaReply(
 /** Hors du QG, seules les cartes du joueur et ses boutons privés sont routés. Aucun geste staff. */
 internal val ACCOUNT_COMMANDS = setOf("entreprise", "usine")
 internal fun isAccountButton(id: String): Boolean = id.startsWith("jeu-montrer:") || id.startsWith("rappels-arreter:")
+
+internal val MODERATION_COMMANDS = setOf("avertir", "timeout", "retablir", "dossier")
