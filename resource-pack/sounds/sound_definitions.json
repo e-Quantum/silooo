@@ -1,0 +1,404 @@
+{
+  "format_version": "1.20.20",
+  "sound_definitions": {
+    "silooo.ui.clic": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/ui/clic",
+          "volume": 0.5,
+          "pitch": 0.96,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/ui/clic",
+          "volume": 0.5,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/ui/clic",
+          "volume": 0.5,
+          "pitch": 1.04,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.ui.ouvrir": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/ui/ouvrir",
+          "volume": 0.55,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.ui.fermer": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/ui/fermer",
+          "volume": 0.45,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.ui.refus": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/ui/refus",
+          "volume": 0.6,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.vente.coffre": {
+      "category": "block",
+      "min_distance": 2.0,
+      "max_distance": 12.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/vente/coffre",
+          "volume": 0.8,
+          "pitch": 0.95,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/vente/coffre",
+          "volume": 0.8,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/vente/coffre",
+          "volume": 0.8,
+          "pitch": 1.05,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.vente.jeton": {
+      "category": "block",
+      "min_distance": 2.0,
+      "max_distance": 12.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/vente/jeton",
+          "volume": 0.7,
+          "pitch": 0.94,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/vente/jeton",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/vente/jeton",
+          "volume": 0.7,
+          "pitch": 1.06,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.vente.encaisse": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/vente/encaisse",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.progression.embauche": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/progression/embauche",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.progression.amelioration": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/progression/amelioration",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.progression.palier": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/progression/palier",
+          "volume": 0.75,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.progression.prestige": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/progression/prestige",
+          "volume": 0.8,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.progression.etape": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/progression/etape",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.ville.pose": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/ville/pose",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.incident.alerte": {
+      "category": "block",
+      "min_distance": 3.0,
+      "max_distance": 20.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/incident/alerte",
+          "volume": 0.6,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.incident.repare": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/incident/repare",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.carriere.grince": {
+      "category": "block",
+      "min_distance": 1.0,
+      "max_distance": 8.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/carriere/grince",
+          "volume": 0.5,
+          "pitch": 0.92,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/grince",
+          "volume": 0.5,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/grince",
+          "volume": 0.5,
+          "pitch": 1.08,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.annonce.cloche": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/annonce/cloche",
+          "volume": 0.5,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.vote.recu": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/vote/recu",
+          "volume": 0.6,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.vote.party": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/vote/party",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.cinematique.fondu": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/cinematique/fondu",
+          "volume": 0.45,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.cinematique.fin": {
+      "category": "ui",
+      "sounds": [
+        {
+          "name": "sounds/silooo/cinematique/fin",
+          "volume": 0.6,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.ambiance.vent": {
+      "category": "ambient",
+      "sounds": [
+        {
+          "name": "sounds/silooo/ambiance/vent",
+          "volume": 0.25,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.carriere.moulin": {
+      "category": "block",
+      "min_distance": 2.0,
+      "max_distance": 10.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/carriere/moulin",
+          "volume": 0.6,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.carriere.pilon": {
+      "category": "block",
+      "min_distance": 2.0,
+      "max_distance": 10.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/carriere/pilon",
+          "volume": 0.7,
+          "pitch": 0.92,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/pilon",
+          "volume": 0.7,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/pilon",
+          "volume": 0.7,
+          "pitch": 1.08,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.carriere.tapis": {
+      "category": "block",
+      "min_distance": 1.0,
+      "max_distance": 6.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/carriere/tapis",
+          "volume": 0.45,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.carriere.pioche": {
+      "category": "block",
+      "min_distance": 1.0,
+      "max_distance": 8.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/carriere/pioche",
+          "volume": 0.6,
+          "pitch": 0.93,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/pioche",
+          "volume": 0.6,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/pioche",
+          "volume": 0.6,
+          "pitch": 1.07,
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "silooo.carriere.pelle": {
+      "category": "block",
+      "min_distance": 1.0,
+      "max_distance": 6.0,
+      "sounds": [
+        {
+          "name": "sounds/silooo/carriere/pelle",
+          "volume": 0.5,
+          "pitch": 0.95,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/pelle",
+          "volume": 0.5,
+          "pitch": 1.0,
+          "load_on_low_memory": true
+        },
+        {
+          "name": "sounds/silooo/carriere/pelle",
+          "volume": 0.5,
+          "pitch": 1.05,
+          "load_on_low_memory": true
+        }
+      ]
+    }
+  }
+}

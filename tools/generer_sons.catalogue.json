@@ -1,0 +1,505 @@
+{
+  "total_octets": 282317,
+  "sons": [
+    {
+      "evenement": "silooo.ui.clic",
+      "fichier": "sounds/silooo/ui/clic.ogg",
+      "moment": "Un bouton touché dans un formulaire, la boussole utilisée",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.5,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        0.96,
+        1.0,
+        1.04
+      ],
+      "duree_s": 0.07,
+      "octets": 3723,
+      "crete_dbfs": -3.1,
+      "rms_dbfs": -15.3,
+      "empreinte_pcm": "3073296ed0eb8d65248022905b09eae3b7366061435a1e198c0b8227ecd3a31e"
+    },
+    {
+      "evenement": "silooo.ui.ouvrir",
+      "fichier": "sounds/silooo/ui/ouvrir.ogg",
+      "moment": "Un écran du menu s'ouvre",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.55,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.19,
+      "octets": 4845,
+      "crete_dbfs": -3.3,
+      "rms_dbfs": -16.2,
+      "empreinte_pcm": "5f2eaf5a9f40d7f9b3f2720afcdb91622f464954228ac9e88fdf9d5249ba5ddf"
+    },
+    {
+      "evenement": "silooo.ui.fermer",
+      "fichier": "sounds/silooo/ui/fermer.ogg",
+      "moment": "Le menu se ferme ou le joueur revient en arrière",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.45,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.18,
+      "octets": 4380,
+      "crete_dbfs": -2.7,
+      "rms_dbfs": -16.8,
+      "empreinte_pcm": "196adf241cc486080cf34e45e859a39265417e1346986b931132c7790304e2fc"
+    },
+    {
+      "evenement": "silooo.ui.refus",
+      "fichier": "sounds/silooo/ui/refus.ogg",
+      "moment": "Le service refuse (pas assez de Donar, pas le PDG, usine verrouillée)",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.6,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.4,
+      "octets": 5008,
+      "crete_dbfs": -2.7,
+      "rms_dbfs": -13.3,
+      "empreinte_pcm": "ac6ead49279906a28794207419eae6195004a49bdd1a74ba39a44082c534a6b9"
+    },
+    {
+      "evenement": "silooo.vente.coffre",
+      "fichier": "sounds/silooo/vente/coffre.ogg",
+      "moment": "Le coffre de vente avale les marchandises (au coffre, pour ceux qui sont autour)",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.8,
+      "min_distance": 2.0,
+      "max_distance": 12.0,
+      "hauteurs": [
+        0.95,
+        1.0,
+        1.05
+      ],
+      "duree_s": 0.363,
+      "octets": 6552,
+      "crete_dbfs": -2.6,
+      "rms_dbfs": -19.7,
+      "empreinte_pcm": "0146ddffdf35b83f962e65bfedc46dc5312bacf7c67470f80012b3908f809de6"
+    },
+    {
+      "evenement": "silooo.vente.jeton",
+      "fichier": "sounds/silooo/vente/jeton.ogg",
+      "moment": "Le jeton de Donar sort du coffre (avec la particule silooo:jeton_donar), un achat en boutique",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.7,
+      "min_distance": 2.0,
+      "max_distance": 12.0,
+      "hauteurs": [
+        0.94,
+        1.0,
+        1.06
+      ],
+      "duree_s": 0.45,
+      "octets": 5179,
+      "crete_dbfs": -2.9,
+      "rms_dbfs": -18.8,
+      "empreinte_pcm": "e52685f25ebd83db7143c0e7f8dc7d25761da12329cd41ad09d4e9dd59a84762"
+    },
+    {
+      "evenement": "silooo.vente.encaisse",
+      "fichier": "sounds/silooo/vente/encaisse.ogg",
+      "moment": "Le joueur encaisse (collect), gains hors ligne compris, un palier du pass réclamé",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 1.0,
+      "octets": 9994,
+      "crete_dbfs": -3.6,
+      "rms_dbfs": -19.6,
+      "empreinte_pcm": "6be70204cda1776d0d9afa823aef893de0ad2abc8b37e98e0a2252a67f816a56"
+    },
+    {
+      "evenement": "silooo.progression.embauche",
+      "fichier": "sounds/silooo/progression/embauche.ogg",
+      "moment": "Un salarié est embauché",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.67,
+      "octets": 5777,
+      "crete_dbfs": -2.8,
+      "rms_dbfs": -15.3,
+      "empreinte_pcm": "fcee4a5a3088d95f30d73014cdd74da1503ca0899a6d9cf06ff7946ce860592f"
+    },
+    {
+      "evenement": "silooo.progression.amelioration",
+      "fichier": "sounds/silooo/progression/amelioration.ogg",
+      "moment": "Des niveaux d'usine achetés, un bâtiment de la ville amélioré",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.8,
+      "octets": 7621,
+      "crete_dbfs": -3.0,
+      "rms_dbfs": -17.2,
+      "empreinte_pcm": "5dab541a87d63b66c37b6c8c5ba58beb29f5738cdd7f32410f51e1ae65bcef73"
+    },
+    {
+      "evenement": "silooo.progression.palier",
+      "fichier": "sounds/silooo/progression/palier.ogg",
+      "moment": "Une usine passe un palier ×2",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.75,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 1.325,
+      "octets": 9971,
+      "crete_dbfs": -2.9,
+      "rms_dbfs": -18.7,
+      "empreinte_pcm": "2b1dac1be1c680cd7440a39491d0862f04dd7420b89f298c4173432dbdbbf394"
+    },
+    {
+      "evenement": "silooo.progression.prestige",
+      "fichier": "sounds/silooo/progression/prestige.ogg",
+      "moment": "Le prestige est fait (écran avant / après)",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.8,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 2.9,
+      "octets": 21846,
+      "crete_dbfs": -3.4,
+      "rms_dbfs": -19.1,
+      "empreinte_pcm": "fef4b84b6fb36a259c6aa033f67ed895ddb771fdf841660dcaa6cdff777ab82c"
+    },
+    {
+      "evenement": "silooo.progression.etape",
+      "fichier": "sounds/silooo/progression/etape.ogg",
+      "moment": "Une étape de remise en état ou une mission terminée",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.74,
+      "octets": 5894,
+      "crete_dbfs": -2.9,
+      "rms_dbfs": -14.8,
+      "empreinte_pcm": "e9182239de8b8adbbe71ece8b4452d4e02c4e0a49ccefb300117348263f1bee3"
+    },
+    {
+      "evenement": "silooo.ville.pose",
+      "fichier": "sounds/silooo/ville/pose.ogg",
+      "moment": "Une zone achetée, un bâtiment posé dans la ville",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.41,
+      "octets": 5807,
+      "crete_dbfs": -2.5,
+      "rms_dbfs": -14.0,
+      "empreinte_pcm": "0a066c114523c16ef880e16ac88915efc43095e67f0b8aa1dd038f68db4833ce"
+    },
+    {
+      "evenement": "silooo.incident.alerte",
+      "fichier": "sounds/silooo/incident/alerte.ogg",
+      "moment": "Un incident s'ouvre sur l'usine (joué à la machine, s'entend sur l'île)",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.6,
+      "min_distance": 3.0,
+      "max_distance": 20.0,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.873,
+      "octets": 10168,
+      "crete_dbfs": -3.2,
+      "rms_dbfs": -18.2,
+      "empreinte_pcm": "9036df9fc4fc9203bec9b5a9ff77b234e560209212e323fee9ee286b73e379b3"
+    },
+    {
+      "evenement": "silooo.incident.repare",
+      "fichier": "sounds/silooo/incident/repare.ogg",
+      "moment": "Le mini-jeu réussi, l'usine repart",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.8,
+      "octets": 6859,
+      "crete_dbfs": -2.9,
+      "rms_dbfs": -15.5,
+      "empreinte_pcm": "6b664391251acd20e7c93b8341075265985fa986a00ce7faf02364a58865de1c"
+    },
+    {
+      "evenement": "silooo.carriere.grince",
+      "fichier": "sounds/silooo/carriere/grince.ogg",
+      "moment": "Engrenage grippé pendant un incident (toutes les 3 à 5 s, près de l'engrenage)",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.5,
+      "min_distance": 1.0,
+      "max_distance": 8.0,
+      "hauteurs": [
+        0.92,
+        1.0,
+        1.08
+      ],
+      "duree_s": 0.6,
+      "octets": 9463,
+      "crete_dbfs": -2.8,
+      "rms_dbfs": -20.7,
+      "empreinte_pcm": "d873b79dfbc83d75b78c9dc73ed812deb3760638f73560a0dde84fd931d4e21f"
+    },
+    {
+      "evenement": "silooo.annonce.cloche",
+      "fichier": "sounds/silooo/annonce/cloche.ogg",
+      "moment": "Une annonce dans le tchat : invitation, gemmes reçues, commande terminée, boost collectif",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.5,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 1.1,
+      "octets": 6663,
+      "crete_dbfs": -2.6,
+      "rms_dbfs": -16.4,
+      "empreinte_pcm": "67ede2f8bbb8bae375f63b3238a75558e282290f1ec2a9f4a9d26bf84bb30d48"
+    },
+    {
+      "evenement": "silooo.vote.recu",
+      "fichier": "sounds/silooo/vote/recu.ogg",
+      "moment": "Le vote du joueur est reçu et récompensé",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.6,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 1.0,
+      "octets": 7476,
+      "crete_dbfs": -3.5,
+      "rms_dbfs": -18.6,
+      "empreinte_pcm": "dbf3ca3ed9353f2e4d07c33226f6c6b3b95474a6d980dc13a4c26a890d7aafb9"
+    },
+    {
+      "evenement": "silooo.vote.party",
+      "fichier": "sounds/silooo/vote/party.ogg",
+      "moment": "Vote party : joué à chaque joueur présent",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.7,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 1.98,
+      "octets": 16931,
+      "crete_dbfs": -2.8,
+      "rms_dbfs": -15.4,
+      "empreinte_pcm": "2a1946bff035dabf46789989e23e4c87a6bcdee003dfae1840ee767db36a9bb0"
+    },
+    {
+      "evenement": "silooo.cinematique.fondu",
+      "fichier": "sounds/silooo/cinematique/fondu.ogg",
+      "moment": "Chaque fondu au noir de la cinématique d'arrivée, et le voyage entre les îles",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.45,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 0.889,
+      "octets": 10346,
+      "crete_dbfs": -2.7,
+      "rms_dbfs": -17.3,
+      "empreinte_pcm": "f8c9c26c6f3ecca119eec0b5342cdb7341f148449c88442c55baf9c0edbfd8e3"
+    },
+    {
+      "evenement": "silooo.cinematique.fin",
+      "fichier": "sounds/silooo/cinematique/fin.ogg",
+      "moment": "Fin de la cinématique, le joueur reçoit la boussole",
+      "boucle": false,
+      "categorie": "ui",
+      "volume": 0.6,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 1.4,
+      "octets": 9182,
+      "crete_dbfs": -3.2,
+      "rms_dbfs": -16.0,
+      "empreinte_pcm": "a5aa13cfc506129fde110eb301d78b0a8bf3b0de9a04d9008496a5c12b83e5b1"
+    },
+    {
+      "evenement": "silooo.ambiance.vent",
+      "fichier": "sounds/silooo/ambiance/vent.ogg",
+      "moment": "Ambiance de la Carrière (et de toute île du ciel) : boucle de 8 s jouée au joueur",
+      "boucle": true,
+      "categorie": "ambient",
+      "volume": 0.25,
+      "min_distance": null,
+      "max_distance": null,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 8.0,
+      "octets": 37978,
+      "crete_dbfs": -6.5,
+      "rms_dbfs": -20.1,
+      "empreinte_pcm": "d5201a95b07bf07404de5d476400e705a6862e845614a6da1e37b364f528cd4a"
+    },
+    {
+      "evenement": "silooo.carriere.moulin",
+      "fichier": "sounds/silooo/carriere/moulin.ogg",
+      "moment": "Le moulin à vent tourne : boucle de 4 s, un tour d'ailes, au moyeu",
+      "boucle": true,
+      "categorie": "block",
+      "volume": 0.6,
+      "min_distance": 2.0,
+      "max_distance": 10.0,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 4.0,
+      "octets": 33045,
+      "crete_dbfs": -4.2,
+      "rms_dbfs": -20.1,
+      "empreinte_pcm": "6925f2c42fffb99a52cc2b81f8cf901ab09dd94cd0d2daccf5704f9804f5e262"
+    },
+    {
+      "evenement": "silooo.carriere.pilon",
+      "fichier": "sounds/silooo/carriere/pilon.ogg",
+      "moment": "Un pilon du bocard frappe (un son par coup)",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.7,
+      "min_distance": 2.0,
+      "max_distance": 10.0,
+      "hauteurs": [
+        0.92,
+        1.0,
+        1.08
+      ],
+      "duree_s": 0.35,
+      "octets": 6349,
+      "crete_dbfs": -3.6,
+      "rms_dbfs": -22.0,
+      "empreinte_pcm": "2113cf4a37a4bf32d48a4243bcac400c68a7d20d076f943dc07b87e788579c56"
+    },
+    {
+      "evenement": "silooo.carriere.tapis",
+      "fichier": "sounds/silooo/carriere/tapis.ogg",
+      "moment": "Le tapis en toile avance : boucle de 2 s, le long du tapis",
+      "boucle": true,
+      "categorie": "block",
+      "volume": 0.45,
+      "min_distance": 1.0,
+      "max_distance": 6.0,
+      "hauteurs": [
+        1.0
+      ],
+      "duree_s": 2.0,
+      "octets": 19275,
+      "crete_dbfs": -3.3,
+      "rms_dbfs": -20.1,
+      "empreinte_pcm": "2a7992203be8907451091ba41ba9a15ec0f5e361f04c59ec72d5b3550b46e9e9"
+    },
+    {
+      "evenement": "silooo.carriere.pioche",
+      "fichier": "sounds/silooo/carriere/pioche.ogg",
+      "moment": "Un salarié pioche la pierre (avec silooo:eclats_pierre)",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.6,
+      "min_distance": 1.0,
+      "max_distance": 8.0,
+      "hauteurs": [
+        0.93,
+        1.0,
+        1.07
+      ],
+      "duree_s": 0.25,
+      "octets": 5484,
+      "crete_dbfs": -3.6,
+      "rms_dbfs": -23.1,
+      "empreinte_pcm": "381cb0ba9f32d7dad447208ad339b24f34737fe8a415c2a08b4bb8bdc4e0197a"
+    },
+    {
+      "evenement": "silooo.carriere.pelle",
+      "fichier": "sounds/silooo/carriere/pelle.ogg",
+      "moment": "Un salarié pellette le gravier",
+      "boucle": false,
+      "categorie": "block",
+      "volume": 0.5,
+      "min_distance": 1.0,
+      "max_distance": 6.0,
+      "hauteurs": [
+        0.95,
+        1.0,
+        1.05
+      ],
+      "duree_s": 0.32,
+      "octets": 6501,
+      "crete_dbfs": -2.5,
+      "rms_dbfs": -19.7,
+      "empreinte_pcm": "7799b1234c513ba9b1ecf1a5b3742187a7bcfff4c5f73f45300d4ffc7fe85b33"
+    }
+  ]
+}
