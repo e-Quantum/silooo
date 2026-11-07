@@ -85,7 +85,8 @@ class ModerationTest {
     @Test
     @DisplayName("Un timeout exige une confirmation par son auteur et ne s'exécute qu'une fois")
     fun timeoutNeedsOwnerConfirmationAndAtMostOnce() {
-        val (feature, gateway, store, _, _) = setup()
+        val (feature, gateway, store, server, _) = setup()
+        server.memberRoles["11111111111111111"] = mutableSetOf(staff)
         val preview = command(feature, "timeout", mapOf("membre" to "<@12345678901234567>", "duree" to "1h", "motif" to "Perturbation"))
         val (message, private) = preview.sent.single(); assertTrue(private); assertTrue(gateway.timeouts.isEmpty())
         val id = message.buttons.first().id

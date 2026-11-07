@@ -266,7 +266,9 @@ class ModerationFeature(
         }
         val perLine = (available / rawLines.size).coerceAtLeast(0)
         return rawLines.joinToString("\n") { line ->
-            if (line.length <= perLine) line else if (perLine == 0) "" else line.take(perLine - 1) + "…"
+            val suffix = " (abrégé)"
+            if (line.length <= perLine) line else if (perLine <= suffix.length) line.take(perLine)
+            else line.take(perLine - suffix.length) + suffix
         }
     }
 
@@ -287,7 +289,7 @@ class ModerationFeature(
         val staff = context.ids.role("staff")
         val moderation = context.ids.role("moderation")
         if (staff == null && moderation == null) return false
-        val roles = context.server.rolesOf(userId)
+        val roles = context.server.freshRolesOf(userId)
         return (staff != null && staff in roles) || (moderation != null && moderation in roles)
     }
 

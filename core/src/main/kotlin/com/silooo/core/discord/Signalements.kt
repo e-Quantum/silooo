@@ -101,6 +101,7 @@ class SignalementFeature(
         if (target == null || target.authorId == event.user.id || target.bot) {
             return event.reply.send(BotMessage("Ce message n'est plus disponible."))
         }
+        event.reply.acknowledge()
         val report = store.create(event.user.id, pending.channelId, pending.messageId, reason, now, rules.cooldown)
             ?: return event.reply.send(BotMessage("Tu as déjà signalé ce message ou tu dois attendre avant d'en envoyer un autre."))
         val channel = context.ids.channel(SIGNALMENTS_CHANNEL)
@@ -145,6 +146,7 @@ class SignalementFeature(
         if (reportsChannel == null || event.channelId != reportsChannel || !canView(reportsChannel, event.user.id)) {
             return event.reply.send(BotMessage("Tu ne peux pas accéder aux dossiers de modération."))
         }
+        event.reply.acknowledge()
         val id = parts[1].toLongOrNull() ?: return event.reply.send(BotMessage("Ce dossier n'existe pas."))
         val state = when (parts[2]) { "claim" -> "pris"; "resolved" -> "resolu"; "dismissed" -> "sans-suite"; else -> return event.reply.send(BotMessage("Cette action n'est pas valide.")) }
         val updated = store.setState(id, state, event.user.id, context.timer.now())

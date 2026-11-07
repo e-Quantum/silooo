@@ -155,7 +155,7 @@ internal class JdaEvents(
     override fun onModalInteraction(event: ModalInteractionEvent) {
         if (event.guild?.idLong != guildId) return
         val fields = event.values.associate { it.customId to it.asString }
-        offer(DiscordEvent.FormSubmitted(event.modalId, fields, actor(event), event.channel.id, JdaReply(event, null, event)))
+        offer(DiscordEvent.FormSubmitted(event.modalId, fields, actor(event), event.channel.id, JdaReply(event, null, if (event.message == null) null else event)))
     }
 
     private fun actor(event: Interaction): DiscordUser =
