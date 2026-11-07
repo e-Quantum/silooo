@@ -5,7 +5,7 @@
   "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils"],
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils", "moderation", "signalements"],
   "$defs": {
     "identifiantDuPlan": {
       "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
@@ -380,6 +380,100 @@
             "required": ["minimum", "role"],
             "properties": { "minimum": { "type": "integer", "minimum": 1 }, "role": { "$ref": "#/$defs/identifiantDuPlan" } }
           }
+        }
+      }
+    },
+    "moderation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmationSecondes",
+        "conservationJours",
+        "dossiersParPage",
+        "motifMaxCaracteres",
+        "dureesHeures",
+        "purgeSecondes"
+      ],
+      "properties": {
+        "confirmationSecondes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "conservationJours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650
+        },
+        "dossiersParPage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "motifMaxCaracteres": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "dureesHeures": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          }
+        },
+        "purgeSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      }
+    },
+    "signalements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "delaiSecondes",
+        "formulaireSecondes",
+        "conservationJours",
+        "purgeSecondes",
+        "motifMaxCaracteres",
+        "contenuMaxCaracteres"
+      ],
+      "properties": {
+        "delaiSecondes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "formulaireSecondes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "conservationJours": {
+          "type": "integer",
+          "enum": [
+            30
+          ]
+        },
+        "purgeSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "motifMaxCaracteres": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "contenuMaxCaracteres": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
         }
       }
     }

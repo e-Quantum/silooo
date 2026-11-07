@@ -29,11 +29,15 @@ object BotFeatures {
         val games = JdbcGameStore(database)
         val reports = JdbcReportStore(database)
         val records = RecordsBoard(context, games, messages, definitions.zone)
+        val signalements = JdbcSignalementStore(database)
         listOf(
+            ManagementFeature(context),
+            ModerationFeature(context, definitions.moderation, JdbcModerationStore(database, definitions.moderation.retentionDays), ServerModerationGateway(context), journal),
+            SignalementFeature(context, signalements, definitions.reporting.rules(), context.server::canReadChannel),
             WelcomeFeature(context, definitions.welcome, members, reports, remindersAvailable = true),
             ReminderFeature(context, definitions.reminders, definitions.zone, JdbcReminderStore(database), links),
             LinkingFeature(context, GameDiscordLinkGateway(links), context.server::nickname),
-            ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports),
+            ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports, reportCount = signalements::count),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),
             SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),

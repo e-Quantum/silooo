@@ -144,6 +144,8 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         action.submit().await()
     }
 
+    override suspend fun freshRolesOf(userId: String): Set<String> = JdaStaffActions(guild).roles(userId)
+
     override suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>) =
         JdaStaffActions(guild).target(actorId, targetId, allowedRoleIds)
 

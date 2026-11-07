@@ -85,5 +85,24 @@
     ],
     "laitonDesPrestige": 5,
     "couleurPrestige": "#c8962e"
+  },
+  "moderation": {
+    "confirmationSecondes": 600,
+    "conservationJours": 30,
+    "dossiersParPage": 10,
+    "motifMaxCaracteres": 500,
+    "dureesHeures": [
+      1,
+      24
+    ],
+    "purgeSecondes": 21600
+  },
+  "signalements": {
+    "delaiSecondes": 30,
+    "formulaireSecondes": 600,
+    "conservationJours": 30,
+    "purgeSecondes": 21600,
+    "motifMaxCaracteres": 500,
+    "contenuMaxCaracteres": 1000
   }
 }

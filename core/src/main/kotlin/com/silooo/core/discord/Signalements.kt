@@ -135,7 +135,7 @@ class SignalementFeature(
     private suspend fun action(event: DiscordEvent.ButtonPressed) {
         val parts = event.id.split(':')
         if (parts.size != 3) return event.reply.send(BotMessage("Cette action n'est pas valide."))
-        val roleIds = context.server.rolesOf(event.user.id)
+        val roleIds = context.server.freshRolesOf(event.user.id)
         val staff = context.ids.role(STAFF_ROLE_ID)
         val moderation = context.ids.role(MODERATION_ROLE_ID)
         if ((staff == null || staff !in roleIds) && (moderation == null || moderation !in roleIds)) {

@@ -214,4 +214,4 @@ internal class JdaReply(
 internal val ACCOUNT_COMMANDS = setOf("entreprise", "usine")
 internal fun isAccountButton(id: String): Boolean = id.startsWith("jeu-montrer:") || id.startsWith("rappels-arreter:")
 
-internal val MODERATION_COMMANDS = setOf("avertir", "timeout", "retablir", "dossier")
+internal val MODERATION_COMMANDS = setOf("avertir", "timeout", "retablir", "dossier", "gestion")

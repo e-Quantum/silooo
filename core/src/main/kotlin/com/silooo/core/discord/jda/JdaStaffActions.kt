@@ -22,6 +22,8 @@ internal class JdaStaffActions(private val guild: Guild) {
         }
     }
 
+    suspend fun roles(userId: String): Set<String> = member(userId)?.roles?.map { it.id }?.toSet().orEmpty()
+
     suspend fun target(actorId: String, targetId: String, allowedRoles: Set<String>): ModerationTarget? {
         val actor = member(actorId) ?: return null
         val target = member(targetId) ?: return null
@@ -47,7 +49,7 @@ internal class JdaStaffActions(private val guild: Guild) {
 
     suspend fun canRead(channelId: String, userId: String): Boolean {
         val member = member(userId) ?: return false
-        val channel = guild.getGuildChannelById(channelId) ?: return false
+        val channel = guild.getThreadChannelById(channelId) ?: guild.getGuildChannelById(channelId) ?: return false
         if (!member.hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY)) return false
         val thread = guild.getThreadChannelById(channelId)
         // Une invitation explicite est nécessaire pour les fils privés : voir le parent ne suffit pas.

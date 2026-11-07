@@ -107,6 +107,9 @@ interface DiscordServer {
     /** Le nom que le serveur affiche pour [userId] (son surnom, sinon son nom) ; `null` s'il n'est plus là. */
     suspend fun memberName(userId: String): String?
 
+    /** Lecture explicite sans cache pour les décisions de gestion du staff. */
+    suspend fun freshRolesOf(userId: String): Set<String> = rolesOf(userId)
+
     /** Les identifiants des rôles du membre [userId] ; vide s'il n'est plus là. */
     suspend fun rolesOf(userId: String): Set<String>
 
