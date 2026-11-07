@@ -1,0 +1,14 @@
+{
+  "_note": "Pour addon/pack/entities/ : les deux entités de comportement, inertes comme Oooscar, avec la propriété que lisent les entités clientes. L'add-on les fait apparaître tournées vers le sud (yaw 0) : ailes au moyeu (26.5, 21.5, 14.05), pilons à (21.5, 16, 10.5), positions relatives à l'origine de la Carrière (carriere.json), et règle silooo:ruine à true sur l'île en ruine, false après la remise en route.",
+  "properties": {
+    "silooo:ruine": {
+      "type": "bool",
+      "default": false,
+      "client_sync": true
+    }
+  },
+  "identifiants": [
+    "silooo:ailes_moulin",
+    "silooo:pilons"
+  ]
+}

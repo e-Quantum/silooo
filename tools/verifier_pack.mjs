@@ -116,6 +116,7 @@ const COPIES = [
   ["design/textures", "textures/ui/silooo"],
   ["design/icones", "textures/ui/silooo/icones"],
   ["design/mascotte", "textures/ui/silooo/oooscar"],
+  ["design/blocs", "textures/blocks/silooo"],
 ];
 for (const [source, destination] of COPIES) {
   const dossierSource = join(racine, source);
@@ -142,8 +143,11 @@ for (const [source, destination] of COPIES) {
 
 // ------------------------------------------------------------------ 4. les fichiers cités existent
 const EXTENSIONS_IMAGE = [".png", ".tga", ".jpg"];
+// Textures du pack vanilla citées exprès (faces des blocs Silooo qui restent vanilla). Chacune a été vue dans
+// bedrock-samples, tag v1.26.60.5, resource_pack/textures/blocks/. Toute autre texture doit être dans le pack.
+const TEXTURES_VANILLA = new Set(["textures/blocks/planks_spruce", "textures/blocks/log_big_oak_top"]);
 function textureExiste(nom) {
-  return EXTENSIONS_IMAGE.some((e) => existsSync(join(pack, nom + e)));
+  return TEXTURES_VANILLA.has(nom) || EXTENSIONS_IMAGE.some((e) => existsSync(join(pack, nom + e)));
 }
 for (const [nom, doc] of documents) {
   const texte = JSON.stringify(doc);
@@ -180,6 +184,8 @@ for (const [nom, doc] of documents) {
 }
 const animations = new Set();
 for (const [nom, doc] of documents) if (nom.startsWith("animations/")) for (const id of Object.keys(doc.animations ?? {})) animations.add(id);
+// Une entité peut aussi citer un contrôleur d'animation dans « animations » (le salarié, par exemple).
+for (const [nom, doc] of documents) if (nom.startsWith("animation_controllers/")) for (const id of Object.keys(doc.animation_controllers ?? {})) animations.add(id);
 const controleurs = new Set();
 for (const [nom, doc] of documents) if (nom.startsWith("render_controllers/")) for (const id of Object.keys(doc.render_controllers ?? {})) controleurs.add(id);
 
@@ -191,7 +197,7 @@ for (const [nom, doc] of documents) {
     continue;
   }
   for (const id of Object.values(d.geometry ?? {})) if (!geometries.has(id)) erreur(nom, `la géométrie ${id} n'est définie dans aucun modèle`);
-  for (const id of Object.values(d.animations ?? {})) if (!animations.has(id)) erreur(nom, `l'animation ${id} n'est définie dans aucun fichier d'animations`);
+  for (const id of Object.values(d.animations ?? {})) if (!animations.has(id)) erreur(nom, `l'animation ${id} n'est définie dans aucun fichier d'animations ni de contrôleurs`);
   for (const id of d.render_controllers ?? []) if (!controleurs.has(typeof id === "string" ? id : Object.keys(id)[0])) erreur(nom, `le contrôleur ${JSON.stringify(id)} n'est défini nulle part`);
   const utilisees = new Set((d.scripts?.animate ?? []).map((e) => (typeof e === "string" ? e : Object.keys(e)[0])));
   for (const court of utilisees) if (!(court in (d.animations ?? {}))) erreur(nom, `scripts.animate cite ${court}, absent de animations`);

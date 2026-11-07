@@ -20,6 +20,7 @@ Ce que tu dois lire selon ta tâche. Chaque fichier traite un seul sujet et renv
 | Changer un prix, un gain, un seuil | [economie.md](economie.md), `definitions/`, `docs/references/silooo-equilibrage-v2.xlsx` | `silooo-equilibrage` |
 | Ajouter ou régler une usine | [game-design.md](game-design.md) « Catalogue des usines », [economie.md](economie.md), `definitions/usines.json` et `definitions/schemas/` | `silooo-equilibrage`, section « Ajouter une usine » |
 | Toucher à `addon/` ou `resource-pack/` | [bedrock.md](bedrock.md), [architecture.md](architecture.md), [design.md](design.md) | `silooo-ecran` |
+| Toucher à la Carrière (structure, blocs Silooo, salariés, machines, sons) | [carriere.md](carriere.md) | |
 | Dessiner un écran ou écrire pour les joueurs | [design.md](design.md), `design/README.md`, `design/composants/`, [anti-ia.md](anti-ia.md) | `silooo-ecran` |
 | Déployer (jamais sans Kr pour la base, le port, le DNS) | [deploiement.md](deploiement.md), [direction.md](direction.md) | |
 | Toucher au site (`site/`, `deploy/site/`) | [site.md](site.md), [adr/0006-site-silooo-com.md](adr/0006-site-silooo-com.md), [design.md](design.md), [anti-ia.md](anti-ia.md) | |
@@ -33,6 +34,7 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 | Fichier | Ce qu'il contient |
 | --- | --- |
 | [passation.md](passation.md) | L'état du chantier, la phase en cours et ses cases, « À faire par Kr », le journal des sessions |
+| [carriere.md](carriere.md) | La Carrière de l'époque 1 : ses fichiers, comment les refaire et les contrôler, ce qu'il reste à brancher, ce qui est à valider par Kr |
 | [direction.md](direction.md) | Comment la session de direction pilote les autres sessions et quand elle s'arrête |
 | [site.md](site.md) | Le site `silooo.com` : le kit de Kr (pages, comptes, animations, style), où en est `main`, la référence Rinaorc |
 | [site-direction.md](site-direction.md) | Comment la session de direction du site pilote son chantier, en local, et quand elle s'arrête |
