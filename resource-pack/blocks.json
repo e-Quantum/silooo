@@ -1,0 +1,22 @@
+{
+  "format_version": [
+    1,
+    1,
+    0
+  ],
+  "silooo:tremie_bois": {
+    "sound": "wood"
+  },
+  "silooo:engrenage_bois": {
+    "sound": "wood"
+  },
+  "silooo:coffre_vente": {
+    "sound": "wood"
+  },
+  "silooo:tapis_toile": {
+    "sound": "cloth"
+  },
+  "silooo:plaque_emaillee": {
+    "sound": "stone"
+  }
+}
