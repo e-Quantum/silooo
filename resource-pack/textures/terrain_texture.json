@@ -21,6 +21,51 @@
     },
     "silooo_bureau_administration": {
       "textures": "textures/blocks/silooo/bureau_administration"
+    },
+    "silooo_tremie_bois": {
+      "textures": "textures/blocks/silooo/tremie_bois"
+    },
+    "silooo_tremie_bois_dessus": {
+      "textures": "textures/blocks/silooo/tremie_bois_dessus"
+    },
+    "silooo_engrenage_bois": {
+      "textures": "textures/blocks/silooo/engrenage_bois"
+    },
+    "silooo_engrenage_bois_grippe": {
+      "textures": "textures/blocks/silooo/engrenage_bois_grippe"
+    },
+    "silooo_tapis_toile": {
+      "textures": "textures/blocks/silooo/tapis_toile"
+    },
+    "silooo_tapis_toile_dechire": {
+      "textures": "textures/blocks/silooo/tapis_toile_dechire"
+    },
+    "silooo_tapis_toile_cote": {
+      "textures": "textures/blocks/silooo/tapis_toile_cote"
+    },
+    "silooo_coffre_vente": {
+      "textures": "textures/blocks/silooo/coffre_vente"
+    },
+    "silooo_coffre_vente_face": {
+      "textures": "textures/blocks/silooo/coffre_vente_face"
+    },
+    "silooo_coffre_vente_dessus": {
+      "textures": "textures/blocks/silooo/coffre_vente_dessus"
+    },
+    "silooo_plaque_emaillee_gauche": {
+      "textures": "textures/blocks/silooo/plaque_emaillee_gauche"
+    },
+    "silooo_plaque_emaillee_milieu": {
+      "textures": "textures/blocks/silooo/plaque_emaillee_milieu"
+    },
+    "silooo_plaque_emaillee_droite": {
+      "textures": "textures/blocks/silooo/plaque_emaillee_droite"
+    },
+    "silooo_planches_sapin": {
+      "textures": "textures/blocks/planks_spruce"
+    },
+    "silooo_chene_noir_dessus": {
+      "textures": "textures/blocks/log_big_oak_top"
     }
   }
 }

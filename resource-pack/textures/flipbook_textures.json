@@ -22,5 +22,15 @@
       3
     ],
     "blend_frames": false
+  },
+  {
+    "flipbook_texture": "textures/blocks/silooo/engrenage_bois",
+    "atlas_tile": "silooo_engrenage_bois",
+    "ticks_per_frame": 3
+  },
+  {
+    "flipbook_texture": "textures/blocks/silooo/tapis_toile",
+    "atlas_tile": "silooo_tapis_toile",
+    "ticks_per_frame": 3
   }
 ]
