@@ -28,6 +28,7 @@ interface ModerationStore {
     suspend fun claim(id: String, actorId: String, now: Instant): ModerationCase?
     suspend fun finish(id: String, succeeded: Boolean, failure: String?, at: Instant)
     suspend fun cancel(id: String, actorId: String, at: Instant): Boolean
+    suspend fun purge(before: Instant): Int
     suspend fun history(targetId: String, since: Instant, limit: Int, offset: Int = 0): List<ModerationCase>
 }
 
@@ -68,6 +69,12 @@ class JdbcModerationStore(private val database: Database, private val retentionD
     override suspend fun cancel(id: String, actorId: String, at: Instant): Boolean = database.transaction { c ->
         c.prepareStatement("update discord_moderation_cases set status = 'failed', failure = 'cancelled', finished_at = ? where case_id = ? and actor_id = ? and status = 'reserved' and attempted_at is null").use {
             it.setObject(1, utc(at)); it.setString(2, id); it.setString(3, actorId); it.executeUpdate() == 1
+        }
+    }
+
+    override suspend fun purge(before: Instant): Int = database.transaction { c ->
+        c.prepareStatement("delete from discord_moderation_cases where created_at < ?").use {
+            it.setObject(1, utc(before)); it.executeUpdate()
         }
     }
 

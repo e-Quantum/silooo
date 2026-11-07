@@ -3,6 +3,9 @@ package com.silooo.core.discord
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 import kotlinx.coroutines.CancellationException
 
 /** Final Discord-side identity and hierarchy snapshot. Mutations must check again immediately before acting. */
@@ -21,18 +24,21 @@ interface ModerationGateway {
     suspend fun warn(actorId: String, targetId: String, reason: String): Boolean
 }
 
+@Serializable
 data class ModerationRules(
-    val confirmationSeconds: Long,
-    val retentionDays: Int,
-    val historyPageSize: Int,
-    val maxReasonLength: Int,
-    val timeoutHours: List<Int> = listOf(1, 24),
+    @SerialName("confirmationSecondes") val confirmationSeconds: Long,
+    @SerialName("conservationJours") val retentionDays: Int,
+    @SerialName("dossiersParPage") val historyPageSize: Int,
+    @SerialName("motifMaxCaracteres") val maxReasonLength: Int,
+    @SerialName("dureesHeures") val timeoutHours: List<Int> = listOf(1, 24),
+    @SerialName("purgeSecondes") val purgeSeconds: Long = 21_600,
 ) {
     init {
         require(confirmationSeconds in 1..3600)
         require(retentionDays in 1..3650)
         require(historyPageSize in 1..100)
         require(maxReasonLength in 1..500)
+        require(purgeSeconds in 60..604800)
         require(timeoutHours.isNotEmpty() && timeoutHours.all { it in 1..24 } && timeoutHours.distinct().size == timeoutHours.size)
     }
 }
@@ -64,6 +70,7 @@ class ModerationFeature(
     private val store: ModerationStore,
     private val gateway: ModerationGateway,
     private val journal: BotJournal,
+    private val writeJournal: suspend (String) -> Unit = { journal.line(it) },
 ) : Feature {
     override val name = "moderation"
     override val commands = listOf(
@@ -84,6 +91,11 @@ class ModerationFeature(
             CommandOption("membre", "Membre concerné", required = true, kind = OptionKind.MEMBRE),
         ), staffOnly = true, defaultPermission = CommandPermission.MODERATE_MEMBERS),
     )
+
+    override suspend fun start() {
+        purgeExpired()
+        context.timer.every(Duration.ofSeconds(rules.purgeSeconds)) { purgeExpired() }
+    }
 
     override suspend fun handle(event: DiscordEvent) {
         when (event) {
@@ -174,35 +186,99 @@ class ModerationFeature(
         val since = context.timer.now().minus(Duration.ofDays(rules.retentionDays.toLong()))
         val cases = store.history(targetId, since, rules.historyPageSize + 1, page * rules.historyPageSize)
         val visible = cases.take(rules.historyPageSize)
-        val body = if (visible.isEmpty()) "Aucun dossier pour $targetName." else visible.joinToString("\n") {
-            "${it.createdAt} · ${it.action.name.lowercase()} · ${it.status.name.lowercase()} · <@${it.actorId}> · ${it.reason}" + (it.failure?.let { f -> " ($f)" } ?: "")
-        }
+        val header = "Dossier de ${targetName.take(100)} · page ${page + 1}\n"
+        val body = if (visible.isEmpty()) "Aucun dossier." else historyLines(visible, MAX_HISTORY_TEXT - header.length - visible.size)
         val buttons = buildList {
             if (page > 0) add(ButtonSpec(ModerationTexts.HISTORY_PREFIX + "$targetId:${page - 1}:$actorId", "Précédent"))
             if (cases.size > rules.historyPageSize) add(ButtonSpec(ModerationTexts.HISTORY_PREFIX + "$targetId:${page + 1}:$actorId", "Suivant"))
         }
-        reply.send(BotMessage("Dossier de $targetName · page ${page + 1}\n$body", buttons = buttons), onlyToUser = true)
+        reply.send(BotMessage((header + body).take(MAX_HISTORY_TEXT), buttons = buttons), onlyToUser = true)
     }
 
     private suspend fun execute(reply: Reply, case: ModerationCase, until: Instant?) {
-        try {
+        val delivered = try {
             when (case.action) {
-                ModerationAction.WARN -> if (!gateway.warn(case.actorId, case.targetId, case.reason)) {
-                    store.finish(case.id, false, "delivery-refused", context.timer.now())
-                    journal.line("Avertissement non remis : dossier ${case.id}.")
-                    privateReply(reply, "Avertissement non remis ; l'échec est enregistré.")
-                    return
+                ModerationAction.WARN -> gateway.warn(case.actorId, case.targetId, case.reason)
+                ModerationAction.TIMEOUT, ModerationAction.RESTORE -> {
+                    gateway.timeout(case.actorId, case.targetId, until, case.reason)
+                    true
                 }
-                ModerationAction.TIMEOUT, ModerationAction.RESTORE -> gateway.timeout(case.actorId, case.targetId, until, case.reason)
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("Discord modération : action externe en échec ou résultat inconnu ({})", e::class.simpleName)
+            recordFailure(case)
+            privateReply(reply, "Discord n'a pas confirmé l'action. Le dossier ne sera pas rejoué automatiquement ; vérifie l'état du membre avant toute nouvelle décision.")
+            return
+        }
+
+        if (!delivered) {
+            val recorded = recordFailure(case, "delivery-refused")
+            privateReply(reply, if (recorded) "Avertissement non remis ; l'échec est enregistré." else "Avertissement non remis. L'audit n'a pas pu être confirmé ; vérifie le dossier avant une nouvelle décision.")
+            return
+        }
+
+        try {
             store.finish(case.id, true, null, context.timer.now())
-            journal.line("Modération ${case.action.name.lowercase()} : <@${case.targetId}>, dossier ${case.id}.")
-            privateReply(reply, ModerationTexts.DONE)
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) {
-            store.finish(case.id, false, e.message ?: e::class.simpleName, context.timer.now())
-            journal.line("Échec modération ${case.action.name.lowercase()} : dossier ${case.id}.")
-            privateReply(reply, ModerationTexts.FAILED)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("Discord modération : action effectuée, écriture de l'audit en échec ({})", e::class.simpleName)
+            privateReply(reply, "Discord a effectué l'action, mais l'audit durable n'a pas été confirmé. Ne relance pas l'action ; vérifie Discord et le dossier.")
+            return
+        }
+
+        try {
+            writeJournal("Modération ${case.action.name.lowercase()} : <@${case.targetId}>, dossier ${case.id}.")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("Discord modération : action effectuée et audit enregistré, journal en échec ({})", e::class.simpleName)
+        }
+        privateReply(reply, ModerationTexts.DONE)
+    }
+
+    private suspend fun recordFailure(case: ModerationCase, failure: String? = "discord-refused"): Boolean = try {
+        store.finish(case.id, false, failure, context.timer.now())
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        log.error("Discord modération : audit d'échec non confirmé ({})", e::class.simpleName)
+        false
+    }
+
+    private suspend fun purgeExpired() {
+        try {
+            store.purge(context.timer.now().minus(Duration.ofDays(rules.retentionDays.toLong())))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("Discord modération : purge des dossiers en échec ({})", e::class.simpleName)
+        }
+    }
+
+    private fun historyLines(cases: List<ModerationCase>, available: Int): String {
+        if (cases.isEmpty()) return "Aucun dossier."
+        val rawLines = cases.map { case ->
+            "${case.createdAt} · ${actionLabel(case.action)} · ${statusLabel(case)} · <@${case.actorId}> · ${case.reason}"
+        }
+        val perLine = (available / rawLines.size).coerceAtLeast(0)
+        return rawLines.joinToString("\n") { line ->
+            if (line.length <= perLine) line else if (perLine == 0) "" else line.take(perLine - 1) + "…"
+        }
+    }
+
+    private fun statusLabel(case: ModerationCase): String = when (case.status) {
+        ModerationStatus.RESERVED -> "En attente ou à vérifier"
+        ModerationStatus.SUCCEEDED -> "Effectué"
+        ModerationStatus.FAILED -> when (case.failure) {
+            "cancelled" -> "Annulé"
+            "expired" -> "Confirmation expirée"
+            "delivery-refused" -> "Avertissement non remis"
+            "discord-refused" -> "Discord n'a pas confirmé"
+            else -> "Échec"
         }
     }
 
@@ -230,6 +306,11 @@ class ModerationFeature(
     }
 
     private fun isUuid(value: String) = runCatching { UUID.fromString(value).toString() == value }.getOrDefault(false)
-    private fun actionLabel(action: ModerationAction) = when (action) { ModerationAction.TIMEOUT -> "le timeout"; ModerationAction.RESTORE -> "le retrait du timeout"; ModerationAction.WARN -> "l'avertissement" }
+    private fun actionLabel(action: ModerationAction) = when (action) { ModerationAction.TIMEOUT -> "Timeout"; ModerationAction.RESTORE -> "Rétablissement"; ModerationAction.WARN -> "Avertissement" }
     private suspend fun privateReply(reply: Reply, text: String) = reply.send(BotMessage(text), onlyToUser = true)
+
+    private companion object {
+        const val MAX_HISTORY_TEXT = 2000
+        val log = LoggerFactory.getLogger(ModerationFeature::class.java)
+    }
 }

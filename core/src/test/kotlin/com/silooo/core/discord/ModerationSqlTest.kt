@@ -29,4 +29,14 @@ class ModerationSqlTest {
         assertEquals(ModerationStatus.SUCCEEDED, store.get(item.id)?.status)
         assertEquals(3600L, store.history(item.targetId, now.minusSeconds(1), 10).single().timeoutDurationSeconds)
     }
+
+    @Test
+    @DisplayName("La purge retire les dossiers avant la limite demandée")
+    fun purgesExpiredCases() = runBlocking {
+        val item = ModerationCase("c95f27c7-55f8-4aa0-a54a-74df7db43a02", "76543210987654321", "12345678901234567", ModerationAction.WARN, "Ancien motif", now, now.plusSeconds(600), ModerationStatus.RESERVED)
+        assertTrue(store.reserve(item))
+        assertEquals(1, store.purge(now.plusMillis(1)))
+        assertNull(store.get(item.id))
+    }
+
 }
