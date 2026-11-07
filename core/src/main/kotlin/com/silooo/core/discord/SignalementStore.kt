@@ -26,6 +26,7 @@ interface SignalementStore {
     /** Réserve durablement le signalement avant toute publication ; null si doublon ou cooldown. */
     suspend fun create(reporterId: String, channelId: String, messageId: String, reason: String, at: Instant, cooldown: java.time.Duration): Signalement?
     suspend fun setState(id: Long, state: String, staffId: String, at: Instant): Boolean
+    suspend fun published(id: Long)
     suspend fun posted(id: Long, channelId: String, messageId: String)
     suspend fun publicationFailed(id: Long)
     suspend fun expired(before: Instant): List<Signalement>
@@ -71,8 +72,14 @@ class JdbcSignalementStore(private val database: Database) : SignalementStore {
     }
 
     override suspend fun posted(id: Long, channelId: String, messageId: String) { database.transaction { c ->
-        c.prepareStatement("update discord_message_reports set post_channel_id = ?, post_message_id = ?, delivery_state = 'publie' where id = ?").use {
+        c.prepareStatement("update discord_message_reports set post_channel_id = ?, post_message_id = ? where id = ? and delivery_state = 'reserve'").use {
             it.setString(1, channelId); it.setString(2, messageId); it.setLong(3, id); it.executeUpdate()
+        }
+    } }
+
+    override suspend fun published(id: Long) { database.transaction { c ->
+        c.prepareStatement("update discord_message_reports set delivery_state = 'publie' where id = ? and post_message_id is not null and delivery_state = 'reserve'").use {
+            it.setLong(1, id); it.executeUpdate()
         }
     } }
 

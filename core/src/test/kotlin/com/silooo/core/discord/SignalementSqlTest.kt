@@ -29,6 +29,8 @@ class SignalementSqlTest {
         assertEquals("nouveau", first.state)
         assertEquals("reserve", first.deliveryState)
         store.posted(first.id, "20", "case-1")
+        assertEquals("reserve", store.expired(start.plus(Duration.ofDays(30))).single().deliveryState)
+        store.published(first.id)
         assertNull(store.create("10", "20", "30", "doublon", start.plusSeconds(1), Duration.ofHours(1)))
         assertNull(store.create("10", "20", "31", "autre", start.plusSeconds(30), Duration.ofHours(1)))
         assertTrue(store.setState(first.id, "pris", "99", start.plusSeconds(5)))

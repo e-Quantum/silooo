@@ -114,21 +114,41 @@ class SignalementFeature(
             "Motif : ${reason.take(rules.reasonMaxLength)}\n" +
             "État : nouveau"
         val posted = try {
-            context.server.post(channel, BotMessage(text, buttons = listOf(
+            context.server.post(channel, BotMessage("Signalement #${report.id} : préparation du dossier."))
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) {
+            try { store.publicationFailed(report.id) } catch (_: Exception) {}
+            org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} réservé, publication à reprendre manuellement", report.id)
+            return event.reply.send(BotMessage("Ton signalement est enregistré, mais la publication du dossier n'a pas abouti."))
+        }
+        try { store.posted(report.id, channel, posted) }
+        catch (e: kotlinx.coroutines.CancellationException) {
+            try { context.server.deleteMessage(channel, posted) } catch (_: Exception) {}
+            throw e
+        }
+        catch (e: Exception) {
+            try { context.server.deleteMessage(channel, posted) } catch (_: Exception) {}
+            try { store.publicationFailed(report.id) } catch (_: Exception) {}
+            org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} : pointeur de publication non conservé, placeholder supprimé", report.id)
+            return event.reply.send(BotMessage("Ton signalement est enregistré, mais le dossier privé n'a pas pu être préparé."))
+        }
+        try {
+            context.server.edit(channel, posted, BotMessage(text, buttons = listOf(
                 ButtonSpec(actionId(report.id, "claim"), "Prendre en charge", ButtonStyle.PRIMARY),
                 ButtonSpec(actionId(report.id, "resolved"), "Résolu", ButtonStyle.NEUTRAL),
                 ButtonSpec(actionId(report.id, "dismissed"), "Sans suite", ButtonStyle.DANGER),
             ), card = true))
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) {
+            try { context.server.deleteMessage(channel, posted) } catch (_: Exception) {}
             try { store.publicationFailed(report.id) } catch (_: Exception) {}
-            org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} réservé, publication à reprendre manuellement", report.id)
-            return event.reply.send(BotMessage("Ton signalement est enregistré. Sa publication dans le salon privé a échoué."))
+            org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} : édition du dossier refusée, placeholder nettoyé", report.id)
+            return event.reply.send(BotMessage("Ton signalement est enregistré, mais sa publication n'est pas terminée. Le dossier privé sera nettoyé."))
         }
-        try { store.posted(report.id, channel, posted) }
+        try { store.published(report.id) }
         catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) {
-            org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} publié, identifiant du dossier non conservé pour la purge", report.id)
+            org.slf4j.LoggerFactory.getLogger(SignalementFeature::class.java).warn("Signalement #{} publié, état de publication non actualisé", report.id)
         }
         event.reply.send(BotMessage("Merci, ton signalement est enregistré."))
     }
@@ -149,16 +169,20 @@ class SignalementFeature(
         event.reply.acknowledge()
         val id = parts[1].toLongOrNull() ?: return event.reply.send(BotMessage("Ce dossier n'existe pas."))
         val state = when (parts[2]) { "claim" -> "pris"; "resolved" -> "resolu"; "dismissed" -> "sans-suite"; else -> return event.reply.send(BotMessage("Cette action n'est pas valide.")) }
-        val updated = store.setState(id, state, event.user.id, context.timer.now())
-        if (!updated) return event.reply.send(BotMessage("Ce dossier est déjà fermé ou n'existe plus."))
         val current = context.server.message(event.channelId!!, event.messageId)
         if (current == null || current.bot.not() || !current.text.startsWith("Signalement #$id\n")) {
-            return event.reply.send(BotMessage("Dossier #$id : action enregistrée (état $state), mais la carte n'a pas pu être actualisée."))
+            return event.reply.send(BotMessage("Cette carte de dossier n'est plus disponible."))
         }
-        val preserved = current.text.lineSequence().filterNot { it.startsWith("État :") || it.startsWith("Pris en charge par :") }.joinToString("\n")
+        val updated = store.setState(id, state, event.user.id, context.timer.now())
+        if (!updated) return event.reply.send(BotMessage("Ce dossier est déjà pris en charge ou fermé."))
+        val preserved = current.text.lineSequence().filterNot { it.startsWith("État :") || it.startsWith("Clôturé par :") }.joinToString("\n")
         val closed = state == "resolu" || state == "sans-suite"
+        val labels = mapOf("pris" to "Pris en charge", "resolu" to "Résolu", "sans-suite" to "Sans suite")
+        val assignment = if (state == "pris") "Pris en charge par : ${event.user.name}"
+            else current.text.lineSequence().firstOrNull { it.startsWith("Pris en charge par :") } ?: "Pris en charge par : aucun membre"
+        val closing = if (closed) "\nClôturé par : ${event.user.name}" else ""
         context.server.edit(event.channelId, event.messageId, BotMessage(
-            "$preserved\nÉtat : $state\nPris en charge par : ${event.user.name}",
+            "$preserved\nÉtat : ${labels.getValue(state)}\n$assignment$closing",
             buttons = if (closed) listOf(
                 ButtonSpec(actionId(id, "claim"), "Prendre en charge", disabled = true),
                 ButtonSpec(actionId(id, "resolved"), "Résolu", disabled = true),
