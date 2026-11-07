@@ -191,7 +191,12 @@ data class ServerSnapshot(
 )
 
 /** [color] : `#rrggbb` en minuscules, ou `null` sans couleur. */
-data class ExistingRole(val id: String, val name: String, val color: String?)
+data class ExistingRole(
+    val id: String,
+    val name: String,
+    val color: String?,
+    val permissions: Set<ManagedRolePermission> = emptySet(),
+)
 
 data class ExistingCategory(val id: String, val name: String)
 
@@ -203,7 +208,13 @@ data class ExistingChannel(
     val topic: String?,
 )
 
-data class RoleSpec(val name: String, val color: String?, val hoisted: Boolean, val mentionable: Boolean)
+data class RoleSpec(
+    val name: String,
+    val color: String?,
+    val hoisted: Boolean,
+    val mentionable: Boolean,
+    val permissions: Set<ManagedRolePermission> = emptySet(),
+)
 
 /** [viewers] : les identifiants Discord des rôles qui voient la catégorie ; `null`, tout le monde. */
 data class CategorySpec(val name: String, val viewers: Set<String>?)

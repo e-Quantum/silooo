@@ -139,12 +139,14 @@ class FakeDiscordServer(
         return index
     }
 
-    override suspend fun snapshot() = ServerSnapshot(roles.toList(), categories.toList(), channels.toList())
+    override suspend fun snapshot() = ServerSnapshot(
+        roles.map { it.copy(permissions = roleSpecs[it.id]?.permissions.orEmpty()) }, categories.toList(), channels.toList(),
+    )
 
     override suspend fun createRole(role: RoleSpec): String {
         refuse(role.name)
         val id = newId()
-        roles += ExistingRole(id, role.name, role.color)
+        roles += ExistingRole(id, role.name, role.color, role.permissions)
         roleSpecs[id] = role
         return id
     }
@@ -152,7 +154,7 @@ class FakeDiscordServer(
     override suspend fun updateRole(id: String, role: RoleSpec) {
         val index = roles.indexOfFirst { it.id == id }
         check(index >= 0) { "le rôle $id n'existe pas" }
-        roles[index] = ExistingRole(id, role.name, role.color)
+        roles[index] = ExistingRole(id, role.name, role.color, role.permissions)
         roleSpecs[id] = role
     }
 
