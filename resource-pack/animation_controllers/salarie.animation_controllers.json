@@ -1,0 +1,148 @@
+{
+  "format_version": "1.10.0",
+  "animation_controllers": {
+    "controller.animation.silooo_salarie.geste": {
+      "initial_state": "inactif",
+      "states": {
+        "inactif": {
+          "animations": [
+            "inactif"
+          ],
+          "transitions": [
+            {
+              "marche": "query.property('silooo:geste') == 'marche'"
+            },
+            {
+              "piocher": "query.property('silooo:geste') == 'piocher'"
+            },
+            {
+              "pelleter": "query.property('silooo:geste') == 'pelleter'"
+            },
+            {
+              "porter": "query.property('silooo:geste') == 'porter'"
+            },
+            {
+              "saluer": "query.property('silooo:geste') == 'saluer'"
+            }
+          ],
+          "blend_transition": 0.2
+        },
+        "marche": {
+          "animations": [
+            "marche"
+          ],
+          "transitions": [
+            {
+              "inactif": "query.property('silooo:geste') == 'inactif'"
+            },
+            {
+              "piocher": "query.property('silooo:geste') == 'piocher'"
+            },
+            {
+              "pelleter": "query.property('silooo:geste') == 'pelleter'"
+            },
+            {
+              "porter": "query.property('silooo:geste') == 'porter'"
+            },
+            {
+              "saluer": "query.property('silooo:geste') == 'saluer'"
+            }
+          ],
+          "blend_transition": 0.2
+        },
+        "piocher": {
+          "animations": [
+            "piocher"
+          ],
+          "transitions": [
+            {
+              "inactif": "query.property('silooo:geste') == 'inactif'"
+            },
+            {
+              "marche": "query.property('silooo:geste') == 'marche'"
+            },
+            {
+              "pelleter": "query.property('silooo:geste') == 'pelleter'"
+            },
+            {
+              "porter": "query.property('silooo:geste') == 'porter'"
+            },
+            {
+              "saluer": "query.property('silooo:geste') == 'saluer'"
+            }
+          ],
+          "blend_transition": 0.2
+        },
+        "pelleter": {
+          "animations": [
+            "pelleter"
+          ],
+          "transitions": [
+            {
+              "inactif": "query.property('silooo:geste') == 'inactif'"
+            },
+            {
+              "marche": "query.property('silooo:geste') == 'marche'"
+            },
+            {
+              "piocher": "query.property('silooo:geste') == 'piocher'"
+            },
+            {
+              "porter": "query.property('silooo:geste') == 'porter'"
+            },
+            {
+              "saluer": "query.property('silooo:geste') == 'saluer'"
+            }
+          ],
+          "blend_transition": 0.2
+        },
+        "porter": {
+          "animations": [
+            "porter"
+          ],
+          "transitions": [
+            {
+              "inactif": "query.property('silooo:geste') == 'inactif'"
+            },
+            {
+              "marche": "query.property('silooo:geste') == 'marche'"
+            },
+            {
+              "piocher": "query.property('silooo:geste') == 'piocher'"
+            },
+            {
+              "pelleter": "query.property('silooo:geste') == 'pelleter'"
+            },
+            {
+              "saluer": "query.property('silooo:geste') == 'saluer'"
+            }
+          ],
+          "blend_transition": 0.0
+        },
+        "saluer": {
+          "animations": [
+            "saluer"
+          ],
+          "transitions": [
+            {
+              "inactif": "query.all_animations_finished && query.property('silooo:geste') == 'inactif'"
+            },
+            {
+              "marche": "query.all_animations_finished && query.property('silooo:geste') == 'marche'"
+            },
+            {
+              "piocher": "query.all_animations_finished && query.property('silooo:geste') == 'piocher'"
+            },
+            {
+              "pelleter": "query.all_animations_finished && query.property('silooo:geste') == 'pelleter'"
+            },
+            {
+              "porter": "query.all_animations_finished && query.property('silooo:geste') == 'porter'"
+            }
+          ],
+          "blend_transition": 0.2
+        }
+      }
+    }
+  }
+}

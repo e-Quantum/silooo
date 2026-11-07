@@ -1,0 +1,56 @@
+{
+  "format_version": "1.10.0",
+  "particle_effect": {
+    "description": {
+      "identifier": "silooo:eclats_pierre",
+      "basic_render_parameters": {
+        "material": "particles_alpha",
+        "texture": "textures/particle/silooo_particules"
+      }
+    },
+    "components": {
+      "minecraft:emitter_rate_instant": {
+        "num_particles": "variable.gros > 0 ? 8 : 4"
+      },
+      "minecraft:emitter_lifetime_once": {
+        "active_time": 0.1
+      },
+      "minecraft:emitter_shape_point": {
+        "offset": [
+          0,
+          0,
+          0
+        ]
+      },
+      "minecraft:particle_lifetime_expression": {
+        "max_lifetime": "0.45 + variable.particle_random_3 * 0.15"
+      },
+      "minecraft:particle_motion_parametric": {
+        "relative_position": [
+          "math.floor((math.cos(variable.particle_random_1 * 360) * variable.particle_age * (1.2 + variable.particle_random_2)) * 16) / 16",
+          "math.floor((variable.particle_age * (2.6 + variable.particle_random_2) - 6 * variable.particle_age * variable.particle_age) * 16) / 16",
+          "math.floor((math.sin(variable.particle_random_1 * 360) * variable.particle_age * (1.2 + variable.particle_random_2)) * 16) / 16"
+        ]
+      },
+      "minecraft:particle_appearance_billboard": {
+        "size": [
+          "0.25",
+          "0.25"
+        ],
+        "facing_camera_mode": "lookat_xyz",
+        "uv": {
+          "texture_width": 64,
+          "texture_height": 64,
+          "uv": [
+            "math.floor(variable.particle_random_4 * 4) * 8",
+            16
+          ],
+          "uv_size": [
+            8,
+            8
+          ]
+        }
+      }
+    }
+  }
+}
