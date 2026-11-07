@@ -205,7 +205,9 @@ class FindingSqlTest {
         val book = bookOf(KR)
         // Un même encaissement inscrit les produits l'un après l'autre : l'instant ne les départage pas, seul l'ensemble est sûr.
         assertEquals(starterProducts.sorted(), book.found.map { it.id }.sorted())
-        assertEquals(book.found.map { it.foundAt }.sorted(), book.found.map { it.foundAt }, "du plus ancien au plus récent")
+        // Une fraction absente (…20Z) précède .003Z dans le temps, mais pas dans l'ordre des chaînes.
+        val instants = book.found.map { Instant.parse(it.foundAt) }
+        assertEquals(instants.sorted(), instants, "du plus ancien au plus récent")
         book.found.forEach { assertTrue(runCatching { Instant.parse(it.foundAt) }.isSuccess, "foundAt est un instant ISO : ${it.foundAt}") }
     }
 
@@ -320,11 +322,13 @@ class FindingSqlTest {
         val findings = JdbcFindingStore()
         val early = LocalDateTime.of(2026, 11, 5, 10, 0, 0)
         val late = LocalDateTime.of(2026, 11, 5, 11, 0, 0)
+        val fractional = early.plusNanos(3_000_000)
         for ((xuid, resource, at) in listOf(
             Triple(KR, "b-ressource", early),
             Triple(KR, "a-ressource", late),
             Triple(KR, "c-ressource", early),
-            Triple(OTHER, "d-ressource", early),
+            Triple(KR, "d-ressource", fractional),
+            Triple(OTHER, "e-ressource", early),
         )) {
             MariaDbSupport.update("INSERT INTO player_findings (xuid, finding_id, found_at) VALUES (?, ?, ?)", xuid.text, resource, at)
         }
@@ -332,7 +336,8 @@ class FindingSqlTest {
         assertTrue(runBlocking { database.transaction { findings.playerExists(it, KR) } })
         assertFalse(runBlocking { database.transaction { findings.playerExists(it, Xuid.parse("2535428000000099")!!) } })
         val book = runBlocking { database.transaction { findings.load(it, KR) } }
-        assertEquals(listOf("b-ressource", "c-ressource", "a-ressource"), book.map { it.resourceId }, "le plus ancien d'abord, à égalité par identifiant")
+        assertEquals(listOf("b-ressource", "c-ressource", "d-ressource", "a-ressource"), book.map { it.resourceId }, "le plus ancien d'abord, à égalité par identifiant")
         assertEquals(early.toInstant(ZoneOffset.UTC), book.first().foundAt)
+        assertEquals(listOf(early, early, fractional, late).map { it.toInstant(ZoneOffset.UTC) }, book.map { it.foundAt })
     }
 }
