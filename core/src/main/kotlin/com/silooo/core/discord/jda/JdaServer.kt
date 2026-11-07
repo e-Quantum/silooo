@@ -144,6 +144,14 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         action.submit().await()
     }
 
+    override suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).target(actorId, targetId, allowedRoleIds)
+
+    override suspend fun timeoutMember(actorId: String, targetId: String, until: java.time.Instant?, reason: String, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).timeout(actorId, targetId, until, reason, allowedRoleIds)
+
+    override suspend fun canReadChannel(channelId: String, userId: String): Boolean = JdaStaffActions(guild).canRead(channelId, userId)
+
     override suspend fun rulesChannelId(): String? = guild.rulesChannel?.id
 
     override suspend fun snapshot(): ServerSnapshot = ServerSnapshot(
@@ -605,8 +613,8 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
     }
 }
 
-internal fun mergedRolePermissions(existingRaw: Long, required: Set<ManagedRolePermission>): Set<Permission> =
-    Permission.getPermissions(existingRaw).toMutableSet().apply { addAll(required.map(::nativePermission)) }
+internal fun mergedRolePermissions(existingRaw: Long, required: Set<ManagedRolePermission>): Long =
+    required.fold(existingRaw) { bits, permission -> bits or nativePermission(permission).rawValue }
 
 private fun managedRolePermissions(raw: Long): Set<ManagedRolePermission> = Permission.getPermissions(raw).mapNotNull { permission ->
     when (permission) {

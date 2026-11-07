@@ -9,10 +9,10 @@ import org.junit.jupiter.api.Test
 class PlanPermissionOverridesTest {
     @Test
     fun `role updates add only required native permissions and preserve existing ones`() {
-        val existing = Permission.CREATE_INSTANT_INVITE.rawValue
+        val existing = Permission.CREATE_INSTANT_INVITE.rawValue or (1L shl 60)
         val result = mergedRolePermissions(existing, setOf(ManagedRolePermission.MODERATE_MEMBERS))
-        assertEquals(Permission.getPermissions(existing) + Permission.MODERATE_MEMBERS, result)
-        assertFalse(Permission.ADMINISTRATOR in result)
+        assertEquals(existing or Permission.MODERATE_MEMBERS.rawValue, result)
+        assertFalse(result and Permission.ADMINISTRATOR.rawValue != 0L)
     }
 
     @Test

@@ -17,6 +17,17 @@ interface DiscordServer {
     /** Place les seuls rôles de jeu, du moins au plus élevé, au-dessus de la couleur d'accueil. */
     suspend fun positionGameRoles(orderedRoleIds: List<String>, aboveRoleId: String) {}
 
+    /** Lecture fraîche de la cible et de la hiérarchie, pour les seules actions de modération. */
+    suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>): ModerationTarget? = null
+
+    /** Dernière vérification des droits avant l'action native. null retire l'exclusion temporaire. */
+    suspend fun timeoutMember(actorId: String, targetId: String, until: Instant?, reason: String, allowedRoleIds: Set<String>) {
+        throw DiscordRefusal("La modération des membres n'est pas disponible.")
+    }
+
+    /** Droits effectifs du membre, et pas seulement ceux du bot, pour lire un message signalé. */
+    suspend fun canReadChannel(channelId: String, userId: String): Boolean = false
+
     /** Les rôles, catégories et salons tels qu'ils sont maintenant. */
     suspend fun snapshot(): ServerSnapshot
 

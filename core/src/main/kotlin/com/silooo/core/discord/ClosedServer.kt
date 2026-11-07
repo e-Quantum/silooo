@@ -35,6 +35,14 @@ class ClosedServer(
         return inner.direct(userId, message)
     }
 
+    override suspend fun timeoutMember(actorId: String, targetId: String, until: java.time.Instant?, reason: String, allowedRoleIds: Set<String>) {
+        if (inner.rolesOf(targetId).none { it in staffRoleIds }) {
+            heldCount.incrementAndGet()
+            throw DiscordRefusal("Le serveur est encore fermé à ces actions.")
+        }
+        inner.timeoutMember(actorId, targetId, until, reason, allowedRoleIds)
+    }
+
     override suspend fun post(channelId: String, message: BotMessage): String = inner.post(channelId, onlyStaffRoles(message))
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {
