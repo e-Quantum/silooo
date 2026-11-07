@@ -3,20 +3,35 @@
   "minecraft:client_entity": {
     "description": {
       "identifier": "silooo:oooscar",
-      "materials": { "default": "entity_alphatest" },
-      "textures": { "default": "textures/entity/oooscar" },
-      "geometry": { "default": "geometry.silooo_oooscar" },
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/oooscar"
+      },
+      "geometry": {
+        "default": "geometry.silooo_oooscar"
+      },
       "animations": {
         "balancement": "animation.silooo_oooscar.balancement",
-        "accueil": "animation.silooo_oooscar.accueil"
+        "accueil": "animation.silooo_oooscar.accueil",
+        "joie": "animation.silooo_oooscar.joie",
+        "oups": "animation.silooo_oooscar.oups",
+        "panique": "animation.silooo_oooscar.panique",
+        "fier": "animation.silooo_oooscar.fier",
+        "dodo": "animation.silooo_oooscar.dodo"
       },
       "scripts": {
         "animate": [
           "balancement",
-          { "accueil": "query.life_time < 2.0" }
+          {
+            "accueil": "query.life_time < 2.0"
+          }
         ]
       },
-      "render_controllers": ["controller.render.silooo_oooscar"]
+      "render_controllers": [
+        "controller.render.silooo_oooscar"
+      ]
     }
   }
 }
