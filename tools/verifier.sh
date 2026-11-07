@@ -122,6 +122,18 @@ etape_resource_pack() {
   node tools/verifier_pack.mjs
 }
 
+# Les sons sont refaits par synthèse : on compare l'empreinte des échantillons, pas les octets Ogg (docs/carriere.md).
+etape_sons() {
+  trouver_python || { echo "Python introuvable : essayé python3, python, uv run python."; return 1; }
+  "${PYTHON[@]}" -I tools/generer_sons.py --verifier --catalogue tools/generer_sons.catalogue.json
+}
+
+# Les structures de la Carrière : refaites par tools/carriere/generer.py, identifiants et états de Bedrock 1.26.60.
+etape_structures() {
+  trouver_python || { echo "Python introuvable : essayé python3, python, uv run python."; return 1; }
+  "${PYTHON[@]}" -I tools/carriere/structure.py --verifier addon/pack/structures/silooo
+}
+
 # Les pages du site rendues par les tests Gradle (core/build/site-rendu), ouvertes dans Chromium par Playwright :
 # débordement, erreurs de console, requêtes en échec, images sans alt. Sans Chromium sur un poste, l'étape est ignorée
 # (la sonde répond 3) ; en CI, le workflow installe Chromium et son absence est un échec.
@@ -166,6 +178,8 @@ else
 fi
 if [ -d resource-pack ]; then
   etape "Pack de ressources : JSON, copies de design/, Oooscar" etape_resource_pack
+  etape "Pack de ressources : sons refaits par tools/generer_sons.py" etape_sons
+  etape "Structures de la Carrière refaites par tools/carriere/" etape_structures
 else
   ignorer "Pack de ressources : JSON, copies de design/, Oooscar" "pas de resource-pack/"
 fi

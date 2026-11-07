@@ -481,6 +481,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- La Carrière de l'époque 1 (7 novembre, branche `claude/carriere-epoque1`, [carriere.md](carriere.md)) : la structure
+  en ruine et en marche, les 5 blocs Silooo et leurs textures (`design/blocs/`), les trois skins de salarié
+  (`design/skins/`), les gestes, les réactions d'Oooscar (`joie`, `oups`, `panique`, `fier`, `dodo`), les machines,
+  les particules, les 27 sons (`resource-pack/sounds/`), les six noms affichés de `resource-pack/texts/fr_FR.lang`
+  (section « Carrière ») et les valeurs proposées pour `definitions/iles.json` (plans de la cinématique, apparition,
+  anneau). Rien n'est branché dans `addon/src/`, rien n'a été vu dans un client Bedrock.
+
 - Reprise Discord du 6 novembre : les nouveaux textes de règles, rejoindre, bienvenue et tuto avant ouverture
   ainsi que le rapport hebdomadaire restent à valider. La migration V12 est réservée au rapport du Discord ;
   toute nouvelle migration du jeu prend V13 ou la suivante libre. Voir [discord-passation.md](discord-passation.md).
@@ -1145,3 +1152,12 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   bilan final est poussé et vert. Un fichier `bedrock-server-1.26.62.1.zip` non suivi est apparu à la racine du
   dépôt après le bilan : jamais à ajouter au dépôt (ligne de Kr). Fin de la session de direction : aucune session
   lancée, aucun worktree, `main` = `origin/main`. Vérifier : `gh run list --branch main --limit 2`.
+
+### Atelier Carrière, 7 novembre 2026
+
+Nouvelle Carrière de l'époque 1 en `.mcstructure` (`tools/carriere/`, [carriere.md](carriere.md)), avec blocs Silooo,
+salariés, machines, particules et sons, faite par une session chef et trois sessions (textures et skins, animations,
+sons) sur le VPS. Contrôles ajoutés à `tools/verifier.sh` (sons, structures) et à `verifier_pack.mjs` (copies de
+`design/blocs/`, contrôleurs d'animation, deux textures vanilla nommées). Structures chargées sur un BDS 1.26.62.1
+d'essai : huit blocs vérifiés. Le branchement dans l'add-on reste à faire avec la 0.1.4 de Codex, restée sur le PC
+de Kr. Tout est **à valider par Kr**.
