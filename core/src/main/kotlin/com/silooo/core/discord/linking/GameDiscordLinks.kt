@@ -31,7 +31,8 @@ data class GameLinkResult(val status: GameLinkStatus, val link: VerifiedDiscordL
 
 /**
  * Preuve D3 : code affiché en jeu, consommé par le Discord authentifié. Les identités de connexion du site sont
- * seulement lues pour refuser leurs conflits. Aucune admission, récompense ou qualité de pionnier n'est accordée ici.
+ * seulement lues pour refuser leurs conflits. La saisie du code n'accorde ni admission, ni récompense, ni qualité de pionnier :
+ * seule la salle d'attente inscrit pionnier, avant l'émission ([enrollLobbyVisitor]).
  * Toutes les mutations D3 prennent le même petit verrou SQL, partagé entre instances du service.
  */
 class GameDiscordLinks(
@@ -63,6 +64,52 @@ class GameDiscordLinks(
             }
         }
         error("Aucun code de liaison libre après $MAX_DRAWS tirages")
+    }
+
+    /**
+     * La salle d'attente, avant l'ouverture : le visiteur n'est pas encore connu du service. Sa ligne `players` est créée sans
+     * entreprise (`join` la créera à sa première vraie partie ; une ligne connue garde ses dates, seul le gamertag suit Xbox),
+     * son inscription `site_registrations` est posée ou passée pionnier ([admitted] : la règle d'admission au moment de
+     * l'inscription), puis le code est émis comme par [issue]. Même verrou en tête que [redeem], donc le même ordre de verrous.
+     */
+    fun enrollLobbyVisitor(connection: Connection, actor: Xuid, gamertag: String, admitted: Boolean): GameLinkCode {
+        lock(connection)
+        val known = player(connection, actor)
+        if (known == null) {
+            connection.prepareStatement("insert into players (xuid, floodgate_uuid, gamertag) values (?, ?, ?)").use {
+                it.setXuid(1, actor)
+                it.setString(2, actor.floodgateUuid.toString())
+                it.setString(3, gamertag)
+                it.executeUpdate()
+            }
+        } else if (known != gamertag) {
+            connection.prepareStatement("update players set gamertag = ? where xuid = ?").use {
+                it.setString(1, gamertag)
+                it.setXuid(2, actor)
+                it.executeUpdate()
+            }
+        }
+        val key = SiteRegistrations.key(gamertag)
+        val existing = registration(connection, "gamertag_key = ?", key)
+        if (existing == null) {
+            connection.prepareStatement(
+                "insert into site_registrations (gamertag_key, gamertag, pioneer, admitted_at) values (?, ?, true, if(?, utc_timestamp(3), null))",
+            ).use {
+                it.setString(1, key)
+                it.setString(2, gamertag)
+                it.setBoolean(3, admitted)
+                it.executeUpdate()
+            }
+        } else {
+            connection.prepareStatement(
+                "update site_registrations set pioneer = true, admitted_at = coalesce(admitted_at, if(?, utc_timestamp(3), null)) where gamertag_key = ?",
+            ).use {
+                it.setBoolean(1, admitted)
+                it.setString(2, key)
+                it.executeUpdate()
+            }
+        }
+        return issue(connection, actor)
     }
 
     /** Les refus gardent le code, mais comptent une saisie ; la consommation et les deux liaisons sont atomiques. */

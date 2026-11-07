@@ -5,9 +5,11 @@
 // Appels bêta de ce fichier :
 //   @minecraft/server-net   : http.request, HttpRequest (uri, method, timeout, headers, body),
 //                             HttpHeader, HttpRequestMethod (Get, Post, Put, Patch, Delete), HttpResponse (status, body)
-//   @minecraft/server-admin : secrets.get, variables.get, SecretString (type seulement)
+//   @minecraft/server-admin : secrets.get, variables.get, SecretString (type seulement),
+//                             dedicatedServer.allowList.contains, transferPlayer (salle d'attente seulement)
 
-import { secrets, variables, type SecretString } from "@minecraft/server-admin";
+import type { Player } from "@minecraft/server";
+import { dedicatedServer, secrets, transferPlayer, variables, type SecretString } from "@minecraft/server-admin";
 import { http, HttpHeader, HttpRequest, HttpRequestMethod } from "@minecraft/server-net";
 import { DEFAULT_SERVER_ID, SETTING_NAMES } from "./config";
 import type { Header, HttpMethod, OpaqueSecret, Transport, TransportResponse } from "./http";
@@ -98,4 +100,37 @@ export function readSettings(): SettingsResult {
     return { ok: false, problems };
   }
   return { ok: true, settings: { coreUrl, serverId, apiKey } };
+}
+
+// ---------------------------------------------------------------- la salle d'attente : les testeurs partent au monde de test
+
+/** Où envoyer les testeurs (variables transfert_hote et transfert_port, posées par start.sh en mode attente). */
+export interface Transfert {
+  readonly hote: string;
+  readonly port: number;
+}
+
+/** Le monde de test, ou undefined si le déploiement ne l'a pas donné : les testeurs restent alors dans la salle d'attente. */
+export function lireTransfert(): Transfert | undefined {
+  try {
+    const hote = variables.get("transfert_hote");
+    const port = Number(variables.get("transfert_port"));
+    if (typeof hote !== "string" || hote.trim() === "" || !Number.isInteger(port) || port < 1 || port > 65535) return undefined;
+    return { hote: hote.trim(), port };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Le joueur est sur la liste blanche de ce serveur (allowlist.json), même quand la liste n'est pas exigée. */
+export function estTesteur(player: Player): boolean {
+  try {
+    return dedicatedServer?.allowList.contains(player) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+export function transferer(player: Player, cible: Transfert): void {
+  transferPlayer(player, { hostname: cible.hote, port: cible.port });
 }

@@ -164,6 +164,7 @@ export function observeApi(api: CoreApi, link: LinkState): CoreApi {
   }
   return {
     issueDiscordLinkCode: (action) => watch(api.issueDiscordLinkCode(action)),
+    issueLobbyLinkCode: (action, gamertag) => watch(api.issueLobbyLinkCode(action, gamertag)),
     heartbeat: (serverId, onlineXuids) => watch(api.heartbeat(serverId, onlineXuids)),
     join: (xuid, gamertag) => watch(api.join(xuid, gamertag)),
     leave: (xuid) => watch(api.leave(xuid)),

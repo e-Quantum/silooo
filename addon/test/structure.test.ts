@@ -54,8 +54,8 @@ describe("imports de src/", () => {
     }
   });
 
-  it("seuls main.ts, beta.ts, monde/bedrock.ts et ui/formulaires.ts importent @minecraft/* ; les tests n'ont donc jamais à les charger", () => {
-    const autorises = new Set(["main.ts", "beta.ts", "monde/bedrock.ts", "ui/formulaires.ts"]);
+  it("seuls les deux points d'entrée (main.ts, attente/main.ts), beta.ts, monde/bedrock.ts et ui/formulaires.ts importent @minecraft/* ; les tests n'ont donc jamais à les charger", () => {
+    const autorises = new Set(["main.ts", "attente/main.ts", "beta.ts", "monde/bedrock.ts", "ui/formulaires.ts"]);
     for (const { nom, texte } of fichiers) {
       const minecraft = importsDe(texte).filter((i) => i.startsWith("@minecraft/"));
       if (!autorises.has(nom)) assert.deepEqual(minecraft, [], `${nom} importe @minecraft/*`);
@@ -93,10 +93,10 @@ describe("imports de src/", () => {
     }
   });
 
-  it("hors main.ts, rien n'importe ui/formulaires.ts autrement qu'en « import type »", () => {
+  it("hors des deux points d'entrée, rien n'importe ui/formulaires.ts autrement qu'en « import type »", () => {
     let vus = 0;
     for (const { nom, texte } of fichiers) {
-      if (nom === "main.ts") continue;
+      if (nom === "main.ts" || nom === "attente/main.ts") continue;
       for (const importe of importsTypes(texte).filter((i) => /(^|\/)formulaires$/.test(i.nom))) {
         vus += 1;
         assert.ok(importe.type, `${nom} charge formulaires.ts, donc @minecraft/server-ui`);
@@ -204,6 +204,29 @@ describe("manifest.json", () => {
   it("le nom et la description sont non vides", () => {
     assert.ok(manifeste.header.name.length > 0);
     assert.ok(manifeste.header.description.length > 0);
+  });
+});
+
+describe("attente.manifest.json", () => {
+  const lire = (fichier: string) => JSON.parse(readFileSync(join(racine, fichier), "utf8")) as {
+    header: { uuid: string; min_engine_version: number[] };
+    modules: Array<{ type: string; uuid: string; entry: string }>;
+    dependencies: Array<{ module_name: string; version: string }>;
+  };
+  const attente = lire("attente.manifest.json");
+  const jeu = lire("manifest.json");
+
+  it("est un pack de script à lui, avec ses propres uuid", () => {
+    assert.equal(attente.modules.length, 1);
+    assert.equal(attente.modules[0]?.type, "script");
+    assert.equal(attente.modules[0]?.entry, "scripts/main.js");
+    const uuids = [attente.header.uuid, attente.modules[0]?.uuid, jeu.header.uuid, jeu.modules[0]?.uuid];
+    assert.equal(new Set(uuids).size, 4);
+  });
+
+  it("dépend des mêmes modules que le pack du jeu, aux mêmes versions", () => {
+    assert.deepEqual(attente.dependencies, jeu.dependencies);
+    assert.deepEqual(attente.header.min_engine_version, jeu.header.min_engine_version);
   });
 });
 

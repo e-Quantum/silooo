@@ -29,7 +29,9 @@ RUN set -eu; \
     npm ci --no-audit --no-fund; \
     npm run build; \
     test -f dist/pack/manifest.json; \
-    test -f dist/pack/scripts/main.js
+    test -f dist/pack/scripts/main.js; \
+    test -f dist/attente/manifest.json; \
+    test -f dist/attente/scripts/main.js
 
 # --- Étape 2 : l'image d'exécution, sur Ubuntu (la seule distribution Linux prise en charge par BDS) ---------------
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
@@ -67,6 +69,10 @@ RUN set -eux; \
 
 # Le pack de comportement construit à l'étape 1. start.sh le copie dans behavior_packs/silooo de BDS à chaque démarrage.
 COPY --from=addon --chown=10001:10001 /src/addon/dist/pack /opt/silooo/pack/
+# Le pack de la salle d'attente et son monde vide (level.dat de tools/monde_attente.py) : start.sh ne s'en sert qu'en
+# mode attente (SILOOO_MODE=attente, service silooo-attente du compose).
+COPY --from=addon --chown=10001:10001 /src/addon/dist/attente /opt/silooo/pack-attente/
+COPY --chown=10001:10001 deploy/bds/attente/level.dat /opt/silooo/attente/level.dat
 # Le pack de ressources du dépôt (resource-pack/), tel quel : ce sont des fichiers, pas une construction. start.sh le copie
 # dans resource_packs/silooo de BDS à chaque démarrage et le liste dans world_resource_packs.json.
 COPY --chown=10001:10001 resource-pack /opt/silooo/resource-pack/

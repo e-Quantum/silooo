@@ -203,6 +203,7 @@ export const PATHS = {
   join: "/v1/session/join",
   leave: "/v1/session/leave",
   discordLinkCodes: "/v1/discord/link-codes",
+  lobbyLinkCodes: "/v1/lobby/link-codes",
 } as const;
 
 export interface DiscordLinkCode {
@@ -212,6 +213,13 @@ export interface DiscordLinkCode {
 
 export function discordLinkCodeBody(action: ActionBase): ActionBase {
   return { requestId: action.requestId, actor: action.actor };
+}
+
+/** Corps de issueLobbyLinkCode : l'intention, et le gamertag que BDS tient de Xbox (1 à 32 caractères, contrat). */
+export function lobbyLinkCodeBody(action: ActionBase, gamertag: string): ActionBase & { gamertag: string } {
+  const trimmed = gamertag.trim();
+  if (trimmed.length === 0 || [...trimmed].length > 32) throw new Error("gamertag invalide");
+  return { requestId: action.requestId, actor: action.actor, gamertag: trimmed };
 }
 
 /** Lit le code à six caractères et son expiration, tous deux fournis par le service. */

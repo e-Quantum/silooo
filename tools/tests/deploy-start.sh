@@ -387,6 +387,40 @@ else
   if [ "$CODE" -eq 65 ]; then ok "manifeste de ressources dont l'uuid n'en est pas un : code 65"; else ko "uuid de ressources invalide : code 65 attendu (code $CODE)" "$SORTIE"; fi
 fi
 
+# ------------------------------------------------------------------ la salle d'attente (SILOOO_MODE=attente)
+echo "start.sh : la salle d'attente"
+ATTENTE_SOURCE="$TMP/attente-source"
+poser_pack "$TMP/attente-pack-tmp"
+mv "$TMP/attente-pack-tmp/behavior_packs/silooo" "$ATTENTE_SOURCE"
+printf 'level.dat factice\n' >"$TMP/attente-level.dat"
+A="$TMP/attente-bds"
+lancer "$A" SILOOO_MODE=attente SILOOO_API_KEY=cle-de-test SILOOO_PACK_DIR="$ATTENTE_SOURCE" SILOOO_ATTENTE_LEVEL_DAT="$TMP/attente-level.dat" \
+  BDS_ALLOW_LIST=true BDS_TRANSFERT_HOTE=203.0.113.10 BDS_TRANSFERT_PORT=19207 SILOOO_RESOURCE_PACK_DIR="$TMP/ne-doit-pas-servir"
+if [ "$CODE" -eq 0 ]; then ok "mode attente : rendu sans erreur"; else ko "mode attente : code 0 attendu (code $CODE)" "$SORTIE"; fi
+if [ "$(propriete "$A" allow-list)" = false ]; then ok "mode attente : liste blanche jamais exigée, même avec BDS_ALLOW_LIST=true"; else ko "mode attente : allow-list=false attendu" "$(propriete "$A" allow-list)"; fi
+if [ "$(propriete "$A" level-name)" = attente ]; then ok "mode attente : monde « attente » par défaut"; else ko "mode attente : level-name attente attendu" "$(propriete "$A" level-name)"; fi
+if [ -f "$A/behavior_packs/silooo-attente/manifest.json" ] && [ ! -e "$A/behavior_packs/silooo" ]; then
+  ok "mode attente : le pack est installé dans behavior_packs/silooo-attente, pas à la place du pack du jeu"
+else
+  ko "mode attente : behavior_packs/silooo-attente attendu seul" "$(ls "$A/behavior_packs" 2>&1)"
+fi
+if cmp -s "$TMP/attente-level.dat" "$A/worlds/attente/level.dat"; then ok "mode attente : le monde est semé avec le level.dat vide"; else ko "mode attente : level.dat semé attendu" "$(ls -la "$A/worlds/attente" 2>&1)"; fi
+if [ "$(lire_json "$A/config/$UUID_MODULE/variables.json" 'd.transfert_hote + ":" + d.transfert_port')" = "203.0.113.10:19207" ]; then
+  ok "mode attente : l'adresse du monde de test va dans variables.json"
+else
+  ko "mode attente : transfert_hote et transfert_port attendus" "$(cat "$A/config/$UUID_MODULE/variables.json" 2>&1)"
+fi
+if [ ! -e "$A/resource_packs" ] && [ ! -e "$A/worlds/attente/world_resource_packs.json" ]; then ok "mode attente : aucun pack de ressources"; else ko "mode attente : pas de pack de ressources attendu" "$(ls "$A" 2>&1)"; fi
+printf 'monde existant\n' >"$A/worlds/attente/level.dat"
+lancer "$A" SILOOO_MODE=attente SILOOO_API_KEY=cle-de-test SILOOO_PACK_DIR="$ATTENTE_SOURCE" SILOOO_ATTENTE_LEVEL_DAT="$TMP/attente-level.dat"
+if [ "$CODE" -eq 0 ] && grep -q "monde existant" "$A/worlds/attente/level.dat"; then ok "mode attente : un monde existant n'est jamais écrasé"; else ko "mode attente : le monde existant devait rester" "$SORTIE"; fi
+if ! grep -q transfert "$A/config/$UUID_MODULE/variables.json"; then ok "mode attente : sans BDS_TRANSFERT_*, pas de transfert"; else ko "mode attente : transfert inattendu" "$(cat "$A/config/$UUID_MODULE/variables.json")"; fi
+lancer "$TMP/attente-mauvais-mode" SILOOO_MODE=lobby SILOOO_API_KEY=cle-de-test
+if [ "$CODE" -eq 78 ]; then ok "SILOOO_MODE inconnu : code 78"; else ko "SILOOO_MODE inconnu : code 78 attendu (code $CODE)" "$SORTIE"; fi
+lancer "$TMP/attente-port" SILOOO_MODE=attente SILOOO_API_KEY=cle-de-test SILOOO_PACK_DIR="$ATTENTE_SOURCE" SILOOO_ATTENTE_LEVEL_DAT="$TMP/attente-level.dat" \
+  BDS_TRANSFERT_HOTE=203.0.113.10 BDS_TRANSFERT_PORT=99999
+if [ "$CODE" -eq 78 ]; then ok "mode attente : port de transfert hors bornes, code 78"; else ko "mode attente : code 78 attendu (code $CODE)" "$SORTIE"; fi
+
 # ------------------------------------------------------------------ le zip de BDS
 # BDS n'est pas dans l'image (décision 26) : Kr pose le zip dans le dossier monté sur /data/bds, ou start.sh tente un
 # téléchargement. Ici, un faux zip construit par le test (faire-zip.mjs), un faux curl, et des sommes écrites pour lui.

@@ -34,6 +34,13 @@
 # commande, et le script ne l'affiche ni ne la journalise.
 # Pas de « set -x » ici, jamais.
 #
+# Mode « attente » (SILOOO_MODE=attente, service silooo-attente du compose) : la salle d'attente des visiteurs avant
+# l'ouverture. Même image, même BDS, mais : son propre dossier de BDS (<version>-attente, BDS_INSTANCE), le pack de la
+# salle d'attente (/opt/silooo/pack-attente, installé dans behavior_packs/silooo-attente) sans pack de ressources, la
+# liste blanche jamais exigée (tout le monde entre), le monde « attente » semé une fois avec le level.dat vide de
+# l'image (/opt/silooo/attente/level.dat, tools/monde_attente.py), et, si BDS_TRANSFERT_HOTE et BDS_TRANSFERT_PORT sont
+# posés, l'adresse du monde de test où partent les joueurs de la liste blanche (variables.json).
+#
 # Codes de sortie : 64 option inconnue, 65 zip ou manifest.json inutilisable (somme fausse comprise), 66 zip de BDS
 # absent et non téléchargeable, 73 dossier de BDS non inscriptible ou fichier à la place d'un lien, 78 variable
 # manquante ou invalide.
@@ -57,8 +64,23 @@ BDS_RACINE="${BDS_RACINE:-/data/bds}"            # le dossier de Kr : le zip, pu
 DONNEES="${BDS_DONNEES:-/data}"                  # les volumes du monde (worlds/) et de la config (config/)
 SOMMES_SHA256="${BDS_SOMMES_SHA256:-$DIR_SCRIPT/bds.sha256}"
 SOMME_MD5="${BDS_SOMME_MD5:-$DIR_SCRIPT/bds.md5}"
-PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack}" # le pack construit par l'image, copié dans BDS à chaque démarrage
-RESSOURCES_SOURCE="${SILOOO_RESOURCE_PACK_DIR:-$DIR_SCRIPT/resource-pack}" # le pack de ressources de l'image, copié de même
+MODE="${SILOOO_MODE:-jeu}"                       # jeu (le serveur Silooo) ou attente (la salle d'attente, avant l'ouverture)
+case "$MODE" in
+  jeu)
+    PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack}" # le pack construit par l'image, copié dans BDS à chaque démarrage
+    RESSOURCES_SOURCE="${SILOOO_RESOURCE_PACK_DIR:-$DIR_SCRIPT/resource-pack}" # le pack de ressources de l'image, copié de même
+    PACK_NOM=silooo
+    INSTANCE="${BDS_INSTANCE:-}"
+    ;;
+  attente)
+    PACK_SOURCE="${SILOOO_PACK_DIR:-$DIR_SCRIPT/pack-attente}"
+    RESSOURCES_SOURCE="" # la salle d'attente n'a pas de pack de ressources : ni HUD ni Oooscar
+    PACK_NOM=silooo-attente
+    INSTANCE="${BDS_INSTANCE:-attente}"
+    MONDE_VIDE="${SILOOO_ATTENTE_LEVEL_DAT:-$DIR_SCRIPT/attente/level.dat}"
+    ;;
+  *) echec 78 "SILOOO_MODE vaut jeu ou attente" ;;
+esac
 # Posés par le Dockerfile (ENV) : la version de BDS que l'image attend, et l'identité honnête pour le téléchargement.
 BDS_VERSION="${BDS_VERSION:-}"
 BDS_USER_AGENT="${BDS_USER_AGENT:-silooo-bds/1.0 (+https://github.com/e-Quantum/silooo)}"
@@ -92,8 +114,10 @@ udp_local="${BDS_UDP_PORTS:-19143-19174}"       # plage UDP dans le conteneur
 udp_public="${BDS_UDP_PORTS_PUBLIES:-$udp_local}" # plage UDP publiée sur l'hôte, même taille
 ip_publique="${BDS_PUBLIC_IP:-}"
 max_joueurs="${BDS_MAX_PLAYERS:-20}"
-nom_monde="${BDS_LEVEL_NAME:-silooo}"
+if [ "$MODE" = jeu ]; then nom_monde="${BDS_LEVEL_NAME:-silooo}"; else nom_monde="${BDS_LEVEL_NAME:-attente}"; fi
 allow_list="${BDS_ALLOW_LIST:-true}"
+transfert_hote="${BDS_TRANSFERT_HOTE:-}"
+transfert_port="${BDS_TRANSFERT_PORT:-}"
 url_core="${SILOOO_CORE_URL:-http://silooo-core:8080/}"
 
 exiger_entier() { # exiger_entier <nom> <valeur> <min> <max>
@@ -150,6 +174,15 @@ if [[ $nom_monde =~ $nom_interdit || $nom_monde == .* || $nom_monde == *..* || $
 fi
 
 if [ "$allow_list" != true ] && [ "$allow_list" != false ]; then echec 78 "BDS_ALLOW_LIST vaut true ou false"; fi
+if [ "$MODE" = attente ]; then
+  # La salle d'attente est ouverte à tous : c'est sa raison d'être. allowlist.json n'y sert qu'à reconnaître les testeurs.
+  allow_list=false
+  if [ -n "$transfert_hote$transfert_port" ]; then
+    [[ $transfert_hote =~ ^[A-Za-z0-9.-]{1,253}$ ]] || echec 78 "BDS_TRANSFERT_HOTE doit être un nom d'hôte ou une adresse IPv4"
+    exiger_entier BDS_TRANSFERT_PORT "$transfert_port" 1 65535
+  fi
+  [[ $INSTANCE =~ ^[a-z0-9-]{1,32}$ ]] || echec 78 "BDS_INSTANCE : 1 à 32 caractères parmi a-z, 0-9 et -"
+fi
 
 # L'URL de silooo-core, pour allowed_uris (avec une barre finale) et pour la variable core_url (sans).
 if ! [[ $url_core =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$ ]]; then
@@ -285,7 +318,9 @@ installer_bds() {
   local dir_version zip partiel marque
   [[ $BDS_VERSION =~ ^[0-9]+(\.[0-9]+){2,3}$ ]] ||
     echec 78 "BDS_VERSION doit être un numéro de version comme 1.26.62.1 (le Dockerfile le pose)"
-  dir_version="$BDS_RACINE/$BDS_VERSION"
+  # Deux serveurs (le jeu et la salle d'attente) partagent le dossier du zip, jamais le dossier décompressé : chacun y
+  # écrit son server.properties et ses packs. BDS_INSTANCE (attente par défaut en mode attente) suffixe le dossier.
+  dir_version="$BDS_RACINE/$BDS_VERSION${INSTANCE:+-$INSTANCE}"
   zip="$BDS_RACINE/bedrock-server-$BDS_VERSION.zip"
   marque="$dir_version/.silooo-extrait"
   BDS_DIR="$dir_version"
@@ -313,7 +348,7 @@ installer_bds() {
     verifier_zip "$zip"
 
     command -v unzip >/dev/null 2>&1 || echec 78 "unzip est introuvable"
-    partiel="$BDS_RACINE/$BDS_VERSION.partiel"
+    partiel="$dir_version.partiel"
     rm -rf "$partiel"
     mkdir -p "$partiel"
     dire "décompression de $zip dans $dir_version"
@@ -406,7 +441,7 @@ inscrire_pack() {
 }
 
 # ------------------------------------------------------------------ le pack de comportement Silooo
-PACK_DIR="$BDS_DIR/behavior_packs/silooo"
+PACK_DIR="$BDS_DIR/behavior_packs/$PACK_NOM"
 MANIFESTE="$PACK_DIR/manifest.json"
 # Le pack de l'image est recopié à chaque démarrage : la version de l'add-on est celle de l'image (du tag déployé),
 # jamais celle d'un démarrage précédent. Le dossier de BDS vit sur l'hôte et survit aux images.
@@ -479,12 +514,24 @@ JSON
 
   # Lus par l'add-on : variables.get("core_url") sans barre finale, secrets.get("silooo_key") qu'il met dans un
   # en-tête X-Silooo-Key sans pouvoir le lire (docs/bedrock.md, faits 2 et 3).
-  printf '{\n  "core_url": %s\n}\n' "$(json_chaine "$core_url_nue")" | ecrire_prive "$PACK_CONFIG/variables.json"
+  if [ -n "$transfert_hote" ] && [ "$MODE" = attente ]; then
+    printf '{\n  "core_url": %s,\n  "transfert_hote": %s,\n  "transfert_port": %s\n}\n' "$(json_chaine "$core_url_nue")" \
+      "$(json_chaine "$transfert_hote")" "$((10#$transfert_port))" | ecrire_prive "$PACK_CONFIG/variables.json"
+    dire "les joueurs de la liste blanche partent au monde de test : $transfert_hote:$((10#$transfert_port))"
+  else
+    printf '{\n  "core_url": %s\n}\n' "$(json_chaine "$core_url_nue")" | ecrire_prive "$PACK_CONFIG/variables.json"
+  fi
   printf '{\n  "silooo_key": %s\n}\n' "$(json_chaine "$cle")" | ecrire_prive "$PACK_CONFIG/secrets.json"
   unset cle
 
   # Le monde liste le pack : sans cette ligne BDS ne charge pas le pack, même posé dans behavior_packs/.
   mkdir -p "$MONDE_DIR"
+  # La salle d'attente sème son monde une fois : plat sans couche, « Beta APIs » actif. Un monde existant n'est jamais touché.
+  if [ "$MODE" = attente ] && [ ! -f "$MONDE_DIR/level.dat" ]; then
+    [ -f "$MONDE_VIDE" ] || echec 78 "le level.dat de la salle d'attente manque : $MONDE_VIDE"
+    cp "$MONDE_VIDE" "$MONDE_DIR/level.dat"
+    dire "monde « $nom_monde » semé avec le level.dat vide de la salle d'attente"
+  fi
   inscrire_pack "$MONDE_DIR/world_behavior_packs.json" "$PACK_UUID" "$PACK_VERSION"
   dire "pack Silooo $PACK_UUID $PACK_VERSION actif dans le monde « $nom_monde » ; config des scripts dans config/$MODULE_UUID (secrets en mode 600)"
 
@@ -501,13 +548,15 @@ fi
 # resources : pas de module script, seuls header.uuid et header.version comptent.
 RESSOURCES_DIR="$BDS_DIR/resource_packs/silooo"
 RESSOURCES_MANIFESTE="$RESSOURCES_DIR/manifest.json"
-if [ -f "$RESSOURCES_SOURCE/manifest.json" ]; then
+if [ -n "$RESSOURCES_SOURCE" ] && [ -f "$RESSOURCES_SOURCE/manifest.json" ]; then
   mkdir -p "$BDS_DIR/resource_packs"
   rm -rf "$RESSOURCES_DIR"
   cp -a "$RESSOURCES_SOURCE" "$RESSOURCES_DIR"
   dire "pack de ressources Silooo copié de $RESSOURCES_SOURCE dans $RESSOURCES_DIR"
 fi
-if [ -f "$RESSOURCES_MANIFESTE" ]; then
+if [ "$MODE" = attente ]; then
+  dire "salle d'attente : pas de pack de ressources"
+elif [ -f "$RESSOURCES_MANIFESTE" ]; then
   command -v jq >/dev/null 2>&1 || echec 78 "jq est introuvable : il lit manifest.json"
   RESSOURCES_UUID="$(jq -er '.header.uuid' "$RESSOURCES_MANIFESTE")" || echec 65 "$RESSOURCES_MANIFESTE : header.uuid manque ou le JSON est invalide"
   RESSOURCES_VERSION="$(jq -ec '.header.version' "$RESSOURCES_MANIFESTE")" || echec 65 "$RESSOURCES_MANIFESTE : header.version manque"
