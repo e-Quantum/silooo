@@ -298,6 +298,10 @@ const reponse = await http.request(req); // reponse.status, reponse.body
   BDS prend des ports éphémères du système. Derrière Docker, il faut une IP publique et la forme
   `public:local` : BDS ne remplit pas l'IP tout seul. UDP 7551 sert à la découverte sur le réseau local
   (`enable-lan-visibility`, vrai par défaut). Tiers.
+- Relevé sur BDS 1.26.62.1, le 7 novembre 2026, en essai local : avec `enable-lan-visibility=false`, `GET /v1/join`
+  répond 200 avec un corps vide ; avec `true`, il répond le JSON d'état (`name`, `protocol`, `version`, `level`,
+  `players`, `maxPlayers`, `gameType`), liste blanche ou non. Les listes de serveurs lisent ce JSON (Hubyy, le jeu
+  depuis 26.60) : la clé reste donc à `true`. Le serveur ne répond pas au ping RakNet en NetherNet.
 - En RakNet (pour mémoire) : UDP sur `server-port` et sur `server-portv6`, sans signalisation. Tiers.
 
 ### 6. Limites et clés de `server.properties` utiles
