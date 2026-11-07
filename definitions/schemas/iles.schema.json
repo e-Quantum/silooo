@@ -253,7 +253,7 @@
             "description": "Hauteur des murs en blocs, au moins 3 pour la porte et l'enseigne.",
             "type": "integer",
             "minimum": 3,
-            "maximum": 8
+            "maximum": 16
           },
           "rayon": {
             "description": "Rayon propre à cette île ; absent, celui de la plateforme.",
@@ -323,7 +323,10 @@
         "volumes",
         "machines",
         "salarie",
-        "enseigne"
+        "enseigne",
+        "structure",
+        "hauteurNettoyage",
+        "transport"
       ],
       "properties": {
         "revision": {
@@ -416,6 +419,41 @@
             },
             "support": {
               "$ref": "#/$defs/vue"
+            }
+          }
+        },
+        "structure": {
+          "type": "string",
+          "pattern": "^silooo:[a-z0-9_]+$"
+        },
+        "hauteurNettoyage": {
+          "type": "integer",
+          "minimum": 9,
+          "maximum": 30
+        },
+        "transport": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "longueur",
+            "vitesse",
+            "pierres"
+          ],
+          "properties": {
+            "longueur": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "vitesse": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 4
+            },
+            "pierres": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
             }
           }
         }

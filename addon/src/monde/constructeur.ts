@@ -30,6 +30,8 @@ export interface BlockWriter {
   fill(from: Pos, to: Pos, block: string): void;
   set(at: Pos, block: string, states?: BlockStates): void;
   setText(at: Pos, text: string): void;
+  /** Disponible dans Bedrock ; les autres mondes peuvent rejouer le plan bloc par bloc. */
+  structure?(id: string, at: Pos): void;
 }
 
 /** Les marques des travaux posés, par entreprise, gardées là où le monde les garde (propriétés dynamiques). */
@@ -130,6 +132,10 @@ export function applyOp(writer: BlockWriter, op: Op): void {
       return;
     case "text":
       writer.setText(op.at, op.text);
+      return;
+    case "structure":
+      if (writer.structure === undefined) throw new Error("monde sans placement de structure");
+      writer.structure(op.id, op.at);
       return;
   }
 }
@@ -292,7 +298,9 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
             if (usine === undefined) throw new Error(`usine ${factoryId} absente de iles.json`);
             const plan = planIsland(defs, usine, origin, state);
             const withBase = markOrigin(known[factoryId]) !== `${origin.x},${origin.z}`;
-            const ops = withBase ? [...plan.base, ...plan.state] : [...plan.state];
+            const ops: Op[] = plan.structure !== undefined && writer.structure !== undefined
+              ? [{ kind: "structure", ...plan.structure }, ...plan.state.filter((op) => op.kind === "text")]
+              : withBase ? [...plan.base, ...plan.state] : [...plan.state];
             return { segments: [{ box: plan.box, ops }], detail: withBase ? ", plateforme comprise" : "" };
           },
           attempts: 0,

@@ -266,10 +266,10 @@ describe("la porte", () => {
     const a = mesures("carriere");
     assert.equal(a.porteX, a.fp.x0);
     const frame = frameOfIsland(ORIGINE, usine("carriere"), ILES);
-    const door = workshopBlock(frame, ILES.hauteur, { avant: 8, droite: -7, haut: 1 });
-    const wall = workshopBlock(frame, ILES.hauteur, { avant: 8, droite: -9, haut: 1 });
+    const door = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: -7, haut: 1 });
+    const wall = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: -9, haut: 1 });
     assert.equal(carriere.blockAt(door.x, door.y, door.z), undefined);
-    assert.equal(carriere.blockAt(wall.x, wall.y, wall.z), M.planches);
+    assert.equal(carriere.blockAt(wall.x, wall.y, wall.z), "minecraft:stone_bricks");
 
     const fonderie = fakeWorld();
     await pose(fonderie, "fonderie", "ACTIVE");

@@ -55,15 +55,17 @@ describe("atelier de la Carrière", () => {
   });
 
   it("attend les blocs avant de poser le salarié, réutilise le même et le retire au départ", () => {
-    let ready = false, count = 0;
+    let ready = false, count = 0, cargoCount = 0;
     const removed: string[] = [];
     const working: boolean[] = [];
     const world: WorkshopWorld = {
       machine: () => ready,
+      loaded: () => true,
+      cargo(previous) { return previous ?? `cargo-${++cargoCount}`; },
       worker(previous, _company, _at, _facing, active) { working.push(active); return previous ?? `worker-${++count}`; },
       remove: (id) => { removed.push(id); },
     };
-    const workshop = createWorkshop(ILES, world);
+    const workshop = createWorkshop(ILES, world, { now: () => 0 });
     const state = companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] });
     workshop.sync(state, { x: 0, z: 0 });
     assert.equal(count, 0);
@@ -74,7 +76,7 @@ describe("atelier de la Carrière", () => {
     workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", incidentId: 3, ratePerHour: 0 })] }, { x: 0, z: 0 });
     assert.deepEqual(working, [true, true, false]);
     workshop.reap(new Set());
-    assert.deepEqual(removed, ["worker-1"]);
+    assert.deepEqual(removed, ["worker-1", "cargo-1", "cargo-2", "cargo-3"]);
   });
 
   it("reconstruit une ancienne Carrière une seule fois, en gardant les autres îles et la ville", () => {
@@ -83,4 +85,38 @@ describe("atelier de la Carrière", () => {
     assert.deepEqual(currentWorkshopMarks(previous, ILES.atelier.revision, ILES), previous);
     assert.equal(previous.carriere, "ACTIVE@0,0");
   });
+  it("déplace les pierres sur le convoyeur, les fige à l'arrêt et attend les chunks", () => {
+    let now = 0, loaded = true, created = 0;
+    const seen: Array<{ id: string; at: { x: number; y: number; z: number }; working: boolean }> = [];
+    const removed: string[] = [];
+    const native: WorkshopWorld = {
+      machine: () => true, loaded: () => loaded,
+      worker: (old) => old ?? "worker",
+      cargo(previous, _company, at, working) { const id = previous ?? `pierre-${++created}`; seen.push({ id, at, working }); return id; },
+      remove: (id) => { removed.push(id); },
+    };
+    const workshop = createWorkshop(ILES, native, { now: () => now });
+    const state = companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] });
+    workshop.sync(state, { x: 0, z: 0 });
+    assert.equal(created, ILES.atelier.transport.pierres);
+    const first = seen[0]!;
+    now = 1000; workshop.tick();
+    const moved = seen.findLast((entry) => entry.id === first.id)!;
+    assert.ok(Math.abs(Math.hypot(moved.at.x - first.at.x, moved.at.z - first.at.z) - ILES.atelier.transport.vitesse) < 0.001);
+    workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", ratePerHour: 0, stoppedNoPower: true })] }, { x: 0, z: 0 });
+    now = 2000; workshop.tick();
+    const stopped = seen.findLast((entry) => entry.id === first.id)!;
+    assert.deepEqual(stopped.at, moved.at);
+    assert.equal(stopped.working, false);
+    loaded = false;
+    const count = seen.length;
+    now = 3000; workshop.tick();
+    assert.equal(seen.length, count, "aucune création ni téléportation dans des chunks déchargés");
+    loaded = true;
+    workshop.sync(state, { x: 0, z: 0 });
+    assert.equal(created, ILES.atelier.transport.pierres, "les mêmes pierres sont réutilisées");
+    workshop.reap(new Set());
+    assert.equal(new Set(removed).size, ILES.atelier.transport.pierres + 1);
+  });
+
 });

@@ -13,7 +13,7 @@ export function workshopBlock(frame: Frame, height: number, point: { avant: numb
 export function carriereOps(defs: IlesDefinitions, frame: Frame, state: FactoryState, radius: number): Op[] {
   const { center } = frame;
   const ops: Op[] = [{ kind: "fill", from: { x: center.x - radius, y: defs.hauteur + 1, z: center.z - radius },
-    to: { x: center.x + radius, y: defs.hauteur + 9, z: center.z + radius }, block: defs.materiaux.vide }];
+    to: { x: center.x + radius, y: defs.hauteur + defs.atelier.hauteurNettoyage, z: center.z + radius }, block: defs.materiaux.vide }];
   const position = (point: { avant: number; droite: number; haut: number }) => workshopBlock(frame, defs.hauteur, point);
   const addSign = () => {
     const side = doorSide(frame);

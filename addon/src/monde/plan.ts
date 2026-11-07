@@ -17,7 +17,8 @@ export type BlockStates = Readonly<Record<string, string | number | boolean>>;
 export type Op =
   | { readonly kind: "fill"; readonly from: Pos; readonly to: Pos; readonly block: string }
   | { readonly kind: "set"; readonly at: Pos; readonly block: string; readonly states?: BlockStates }
-  | { readonly kind: "text"; readonly at: Pos; readonly text: string };
+  | { readonly kind: "text"; readonly at: Pos; readonly text: string }
+  | { readonly kind: "structure"; readonly at: Pos; readonly id: string };
 
 export interface IslandPlan {
   /** Tout ce que le plan touche : la zone à charger. */
@@ -27,6 +28,8 @@ export interface IslandPlan {
   /** Le bâtiment dans son état : à refaire quand l'état change. */
   readonly state: readonly Op[];
   readonly center: Xz;
+  /** Préfabriqué complet quand le monde sait charger les structures du pack. */
+  readonly structure?: { readonly id: string; readonly at: Pos };
 }
 
 function fill(from: Pos, to: Pos, block: string): Op {
@@ -155,6 +158,7 @@ export function planIsland(defs: IlesDefinitions, usine: UsineIle, origin: Xz, s
     center,
     box: { from: at(center.x - reach, deepest, center.z - reach), to: at(center.x + reach, defs.hauteur + usine.hauteur + 3, center.z + reach) },
     base: baseOps(defs, center, radius),
+    ...(usine.id === defs.apparition.usine && state === "ACTIVE" ? { structure: { id: defs.atelier.structure, at: at(center.x - reach, deepest, center.z - reach) } } : {}),
     state: usine.id === defs.apparition.usine ? carriereOps(defs, frame, state, radius) : stateOps(defs, usine, center, state, doorSide(frame)),
   };
 }

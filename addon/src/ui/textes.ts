@@ -701,10 +701,10 @@ export const CINEMATIQUE_TEXTES = {
   qui: OOOSCAR,
   /** Une phrase de huit mots au plus par plan, trois secondes à l'écran au moins. Le joueur hérite d'une vieille carrière. */
   plans: [
-    "Bienvenue dans ta Carrière, patron.",
-    "La pierre passe par le broyeur.",
-    "Ton équipe maintient la production.",
-    "Au bureau, tu gères ton usine.",
+    "Tu hérites de cette ancienne Carrière.",
+    "Sa pierre a fait grandir la ville.",
+    "Ton équipe remet les machines en marche.",
+    "Depuis ce bureau, écris la suite.",
   ],
   /** La consigne pour passer, dans la bande du bas. */
   passer: "Reste accroupi pour passer.",

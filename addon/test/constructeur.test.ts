@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { config } from "../src/config";
-import { createIslandBuilder, markOf, type IslandBuilder } from "../src/monde/constructeur";
+import { applyOp, createIslandBuilder, markOf, type IslandBuilder } from "../src/monde/constructeur";
 import { ILES } from "../src/monde/definitions";
 import { islandCenter, usineIle, type Xz } from "../src/monde/geometrie";
 import { planIsland } from "../src/monde/plan";
@@ -286,5 +286,42 @@ describe("usines inconnues", () => {
     await b.temps.advance(5);
     assert.equal(b.log.warns.filter((ligne) => ligne.includes("usine-du-futur")).length, 1);
     assert.deepEqual(b.marques.stored.get(7), { carriere: "ACTIVE@0,0" });
+  });
+});
+
+
+describe("préfabriqué natif de la Carrière", () => {
+  it("charge le mcstructure et son enseigne dans la zone avant de marquer l'île prête", async () => {
+    const b = banc();
+    const calls: Array<{ id: string; at: { x: number; y: number; z: number } }> = [];
+    b.monde.structure = (id, at) => {
+      calls.push({ id, at });
+      const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
+      for (const op of [...plan.base, ...plan.state]) if (op.kind !== "text") applyOp(b.monde, op);
+    };
+    b.constructeur.sync(7, ORIGINE, [usine("carriere")]);
+    await b.temps.advance(5);
+    const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
+    assert.deepEqual(calls, [{ id: ILES.atelier.structure, at: plan.box.from }]);
+    assert.equal(b.monde.areas.length, 1);
+    assert.equal(b.monde.count("silooo:broyeur"), 1);
+    assert.equal(b.monde.texts.size, 1);
+    assert.equal(b.marques.stored.get(7)?.carriere, "ACTIVE@0,0");
+  });
+  it("ne marque jamais prête une structure dont le chargement échoue", async () => {
+    const b = banc();
+    let fail = true;
+    b.monde.structure = () => {
+      if (fail) throw Error("structure absente");
+      const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
+      for (const op of [...plan.base, ...plan.state]) if (op.kind !== "text") applyOp(b.monde, op);
+    };
+    b.constructeur.sync(7, ORIGINE, [usine("carriere")]);
+    await b.temps.advance(1);
+    assert.equal(b.marques.stored.get(7)?.carriere, undefined);
+    assert.equal(b.constructeur.pending(), 1);
+    fail = false;
+    await b.temps.advance(5);
+    assert.equal(b.marques.stored.get(7)?.carriere, "ACTIVE@0,0");
   });
 });

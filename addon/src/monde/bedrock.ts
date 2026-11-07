@@ -38,6 +38,7 @@ export function validateWorldAssets(): void {
   for (const facing of [2, 3, 4, 5]) BlockPermutation.resolve(ILES.materiaux.enseigne, { facing_direction: facing });
   for (const volume of ILES.atelier.volumes) BlockPermutation.resolve(volume.bloc);
   for (const machine of ILES.atelier.machines) BlockPermutation.resolve(machine.bloc);
+  if (!world.structureManager.getPackStructureIds().includes(ILES.atelier.structure)) throw new Error(`structure ${ILES.atelier.structure} absente du pack`);
 }
 
 export function createWorkshopWorld(): WorkshopWorld {
@@ -63,6 +64,22 @@ export function createWorkshopWorld(): WorkshopWorld {
         entity.teleport(at, { facingLocation: facing });
       }
       entity.setProperty("silooo:travaille", working);
+      return entity.id;
+    },
+    loaded: (at) => overworld().isChunkLoaded(at),
+    cargo(previous, companyId, at, working, reset) {
+      if (reset === true) {
+        for (const stale of overworld().getEntities({ type: "silooo:production", location: at, maxDistance: ILES.atelier.transport.longueur + 1 })) {
+          if (stale.getDynamicProperty("silooo:company-id") === companyId) stale.remove();
+        }
+      }
+      let entity = previous === undefined ? undefined : world.getEntity(previous);
+      if (entity?.isValid !== true) {
+        entity = overworld().spawnEntity("silooo:production", at);
+        entity.setDynamicProperty("silooo:company-id", companyId);
+      }
+      entity.teleport(at);
+      if (entity.getProperty("silooo:actif") !== working) entity.setProperty("silooo:actif", working);
       return entity.id;
     },
     remove(id) {
@@ -103,6 +120,10 @@ export function createBlockWriter(): BlockWriter {
       const target = overworld().getBlock(at);
       if (target === undefined) throw new Error(`bloc en ${at.x} ${at.y} ${at.z} : zone non chargée`);
       target.setPermutation(BlockPermutation.resolve(block, states === undefined ? undefined : { ...states }));
+    },
+
+    structure(id, at) {
+      world.structureManager.place(id, overworld(), at, { includeBlocks: true, includeEntities: false, integrity: 1 });
     },
 
     setText(at, text) {
@@ -257,6 +278,7 @@ export function createCinematicStage(): CinematicStage<Player> {
     isSneaking: (player) => player.isSneaking,
     hideHud(player) {
       player.onScreenDisplay.setHudVisibility(HudVisibility.Hide, HIDDEN_HUD);
+      player.onScreenDisplay.setActionBar("");
       player.onScreenDisplay.setTitle(CINEMATIC_TITLE_PREFIX, { fadeInDuration: 0, stayDuration: secondsToTicks(ILES.cinematique.plans.reduce((sum, plan) => sum + plan.duree, 0)), fadeOutDuration: 0, subtitle: "" });
     },
     showHud: (player) => player.onScreenDisplay.resetHudElementsVisibility(),
@@ -288,7 +310,8 @@ export function createCinematicStage(): CinematicStage<Player> {
         fadeOutDuration: secondsToTicks(0.5),
       }),
     clearSubtitle: (player) => player.onScreenDisplay.setTitle(" ", { subtitle: "", fadeInDuration: 0, stayDuration: 1, fadeOutDuration: 0 }),
-    hint: (player, text) => player.onScreenDisplay.setActionBar(text),
+    // La consigne est dans le pack, sous le récit : la barre d’action native le recouvrirait.
+    hint: () => {},
     clearHint: (player) => player.onScreenDisplay.setActionBar(""),
   };
 }

@@ -1,6 +1,6 @@
 {
   "name": "silooo-addon",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "description": "Pack de comportement de Silooo : le code TypeScript que BDS charge. Il affiche, silooo-core décide.",

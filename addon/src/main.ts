@@ -137,6 +137,8 @@ function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerSto
     });
     scheduler.every(config.cinematic.tickSeconds, guard(log, "cinématique", runner.tick));
 
+    const workshop = createWorkshop(ILES, createWorkshopWorld(), systemClock);
+    scheduler.every(config.world.productionTickSeconds, guard(log, "production visible", workshop.tick));
     const sync = createWorldSync({
       defs: ILES,
       players: () => world.getAllPlayers(),
@@ -144,7 +146,7 @@ function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerSto
       views,
       builder,
       oooscar,
-      workshop: createWorkshop(ILES, createWorkshopWorld()),
+      workshop,
       log,
     });
     scheduler.every(config.world.syncSeconds, guard(log, "îles", sync.tick));

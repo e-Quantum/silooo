@@ -1,0 +1,30 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "silooo:production",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/pierre"
+      },
+      "geometry": {
+        "default": "geometry.silooo_production"
+      },
+      "animations": {
+        "transport": "animation.silooo_production.transport"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "transport": "q.property('silooo:actif')"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.silooo_production"
+      ]
+    }
+  }
+}

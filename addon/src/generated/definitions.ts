@@ -441,6 +441,13 @@ export type IlesDefinitions = {
       readonly position: IlesVue;
       readonly support: IlesVue;
     };
+    readonly structure: string;
+    readonly hauteurNettoyage: number;
+    readonly transport: {
+      readonly longueur: number;
+      readonly vitesse: number;
+      readonly pierres: number;
+    };
   };
 };
 

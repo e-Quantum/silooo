@@ -1069,6 +1069,36 @@ la nouvelle version une fois aux joueurs existants, sans effacer leur progressio
 reconstruit que la Carrière. Nouveaux visuels : fosse et bâtiments, quatre blocs, ouvrier et bandes de sous-titres,
 tous à valider par Kr sur son client. Les formulaires conservent la hiérarchie native du correctif 0.1.2.
 
+### Récit au-dessus de l'inventaire, à valider par Kr
+
+| Où | Avant (0.1.3) | Après |
+| --- | --- | --- |
+| Plan 1 | Bienvenue dans ta Carrière, patron. | Tu hérites de cette ancienne Carrière. |
+| Plan 2 | La pierre passe par le broyeur. | Sa pierre a fait grandir la ville. |
+| Plan 3 | Ton équipe maintient la production. | Ton équipe remet les machines en marche. |
+| Plan 4 | Au bureau, tu gères ton usine. | Depuis ce bureau, écris la suite. |
+
+Le récit est centré au-dessus de la barre d'inventaire, sur un panneau en fonte avec une hauteur pour le nom
+et une phrase sur deux lignes. La consigne est séparée, entre le panneau et l'inventaire. La barre d'action
+native n'affiche plus cette consigne pendant le film. Les textes et ce nouvel emplacement sont à valider par Kr.
+
+### Structure Carrière 0.1.4, à valider par Kr
+
+Le fichier `pack/structures/silooo/carriere_depart.mcstructure` contient le nouveau hangar, la fosse, le bureau,
+le quai et leurs blocs personnalisés. `node tools/generer_structure.mjs` le produit d'après `definitions/iles.json` ;
+`--verifier` compare ses octets pendant la validation du pack. Le constructeur Bedrock le place avec
+`StructureManager.place`, sans entités. L'enseigne est écrite ensuite ; une erreur de chargement n'acquitte pas
+le chantier. Les mondes de tests qui n'ont pas cette capacité rejouent le même plan bloc par bloc.
+
+Trois pierres de décor avancent sur les onze tronçons du convoyeur. Leur mouvement suit l'état de production
+renvoyé par le service. Elles ne sont ni ramassables ni comptées comme un stock et ne donnent aucun gain.
+Les pierres s'arrêtent avec l'usine ; leurs acteurs sont retirés quand l'entreprise n'a plus de joueur présent.
+Les déplacements attendent le chargement des chunks. Les révisions du décor et de l'introduction passent à 2,
+pour reconstruire une fois la Carrière et montrer une fois son nouveau récit, sans remise à zéro.
+
+Visuels nouveaux ou revus, tous à valider par Kr : hangar en briques et cuivre avec vitrage haut, fosse protégée,
+bureau aménagé, auvent de stockage, quai, pierres sur le convoyeur, cadrages et panneau du récit au-dessus de l'inventaire.
+
 ## Ce qui manque
 
 Au contrat (`api/`, non modifié par cette tranche) :

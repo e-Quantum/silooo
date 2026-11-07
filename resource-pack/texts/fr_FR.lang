@@ -6,3 +6,4 @@ tile.silooo:convoyeur.name=Convoyeur
 tile.silooo:bac_pierre.name=Bac de pierre
 tile.silooo:bureau_administration.name=Bureau d'administration
 action.interact.silooo.personnel=Parler
+silooo.cinema.passer=Reste accroupi pour passer.
