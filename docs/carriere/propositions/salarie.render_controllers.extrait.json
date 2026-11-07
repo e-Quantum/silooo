@@ -1,0 +1,11 @@
+{
+  "_note": "À ajouter au contrôleur de rendu des salariés (textures-skins) : `charge` est vide au repos, visible seulement pendant `porter`.",
+  "part_visibility": [
+    {
+      "*": true
+    },
+    {
+      "charge": "query.property('silooo:geste') == 'porter'"
+    }
+  ]
+}

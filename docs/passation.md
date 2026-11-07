@@ -481,6 +481,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- La Carrière de l'époque 1 (7 novembre, branche `claude/carriere-epoque1`, [carriere.md](carriere.md)) : la structure
+  en ruine et en marche, les 5 blocs Silooo et leurs textures (`design/blocs/`), les trois skins de salarié
+  (`design/skins/`), les gestes, les réactions d'Oooscar (`joie`, `oups`, `panique`, `fier`, `dodo`), les machines,
+  les particules, les 27 sons (`resource-pack/sounds/`), les six noms affichés de `resource-pack/texts/fr_FR.lang`
+  (section « Carrière ») et les valeurs proposées pour `definitions/iles.json` (plans de la cinématique, apparition,
+  anneau). Rien n'est branché dans `addon/src/`, rien n'a été vu dans un client Bedrock.
+
 - D3 Discord (6 novembre) : **V13 réservée** à la preuve de liaison émise en jeu (codes temporaires, preuves,
   limites d'essais). Les autres migrations prennent V14 et la suite. D1 attend selon Kr. Les textes de liaison
   et les choix de sécurité sont provisoires ; aucune fusion d'identités OAuth ni attribution de rôle sans preuve.
@@ -1167,3 +1174,12 @@ Décisions prises sans Kr : paliers de prestige 1/5/10/25/50 et laiton dès 5, p
 Tous les textes et cartes D3 restent **à valider par Kr**. D1 attend. Le rappel Silo plein reste indisponible faute
 d'état/capacité dans le jeu ; le parrainage reste à D5 et le relais du tchat/signalements à D4. Les actions Discord
 et déploiements du seul core restent dans l'autorisation explicite de Kr consignée dans la passation Discord.
+
+### Atelier Carrière, 7 novembre 2026
+
+Nouvelle Carrière de l'époque 1 en `.mcstructure` (`tools/carriere/`, [carriere.md](carriere.md)), avec blocs Silooo,
+salariés, machines, particules et sons, faite par une session chef et trois sessions (textures et skins, animations,
+sons) sur le VPS. Contrôles ajoutés à `tools/verifier.sh` (sons, structures) et à `verifier_pack.mjs` (copies de
+`design/blocs/`, contrôleurs d'animation, deux textures vanilla nommées). Structures chargées sur un BDS 1.26.62.1
+d'essai : huit blocs vérifiés. Le branchement dans l'add-on reste à faire avec la 0.1.4 de Codex, restée sur le PC
+de Kr. Tout est **à valider par Kr**.
