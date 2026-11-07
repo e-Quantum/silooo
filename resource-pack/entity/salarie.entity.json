@@ -1,0 +1,44 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "silooo:salarie",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "commun": "textures/entity/salarie_commun",
+        "rare": "textures/entity/salarie_rare",
+        "legendaire": "textures/entity/salarie_legendaire"
+      },
+      "geometry": {
+        "default": "geometry.silooo.salarie",
+        "pelle": "geometry.silooo.salarie.pelle"
+      },
+      "animations": {
+        "inactif": "animation.silooo_salarie.inactif",
+        "marche": "animation.silooo_salarie.marche",
+        "piocher": "animation.silooo_salarie.piocher",
+        "pelleter": "animation.silooo_salarie.pelleter",
+        "porter": "animation.silooo_salarie.porter",
+        "saluer": "animation.silooo_salarie.saluer",
+        "geste": "controller.animation.silooo_salarie.geste"
+      },
+      "sound_effects": {
+        "pioche": "silooo.carriere.pioche",
+        "pelle": "silooo.carriere.pelle"
+      },
+      "scripts": {
+        "animate": [
+          "geste"
+        ]
+      },
+      "particle_effects": {
+        "eclats": "silooo:eclats_pierre"
+      },
+      "render_controllers": [
+        "controller.render.silooo_salarie"
+      ]
+    }
+  }
+}
