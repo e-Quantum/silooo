@@ -1,0 +1,23 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:block": {
+    "description": {
+      "identifier": "silooo:bureau_administration"
+    },
+    "components": {
+      "minecraft:geometry": {
+        "identifier": "geometry.silooo_bureau_administration"
+      },
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "silooo_bureau_administration",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:destructible_by_mining": false,
+      "minecraft:destructible_by_explosion": false,
+      "minecraft:light_dampening": 0,
+      "silooo:atelier": {}
+    }
+  }
+}

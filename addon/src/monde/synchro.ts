@@ -22,6 +22,7 @@ export interface WorldSyncDeps<P> {
   readonly views: { get(xuid: Xuid): CompanyView | undefined };
   readonly builder: Pick<IslandBuilder, "sync" | "syncCity">;
   readonly oooscar?: Pick<OooscarManager, "reap">;
+  readonly workshop?: { sync(state: CompanyView["state"], origin: Xz): void; reap(onlineCompanies: ReadonlySet<number>): void };
   readonly log: Logger;
 }
 
@@ -49,6 +50,7 @@ export function createWorldSync<P>(deps: WorldSyncDeps<P>): WorldSync {
 
     tick() {
       const online = players();
+      const companies = new Set<number>();
       for (const player of online) {
         const state = views.get(xuidOf(player))?.state;
         if (state === undefined) continue;
@@ -63,10 +65,13 @@ export function createWorldSync<P>(deps: WorldSyncDeps<P>): WorldSync {
         origins.set(state.companyId, origin);
         missing.delete(state.companyId);
         builder.sync(state.companyId, origin, inBuildOrder(state.factories, defs.apparition.usine));
+        companies.add(state.companyId);
+        deps.workshop?.sync(state, origin);
         // La ville de l'entreprise (île principale), quand le service en donne une : zone par zone, bâtiment par bâtiment.
         if (state.city !== undefined) builder.syncCity(state.companyId, origin, state.city);
       }
       deps.oooscar?.reap(new Set(online.map(xuidOf)));
+      deps.workshop?.reap(companies);
     },
   };
 }

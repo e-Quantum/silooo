@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { ILES } from "../src/monde/definitions";
 import { applyOp } from "../src/monde/constructeur";
 import { discCells, doorSide, footprint, frameOfIsland, islandCenter, usineIle, type Xz } from "../src/monde/geometrie";
+import { workshopBlock } from "../src/monde/carriere";
 import { planIsland, signText, type IslandPlan } from "../src/monde/plan";
 import type { FactoryState } from "../src/protocol";
 import { FACTORY_NAMES, factoryName } from "../src/ui/textes";
@@ -13,6 +14,8 @@ import { fakeWorld, type FakeWorld } from "./monde-helpers";
 const ORIGINE: Xz = { x: 1200, z: -600 };
 const ETATS: FactoryState[] = ["EN_RUINE", "REMISE_EN_ETAT", "ACTIVE"];
 const M = ILES.materiaux;
+// Le préfabriqué générique reste couvert pour les quatorze autres usines ; atelier.test.ts couvre la Carrière.
+const GENERIQUES = ILES.usines.filter((u) => u.id !== ILES.apparition.usine);
 
 function usine(id: string): NonNullable<ReturnType<typeof usineIle>> {
   const trouvee = usineIle(ILES, id);
@@ -79,7 +82,7 @@ describe("signText", () => {
 describe("la plateforme", () => {
   it("est ronde, de herbe sur le dessus puis de couches de plus en plus étroites", async () => {
     const monde = fakeWorld();
-    const plan = await pose(monde, "carriere", "ACTIVE");
+    const plan = await pose(monde, "ferme", "ACTIVE");
     ILES.plateforme.couches.forEach((couche, index) => {
       const rayon = ILES.plateforme.rayon - couche.retrait;
       const y = ILES.hauteur - index;
@@ -130,7 +133,7 @@ describe("la plateforme", () => {
 
 describe("un bâtiment actif", () => {
   it("a ses quatre murs pleins, sa porte, un toit de dalles et une lanterne", async () => {
-    for (const u of ILES.usines) {
+    for (const u of GENERIQUES) {
       const monde = fakeWorld();
       await pose(monde, u.id, "ACTIVE");
       const m = mesures(u.id);
@@ -149,7 +152,7 @@ describe("un bâtiment actif", () => {
   });
 
   it("repose sur la plateforme : sous chaque pied de mur, de l'herbe", async () => {
-    for (const u of ILES.usines) {
+    for (const u of GENERIQUES) {
       const monde = fakeWorld();
       await pose(monde, u.id, "ACTIVE");
       const m = mesures(u.id);
@@ -170,7 +173,7 @@ describe("une ruine", () => {
   });
 
   it("a des murs abîmés, mais pas tous : entre 10 % et 60 % des blocs", async () => {
-    for (const id of ["usine-robots", "elevage", "carriere"]) {
+    for (const id of ["usine-robots", "elevage", "mine-profonde"]) {
       const monde = fakeWorld();
       await pose(monde, id, "EN_RUINE");
       const m = mesures(id);
@@ -181,7 +184,7 @@ describe("une ruine", () => {
   });
 
   it("garde sa porte ouverte, les pieds de ses coins et le bloc derrière l'enseigne", async () => {
-    for (const u of ILES.usines) {
+    for (const u of GENERIQUES) {
       const monde = fakeWorld();
       await pose(monde, u.id, "EN_RUINE");
       const m = mesures(u.id);
@@ -262,8 +265,11 @@ describe("la porte", () => {
     await pose(carriere, "carriere", "ACTIVE");
     const a = mesures("carriere");
     assert.equal(a.porteX, a.fp.x0);
-    assert.equal(carriere.blockAt(a.fp.x0, a.sol, a.centre.z), undefined);
-    assert.equal(carriere.blockAt(a.fp.x0, a.sol, a.centre.z - 1), a.muraille);
+    const frame = frameOfIsland(ORIGINE, usine("carriere"), ILES);
+    const door = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: -7, haut: 1 });
+    const wall = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: -9, haut: 1 });
+    assert.equal(carriere.blockAt(door.x, door.y, door.z), undefined);
+    assert.equal(carriere.blockAt(wall.x, wall.y, wall.z), "minecraft:stone_bricks");
 
     const fonderie = fakeWorld();
     await pose(fonderie, "fonderie", "ACTIVE");
@@ -295,9 +301,10 @@ describe("l'enseigne", () => {
         const monde = fakeWorld();
         await pose(monde, u.id, etat);
         const m = mesures(u.id);
-        const x = m.porteX + (m.porte.axis === "x" ? m.porte.sign : 0);
-        const z = m.porteZ + (m.porte.axis === "z" ? m.porte.sign : 0);
-        const y = m.sol + 2;
+        const special = u.id === ILES.apparition.usine ? workshopBlock(frameOfIsland(ORIGINE, u, ILES), ILES.hauteur, ILES.atelier.enseigne.position) : undefined;
+        const x = special?.x ?? m.porteX + (m.porte.axis === "x" ? m.porte.sign : 0);
+        const z = special?.z ?? m.porteZ + (m.porte.axis === "z" ? m.porte.sign : 0);
+        const y = special?.y ?? m.sol + 2;
         const bloc = monde.blocks.get(`${x},${y},${z}`);
         assert.equal(bloc?.block, M.enseigne, `${u.id} ${etat}`);
         assert.equal(bloc?.states?.facing_direction, FACE[m.porte.axis][m.porte.sign], `${u.id} : sens de l'enseigne`);

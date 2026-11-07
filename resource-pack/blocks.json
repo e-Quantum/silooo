@@ -1,0 +1,15 @@
+{
+  "format_version": "1.19.30",
+  "silooo:broyeur": {
+    "sound": "metal"
+  },
+  "silooo:convoyeur": {
+    "sound": "metal"
+  },
+  "silooo:bac_pierre": {
+    "sound": "metal"
+  },
+  "silooo:bureau_administration": {
+    "sound": "wood"
+  }
+}

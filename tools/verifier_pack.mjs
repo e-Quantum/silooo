@@ -221,10 +221,12 @@ for (const [id, { nom, g }] of geometries) {
   }
 }
 
-// ------------------------------------------------------------------ 7. Oooscar est celui que le générateur dessine
+// ------------------------------------------------------------------ 7. Les assets générés restent identiques aux sources
 if (estLePackDuDepot) {
-  const resultat = spawnSync(process.execPath, [join(racine, "tools/generer_oooscar.mjs"), "--verifier"], { encoding: "utf8" });
-  if (resultat.status !== 0) for (const ligne of `${resultat.stdout}${resultat.stderr}`.split(/\r?\n/).filter(Boolean)) erreur("tools/generer_oooscar.mjs", ligne);
+  for (const outil of ["generer_oooscar.mjs", "generer_atelier.mjs", "generer_structure.mjs"]) {
+    const resultat = spawnSync(process.execPath, [join(racine, "tools", outil), "--verifier"], { encoding: "utf8" });
+    if (resultat.status !== 0) for (const ligne of `${resultat.stdout}${resultat.stderr}`.split(/\r?\n/).filter(Boolean)) erreur(`tools/${outil}`, ligne);
+  }
 }
 
 if (erreurs.length > 0) {

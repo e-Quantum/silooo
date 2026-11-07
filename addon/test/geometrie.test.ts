@@ -13,6 +13,7 @@ import {
   hash32,
   inFrame,
   islandCenter,
+  islandRadius,
   mainCenter,
   surfaceY,
   usineIle,
@@ -127,7 +128,7 @@ describe("arrivée", () => {
     assert.ok(arrivee !== undefined);
     const centre = islandCenter(ORIGINE, usine("carriere"), ILES);
     assert.equal(arrivee.factoryId, "carriere");
-    assert.deepEqual(arrivee.position, { x: centre.x - ILES.apparition.distance + 0.5, y: surfaceY(ILES), z: centre.z + 0.5 });
+    assert.deepEqual(arrivee.position, { x: centre.x - (usine("carriere").apparition ?? ILES.apparition.distance) + 0.5, y: surfaceY(ILES), z: centre.z + 0.5 });
   });
 
   it("regarde le bâtiment, à hauteur d'yeux", () => {
@@ -142,7 +143,7 @@ describe("arrivée", () => {
     assert.ok(arrivee !== undefined);
     const centre = islandCenter(ORIGINE, usine("carriere"), ILES);
     // avant 3 vers l'ouest, droite 2 vers le nord.
-    assert.deepEqual(arrivee.oooscar, { x: centre.x - 3 + 0.5, y: surfaceY(ILES), z: centre.z - 2 + 0.5 });
+    assert.deepEqual(arrivee.oooscar, { x: centre.x - ILES.apparition.oooscar.avant + 0.5, y: surfaceY(ILES), z: centre.z - 2 + 0.5 });
     const ecart = Math.hypot(arrivee.oooscar.x - arrivee.position.x, arrivee.oooscar.z - arrivee.position.z);
     assert.ok(ecart > 1 && ecart < 4, `${ecart}`);
   });
@@ -250,7 +251,7 @@ describe("arrivée sur chaque île de la carte", () => {
       const z = Math.floor(arrivee.position.z);
       const dansLeBatiment = x >= fp.x0 && x <= fp.x1 && z >= fp.z0 && z <= fp.z1;
       assert.ok(!dansLeBatiment, `${batiment.id} : dans le bâtiment`);
-      const plateforme = new Set(discCells(ILES.plateforme.rayon).map((c) => `${centre.x + c.dx},${centre.z + c.dz}`));
+      const plateforme = new Set(discCells(islandRadius(ILES, batiment)).map((c) => `${centre.x + c.dx},${centre.z + c.dz}`));
       assert.ok(plateforme.has(`${x},${z}`), `${batiment.id} : hors de la plateforme (${x},${z})`);
       assert.equal(arrivee.position.y, surfaceY(ILES), batiment.id);
     }

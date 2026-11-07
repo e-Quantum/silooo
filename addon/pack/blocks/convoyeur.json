@@ -1,0 +1,54 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:block": {
+    "description": {
+      "identifier": "silooo:convoyeur",
+      "states": {
+        "silooo:actif": [
+          false,
+          true
+        ]
+      }
+    },
+    "components": {
+      "minecraft:geometry": {
+        "identifier": "geometry.silooo_convoyeur"
+      },
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "silooo_convoyeur",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:destructible_by_mining": false,
+      "minecraft:destructible_by_explosion": false,
+      "minecraft:light_dampening": 0,
+      "silooo:atelier": {},
+      "minecraft:collision_box": {
+        "origin": [
+          -8,
+          0,
+          -8
+        ],
+        "size": [
+          16,
+          10,
+          16
+        ]
+      }
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state('silooo:actif')",
+        "components": {
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "silooo_convoyeur_actif",
+              "render_method": "opaque"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

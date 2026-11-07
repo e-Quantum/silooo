@@ -226,18 +226,22 @@ describe("fiche d'une usine active", () => {
     ]);
   });
 
-  it("quatre boutons de montée dans l'ordre du contrat, puis Retour vers la bonne page", () => {
+  it("quatre montées, la collecte, le personnel de cette usine et le retour", () => {
     assert.ok(screen);
     assert.deepEqual(
       screen.targets.map((t) => (t.kind === "buy" ? t.amount : t.kind)),
-      ["1", "10", "palier", "max", "go"],
+      ["1", "10", "palier", "max", "collect", "go", "go"],
     );
-    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "usines", page: 1 } });
+    assert.deepEqual(screen.targets[4], { kind: "collect" });
+    assert.deepEqual(screen.targets[5], { kind: "go", route: { screen: "equipe", factoryId: "mine-profonde", page: 0 } });
+    assert.deepEqual(screen.targets[6], { kind: "go", route: { screen: "usines", page: 1 } });
     assert.deepEqual(screen.spec.buttons.map((b) => bare(b).split("\n")[0]), [
       FICHE_TEXTES.monter["1"],
       FICHE_TEXTES.monter["10"],
       FICHE_TEXTES.monter.palier,
       FICHE_TEXTES.monter.max,
+      SILO_TEXTES.encaisser,
+      MENU_TEXTES.personnel,
       FICHE_TEXTES.retour,
     ]);
   });
@@ -704,6 +708,23 @@ describe("parcours : fermeture, écran occupé, joueur parti", () => {
     assert.match(log.warns.join("\n"), /menu de Alex : Error: joueur parti/);
     await menu.open(PLAYER);
     assert.equal(presenter.shown.length, 2);
+  });
+
+  it("une déconnexion pendant show n'accède plus au nom invalide et libère le menu", async () => {
+    let valid = true;
+    const player = { get name() { if (!valid) throw new Error("Failed to get property 'name'"); return PLAYER.name; } };
+    const { menu, log } = setup([() => { valid = false; throw new Error("formulaire interrompu"); }, close]);
+    await assert.doesNotReject(menu.open(player));
+    assert.match(log.warns.join("\n"), /menu de Alex : Error: formulaire interrompu/);
+    valid = true;
+    await assert.doesNotReject(menu.open(player));
+  });
+
+  it("un joueur déjà invalide n'ouvre pas de formulaire et ne crée pas de rejet", async () => {
+    const { menu, presenter } = setup([]);
+    const player = { get name(): string { throw new Error("Failed to get property 'name'"); } };
+    await assert.doesNotReject(menu.open(player));
+    assert.equal(presenter.shown.length, 0);
   });
 
   it("un menu déjà ouvert pour le joueur : le second appel est ignoré", async () => {

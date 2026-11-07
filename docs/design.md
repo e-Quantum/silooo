@@ -108,7 +108,7 @@ compare chaque copie à sa source octet pour octet, vérifie que les fichiers ci
 | Expressions d'Oooscar | `resource-pack/textures/ui/silooo/oooscar/` | `design/mascotte/`, PNG, copies | fait |
 | Entité Oooscar, côté client | `entity/oooscar.entity.json`, `models/entity/oooscar.geo.json`, `textures/entity/oooscar.png`, `animations/oooscar.animation.json`, `render_controllers/` | modèle et texture dessinés par `tools/generer_oooscar.mjs` depuis `design/tokens.json` | fait |
 | HUD | `resource-pack/ui/hud_screen.json`, `ui/silooo/hud.json`, `ui/_ui_defs.json` | [bedrock.md](bedrock.md) | fait |
-| Formulaires | `resource-pack/ui/server_form.json` | [bedrock.md](bedrock.md) | à faire |
+| Formulaires | `resource-pack/ui/server_form.json` | [bedrock.md](bedrock.md) | habillage Atelier ajouté le 6 novembre, rendu à confirmer sur client |
 | Polices bitmap | `resource-pack/font/` | planches de glyphes à produire depuis les trois polices de la charte | à faire |
 | Textes | `resource-pack/texts/fr_FR.lang`, `languages.json` | le nom et la description du pack, en français seulement | fait, à valider par Kr |
 | Logo | `resource-pack/pack_icon.png` | `design/logo/silooo-logo-128.png`, copie | fait |

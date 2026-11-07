@@ -50,6 +50,7 @@ export interface UiSettings {
 export interface WorldSettings {
   /** Secondes entre deux relevés des îles des joueurs présents (usine changée par une action, île donnée après le join). */
   readonly syncSeconds: number;
+  readonly productionTickSeconds: number;
   /** Opérations de bloc exécutées d'un coup avant de rendre la main au serveur : une île ne fige pas le jeu. */
   readonly opsPerBatch: number;
   readonly batchPauseSeconds: number;
@@ -143,7 +144,8 @@ export const config: Config = {
   },
   world: {
     syncSeconds: 5,
-    opsPerBatch: 40,
+    productionTickSeconds: 0.1,
+    opsPerBatch: 8,
     batchPauseSeconds: 0.05,
     buildRetrySeconds: 2,
     buildRetryMaxSeconds: 30,

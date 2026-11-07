@@ -1,0 +1,151 @@
+{
+  "namespace": "silooo_cinema",
+  "scene": {
+    "type": "panel",
+    "size": [
+      "100%",
+      "100%"
+    ],
+    "bindings": [
+      {
+        "binding_type": "global",
+        "binding_name": "#hud_title_text_string"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "(#hud_title_text_string = 'silooo:cinema|')",
+        "target_property_name": "#visible"
+      }
+    ],
+    "controls": [
+      {
+        "bande_haute": {
+          "type": "image",
+          "texture": "textures/ui/silooo/plein",
+          "color": [
+            0.06,
+            0.05,
+            0.04
+          ],
+          "size": [
+            "100%",
+            "12.5%"
+          ],
+          "anchor_from": "top_middle",
+          "anchor_to": "top_middle",
+          "layer": 20
+        }
+      },
+      {
+        "bande_basse": {
+          "type": "image",
+          "texture": "textures/ui/silooo/plein",
+          "color": [
+            0.06,
+            0.05,
+            0.04
+          ],
+          "size": [
+            "100%",
+            "12.5%"
+          ],
+          "anchor_from": "bottom_middle",
+          "anchor_to": "bottom_middle",
+          "layer": 20
+        }
+      },
+      {
+        "recit": {
+          "type": "panel",
+          "size": [
+            "90%",
+            42
+          ],
+          "anchor_from": "bottom_middle",
+          "anchor_to": "bottom_middle",
+          "offset": [
+            0,
+            -42
+          ],
+          "controls": [
+            {
+              "fond": {
+                "type": "image",
+                "texture": "textures/ui/silooo/panneau-fonte",
+                "nineslice_size": 4,
+                "size": [
+                  "100%",
+                  "100%"
+                ],
+                "layer": 21
+              }
+            },
+            {
+              "parole": {
+                "type": "label",
+                "text": "#text",
+                "localize": false,
+                "size": [
+                  "100% - 24px",
+                  36
+                ],
+                "anchor_from": "center",
+                "anchor_to": "center",
+                "offset": [
+                  0,
+                  0
+                ],
+                "text_alignment": "center",
+                "color": [
+                  1.0,
+                  0.9647,
+                  0.8706
+                ],
+                "shadow": true,
+                "font_size": "normal",
+                "layer": 22,
+                "bindings": [
+                  {
+                    "binding_type": "global",
+                    "binding_name": "#hud_subtitle_text_string"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(#hud_subtitle_text_string - 'silooo:parole|')",
+                    "target_property_name": "#text"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "consigne": {
+          "type": "label",
+          "text": "silooo.cinema.passer",
+          "localize": true,
+          "size": [
+            "90%",
+            9
+          ],
+          "anchor_from": "bottom_middle",
+          "anchor_to": "bottom_middle",
+          "offset": [
+            0,
+            -27
+          ],
+          "text_alignment": "center",
+          "color": [
+            1,
+            0.9647,
+            0.8706
+          ],
+          "shadow": true,
+          "font_size": "small",
+          "layer": 22
+        }
+      }
+    ]
+  }
+}

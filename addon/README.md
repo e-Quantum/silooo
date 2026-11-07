@@ -1,3 +1,5 @@
+> Révision gameplay du 6 novembre 2026 : la boussole décrite dans les sections historiques ci-dessous n’est plus branchée. Quatre objets personnalisés occupent les cases 1 à 4 : Usine, Carte, Objectif, Ville. Usine ouvre la fiche de l’île actuelle avec collecte et personnel ; la Carte reste limitée aux voyages et aux verrous existants, son achat d’usines attend le contrat et le moteur. Le pack 0.1.1 ajoute l’habillage des formulaires. Voir `docs/gameplay-2026-11-06.md` pour les validations et limites.
+
 # addon : le pack de comportement de Silooo
 
 L'add-on tourne dans le serveur Bedrock (BDS) et parle en HTTP à silooo-core. Il n'a aucune règle de jeu :
@@ -1037,6 +1039,72 @@ L'avant est « rien », sauf pour le nom de la rareté du personnel et la place 
 | Usine sans courant, ligne qui suit la bulle (tchat) | rien | `<usine>` est arrêtée faute de courant. |
 | Personnel, tuile Associés (elle était dans le menu principal, qui n'a que huit places) | Associés, dans le menu | Associés, dans l'écran PERSONNEL |
 | Personnel, raretés du contrat (le nom vient de `definitions/personnel.json`) | Commun, Rare, Exceptionnel | Ordinaire, Rare, Exceptionnel |
+
+### Carrière et introduction, nouveaux textes à valider par Kr
+
+| Où | Avant | Après |
+| --- | --- | --- |
+| Introduction, plan 1 | Bienvenue chez toi, patron. | Bienvenue dans ta Carrière, patron. |
+| Introduction, plan 2 | Tu hérites d'une vieille carrière abandonnée. | La pierre passe par le broyeur. |
+| Introduction, plan 3 | Les murs tiennent encore, à peu près. | Ton équipe maintient la production. |
+| Introduction, plan 4 | Remettons-la en état, je t'accompagne. | Au bureau, tu gères ton usine. |
+| Salarié | rien | Ouvrier de la Carrière |
+| Bureau, titre | rien | ADMINISTRATION |
+| Ouvrier, titre | rien | PRODUCTION |
+| Bureau, description | rien | Gère ta Carrière depuis le bureau. |
+| Ouvrier, description | rien | Cet ouvrier assure le travail courant de la Carrière. |
+| Bureau, action | rien | Gérer l'usine |
+| Bureau, personnel | rien | Personnel |
+| Bureau, agence | rien | Agence |
+| Bureau, cinématique | rien | Revoir l'arrivée |
+| Bureau, fermeture | rien | Retour |
+| Poste d'autrui | rien | Ce poste appartient à une autre entreprise. |
+
+### Carrière aménagée, visuels à valider par Kr
+
+La Carrière de départ utilise le plan `atelier` de `definitions/iles.json` : fosse, hangar de production,
+convoyeur, stock et bureau vitré. `tools/generer_atelier.mjs` produit les quatre blocs et le salarié ;
+`--verifier` contrôle les copies et modèles pendant la vérification du pack. Les autres usines gardent leur plan.
+
+Le broyeur et le convoyeur s'animent seulement quand `Factory.ratePerHour` est positif et que l'usine fonctionne.
+L'ouvrier représente le travail courant ; il ne crée pas de salarié nommé, d'embauche ni de gain dans le service.
+Le bureau ouvre la fiche d'usine, le personnel, l'agence et la relecture de l'arrivée.
+
+La cinématique conserve quatre plans et vingt secondes, avec les caméras chargées pendant la lecture.
+Le nom d'Oooscar et ses phrases occupent la bande inférieure du HUD. La révision d'introduction fait voir
+la nouvelle version une fois aux joueurs existants, sans effacer leur progression. La révision du décor ne
+reconstruit que la Carrière. Nouveaux visuels : fosse et bâtiments, quatre blocs, ouvrier et bandes de sous-titres,
+tous à valider par Kr sur son client. Les formulaires conservent la hiérarchie native du correctif 0.1.2.
+
+### Récit au-dessus de l'inventaire, à valider par Kr
+
+| Où | Avant (0.1.3) | Après |
+| --- | --- | --- |
+| Plan 1 | Bienvenue dans ta Carrière, patron. | Tu hérites de cette ancienne Carrière. |
+| Plan 2 | La pierre passe par le broyeur. | Sa pierre a fait grandir la ville. |
+| Plan 3 | Ton équipe maintient la production. | Ton équipe remet les machines en marche. |
+| Plan 4 | Au bureau, tu gères ton usine. | Depuis ce bureau, écris la suite. |
+
+Le récit est centré au-dessus de la barre d'inventaire, sur un panneau en fonte avec une hauteur pour le nom
+et une phrase sur deux lignes. La consigne est séparée, entre le panneau et l'inventaire. La barre d'action
+native n'affiche plus cette consigne pendant le film. Les textes et ce nouvel emplacement sont à valider par Kr.
+
+### Structure Carrière 0.1.4, à valider par Kr
+
+Le fichier `pack/structures/silooo/carriere_depart.mcstructure` contient le nouveau hangar, la fosse, le bureau,
+le quai et leurs blocs personnalisés. `node tools/generer_structure.mjs` le produit d'après `definitions/iles.json` ;
+`--verifier` compare ses octets pendant la validation du pack. Le constructeur Bedrock le place avec
+`StructureManager.place`, sans entités. L'enseigne est écrite ensuite ; une erreur de chargement n'acquitte pas
+le chantier. Les mondes de tests qui n'ont pas cette capacité rejouent le même plan bloc par bloc.
+
+Trois pierres de décor avancent sur les onze tronçons du convoyeur. Leur mouvement suit l'état de production
+renvoyé par le service. Elles ne sont ni ramassables ni comptées comme un stock et ne donnent aucun gain.
+Les pierres s'arrêtent avec l'usine ; leurs acteurs sont retirés quand l'entreprise n'a plus de joueur présent.
+Les déplacements attendent le chargement des chunks. Les révisions du décor et de l'introduction passent à 2,
+pour reconstruire une fois la Carrière et montrer une fois son nouveau récit, sans remise à zéro.
+
+Visuels nouveaux ou revus, tous à valider par Kr : hangar en briques et cuivre avec vitrage haut, fosse protégée,
+bureau aménagé, auvent de stockage, quai, pierres sur le convoyeur, cadrages et panneau du récit au-dessus de l'inventaire.
 
 ## Ce qui manque
 

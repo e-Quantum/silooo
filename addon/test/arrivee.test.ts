@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { config } from "../src/config";
-import { createArrivals, inBuildOrder, type ArrivalWorld, type Arrivals } from "../src/monde/arrivee";
+import { createArrivals, inBuildOrder, type ArrivalDeps, type ArrivalWorld, type Arrivals } from "../src/monde/arrivee";
 import type { CinematicOutcome, CinematicRunner, Timeline } from "../src/monde/cinematique";
 import type { IslandBuilder } from "../src/monde/constructeur";
 import { ILES } from "../src/monde/definitions";
@@ -37,7 +37,7 @@ function reponse(options: { firstJoin?: boolean; island?: Xz | undefined; factor
   });
 }
 
-function banc() {
+function banc(introduction?: { seen(player: Joueur): boolean; complete(player: Joueur): void }, withCinematicArea?: ArrivalDeps<Joueur>["withCinematicArea"]) {
   const temps = virtualTime();
   const log = recordingLogger();
   const evenements: string[] = [];
@@ -114,6 +114,8 @@ function banc() {
     scheduler: temps.scheduler,
     log,
     remember: (companyId, origin) => void retenues.push({ companyId, origin }),
+    ...(introduction === undefined ? {} : { introduction }),
+    ...(withCinematicArea === undefined ? {} : { withCinematicArea }),
   });
   return { temps, log, evenements, attentes, syncs, constructeur, oooscar, lecteur, monde, retenues, arrivees };
 }
@@ -198,6 +200,30 @@ describe("un joueur qui revient", () => {
 });
 
 describe("le premier passage", () => {
+  it("reprend une introduction jamais vue après un join antérieur, et ne l'acquitte qu'une fois lue", async () => {
+    let seen = false;
+    const b = banc({ seen: () => seen, complete: () => { seen = true; } });
+    const joueur = alex();
+    b.arrivees.arriving(joueur);
+    const fin = b.arrivees.joined(joueur, reponse({ firstJoin: false }));
+    await b.temps.flush();
+    b.attentes[0]?.resoudre(true);
+    await b.temps.flush();
+    assert.equal(b.lecteur.departs.length, 1);
+    assert.equal(seen, false);
+    b.lecteur.departs[0]?.finir("aborted");
+    await fin;
+    assert.equal(seen, false, "une déconnexion ne valide pas l'introduction");
+    b.arrivees.left(cle(joueur));
+    b.arrivees.arriving(joueur);
+    const reprise = b.arrivees.joined(joueur, reponse({ firstJoin: false }));
+    await b.temps.flush();
+    b.attentes[1]?.resoudre(true);
+    await b.temps.flush();
+    b.lecteur.departs[1]?.finir("finished");
+    await reprise;
+    assert.equal(seen, true);
+  });
   it("joue la cinématique de vingt secondes après la téléportation, et le joueur est occupé jusqu'à sa fin", async () => {
     const b = banc();
     const joueur = alex();
@@ -425,5 +451,44 @@ describe("une usine de départ sans île dans le fichier", () => {
     await arrivees.joined(joueur, reponse());
     assert.equal(log.warns.length, 1);
     assert.equal(arrivees.busy(joueur), false);
+  });
+});
+
+
+describe("revoir une arrivée et charger ses caméras", () => {
+  for (const outcome of ["finished", "skipped", "aborted"] as const) {
+    it(`garde la zone chargée pendant la relecture, puis la libère (${outcome})`, async () => {
+      let loaded = false;
+      let completed = 0;
+      const b = banc({ seen: () => true, complete: () => { completed += 1; } }, async (timeline, run) => {
+        assert.equal(timeline.totalSeconds, 20);
+        loaded = true;
+        try { return await run(); } finally { loaded = false; }
+      });
+      const joueur = alex();
+      b.arrivees.arriving(joueur);
+      const fin = b.arrivees.joined(joueur, reponse({ firstJoin: false }), true);
+      b.attentes[0]?.resoudre(true);
+      await b.temps.flush();
+      assert.equal(loaded, true);
+      assert.equal(b.arrivees.busy(joueur), true);
+      assert.equal(b.lecteur.departs.length, 1, "une introduction déjà vue peut être rejouée");
+      b.lecteur.departs[0]?.finir(outcome);
+      await fin;
+      assert.equal(loaded, false);
+      assert.equal(b.arrivees.busy(joueur), false);
+      assert.equal(completed, outcome === "aborted" ? 0 : 1);
+    });
+  }
+  it("ne bloque pas le joueur si les chunks des caméras refusent de charger", async () => {
+    const b = banc({ seen: () => false, complete: () => assert.fail("pas encore lue") }, async () => { throw Error("zone indisponible"); });
+    const joueur = alex();
+    b.arrivees.arriving(joueur);
+    const fin = b.arrivees.joined(joueur, reponse());
+    b.attentes[0]?.resoudre(true);
+    await fin;
+    assert.equal(b.arrivees.busy(joueur), false);
+    assert.equal(b.lecteur.departs.length, 0);
+    assert.match(b.log.errors[0] ?? "", /zone indisponible/);
   });
 });

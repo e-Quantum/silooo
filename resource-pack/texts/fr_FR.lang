@@ -1,2 +1,9 @@
 pack.name=Silooo
 pack.description=Interface, HUD et Oooscar, la mascotte du jeu Silooo.
+
+tile.silooo:broyeur.name=Broyeur
+tile.silooo:convoyeur.name=Convoyeur
+tile.silooo:bac_pierre.name=Bac de pierre
+tile.silooo:bureau_administration.name=Bureau d'administration
+action.interact.silooo.personnel=Parler
+silooo.cinema.passer=Reste accroupi pour passer.

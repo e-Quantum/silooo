@@ -46,6 +46,9 @@ export interface ArrivalDeps<P extends { readonly name: string }> {
   readonly log: Logger;
   /** Retient l'origine d'archipel d'une entreprise (le relevé périodique s'en sert quand une réponse ne la redonne pas). */
   readonly remember?: (companyId: number, origin: Xz) => void;
+  /** La cinématique est acquittée après sa lecture, jamais au simple join du service. */
+  readonly introduction?: { seen(player: P): boolean; complete(player: P): void };
+  readonly withCinematicArea?: <T>(timeline: ReturnType<typeof buildTimeline>, run: () => Promise<T>) => Promise<T>;
   readonly settings?: ArrivalSettings;
 }
 
@@ -53,7 +56,7 @@ export interface Arrivals<P> {
   /** Le joueur vient d'apparaître dans le monde, avant la réponse de join. */
   arriving(player: P): void;
   /** La réponse de join est arrivée : île, téléportation, Oooscar, cinématique. Se résout quand tout est fini. */
-  joined(player: P, join: JoinResponse): Promise<void>;
+  joined(player: P, join: JoinResponse, replay?: boolean): Promise<void>;
   /** join a échoué : le joueur n'est plus occupé. */
   failed(player: P): void;
   /** Le joueur est parti : tout ce qui le concernait s'arrête. */
@@ -93,7 +96,7 @@ export function createArrivals<P extends { readonly name: string }>(deps: Arriva
     log.warn("Oooscar : jamais apparue près du joueur");
   }
 
-  async function arrive(player: P, join: JoinResponse, key: string, connection: number): Promise<void> {
+  async function arrive(player: P, join: JoinResponse, key: string, connection: number, replay = false): Promise<void> {
     const island = join.state.island;
     if (island === undefined) {
       log.info(`arrivée de ${player.name} : pas d'origine d'île dans la réponse du service, rien posé ni déplacé`);
@@ -121,8 +124,11 @@ export function createArrivals<P extends { readonly name: string }>(deps: Arriva
     void placeOooscar(key, arrival.oooscar, arrival.position, connection).catch((error: unknown) => {
       log.warn(`Oooscar : ${describeError(error)}`);
     });
-    if (!join.firstJoin) return;
-    const outcome = await runner.start(key, player, buildTimeline(defs, arrival, texts));
+    if (!replay && !join.firstJoin && (deps.introduction === undefined || deps.introduction.seen(player))) return;
+    const timeline = buildTimeline(defs, arrival, texts);
+    const play = () => runner.start(key, player, timeline);
+    const outcome = await (deps.withCinematicArea === undefined ? play() : deps.withCinematicArea(timeline, play));
+    if (outcome !== "aborted") deps.introduction?.complete(player);
     log.info(`cinématique de ${player.name} : ${outcome}`);
   }
 
@@ -131,11 +137,11 @@ export function createArrivals<P extends { readonly name: string }>(deps: Arriva
       begin(keyOf(player));
     },
 
-    async joined(player, join) {
+    async joined(player, join, replay = false) {
       const key = keyOf(player);
       const connection = connections.get(key) ?? begin(key);
       try {
-        await arrive(player, join, key, connection);
+        await arrive(player, join, key, connection, replay);
       } catch (error) {
         log.error(`arrivée de ${player.name} : ${describeError(error)}`);
       } finally {

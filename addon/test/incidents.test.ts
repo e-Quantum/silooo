@@ -253,7 +253,7 @@ describe("la fiche d'une usine en incident", () => {
     assert.ok(fiche);
     assert.deepEqual(
       fiche.targets.map((target) => (target.kind === "buy" ? target.amount : target.kind)),
-      ["repair", "1", "10", "palier", "max", "go"],
+      ["repair", "1", "10", "palier", "max", "collect", "go", "go"],
     );
   });
 
@@ -296,7 +296,7 @@ describe("la fiche d'une usine arrêtée faute de courant", () => {
     assert.ok(!fiche.targets.some((target) => target.kind === "repair"));
     assert.deepEqual(
       fiche.targets.map((target) => (target.kind === "buy" ? target.amount : target.kind)),
-      ["1", "10", "palier", "max", "go"],
+      ["1", "10", "palier", "max", "collect", "go", "go"],
     );
     assert.ok(!fiche.spec.buttons.some((button) => bare(button).includes(INCIDENT_TEXTES.reparer)));
   });

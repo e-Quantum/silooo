@@ -63,7 +63,17 @@ export function createFormPresenter(): FormPresenter<Player> {
   return {
     async show(player, spec) {
       const form = new ActionFormData().title(spec.title).body(spec.body);
-      for (const button of spec.buttons) form.button(button);
+      const icons: Readonly<Record<string, string>> = {
+        U: "usine", C: "carte", V: "ville", P: "etoile", B: "boutique", O: "engrenage",
+        T: "engrenage", X: "cadenas", S: "donar", D: "donar", L: "lingot", G: "gemme",
+        M: "engrenage", R: "engrenage", N: "engrenage", "!": "flamme", E: "eclair",
+      };
+      for (const button of spec.buttons) {
+        const marker = /\[([A-Z!])\]/.exec(button)?.[1];
+        const icon = marker === undefined ? undefined : icons[marker];
+        form.button(icon === undefined ? button : button.replace(/\[[A-Z!]\]\s?/, ""),
+          icon === undefined ? undefined : `textures/ui/silooo/icones/${icon}`);
+      }
       const response = await form.show(player);
       if (response.canceled) {
         return response.cancelationReason === FormCancelationReason.UserBusy ? { kind: "busy" } : { kind: "closed" };

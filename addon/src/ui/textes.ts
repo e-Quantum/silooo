@@ -247,6 +247,11 @@ export const BOUSSOLE_TEXTES = {
   nom: "Menu",
 } as const;
 
+/** Objets personnalisés de la barre rapide, à valider par Kr. */
+export const NAVIGATION_TEXTES = {
+  usine: "Usine", carte: "Carte", objectif: "Objectif", ville: "Ville",
+} as const;
+
 // ---------------------------------------------------------------- les écrans
 
 export const MENU_TEXTES = {
@@ -714,13 +719,28 @@ export const CINEMATIQUE_TEXTES = {
   qui: OOOSCAR,
   /** Une phrase de huit mots au plus par plan, trois secondes à l'écran au moins. Le joueur hérite d'une vieille carrière. */
   plans: [
-    "Bienvenue chez toi, patron.",
-    "Tu hérites d'une vieille carrière abandonnée.",
-    "Les murs tiennent encore, à peu près.",
-    "Remettons-la en état, je t'accompagne.",
+    "Tu hérites de cette ancienne Carrière.",
+    "Sa pierre a fait grandir la ville.",
+    "Ton équipe remet les machines en marche.",
+    "Depuis ce bureau, écris la suite.",
   ],
   /** La consigne pour passer, dans la bande du bas. */
   passer: "Reste accroupi pour passer.",
+} as const;
+
+/** Nouveaux textes du chantier Carrière, à valider par Kr. */
+export const ATELIER_TEXTES = {
+  ouvrier: "Ouvrier de la Carrière",
+  bureau: "ADMINISTRATION",
+  production: "PRODUCTION",
+  description: "Gère ta Carrière depuis le bureau.",
+  operateur: "Cet ouvrier assure le travail courant de la Carrière.",
+  usine: "Gérer l'usine",
+  personnel: "Personnel",
+  agence: "Agence",
+  revoir: "Revoir l'arrivée",
+  retour: "Retour",
+  autreEntreprise: "Ce poste appartient à une autre entreprise.",
 } as const;
 
 // ---------------------------------------------------------------- les associés

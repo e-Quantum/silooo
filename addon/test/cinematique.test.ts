@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import { config } from "../src/config";
 import {
   buildTimeline,
+  cinematicBounds,
   createCinematicRunner,
   type CinematicOutcome,
   type CinematicStage,
@@ -89,9 +90,19 @@ describe("buildTimeline", () => {
     const distance = (point: Pos): number => Math.hypot(point.x - arrivee.frame.center.x, point.z - arrivee.frame.center.z);
     const coupes = etapes(CHRONOLOGIE, "cut");
     const glissés = etapes(CHRONOLOGIE, "move");
-    assert.ok(distance(coupes[0]?.camera ?? arrivee.position) > 50);
-    assert.ok(distance(glissés[3]?.camera ?? arrivee.position) < 10);
+    assert.ok(distance(coupes[0]?.camera ?? arrivee.position) > 25 && distance(coupes[0]?.camera ?? arrivee.position) < 50);
+    assert.ok(distance(glissés[3]?.camera ?? arrivee.position) < 15);
     assert.ok(distance(coupes[0]?.camera ?? arrivee.position) > distance(coupes[3]?.camera ?? arrivee.position));
+  });
+
+  it("charge une zone qui contient tous les déplacements et leurs points visés", () => {
+    const box = cinematicBounds(CHRONOLOGIE);
+    for (const step of CHRONOLOGIE.steps) {
+      if (step.kind !== "cut" && step.kind !== "move") continue;
+      for (const point of [step.camera, step.facing]) for (const axis of ["x", "y", "z"] as const) {
+        assert.ok(point[axis] >= box.from[axis] && point[axis] <= box.to[axis]);
+      }
+    }
   });
 
   it("ne montre pas de phrase vide : un plan sans texte n'a pas de sous-titre", () => {

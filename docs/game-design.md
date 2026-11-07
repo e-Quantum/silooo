@@ -314,7 +314,7 @@ Objectif : moins de 2 minutes entre la connexion et la première vente, mise en 
 
 **Règles d'interface**
 
-- Un seul objet de menu dans la barre (une boussole) ; tout passe par des formulaires natifs Bedrock, lisibles à la manette.
+- Quatre objets personnalisés à place fixe : Usine, Carte, Objectif et Ville (consigne de Kr du 6 novembre 2026). Usine ouvre la fiche de l’île actuelle ; Carte porte les voyages et, à terme, l’achat des autres usines ; Ville est un mode de gestion en chantier. Personnel et Agence restent dans les écrans de gestion de l’usine. Les formulaires sont habillés par le pack Silooo Atelier.
 - Quatre boutons au menu principal : Carte, Usines, Objectifs, Amis. Toute action en 2 clics maximum.
 - Textes courts, aucun bloc de plus de deux lignes ; les règles du serveur sont sur le site et le Discord, pas en jeu à l'arrivée.
 - Aucune liaison de compte obligatoire (Discord, site) pour jouer.

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { config } from "../src/config";
-import { createIslandBuilder, markOf, type IslandBuilder } from "../src/monde/constructeur";
+import { applyOp, createIslandBuilder, markOf, type IslandBuilder } from "../src/monde/constructeur";
 import { ILES } from "../src/monde/definitions";
 import { islandCenter, usineIle, type Xz } from "../src/monde/geometrie";
 import { planIsland } from "../src/monde/plan";
@@ -51,7 +51,7 @@ describe("poser une île", () => {
     assert.equal(b.constructeur.pending(), 0);
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@0,0");
     const centre = islandCenter(ORIGINE, usineIle(ILES, "carriere") ?? { angle: 0 }, ILES);
-    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), ILES.materiaux.herbe);
+    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), "minecraft:gravel");
     assert.equal(b.monde.count(ILES.materiaux.enseigne), 1);
     assert.ok(b.log.infos.some((ligne) => ligne.includes("île 7/carriere posée")));
   });
@@ -151,7 +151,8 @@ describe("changer d'état", () => {
     const plan = planIsland(ILES, usineIle(ILES, "carriere") ?? ILES.usines[0]!, ORIGINE, "ACTIVE");
     assert.equal(b.monde.ops - avant, plan.state.length);
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@0,0");
-    assert.equal(b.monde.count(ILES.materiaux.toit), 5 * 5, "le toit est posé");
+    assert.equal(b.monde.count("silooo:broyeur"), 1, "la chaîne de production est posée");
+    assert.equal(b.monde.count("silooo:convoyeur"), ILES.atelier.machines.filter((machine) => machine.role === "convoyeur").length);
     assert.ok(b.log.infos.filter((ligne) => ligne.includes("plateforme comprise")).length === 1, "la plateforme n'a été posée qu'une fois");
   });
 
@@ -162,7 +163,8 @@ describe("changer d'état", () => {
     b.constructeur.sync(7, ORIGINE, [usine("carriere", "ACTIVE")]);
     await b.temps.advance(60);
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@0,0");
-    assert.equal(b.monde.count(ILES.materiaux.toit), 25);
+    assert.equal(b.monde.count("silooo:broyeur"), 1);
+    assert.equal(b.monde.count("silooo:bureau_administration"), 1);
     assert.equal(b.constructeur.pending(), 0);
   });
 
@@ -188,7 +190,7 @@ describe("changer d'état", () => {
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@600,0");
     assert.equal(b.log.infos.filter((ligne) => ligne.includes("plateforme comprise")).length, 2);
     const centre = islandCenter(AUTRE_ORIGINE, usineIle(ILES, "carriere") ?? ILES.usines[0]!, ILES);
-    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), ILES.materiaux.herbe);
+    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), "minecraft:gravel");
   });
 });
 
@@ -284,5 +286,42 @@ describe("usines inconnues", () => {
     await b.temps.advance(5);
     assert.equal(b.log.warns.filter((ligne) => ligne.includes("usine-du-futur")).length, 1);
     assert.deepEqual(b.marques.stored.get(7), { carriere: "ACTIVE@0,0" });
+  });
+});
+
+
+describe("préfabriqué natif de la Carrière", () => {
+  it("charge le mcstructure et son enseigne dans la zone avant de marquer l'île prête", async () => {
+    const b = banc();
+    const calls: Array<{ id: string; at: { x: number; y: number; z: number } }> = [];
+    b.monde.structure = (id, at) => {
+      calls.push({ id, at });
+      const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
+      for (const op of [...plan.base, ...plan.state]) if (op.kind !== "text") applyOp(b.monde, op);
+    };
+    b.constructeur.sync(7, ORIGINE, [usine("carriere")]);
+    await b.temps.advance(5);
+    const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
+    assert.deepEqual(calls, [{ id: ILES.atelier.structure, at: plan.box.from }]);
+    assert.equal(b.monde.areas.length, 1);
+    assert.equal(b.monde.count("silooo:broyeur"), 1);
+    assert.equal(b.monde.texts.size, 1);
+    assert.equal(b.marques.stored.get(7)?.carriere, "ACTIVE@0,0");
+  });
+  it("ne marque jamais prête une structure dont le chargement échoue", async () => {
+    const b = banc();
+    let fail = true;
+    b.monde.structure = () => {
+      if (fail) throw Error("structure absente");
+      const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
+      for (const op of [...plan.base, ...plan.state]) if (op.kind !== "text") applyOp(b.monde, op);
+    };
+    b.constructeur.sync(7, ORIGINE, [usine("carriere")]);
+    await b.temps.advance(1);
+    assert.equal(b.marques.stored.get(7)?.carriere, undefined);
+    assert.equal(b.constructeur.pending(), 1);
+    fail = false;
+    await b.temps.advance(5);
+    assert.equal(b.marques.stored.get(7)?.carriere, "ACTIVE@0,0");
   });
 });

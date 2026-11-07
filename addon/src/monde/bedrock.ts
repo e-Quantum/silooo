@@ -17,10 +17,13 @@ import {
   type Vector3,
 } from "@minecraft/server";
 import { config } from "../config";
+import { ILES } from "./definitions";
+import { currentWorkshopMarks, type WorkshopWorld } from "./atelier";
+import { ATELIER_TEXTES } from "../ui/textes";
 import type { CursorStore } from "../events";
 import { secondsToTicks } from "../runtime";
 import type { ArrivalWorld } from "./arrivee";
-import type { CinematicStage } from "./cinematique";
+import { CINEMATIC_TITLE_PREFIX, CINEMATIC_SUBTITLE_PREFIX, cinematicBounds, type CinematicStage, type Timeline } from "./cinematique";
 import type { BlockWriter, MarkStore } from "./constructeur";
 import type { OooscarHandle, OooscarWorld } from "./oooscar";
 
@@ -29,17 +32,74 @@ function overworld(): Dimension {
   return world.getDimension("overworld");
 }
 
+/** Échec explicite au démarrage si un matériau ne porte pas son identifiant Bedrock. */
+export function validateWorldAssets(): void {
+  for (const block of Object.values(ILES.materiaux)) BlockPermutation.resolve(block);
+  for (const facing of [2, 3, 4, 5]) BlockPermutation.resolve(ILES.materiaux.enseigne, { facing_direction: facing });
+  for (const volume of ILES.atelier.volumes) BlockPermutation.resolve(volume.bloc);
+  for (const machine of ILES.atelier.machines) BlockPermutation.resolve(machine.bloc);
+  if (!world.structureManager.getPackStructureIds().includes(ILES.atelier.structure)) throw new Error(`structure ${ILES.atelier.structure} absente du pack`);
+}
+
+export function createWorkshopWorld(): WorkshopWorld {
+  const type = "silooo:ouvrier";
+  return {
+    machine(at, expected, working) {
+      if (!overworld().isChunkLoaded(at)) return false;
+      const block = overworld().getBlock(at);
+      if (block?.typeId !== expected) return false;
+      if (expected === "silooo:broyeur" || expected === "silooo:convoyeur") {
+        const states = block.permutation.getAllStates();
+        if (states["silooo:actif"] !== working) block.setPermutation(BlockPermutation.resolve(expected, { ...states, "silooo:actif": working }));
+      }
+      return true;
+    },
+    worker(previous, companyId, at, facing, working) {
+      let entity = previous === undefined ? undefined : world.getEntity(previous);
+      if (entity?.isValid !== true) {
+        for (const stale of overworld().getEntities({ type, location: at, maxDistance: 4 })) stale.remove();
+        entity = overworld().spawnEntity(type, at);
+        entity.nameTag = ATELIER_TEXTES.ouvrier;
+        entity.setDynamicProperty("silooo:company-id", companyId);
+        entity.teleport(at, { facingLocation: facing });
+      }
+      entity.setProperty("silooo:travaille", working);
+      return entity.id;
+    },
+    loaded: (at) => overworld().isChunkLoaded(at),
+    cargo(previous, companyId, at, working, reset) {
+      if (reset === true) {
+        for (const stale of overworld().getEntities({ type: "silooo:production", location: at, maxDistance: ILES.atelier.transport.longueur + 1 })) {
+          if (stale.getDynamicProperty("silooo:company-id") === companyId) stale.remove();
+        }
+      }
+      let entity = previous === undefined ? undefined : world.getEntity(previous);
+      if (entity?.isValid !== true) {
+        entity = overworld().spawnEntity("silooo:production", at);
+        entity.setDynamicProperty("silooo:company-id", companyId);
+      }
+      entity.teleport(at);
+      if (entity.getProperty("silooo:actif") !== working) entity.setProperty("silooo:actif", working);
+      return entity.id;
+    },
+    remove(id) {
+      const entity = world.getEntity(id);
+      if (entity?.isValid === true) entity.remove();
+    },
+  };
+}
+
 // ---------------------------------------------------------------- blocs
 
+let areaCounter = 0;
 export function createBlockWriter(): BlockWriter {
-  let counter = 0;
   return {
     async withLoadedArea(box, run) {
       const manager = world.tickingAreaManager;
       const options = { dimension: overworld(), from: box.from, to: box.to };
       if (!manager.hasCapacity(options)) throw new Error("plus de place pour une zone chargée de plus");
-      counter += 1;
-      const id = `${config.world.areaPrefix}${counter}`;
+      areaCounter += 1;
+      const id = `${config.world.areaPrefix}${areaCounter}`;
       await manager.createTickingArea(id, options);
       try {
         return await run();
@@ -60,6 +120,10 @@ export function createBlockWriter(): BlockWriter {
       const target = overworld().getBlock(at);
       if (target === undefined) throw new Error(`bloc en ${at.x} ${at.y} ${at.z} : zone non chargée`);
       target.setPermutation(BlockPermutation.resolve(block, states === undefined ? undefined : { ...states }));
+    },
+
+    structure(id, at) {
+      world.structureManager.place(id, overworld(), at, { includeBlocks: true, includeEntities: false, integrity: 1 });
     },
 
     setText(at, text) {
@@ -107,7 +171,7 @@ function readMarks(property: string): Record<string, string> {
 export function createMarkStore(): MarkStore {
   return {
     read(companyId) {
-      return { ...readMarks(`${MARK_PREFIX}${companyId}`), ...readMarks(`${CITY_MARK_PREFIX}${companyId}`) };
+      return { ...currentWorkshopMarks(readMarks(`${MARK_PREFIX}${companyId}`), world.getDynamicProperty(`silooo:atelier-version:${companyId}`), ILES), ...readMarks(`${CITY_MARK_PREFIX}${companyId}`) };
     },
     write(companyId, marks) {
       const islands: Record<string, string> = {};
@@ -115,6 +179,7 @@ export function createMarkStore(): MarkStore {
       for (const [key, mark] of Object.entries(marks)) (key.startsWith(CITY_KEY_PREFIX) ? city : islands)[key] = mark;
       world.setDynamicProperty(`${MARK_PREFIX}${companyId}`, JSON.stringify(islands));
       world.setDynamicProperty(`${CITY_MARK_PREFIX}${companyId}`, JSON.stringify(city));
+      if (islands[ILES.apparition.usine] !== undefined) world.setDynamicProperty(`silooo:atelier-version:${companyId}`, ILES.atelier.revision);
     },
   };
 }
@@ -211,7 +276,11 @@ export function createCinematicStage(): CinematicStage<Player> {
   return {
     isValid: (player) => player.isValid,
     isSneaking: (player) => player.isSneaking,
-    hideHud: (player) => player.onScreenDisplay.setHudVisibility(HudVisibility.Hide, HIDDEN_HUD),
+    hideHud(player) {
+      player.onScreenDisplay.setHudVisibility(HudVisibility.Hide, HIDDEN_HUD);
+      player.onScreenDisplay.setActionBar("");
+      player.onScreenDisplay.setTitle(CINEMATIC_TITLE_PREFIX, { fadeInDuration: 0, stayDuration: secondsToTicks(ILES.cinematique.plans.reduce((sum, plan) => sum + plan.duree, 0)), fadeOutDuration: 0, subtitle: "" });
+    },
     showHud: (player) => player.onScreenDisplay.resetHudElementsVisibility(),
     lockInput(player) {
       for (const category of LOCKED_INPUT) player.inputPermissions.setPermissionCategory(category, false);
@@ -234,14 +303,19 @@ export function createCinematicStage(): CinematicStage<Player> {
       }),
     // Le sous-titre passe par le canal de titre : le nom de qui parle en titre, la phrase en sous-titre.
     subtitle: (player, speaker, text, seconds) =>
-      player.onScreenDisplay.setTitle(speaker, {
-        subtitle: text,
+      player.onScreenDisplay.setTitle(CINEMATIC_TITLE_PREFIX, {
+        subtitle: `${CINEMATIC_SUBTITLE_PREFIX}${speaker}\n${text}`,
         fadeInDuration: secondsToTicks(0.25),
         stayDuration: secondsToTicks(Math.max(0.5, seconds - 0.75)),
         fadeOutDuration: secondsToTicks(0.5),
       }),
-    clearSubtitle: (player) => void player.runCommand("title @s clear"),
-    hint: (player, text) => player.onScreenDisplay.setActionBar(text),
+    clearSubtitle: (player) => player.onScreenDisplay.setTitle(" ", { subtitle: "", fadeInDuration: 0, stayDuration: 1, fadeOutDuration: 0 }),
+    // La consigne est dans le pack, sous le récit : la barre d’action native le recouvrirait.
+    hint: () => {},
     clearHint: (player) => player.onScreenDisplay.setActionBar(""),
   };
+}
+
+export function withCinematicArea<T>(timeline: Timeline, run: () => Promise<T>): Promise<T> {
+  return createBlockWriter().withLoadedArea(cinematicBounds(timeline), run);
 }
