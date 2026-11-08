@@ -69,7 +69,7 @@ class TicketTest {
         fun close(number: Int, user: DiscordUser = member): FakeReply {
             val reply = FakeReply()
             runBlocking {
-                feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + number, user, null, "1", reply))
+                feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + number, user, ticket(number)?.channelId, "1", reply))
             }
             return reply
         }
@@ -88,7 +88,10 @@ class TicketTest {
         fun ticket(id: Int): Ticket? = store.tickets.firstOrNull { it.id == id }
 
         /** Un membre du staff, avec le rôle Staff. */
-        fun staffMember() = DiscordUser("77", "Kr", roleIds = setOf(staff))
+        fun staffMember(): DiscordUser {
+            fake.memberRoles["77"] = mutableSetOf(staff)
+            return DiscordUser("77", "Kr", roleIds = setOf(staff))
+        }
     }
 
     private val member = DiscordUser("42", "Ana")
@@ -219,8 +222,8 @@ class TicketTest {
         assertEquals("<@42> Ton ticket est ouvert. Dis-nous tout ici : le staff lit.", welcome.text)
         assertEquals(setOf("42"), welcome.mentionUserIds)
         assertTrue(welcome.mentionRoleIds.isEmpty())
-        assertEquals(listOf("ticket-fermer:1"), welcome.buttons.map { it.id })
-        assertEquals(listOf("Fermer le ticket"), welcome.buttons.map { it.label })
+        assertEquals(listOf("ticket-prendre:1", "ticket-liberer:1", "ticket-fermer:1"), welcome.buttons.map { it.id })
+        assertEquals(listOf("Prendre en charge", "Libérer le ticket", "Fermer le ticket"), welcome.buttons.map { it.label })
 
         val (answer, onlyToUser) = reply.sent.single()
         assertEquals("Ton ticket est ouvert : <#" + channel.id + ">.", answer.text)
@@ -307,7 +310,7 @@ class TicketTest {
         assertEquals("42", closed?.closedBy)
         assertEquals(
             listOf(
-                "Ticket n°1 (achat) de <@42>, fermé par <@42>.",
+                "Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@42>.",
                 "5 novembre 2026 à 18 h 10, Oooscar : <@42> Ton ticket est ouvert. Dis-nous tout ici : le staff lit.\n" +
                     "5 novembre 2026 à 18 h 12, Ana : Mon achat n'est pas arrivé.\n" +
                     "5 novembre 2026 à 18 h 20, Kr : Je regarde.",
@@ -333,17 +336,18 @@ class TicketTest {
         assertTrue(setup.fake.deleted.isEmpty())
         assertEquals(before, setup.journal.size)
 
+        setup.fake.memberRoles["66"] = mutableSetOf(setup.moderation)
         val byModeration = setup.close(1, DiscordUser("66", "Mod", roleIds = setOf(setup.moderation)))
         assertEquals(1, byModeration.acknowledged)
         assertEquals("66", setup.ticket(1)?.closedBy)
         assertEquals(listOf(channel), setup.fake.deleted)
-        assertEquals("Ticket n°1 (achat) de <@42>, fermé par <@66>.", setup.journal[before])
+        assertEquals("Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@66>.", setup.journal[before])
 
         val second = Setup()
         second.openPurchase()
         second.close(1, second.staffMember())
         assertEquals("77", second.ticket(1)?.closedBy)
-        assertEquals("Ticket n°1 (achat) de <@42>, fermé par <@77>.", second.journal.last())
+        assertEquals("Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@77>.", second.journal.last())
     }
 
     @Test
@@ -412,7 +416,7 @@ class TicketTest {
     }
 
     @Test
-    @DisplayName("Un salon qu'on ne peut plus relire reste en place : le ticket est fermé, le journal le dit")
+    @DisplayName("Un salon illisible reste ouvert pour permettre une nouvelle tentative de fermeture")
     fun unreadableChannelStays() {
         val setup = Setup()
         val channel = setup.openPurchase()
@@ -422,9 +426,10 @@ class TicketTest {
         val reply = setup.close(1)
 
         assertEquals(1, reply.acknowledged)
-        assertNotNull(setup.ticket(1)?.closedAt)
+        assertNull(setup.ticket(1)?.closedAt)
+        assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
         assertEquals(
-            listOf("Ticket n°1 (achat) de <@42>, fermé par <@42>.", "Ticket n°1 : l'archive n'a pas pu être lue, le salon reste."),
+            listOf("Ticket n°1 : l'archive n'a pas pu être lue, le salon reste."),
             setup.journal.drop(before),
         )
         assertTrue(setup.fake.deleted.isEmpty())
@@ -452,4 +457,113 @@ class TicketTest {
         )
         assertEquals(setup.timer.now(), setup.ticket(2)?.closedAt)
     }
+    private fun Setup.action(action: String, user: DiscordUser = member, channel: String? = ticket(1)?.channelId): FakeReply {
+        val reply = FakeReply()
+        runBlocking { feature.handle(DiscordEvent.CommandUsed("ticket", mapOf("action" to action), user, channel, reply)) }
+        return reply
+    }
+
+    @Test
+    fun assignmentSurvivesRestartAndCannotBeStolen() {
+        val setup = Setup()
+        setup.openPurchase()
+        val staff = setup.staffMember()
+        assertEquals(TicketTexts.CLAIMED, setup.action("prendre", staff).sent.single().first.text)
+        assertEquals(staff.id, setup.ticket(1)?.assignedTo)
+        assertEquals(setup.timer.now(), setup.ticket(1)?.claimedAt)
+        val other = DiscordUser("88", "Autre")
+        setup.fake.memberRoles[other.id] = mutableSetOf(setup.staff)
+        assertEquals(TicketTexts.UNAVAILABLE, setup.action("prendre", other).sent.single().first.text)
+        assertEquals(TicketTexts.NOT_ASSIGNED, setup.action("liberer", other).sent.single().first.text)
+        val restarted = TicketFeature(setup.context, setup.store, setup.messages, BotJournal(setup.context), zone)
+        val state = FakeReply()
+        runBlocking { restarted.handle(DiscordEvent.CommandUsed("ticket", mapOf("action" to "etat"), member, setup.ticket(1)?.channelId, state)) }
+        assertTrue(state.sent.single().first.text.contains("<@77>"))
+        assertTrue(state.sent.single().second)
+        assertEquals(TicketTexts.RELEASED, setup.action("liberer", staff).sent.single().first.text)
+        assertNull(setup.ticket(1)?.assignedTo)
+        assertEquals(TicketTexts.CLAIMED, setup.action("prendre", other).sent.single().first.text)
+    }
+
+    @Test
+    fun assignmentButtonsCheckLiveRolesAndSourceChannel() {
+        val setup = Setup()
+        val channel = setup.openPurchase()
+        val staff = setup.staffMember()
+        fun press(prefix: String, user: DiscordUser, source: String = channel): FakeReply {
+            val reply = FakeReply()
+            runBlocking { setup.feature.handle(DiscordEvent.ButtonPressed(prefix + "1", user, source, "1", reply)) }
+            return reply
+        }
+        assertEquals(TicketTexts.STAFF_ONLY, press(TicketTexts.CLAIM_PREFIX, member).sent.single().first.text)
+        assertEquals(TicketTexts.WRONG_CHANNEL, press(TicketTexts.CLAIM_PREFIX, staff, "elsewhere").sent.single().first.text)
+        setup.fake.memberRoles[staff.id]?.clear()
+        assertEquals(TicketTexts.STAFF_ONLY, press(TicketTexts.CLAIM_PREFIX, staff).sent.single().first.text)
+        assertEquals(TicketTexts.NOT_ALLOWED, setup.close(1, staff).sent.single().first.text)
+        assertNull(setup.ticket(1)?.assignedTo)
+        assertNull(setup.ticket(1)?.closedAt)
+        setup.fake.memberRoles[staff.id] = mutableSetOf(setup.staff)
+        assertEquals(TicketTexts.CLAIMED, press(TicketTexts.CLAIM_PREFIX, staff).sent.single().first.text)
+        assertEquals(TicketTexts.RELEASED, press(TicketTexts.RELEASE_PREFIX, staff).sent.single().first.text)
+    }
+
+    @Test
+    fun missingJournalKeepsTicketOpenAndRetryCanCloseIt() {
+        val setup = Setup()
+        val channel = setup.openPurchase()
+        val noJournal = BotContext(setup.fake, ServerIds(mapOf("staff" to setup.staff), emptyMap(), emptyMap()), setup.timer, ServerPhase.ATTENTE)
+        val feature = TicketFeature(noJournal, setup.store, setup.messages, BotJournal(noJournal), zone)
+        val reply = FakeReply()
+        runBlocking { feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + "1", member, channel, "1", reply)) }
+        assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
+        assertNull(setup.ticket(1)?.closedAt)
+        assertTrue(setup.fake.deleted.isEmpty())
+        setup.close(1)
+        assertNotNull(setup.ticket(1)?.closedAt)
+        assertEquals(listOf(channel), setup.fake.deleted)
+    }
+
+    @Test
+    fun refusedArchiveKeepsSourceAndTicketOpen() {
+        val setup = Setup()
+        val channel = setup.openPurchase()
+        val rejecting = object : DiscordServer by setup.fake {
+            override suspend fun send(channelId: String, text: String) { throw DiscordRefusal("envoi refusé") }
+        }
+        val context = BotContext(rejecting, setup.ids, setup.timer, ServerPhase.ATTENTE)
+        val feature = TicketFeature(context, setup.store, setup.messages, BotJournal(context), zone)
+        val reply = FakeReply()
+        runBlocking { feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + "1", member, channel, "1", reply)) }
+        assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
+        assertNull(setup.ticket(1)?.closedAt)
+        assertTrue(setup.fake.deleted.isEmpty())
+    }
+
+    @Test
+    fun partialArchiveFailurePreservesTicketAndCanBeRetried() {
+        val setup = Setup()
+        val channel = setup.openPurchase()
+        setup.say(channel, member.id, member.name, "Mon achat manque.")
+        var sends = 0
+        val partial = object : DiscordServer by setup.fake {
+            override suspend fun send(channelId: String, text: String) {
+                sends++
+                if (sends == 2) throw DiscordRefusal("archive interrompue")
+                setup.fake.send(channelId, text)
+            }
+        }
+        val context = BotContext(partial, setup.ids, setup.timer, ServerPhase.ATTENTE)
+        val feature = TicketFeature(context, setup.store, setup.messages, BotJournal(context), zone)
+        val reply = FakeReply()
+        runBlocking { feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + "1", member, channel, "1", reply)) }
+        assertEquals(2, sends)
+        assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
+        assertNull(setup.ticket(1)?.closedAt)
+        assertTrue(setup.fake.deleted.isEmpty())
+        setup.close(1)
+        assertNotNull(setup.ticket(1)?.closedAt)
+        assertTrue(setup.journal.last().contains("Mon achat manque."))
+        assertEquals(listOf(channel), setup.fake.deleted)
+    }
+
 }

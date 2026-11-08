@@ -1123,3 +1123,15 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
   `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).
+
+
+### Gestion des tickets (8 novembre 2026)
+
+`/ticket action:etat|prendre|liberer|fermer` agit dans le salon du ticket, y compris pour les anciens tickets.
+Les boutons de prise en charge et de libération sont posés sur les nouveaux tickets. Le responsable est conservé
+en base (V20) et l'affectation est atomique. Seul un membre qui possède actuellement Staff ou Modération peut
+prendre en charge un ticket ; seul son responsable peut le libérer. L'auteur et le staff peuvent le fermer.
+
+Une lecture ou un envoi d'archive refusé laisse le ticket ouvert et le salon intact. La limite actuelle reste les
+200 derniers messages textuels ; les pièces jointes et la reprise durable sont le prochain lot C1b du
+[plan complet](../docs/discord-plan-complet.md). Les nouveaux textes restent à valider par Kr.

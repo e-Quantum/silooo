@@ -18,6 +18,17 @@ object TicketTexts {
 
     const val CLOSE_PREFIX = "ticket-fermer:"
     const val CLOSE_LABEL = "Fermer le ticket"
+    const val CLAIM_PREFIX = "ticket-prendre:"
+    const val RELEASE_PREFIX = "ticket-liberer:"
+    const val CLAIM_LABEL = "Prendre en charge"
+    const val RELEASE_LABEL = "Libérer le ticket"
+    const val STAFF_ONLY = "La prise en charge est réservée au staff."
+    const val WRONG_CHANNEL = "Utilise ces outils dans le salon du ticket."
+    const val CLAIMED = "Tu prends en charge ce ticket."
+    const val RELEASED = "Le ticket est à nouveau disponible."
+    const val UNAVAILABLE = "Ce ticket est déjà pris en charge ou fermé."
+    const val NOT_ASSIGNED = "Seul le responsable du ticket peut le libérer."
+    const val ARCHIVE_FAILED = "L'archive n'a pas pu être envoyée. Le ticket reste ouvert ; réessaie la fermeture plus tard."
 
     /** Les valeurs du menu : [GAME] renvoie vers l'aide, les autres ouvrent un salon privé qui porte la valeur dans son nom. */
     const val GAME = "jeu"
@@ -61,7 +72,7 @@ object TicketTexts {
         "Ticket n°" + number + " ouvert par <@" + userId + "> : " + kind + "."
 
     fun journalClosed(number: Int, kind: String, authorId: String, byId: String): String =
-        "Ticket n°" + number + " (" + kind + ") de <@" + authorId + ">, fermé par <@" + byId + ">."
+        "Archive du ticket n°" + number + " (" + kind + ") de <@" + authorId + ">, fermeture demandée par <@" + byId + ">."
 
     fun journalVanished(number: Int): String = "Ticket n°" + number + " : salon supprimé à la main, fermé."
 
@@ -78,9 +89,9 @@ object TicketTexts {
  * `#aide`, chacun des autres choix ouvre un salon privé (le membre, le staff et la modération le voient) dans la
  * catégorie Aide, nommé d'après le choix et le numéro du ticket. Un membre n'a qu'un ticket ouvert à la fois.
  *
- * Le bouton « Fermer le ticket », pour l'auteur et le staff, ferme le ticket en base, recopie les 200 derniers
+ * Le bouton « Fermer le ticket », pour l'auteur et le staff, recopie les 200 derniers
  * messages du salon dans `#journal-du-bot` (ceux du bot compris, en messages de 2 000 caractères au plus, coupés entre
- * deux lignes), puis supprime le salon. Si le salon n'a pas pu être relu, il reste. Le message du menu est retrouvé
+ * deux lignes), ferme le ticket en base, puis supprime le salon. Une lecture ou un envoi refusé laisse le ticket ouvert. Le message du menu est retrouvé
  * par sa clé ([BotMessageStore]) : modifié sur place à chaque démarrage et après chaque choix, reposté seulement s'il a disparu. Au
  * démarrage, un ticket ouvert dont le salon a été supprimé à la main est fermé.
  */
@@ -92,6 +103,9 @@ class TicketFeature(
     private val zone: ZoneId = ZoneId.of("Europe/Paris"),
 ) : Feature {
     override val name = "tickets"
+    override val commands = listOf(CommandSpec("ticket", "Voir ou gérer le ticket de ce salon", options = listOf(
+        CommandOption("action", "Le geste à effectuer", required = true, choices = listOf("etat", "prendre", "liberer", "fermer")),
+    )))
 
     override suspend fun start() {
         context.ids.channel(TICKETS)?.let { channel ->
@@ -110,6 +124,9 @@ class TicketFeature(
         when {
             event is DiscordEvent.MenuChosen && event.id == TicketTexts.MENU_ID -> choose(event)
             event is DiscordEvent.ButtonPressed && event.id.startsWith(TicketTexts.CLOSE_PREFIX) -> close(event)
+            event is DiscordEvent.ButtonPressed && event.id.startsWith(TicketTexts.CLAIM_PREFIX) -> assign(event, release = false)
+            event is DiscordEvent.ButtonPressed && event.id.startsWith(TicketTexts.RELEASE_PREFIX) -> assign(event, release = true)
+            event is DiscordEvent.CommandUsed && event.name == "ticket" -> command(event)
         }
     }
 
@@ -196,29 +213,80 @@ class TicketFeature(
             channel,
             BotMessage(
                 TicketTexts.welcome(event.user.id),
-                buttons = listOf(ButtonSpec(TicketTexts.CLOSE_PREFIX + number, TicketTexts.CLOSE_LABEL, ButtonStyle.DANGER)),
+                buttons = listOf(
+                    ButtonSpec(TicketTexts.CLAIM_PREFIX + number, TicketTexts.CLAIM_LABEL, ButtonStyle.PRIMARY),
+                    ButtonSpec(TicketTexts.RELEASE_PREFIX + number, TicketTexts.RELEASE_LABEL),
+                    ButtonSpec(TicketTexts.CLOSE_PREFIX + number, TicketTexts.CLOSE_LABEL, ButtonStyle.DANGER),
+                ),
                 mentionUserIds = setOf(event.user.id),
             ),
         )
         journal.line(TicketTexts.journalOpened(number, event.user.id, kind))
     }
 
+    private suspend fun isStaff(user: DiscordUser): Boolean {
+        if (user.isBot || staffRoles().isEmpty()) return false
+        return try { context.server.freshRolesOf(user.id).any { it in staffRoles() } }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { false }
+    }
+
+    private suspend fun command(event: DiscordEvent.CommandUsed) {
+        if (event.user.isBot) return
+        val ticket = event.channelId?.let { store.byChannel(it) }
+            ?: return tell(event.reply, TicketTexts.WRONG_CHANNEL)
+        if (event.user.id != ticket.userId && !isStaff(event.user)) return tell(event.reply, TicketTexts.NOT_ALLOWED)
+        val prefix = when (event.options["action"]) {
+            "prendre" -> TicketTexts.CLAIM_PREFIX
+            "liberer" -> TicketTexts.RELEASE_PREFIX
+            "fermer" -> TicketTexts.CLOSE_PREFIX
+            "etat" -> return tell(event.reply, "Ticket n°" + ticket.id + " : " +
+                (if (ticket.closedAt != null) "fermé." else ticket.assignedTo?.let { "pris en charge par <@" + it + ">." } ?: "en attente du staff."))
+            else -> return tell(event.reply, TicketTexts.WRONG_CHANNEL)
+        }
+        val button = DiscordEvent.ButtonPressed(prefix + ticket.id, event.user, event.channelId, "", event.reply)
+        if (prefix == TicketTexts.CLOSE_PREFIX) close(button) else assign(button, prefix == TicketTexts.RELEASE_PREFIX)
+    }
+
+    private suspend fun assign(event: DiscordEvent.ButtonPressed, release: Boolean) {
+        if (!isStaff(event.user)) return tell(event.reply, TicketTexts.STAFF_ONLY)
+        val prefix = if (release) TicketTexts.RELEASE_PREFIX else TicketTexts.CLAIM_PREFIX
+        val ticket = event.id.removePrefix(prefix).toIntOrNull()?.let { store.byId(it) }
+            ?: return tell(event.reply, TicketTexts.ALREADY_CLOSED)
+        if (event.channelId != ticket.channelId) return tell(event.reply, TicketTexts.WRONG_CHANNEL)
+        if (ticket.closedAt != null) return tell(event.reply, TicketTexts.ALREADY_CLOSED)
+        val changed = if (release) store.release(ticket.id, event.user.id)
+            else store.claim(ticket.id, event.user.id, context.timer.now())
+        if (!changed) return tell(event.reply, if (release) TicketTexts.NOT_ASSIGNED else TicketTexts.UNAVAILABLE)
+        tell(event.reply, if (release) TicketTexts.RELEASED else TicketTexts.CLAIMED)
+        journal.line("Ticket n°" + ticket.id + (if (release) " libéré par <@" else " pris en charge par <@") + event.user.id + ">.")
+    }
+
     private suspend fun close(event: DiscordEvent.ButtonPressed) {
+        if (event.user.isBot) return
         val ticket = event.id.removePrefix(TicketTexts.CLOSE_PREFIX).toIntOrNull()?.let { store.byId(it) }
         if (ticket == null || ticket.closedAt != null) return tell(event.reply, TicketTexts.ALREADY_CLOSED)
-        val staff = staffRoles()
-        if (event.user.id != ticket.userId && staff.none { it in event.user.roleIds }) return tell(event.reply, TicketTexts.NOT_ALLOWED)
+        if (event.channelId != ticket.channelId) return tell(event.reply, TicketTexts.WRONG_CHANNEL)
+        if (event.user.id != ticket.userId && !isStaff(event.user)) return tell(event.reply, TicketTexts.NOT_ALLOWED)
 
         event.reply.acknowledge()
-        store.close(ticket.id, event.user.id, context.timer.now())
-        journal.line(TicketTexts.journalClosed(ticket.id, ticket.kind, ticket.userId, event.user.id))
         val lines = try {
             context.server.history(ticket.channelId, HISTORY).filter { it.text.isNotBlank() }.map { TicketTexts.archiveLine(it, zone) }
-        } catch (e: DiscordRefusal) {
-            log.warn("Bot Discord, tickets : le salon du ticket {} n'a pas pu être relu : {}", ticket.id, e.message)
-            return journal.line(TicketTexts.journalUnread(ticket.id))
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            log.warn("Bot Discord, tickets : lecture de l'archive refusée pour {}", ticket.id)
+            journal.line(TicketTexts.journalUnread(ticket.id))
+            return tell(event.reply, TicketTexts.ARCHIVE_FAILED)
         }
-        pack(lines).forEach { journal.line(it) }
+        try {
+            journal.archive(TicketTexts.journalClosed(ticket.id, ticket.kind, ticket.userId, event.user.id))
+            pack(lines).forEach { journal.archive(it) }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            log.warn("Bot Discord, tickets : envoi de l'archive refusé pour {}", ticket.id)
+            return tell(event.reply, TicketTexts.ARCHIVE_FAILED)
+        }
+        store.close(ticket.id, event.user.id, context.timer.now())
         try {
             context.server.deleteChannel(ticket.channelId)
         } catch (e: DiscordRefusal) {

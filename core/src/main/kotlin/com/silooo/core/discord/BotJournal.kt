@@ -18,6 +18,13 @@ class BotJournal(private val context: BotContext) {
         }
     }
 
+    /** Une archive doit être livrée avant toute suppression du salon source. Les refus remontent à l'appelant. */
+    suspend fun archive(text: String) {
+        val channel = context.ids.channel(ServerPlan.JOURNAL_ID)
+            ?: throw DiscordRefusal("Le salon du journal est absent.")
+        context.server.send(channel, text)
+    }
+
     private companion object {
         val log = LoggerFactory.getLogger(BotJournal::class.java)
     }

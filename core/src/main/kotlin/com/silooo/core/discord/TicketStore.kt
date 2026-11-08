@@ -21,6 +21,8 @@ data class Ticket(
     val openedAt: Instant,
     val closedAt: Instant? = null,
     val closedBy: String? = null,
+    val assignedTo: String? = null,
+    val claimedAt: Instant? = null,
 )
 
 /** Les tickets, de l'ouverture à la fermeture. Chaque appel est une transaction à lui. */
@@ -42,6 +44,12 @@ interface TicketStore {
 
     /** Tous les tickets ouverts, du plus ancien au plus récent. */
     suspend fun openOnes(): List<Ticket>
+
+    /** Affectation atomique : seul le premier membre du staff obtient un ticket ouvert et libre. */
+    suspend fun claim(id: Int, by: String, at: Instant): Boolean
+
+    /** Seul le responsable courant peut libérer son ticket, tant qu'il reste ouvert. */
+    suspend fun release(id: Int, by: String): Boolean
 
     /** Ferme le ticket [id], par [by] (l'identifiant d'un membre, ou du bot) ; un ticket déjà fermé ne change pas. */
     suspend fun close(id: Int, by: String, at: Instant)
@@ -95,6 +103,23 @@ class JdbcTicketStore(private val database: Database) : TicketStore {
             }
         }
 
+    override suspend fun claim(id: Int, by: String, at: Instant): Boolean = database.transaction { connection ->
+        connection.prepareStatement("update discord_tickets set assigned_to = ?, claimed_at = ? where id = ? and closed_at is null and assigned_to is null").use {
+            it.setString(1, by)
+            it.setObject(2, utc(at))
+            it.setInt(3, id)
+            it.executeUpdate() == 1
+        }
+    }
+
+    override suspend fun release(id: Int, by: String): Boolean = database.transaction { connection ->
+        connection.prepareStatement("update discord_tickets set assigned_to = null, claimed_at = null where id = ? and closed_at is null and assigned_to = ?").use {
+            it.setInt(1, id)
+            it.setString(2, by)
+            it.executeUpdate() == 1
+        }
+    }
+
     override suspend fun close(id: Int, by: String, at: Instant) {
         database.transaction { connection ->
             connection.prepareStatement("update discord_tickets set closed_at = ?, closed_by = ? where id = ? and closed_at is null").use {
@@ -124,6 +149,8 @@ class JdbcTicketStore(private val database: Database) : TicketStore {
             openedAt = instant(rows.getObject(5, LocalDateTime::class.java)),
             closedAt = rows.getObject(6, LocalDateTime::class.java)?.let(::instant),
             closedBy = rows.getString(7),
+            assignedTo = rows.getString(8),
+            claimedAt = rows.getObject(9, LocalDateTime::class.java)?.let(::instant),
         )
 
     private fun utc(instant: Instant): LocalDateTime = LocalDateTime.ofInstant(instant, ZoneOffset.UTC)
@@ -131,6 +158,6 @@ class JdbcTicketStore(private val database: Database) : TicketStore {
     private fun instant(dateTime: LocalDateTime): Instant = dateTime.toInstant(ZoneOffset.UTC)
 
     private companion object {
-        const val SELECT = "select id, discord_user_id, kind, channel_id, opened_at, closed_at, closed_by from discord_tickets "
+        const val SELECT = "select id, discord_user_id, kind, channel_id, opened_at, closed_at, closed_by, assigned_to, claimed_at from discord_tickets "
     }
 }

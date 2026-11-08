@@ -1,10 +1,20 @@
 package com.silooo.core.discord.jda
 
 import net.dv8tion.jda.api.Permission
+import com.silooo.core.discord.ManagedRolePermission
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 
 class PlanPermissionOverridesTest {
+    @Test
+    fun `role updates add only required native permissions and preserve existing ones`() {
+        val existing = Permission.CREATE_INSTANT_INVITE.rawValue or (1L shl 60)
+        val result = mergedRolePermissions(existing, setOf(ManagedRolePermission.MODERATE_MEMBERS))
+        assertEquals(existing or Permission.MODERATE_MEMBERS.rawValue, result)
+        assertFalse(result and Permission.ADMINISTRATOR.rawValue != 0L)
+    }
+
     @Test
     fun `a public channel preserves manual send locks and unrelated permissions`() {
         val masks = planPublicPermissionMasks(

@@ -23,7 +23,7 @@ class PlanApplier(
         val snapshot = server.snapshot()
         val roleIds = report.roleIds
         for (role in plan.roles.filter { it.phase.existsIn(phase) }) {
-            val spec = RoleSpec(role.nom, role.couleur, role.separe, role.mentionnable)
+            val spec = RoleSpec(role.nom, role.couleur, role.separe, role.mentionnable, role.permissions)
             val existing = snapshot.roles.firstOrNull { it.name == role.nom }
             if (existing == null) {
                 report.missingRoles += role.nom
@@ -35,9 +35,9 @@ class PlanApplier(
                 }
             } else {
                 roleIds[role.id] = existing.id
-                if (existing.color != role.couleur) {
+                if (existing.color != role.couleur || !existing.permissions.containsAll(role.permissions)) {
                     report.changedRoles += role.nom
-                    if (!dryRun) report.attempt("la couleur du rôle « ${role.nom} »") { server.updateRole(existing.id, spec) }
+                    if (!dryRun) report.attempt("le rôle « ${role.nom} »") { server.updateRole(existing.id, spec) }
                 }
             }
         }
@@ -187,14 +187,14 @@ class PlanReport(val phase: ServerPhase, val dryRun: Boolean) {
         } else if (dryRun) {
             lines += "Il manque " + counted(missingRoles, "rôle", "rôles") + ", " + counted(missingCategories, "catégorie", "catégories") +
                 " et " + counted(missingChannels, "salon", "salons") + "."
-            if (changedRoles.isNotEmpty()) lines += "À modifier : la couleur de " + counted(changedRoles, "rôle", "rôles") + "."
+            if (changedRoles.isNotEmpty()) lines += "À modifier : " + counted(changedRoles, "rôle", "rôles") + " (couleur ou permissions gérées)."
             if (changedChannels.isNotEmpty()) lines += "À modifier : le sujet de " + counted(changedChannels, "salon", "salons") + "."
             if (changedPermissions.isNotEmpty()) lines += "Droits à modifier : " + counted(changedPermissions, "élément", "éléments") + "."
             lines += if (createdChannels.isEmpty()) "Je n'ai rien changé." else "Je n'ai rien changé, sauf le salon du journal, créé pour écrire ceci."
         } else {
             lines += "J'ai créé " + counted(createdRoles, "rôle", "rôles") + ", " + counted(createdCategories, "catégorie", "catégories") +
                 " et " + counted(createdChannels, "salon", "salons") + "."
-            if (changedRoles.isNotEmpty()) lines += "J'ai modifié la couleur de " + counted(changedRoles, "rôle", "rôles") + "."
+            if (changedRoles.isNotEmpty()) lines += "J'ai modifié " + counted(changedRoles, "rôle", "rôles") + " (couleur ou permissions gérées)."
             if (changedChannels.isNotEmpty()) lines += "J'ai modifié le sujet de " + counted(changedChannels, "salon", "salons") + "."
             if (changedPermissions.isNotEmpty()) lines += "J'ai corrigé les droits de " + counted(changedPermissions, "élément", "éléments") + "."
             lines += "Je ne supprime jamais rien."

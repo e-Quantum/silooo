@@ -36,13 +36,17 @@ object BotFeatures {
             org.slf4j.LoggerFactory.getLogger(BotFeatures::class.java).warn("Podium de la salle d'attente éteint : {}", e.message)
             null
         }
+        val signalements = JdbcSignalementStore(database)
         listOfNotNull(
             lobby?.let { LobbyPodiumFeature(context, definitions.report, it.zone, it.classement.podium, JdbcLobbyPodiumStore(database)) },
         ) + listOf(
+            ManagementFeature(context),
+            ModerationFeature(context, definitions.moderation, JdbcModerationStore(database, definitions.moderation.retentionDays), ServerModerationGateway(context), journal),
+            SignalementFeature(context, signalements, definitions.reporting.rules(), context.server::canReadChannel),
             WelcomeFeature(context, definitions.welcome, members, reports, remindersAvailable = true),
             ReminderFeature(context, definitions.reminders, definitions.zone, JdbcReminderStore(database), links),
             LinkingFeature(context, GameDiscordLinkGateway(links), context.server::nickname),
-            ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports),
+            ReportFeature(context, definitions.report, definitions.zone, definitions.xp.channels, reports, reportCount = signalements::count),
             StatusFeature(context, definitions.status),
             InfoVoiceFeature(context, definitions.infoVoice, onlineCount),
             SpoilFeature(context, definitions.spoils, definitions.zone, JdbcSpoilStore(database)),

@@ -1,6 +1,26 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 6 novembre 2026, reprise des correctifs D2 sur le VPS.
+Dernière mise à jour : 8 novembre 2026, reprise complète des références et première tranche des tickets.
+
+### Reprise du 8 novembre : plan complet et support
+
+Le [plan complet](discord-plan-complet.md) devient l'ordre des prochains lots. Sources vérifiées : John, le bot
+vocal et Gaby dans `/var/www/minecraft/deploy/discord-*` (lecture autorisée par Kr), documentation Dyno et site Hurix.
+La branche `claude/discord-complet-20261108` part de main `61ce234` et réunit la gestion Discord `6ce48e0`.
+V17 de la salle d'attente reste intacte ; modération et signalements prennent V18 et V19 ; V20 ajoute l'affectation
+des tickets. Aucun changement de source ou de service SileneMC.
+
+- [x] Comparatif, catalogue, dépendances et priorités C0 à C7 rédigés.
+- [x] Prise en charge/libération persistantes, commande `/ticket`, statut et contrôle des rôles actuels écrits.
+- [x] Fermeture sécurisée : conserver le ticket et son salon si l'archive ne peut pas être lue ou envoyée.
+- [ ] Transcript intégral, pièces jointes et reprise durable d'une fermeture interrompue : prochain lot C1b.
+- [ ] Formulaires, priorité, transfert et participants : reste de C1.
+- [ ] Déploiement et recette réelle de cette tranche, distincts des tests automatisés.
+
+Les libellés de tickets sont **à valider par Kr**. Le code garde la limite d'archive de 200 messages textuels,
+explicitée dans le plan. D1, D4, D5 et la recette D6 restent ouverts. Ne pas retirer Dyno avant la reprise et la
+recette de ses fonctions encore utilisées.
+
 
 ### Reprise du 5 novembre 2026 sur le VPS
 

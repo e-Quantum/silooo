@@ -18,6 +18,7 @@ import com.silooo.core.discord.ExistingCategory
 import com.silooo.core.discord.ExistingChannel
 import com.silooo.core.discord.ExistingRole
 import com.silooo.core.discord.ImageFile
+import com.silooo.core.discord.ManagedRolePermission
 import com.silooo.core.discord.PublicChannelAccess
 import com.silooo.core.discord.OnboardingState
 import com.silooo.core.discord.RoleSpec
@@ -143,10 +144,22 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         action.submit().await()
     }
 
+    override suspend fun freshRolesOf(userId: String): Set<String> = JdaStaffActions(guild).roles(userId)
+
+    override suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).target(actorId, targetId, allowedRoleIds)
+
+    override suspend fun timeoutMember(actorId: String, targetId: String, until: java.time.Instant?, reason: String, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).timeout(actorId, targetId, until, reason, allowedRoleIds)
+
+    override suspend fun canReadChannel(channelId: String, userId: String): Boolean = JdaStaffActions(guild).canRead(channelId, userId)
+
     override suspend fun rulesChannelId(): String? = guild.rulesChannel?.id
 
     override suspend fun snapshot(): ServerSnapshot = ServerSnapshot(
-        roles = guild.roles.filter { !it.isPublicRole && !it.isManaged }.map { ExistingRole(it.id, it.name, colorOf(it)) },
+        roles = guild.roles.filter { !it.isPublicRole && !it.isManaged }.map {
+            ExistingRole(it.id, it.name, colorOf(it), managedRolePermissions(it.permissionsRaw))
+        },
         categories = guild.categories.map { ExistingCategory(it.id, it.name) },
         channels = guild.channels.mapNotNull { existing(it) },
     )
@@ -157,11 +170,19 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             .setColor(rgb(role.color))
             .setHoisted(role.hoisted)
             .setMentionable(role.mentionable)
+            .setPermissions(role.permissions.map(::nativePermission))
             .submit().await().id
 
     override suspend fun updateRole(id: String, role: RoleSpec) {
         val existing = guild.getRoleById(id) ?: throw DiscordRefusal("le rôle $id n'existe plus")
-        existing.manager.setColor(rgb(role.color) ?: Role.DEFAULT_COLOR_RAW).setHoisted(role.hoisted).setMentionable(role.mentionable).submit().await()
+        if (!guild.selfMember.canInteract(existing)) throw DiscordRefusal("le bot ne peut pas modifier ce rôle dans la hiérarchie Discord")
+        val permissions = mergedRolePermissions(existing.permissionsRaw, role.permissions)
+        existing.manager
+            .setColor(rgb(role.color) ?: Role.DEFAULT_COLOR_RAW)
+            .setHoisted(role.hoisted)
+            .setMentionable(role.mentionable)
+            .setPermissions(permissions)
+            .submit().await()
     }
 
     override suspend fun createCategory(category: CategorySpec): String {
@@ -592,6 +613,28 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         val VOICE_MEMBER: EnumSet<Permission> = EnumSet.of(Permission.VIEW_CHANNEL, Permission.VOICE_CONNECT, Permission.VOICE_SPEAK)
         val WRITE: EnumSet<Permission> = EnumSet.of(Permission.MESSAGE_SEND, Permission.MESSAGE_SEND_IN_THREADS, Permission.CREATE_PUBLIC_THREADS)
     }
+}
+
+internal fun mergedRolePermissions(existingRaw: Long, required: Set<ManagedRolePermission>): Long =
+    required.fold(existingRaw) { bits, permission -> bits or nativePermission(permission).rawValue }
+
+private fun managedRolePermissions(raw: Long): Set<ManagedRolePermission> = Permission.getPermissions(raw).mapNotNull { permission ->
+    when (permission) {
+        Permission.MANAGE_SERVER -> ManagedRolePermission.MANAGE_SERVER
+        Permission.MODERATE_MEMBERS -> ManagedRolePermission.MODERATE_MEMBERS
+        Permission.MESSAGE_MANAGE -> ManagedRolePermission.MANAGE_MESSAGES
+        Permission.MANAGE_THREADS -> ManagedRolePermission.MANAGE_THREADS
+        Permission.VIEW_AUDIT_LOGS -> ManagedRolePermission.VIEW_AUDIT_LOG
+        else -> null
+    }
+}.toSet()
+
+private fun nativePermission(permission: ManagedRolePermission): Permission = when (permission) {
+    ManagedRolePermission.MANAGE_SERVER -> Permission.MANAGE_SERVER
+    ManagedRolePermission.MODERATE_MEMBERS -> Permission.MODERATE_MEMBERS
+    ManagedRolePermission.MANAGE_MESSAGES -> Permission.MESSAGE_MANAGE
+    ManagedRolePermission.MANAGE_THREADS -> Permission.MANAGE_THREADS
+    ManagedRolePermission.VIEW_AUDIT_LOG -> Permission.VIEW_AUDIT_LOGS
 }
 
 /** Un seul override @everyone cumule les interdictions du plan, sans qu'une écrase l'autre. */

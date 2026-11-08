@@ -308,6 +308,22 @@ export type DiscordDefinitions = {
       readonly role: DiscordIdentifiantDuPlan;
     }[];
   };
+  readonly moderation: {
+    readonly confirmationSecondes: number;
+    readonly conservationJours: number;
+    readonly dossiersParPage: number;
+    readonly motifMaxCaracteres: number;
+    readonly dureesHeures: readonly number[];
+    readonly purgeSecondes: number;
+  };
+  readonly signalements: {
+    readonly delaiSecondes: number;
+    readonly formulaireSecondes: number;
+    readonly conservationJours: 30;
+    readonly purgeSecondes: number;
+    readonly motifMaxCaracteres: number;
+    readonly contenuMaxCaracteres: number;
+  };
 };
 
 /** Un identifiant du plan du serveur : minuscules, chiffres et tirets. */

@@ -42,6 +42,8 @@ data class DiscordDefinitions(
     @SerialName("admissions") val admissions: AdmissionRules,
     @SerialName("bienvenue") val banner: BannerRules,
     @SerialName("profils") val profiles: GameProfileRules,
+    @SerialName("moderation") val moderation: ModerationRules,
+    @SerialName("signalements") val reporting: SignalementSettings,
 ) {
     /** Le fuseau des heures du fichier. */
     val zone: ZoneId get() = ZoneId.of(timeZone)

@@ -6,6 +6,13 @@ Silooo — Maquettes. L'état du chantier, ses étapes et ce qui revient à Kr s
 [discord-passation.md](discord-passation.md). Les corrections de la critique du plan priment sur le cadrage : elles
 sont intégrées ici, et rappelées dans la section « Ce que la critique corrige ».
 
+## Révision du 8 novembre 2026
+
+Kr demande de compléter Oooscar avec les fonctions utiles des bots SileneMC, Dyno et Hurix.
+Le [plan complet](discord-plan-complet.md) recense les sources consultées, le catalogue cible, les lots C0 à C7,
+les dépendances et la première tranche de support. Il complète les étapes D0 à D6 ; les choix de jeu ci-dessous
+restent applicables. La livraison de code, le déploiement et la recette réelle sont suivis séparément.
+
 ## En une page
 
 Le Discord est le prolongement du jeu : on y voit le serveur vivre, on y parle avec ceux qui jouent, on y montre son

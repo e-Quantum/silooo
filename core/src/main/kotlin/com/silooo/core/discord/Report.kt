@@ -14,6 +14,7 @@ class ReportFeature(
     private val zone: ZoneId,
     private val channels: List<String>,
     private val store: ReportStore,
+    private val reportCount: (suspend (Instant, Instant) -> Long)? = null,
 ) : Feature {
     override val name = "rapport"
     private lateinit var captureFrom: Instant
@@ -52,6 +53,7 @@ class ReportFeature(
         val until = at(monday)
         val from = maxOf(at(monday.minusWeeks(1)), captureFrom)
         val counts = store.counts(from, until, rules.returnedAfterDays, zone)
+        val submittedReports = reportCount?.invoke(from, until)
         val linked = store.linkedWithin(from, until, rules.linkedWithinDays)
         val text = buildString {
             append("Rapport du lundi ").append(monday).append("\n")
@@ -70,7 +72,7 @@ class ReportFeature(
             }
             append("Comptes reliés sous ").append(rules.linkedWithinDays)
                 .append(" jours : ").append(linked?.toString() ?: "indisponible (date de liaison non mesurée)").append("\n")
-            append("Signalements : indisponible (événements non mesurés).\n")
+            append("Signalements déposés : ").append(submittedReports?.toString() ?: "indisponible (événements non mesurés)").append("\n")
             append("Provenance des arrivants : indisponible (source non mesurée).")
         }
         // Au plus une tentative : un refus ou un arrêt après réservation ne provoque pas de doublon.

@@ -1210,3 +1210,22 @@ Décisions prises sans Kr : paliers de prestige 1/5/10/25/50 et laiton dès 5, p
 Tous les textes et cartes D3 restent **à valider par Kr**. D1 attend. Le rappel Silo plein reste indisponible faute
 d'état/capacité dans le jeu ; le parrainage reste à D5 et le relais du tchat/signalements à D4. Les actions Discord
 et déploiements du seul core restent dans l'autorisation explicite de Kr consignée dans la passation Discord.
+
+
+### Gestion et modération Discord — 7 novembre 2026
+
+V17 réservée aux dossiers/actions de modération, V18 aux signalements de messages. Trois agents économiques travaillent dans des worktrees isolés ; intégration et compilations centralisées. Cette tranche concerne le staff et le serveur Discord, sans nouveau relais du tchat ni déploiement BDS. Les nouveaux textes restent à valider par Kr.
+
+
+### Reprise Discord — 8 novembre 2026
+
+Branche `claude/discord-complet-20261108`, fondée sur main `61ce234` et intégrant la branche
+`claude/discord-gestion-20261107` (`6ce48e0`). V17 est déjà occupée par la salle d'attente :
+les migrations Discord non intégrées à main prennent V18 (modération) et V19 (signalements).
+V20 est réservée à la prise en charge des tickets. Aucune migration existante sur main n'est modifiée.
+Les nouveaux libellés et messages de tickets restent **à valider par Kr**.
+
+Décisions prises sans Kr : priorité au support privé, puis aux outils de modération, aux journaux et aux
+diagnostics ; le détail des dépendances et des exclusions est dans `docs/discord-plan-complet.md`.
+La lecture des bots SileneMC dans `/var/www/minecraft/deploy/discord-*` est autorisée par Kr le 8 novembre
+pour cette comparaison ; aucune modification des sources ou services SileneMC.

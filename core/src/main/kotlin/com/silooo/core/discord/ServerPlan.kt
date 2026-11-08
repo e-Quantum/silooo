@@ -132,7 +132,18 @@ data class PlannedRole(
     val separe: Boolean = false,
     val mentionnable: Boolean = false,
     val phase: PlanPhase = PlanPhase.ATTENTE,
+    val permissions: Set<ManagedRolePermission> = emptySet(),
 )
+
+/** Permissions Discord minimales gérées par le plan pour les rôles de confiance. */
+@Serializable
+enum class ManagedRolePermission {
+    @SerialName("gerer-serveur") MANAGE_SERVER,
+    @SerialName("moderer-membres") MODERATE_MEMBERS,
+    @SerialName("gerer-messages") MANAGE_MESSAGES,
+    @SerialName("gerer-fils") MANAGE_THREADS,
+    @SerialName("voir-journal") VIEW_AUDIT_LOG,
+}
 
 /**
  * Une catégorie et ses salons. [visible] : les rôles qui la voient, elle et ses salons ; absent, tout le monde.

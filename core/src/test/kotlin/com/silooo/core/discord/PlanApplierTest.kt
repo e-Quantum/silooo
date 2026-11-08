@@ -35,6 +35,17 @@ class PlanApplierTest {
         val moderation = fake.roles.first { it.name == "Modération" }
         assertEquals("#e0614f", staff.color)
         assertTrue(fake.roleSpecs.getValue(staff.id).hoisted)
+        assertEquals(
+            setOf(ManagedRolePermission.MANAGE_SERVER, ManagedRolePermission.MODERATE_MEMBERS, ManagedRolePermission.MANAGE_MESSAGES,
+                ManagedRolePermission.MANAGE_THREADS, ManagedRolePermission.VIEW_AUDIT_LOG),
+            fake.roleSpecs.getValue(staff.id).permissions,
+        )
+        assertEquals(
+            setOf(ManagedRolePermission.MODERATE_MEMBERS, ManagedRolePermission.MANAGE_MESSAGES,
+                ManagedRolePermission.MANAGE_THREADS, ManagedRolePermission.VIEW_AUDIT_LOG),
+            fake.roleSpecs.getValue(moderation.id).permissions,
+        )
+        assertTrue(fake.roles.filter { it != staff && it != moderation }.all { fake.roleSpecs.getValue(it.id).permissions.isEmpty() })
         val staffCategory = fake.categories.first { it.name == "Staff" }
         assertEquals(setOf(staff.id, moderation.id), fake.categorySpecs.getValue(staffCategory.id).viewers)
         val reports = fake.channels.first { it.name == "🚩・signalements" }
@@ -67,6 +78,22 @@ class PlanApplierTest {
         assertEquals(channels, fake.channels.size)
         assertEquals(2, fake.messages.size)
         assertTrue(fake.messages.last().second.contains("Tout est en place"))
+    }
+
+    @Test
+    @DisplayName("Un rôle Staff déjà créé reçoit les permissions du plan même si sa couleur est à jour")
+    fun addsRequiredPermissionsToExistingStaffRole() {
+        val fake = FakeDiscordServer()
+        fake.roles += ExistingRole("staff-manuel", "Staff", "#e0614f")
+
+        val report = apply(fake)
+
+        assertEquals(
+            plan.roles.first { it.id == "staff" }.permissions,
+            fake.roleSpecs.getValue("staff-manuel").permissions,
+        )
+        assertTrue(report.changedRoles.contains("Staff"))
+        assertEquals(emptyList<String>(), report.failures)
     }
 
     @Test

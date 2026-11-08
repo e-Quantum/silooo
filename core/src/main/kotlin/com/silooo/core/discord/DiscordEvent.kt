@@ -71,6 +71,14 @@ sealed interface DiscordEvent {
         }
     }
 
+    /** Un membre ouvre le menu Signaler d'un message ; le contenu est relu après contrôle d'accès. */
+    data class MessageReported(
+        val user: DiscordUser,
+        val channelId: String,
+        val messageId: String,
+        val reply: Reply,
+    ) : DiscordEvent
+
     data class ButtonPressed(
         val id: String,
         val user: DiscordUser,
