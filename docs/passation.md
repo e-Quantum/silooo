@@ -1317,3 +1317,24 @@ L'aperçu, le motif, le contrôle des droits natifs distincts et les vérificati
 précèdent toute sanction. Aucun vrai membre n'a été expulsé, banni ou débanni pour les tests.
 La sauvegarde préalable à V22 est `/var/www/silooo/sauvegardes/discord-c2-20261108`.
 Le déploiement de C2a suit cette validation ; les textes restent **à valider par Kr**.
+
+
+### Reprise après un déploiement concurrent — 8 novembre 2026
+
+Pendant l'interruption du chat, le core a été remplacé à 12:20 UTC par `lobby-d5d4d6a`
+(correction des codes Microsoft longs du site). Détection avant toute bascule du core par cette session.
+V22 a été appliquée à 15:53 UTC ; aucun membre n'a reçu de sanction. L'image candidate `discord-b04ab0f`
+n'a pas été démarrée. Main `d5d4d6a` est intégré sans réécriture ; nouvelle vérification complète avant
+construction et déploiement. La surcharge Discord pointe temporairement sur l'image courante du core.
+Les changements de conteneurs survenus pendant cette interruption sont distingués de nos opérations.
+
+
+### Validation après intégration de main d5d4d6a — 8 novembre 2026
+
+Vérification complète verte : 2 488 tests du service, 0 échec, 0 erreur, 0 ignoré ;
+1 742 tests add-on et build ; 170 contrôles d'outillage. Chromium reste ignoré faute de navigateur
+et le sous-cas de permissions de fichiers reste ignoré sous root ; aucun test SQL n'est ignoré.
+La correction récente des codes Microsoft longs est conservée. La sauvegarde actualisée est
+`/var/www/silooo/sauvegardes/discord-c2-reprise-20261108`. L'image courante `lobby-d5d4d6a`
+valide le schéma V22 et ne lit pas les nouveaux dossiers de modération : retour arrière possible
+sans interpréter les nouvelles valeurs d'action avec l'ancien enum de C1.
