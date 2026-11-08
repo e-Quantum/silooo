@@ -335,7 +335,13 @@ class CompanySqlTest {
 
         val result = updated(buy(id, start.factoryId, "10"))
 
-        assertEquals(start.level + 10, result.state.factories.single().level)
+        assertEquals(start.level + 10, result.state.factories.single { it.factoryId == start.factoryId }.level)
+        // Dix niveaux de plus peuvent révéler des usines (definitions/usines.json, « decouverte ») : elles arrivent en
+        // ruine, au niveau 0, écrites dans la même version.
+        for (revealed in result.state.factories.filter { it.factoryId != start.factoryId }) {
+            assertEquals(0, revealed.level, "${revealed.factoryId} révélée au niveau 0")
+            assertEquals("EN_RUINE|0|0", factoryRow(id, revealed.factoryId), "${revealed.factoryId} écrite en ruine")
+        }
         assertGolden(cost, result.state.donar, "donar de la réponse")
         assertEquals(start.level + 10, level(id, start.factoryId))
         assertEquals("ACTIVE|0|${start.level + 10}", factoryRow(id, start.factoryId))
