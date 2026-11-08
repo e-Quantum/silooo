@@ -3,9 +3,7 @@ package com.silooo.core.site
 import com.silooo.core.Config
 import com.silooo.core.ConfigException
 import com.silooo.core.TestDefinitions
-import com.silooo.core.registration.AdmissionMoment
 import com.silooo.core.registration.DiscordConfig
-import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.SiteRegistrations
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -28,22 +26,18 @@ class SiteAdmissionConfigTest {
     private fun service(vararg extra: Pair<String, String>) = Config.service(complete + extra)
 
     @Test
-    @DisplayName("Sans variable : admission par Discord, pas d'application Discord, pas de mandataire")
+    @DisplayName("Sans variable : pas d'application Discord, pas de mandataire")
     fun defaults() {
         val config = service()
-        assertEquals(SiteAdmission.DISCORD, config.siteAdmission)
         assertNull(config.discord)
         assertFalse(config.siteTrustedProxy)
     }
 
     @Test
-    @DisplayName("SILOOO_SITE_ADMISSION : discord et tous sont lus, une autre valeur arrête le démarrage")
-    fun admission() {
-        assertEquals(SiteAdmission.TOUS, service(Config.SITE_ADMISSION to "tous").siteAdmission)
-        assertEquals(SiteAdmission.TOUS, service(Config.SITE_ADMISSION to " Tous ").siteAdmission)
-        assertEquals(SiteAdmission.DISCORD, service(Config.SITE_ADMISSION to "discord").siteAdmission)
-        val error = assertThrows<ConfigException> { service(Config.SITE_ADMISSION to "ouvert") }
-        assertTrue(error.message!!.contains(Config.SITE_ADMISSION), "${error.message}")
+    @DisplayName("SILOOO_SITE_ADMISSION n'existe plus (décision 21) : une valeur posée dans un vieux fichier d'environnement est ignorée, quelle qu'elle soit")
+    fun admissionVariableIsGone() {
+        assertNull(service("SILOOO_SITE_ADMISSION" to "tous").discord)
+        assertNull(service("SILOOO_SITE_ADMISSION" to "n'importe quoi").discord)
     }
 
     @Test
@@ -67,15 +61,6 @@ class SiteAdmissionConfigTest {
         assertTrue(service(Config.SITE_TRUSTED_PROXY to "true").siteTrustedProxy)
         assertFalse(service(Config.SITE_TRUSTED_PROXY to "false").siteTrustedProxy)
         assertThrows<ConfigException> { service(Config.SITE_TRUSTED_PROXY to "oui") }
-    }
-
-    @Test
-    @DisplayName("La règle d'admission : « tous » admet à l'inscription, « discord » au moment où le compte est relié")
-    fun admissionRule() {
-        assertTrue(SiteAdmission.TOUS.admitsAt(AdmissionMoment.REGISTRATION))
-        assertTrue(SiteAdmission.TOUS.admitsAt(AdmissionMoment.DISCORD_LINK))
-        assertFalse(SiteAdmission.DISCORD.admitsAt(AdmissionMoment.REGISTRATION))
-        assertTrue(SiteAdmission.DISCORD.admitsAt(AdmissionMoment.DISCORD_LINK))
     }
 
     @Test

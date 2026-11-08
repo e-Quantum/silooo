@@ -456,7 +456,7 @@ corriger, treize à refaire, quatre posées à Kr.
   20 px, texte `fonte-900` sur papier dans le panneau de fonte pour les pages de lecture, mention de Mojang en
   étiquette de 16 px. Le test refuse dans le CSS ce que la charte bannit (arrondis, dégradés, flou, largeur fixe).
 - **Les données** : la table `site_registrations` (migration V7 : gamertag en clé, identifiant Discord facultatif,
-  `pioneer`, `admitted_at`), lue par `join` pour l'admission (`SiteAdmission`, règle `SILOOO_SITE_ADMISSION`) ; depuis
+  `pioneer`, `admitted_at`), lue par le bot ; l'admission en bêta est `beta_access`, écrite par `SiteAdmission` (décision 21) ; depuis
   `claude/site-comptes`, la migration V11 (`web_accounts`, `waitlist`, `discord_links`, `beta_access`, `web_sessions`,
   dépôts dans `registration/JdbcWebStores.kt`) ; les
   accès de lecture dans `com.silooo.core.sitedata` (`SiteStatsStore` : Lingots de la semaine ISO et fiche
@@ -479,7 +479,7 @@ corriger, treize à refaire, quatre posées à Kr.
 - **Les variables** (dix-sept, toutes facultatives, décrites dans `core/README.md`) : `SILOOO_SITE_PORT`,
   `SILOOO_SITE_MODE`, `SILOOO_SITE_URL`, `SILOOO_SITE_URL_DISCORD`, `SILOOO_SITE_ADRESSE_JEU`, `SILOOO_SITE_PORT_JEU`,
   `SILOOO_SITE_URL_BOUTIQUE` (disparaît avec la boutique PayNow), `SILOOO_SITE_SITES_DE_VOTE` (disparaît au profit de
-  `definitions/site-votes.json`), `SILOOO_SITE_ADMISSION`, `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`,
+  `definitions/site-votes.json`), `SILOOO_DISCORD_CLIENT_ID`, `SILOOO_DISCORD_CLIENT_SECRET`,
   `SILOOO_SITE_TRUSTED_PROXY`, `SILOOO_PAYNOW_WEBHOOK_SECRET`, et depuis `claude/site-gabarit` `SILOOO_SITE_URL_SILENEMC` et
   `SILOOO_SITE_URL_HUBYY` (les liens « Voir aussi » du pied), et depuis `claude/site-comptes` `SILOOO_XBOX_CLIENT_ID` et
   `SILOOO_XBOX_CLIENT_SECRET` (l'application Azure de la porte Xbox ; `SILOOO_SITE_MODE` accepte `beta`).

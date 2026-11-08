@@ -115,7 +115,6 @@ internal fun runService(env: Map<String, String>): Int = guarded {
             siteUrl = config.siteUrl,
             discordUrl = config.discordUrl,
             siteSettings = config.siteSettings,
-            siteAdmission = config.siteAdmission,
             discordIdentity = config.discord?.let { HttpDiscordIdentity(it) },
             xboxIdentity = config.xbox?.let { HttpXboxIdentity(it) },
             siteTrustedProxy = config.siteTrustedProxy,
