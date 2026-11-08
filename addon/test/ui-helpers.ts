@@ -5,6 +5,7 @@
 import type { CoreApi } from "../src/api";
 import type { ApiResult } from "../src/http";
 import { provisionalXuid } from "../src/identity";
+import { GLYPH } from "../src/ui/apparence";
 import type {
   ActionBase,
   Balances,
@@ -365,14 +366,31 @@ export function fakePresenter(replies: readonly Reply[], forms: readonly FormRep
   };
 }
 
-/** Le texte brut d'un écran : titre, corps et boutons, sans les codes de couleur. */
-export function plain(spec: ActionFormSpec): string {
-  return [spec.title, spec.body, ...spec.buttons].join("\n").replaceAll(/§./g, "");
+/**
+ * Les glyphes de la planche relus en repères lisibles, pour écrire les tests en clair : un glyphe donne toujours le même
+ * repère, et deux glyphes jamais le même. Le lien entre glyphe et image est vérifié à part (textes.test.ts).
+ */
+const READABLE: ReadonlyArray<readonly [string, string]> = [
+  [GLYPH.donar, "[D]"],
+  [GLYPH.lingot, "[L]"],
+  [GLYPH.gemme, "[G]"],
+  [GLYPH["oooscar-joie"], "[joie]"],
+  [GLYPH["oooscar-fier"], "[fier]"],
+  [GLYPH["oooscar-oups"], "[oups]"],
+  [GLYPH["oooscar-panique"], "[panique]"],
+  [GLYPH["oooscar-dodo"], "[dodo]"],
+];
+
+/** Le texte brut d'une chaîne : sans les codes de couleur, les glyphes relus en repères. */
+export function bare(text: string): string {
+  let out = text.replaceAll(/§./g, "");
+  for (const [glyph, mark] of READABLE) out = out.replaceAll(glyph, mark);
+  return out;
 }
 
-/** Le texte brut d'une chaîne, sans les codes de couleur. */
-export function bare(text: string): string {
-  return text.replaceAll(/§./g, "");
+/** Le texte brut d'un écran : titre, corps et boutons, sans les codes de couleur, les glyphes relus en repères. */
+export function plain(spec: ActionFormSpec): string {
+  return bare([spec.title, spec.body, ...spec.buttons].join("\n"));
 }
 
 // ---------------------------------------------------------------- l'entreprise partagée

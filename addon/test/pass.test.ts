@@ -121,7 +121,7 @@ describe("passScreen", () => {
     const screen = must(passScreen(passOutcome(), catalogOf({ "pass-premium": { gemmes: 321 } })));
     assert.deepEqual(labelsOf(screen), [
       `${ICON.pass} ${PASS_TEXTES.paliers.page}\n${PASS_TEXTES.aReclamer(1)}`,
-      `${ICON.gemmes} ${PASS_TEXTES.passerPremium}\n${PASS_TEXTES.prixPremium("321")}`,
+      `${bare(ICON.gemmes)} ${PASS_TEXTES.passerPremium}\n${PASS_TEXTES.prixPremium("321")}`,
       "Retour",
     ]);
     assert.deepEqual(screen.targets, [

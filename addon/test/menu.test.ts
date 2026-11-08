@@ -14,6 +14,7 @@ import {
   ficheScreen,
   mainScreen,
   noticeOf,
+  offlineNoticeText,
   objectifsScreen,
   prestigeScreen,
   siloScreen,
@@ -326,6 +327,7 @@ describe("écran du Silo", () => {
       SILO_TEXTES.donar(formatAmount(1_000)),
       SILO_TEXTES.revenu(formatRate(3_600)),
       SILO_TEXTES.multiplicateur("×2,5"),
+      SILO_TEXTES.multiplicateurDetail,
     ]);
     assert.match(at(60_000), new RegExp(SILO_TEXTES.donar(formatAmount(counterValue(view.anchor, 60_000)))));
     assert.notEqual(at(60_000), at(0));
@@ -340,22 +342,33 @@ describe("écran du Silo", () => {
   it("la bulle et les chiffres de l'encaissement passent avant le reste", () => {
     const notice = noticeOf({ kind: "collected", collected: 1_500, offlineHours: 0 });
     const body = bare(siloScreen(viewOf(), 0, notice).spec.body);
-    assert.ok(body.startsWith(`Oooscar [joie] Production encaissée !\n${SILO_TEXTES.encaisse(formatAmount(1_500))}\n\nEncaisse pour`));
+    assert.ok(body.startsWith(`Oooscar [joie] Production encaissée !\n${SILO_TEXTES.encaisse(formatAmount(1_500))}\n\n${SILO_TEXTES.phrase}`));
   });
 });
 
 describe("noticeOf", () => {
   const n = (outcome: ActionOutcome) => noticeOf(outcome);
 
-  it("un encaissement : la bulle, les Donar reçus et, hors ligne, la durée", () => {
+  it("un encaissement : la bulle et les Donar reçus ; les heures comptées ne sont pas une absence", () => {
     assert.deepEqual(n({ kind: "collected", collected: 1_500, offlineHours: 0 }), {
       bubble: BULLES.collecte,
       lines: [SILO_TEXTES.encaisse(formatAmount(1_500))],
     });
-    assert.deepEqual(n({ kind: "collected", collected: 90_000, offlineHours: 8 }), {
-      bubble: BULLES.collecteHorsLigne,
-      lines: [SILO_TEXTES.encaisse(formatAmount(90_000)), "Hors ligne 8 h"],
-    });
+    // `collect` compte au revenu plein le temps depuis le dernier calcul : la vidéo montrait « Hors ligne 0 min ».
+    for (const offlineHours of [0.0001, 8]) {
+      assert.deepEqual(n({ kind: "collected", collected: 90_000, offlineHours }), {
+        bubble: BULLES.collecte,
+        lines: [SILO_TEXTES.encaisse(formatAmount(90_000))],
+      });
+    }
+  });
+
+  it("à la connexion, l'absence qui a rapporté est dite une fois, avec le Donar versé ; sinon rien", () => {
+    assert.equal(offlineNoticeText({ offlineCollected: 0 }), undefined);
+    assert.equal(offlineNoticeText({}), undefined);
+    const text = offlineNoticeText({ offlineCollected: 42_000 }) ?? "";
+    assert.ok(text.includes(BULLES.collecteHorsLigne.text), text);
+    assert.ok(text.endsWith(SILO_TEXTES.encaisse(formatAmount(42_000))), text);
   });
 
   it("une montée et une étape réussies", () => {
@@ -627,15 +640,16 @@ describe("parcours : Silo et encaissement", () => {
     assert.equal(screensSeen, 2);
   });
 
-  it("l'encaissement d'une absence : Oooscar dort et dit la durée", async () => {
+  it("un encaissement après de longues heures connecté : la bulle de l'encaissement, pas celle d'une absence", async () => {
     const { menu, presenter } = setup(
       [press("Silo"), press("Encaisser"), close],
       { collect: [ok({ collected: 90_000, offlineHours: 8, state: companyState({ version: 2 }) })] },
     );
     await menu.open(PLAYER);
     const body = bare(presenter.shown[2]?.body ?? "");
-    assert.match(body, /\[dodo\] Gagné pendant ton absence\./);
-    assert.match(body, /Hors ligne 8 h/);
+    assert.ok(body.includes(BULLES.collecte.text), body);
+    assert.ok(!body.includes(BULLES.collecteHorsLigne.text), body);
+    assert.doesNotMatch(body, /Hors ligne/);
   });
 
   it("Retour du Silo ramène au menu", async () => {

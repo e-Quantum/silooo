@@ -37,6 +37,8 @@ export interface UiSettings {
   readonly menuItemWaitStepSeconds: number;
   /** ...pendant cette durée au plus, puis on la donne quand même : une cinématique ne doit jamais priver le joueur de son menu. */
   readonly menuItemWaitMaxSeconds: number;
+  /** Intervalle de la ronde qui remet les objets de navigation dans leurs cases (ils n'ont pas de verrou). */
+  readonly navigationCheckSeconds: number;
   /** Nouveaux essais d'un formulaire que Bedrock refuse parce que le joueur a déjà un écran ouvert (le tchat, un autre menu). */
   readonly formBusyRetries: number;
   /** Attente entre deux de ces essais. */
@@ -131,6 +133,7 @@ export const config: Config = {
     menuItemDelaySeconds: 2,
     menuItemWaitStepSeconds: 0.5,
     menuItemWaitMaxSeconds: 60,
+    navigationCheckSeconds: 2,
     formBusyRetries: 10,
     formBusyRetrySeconds: 0.5,
     tilesPerScreen: 8,

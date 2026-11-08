@@ -1,9 +1,8 @@
-// L'habillage provisoire des écrans : les couleurs de design/ rendues par les codes de couleur de Bedrock,
-// et des repères en texte à la place des icônes. Aucune phrase ici : les mots sont dans textes.ts.
+// L'habillage des écrans : les couleurs de design/ rendues par les codes de couleur de Bedrock, et les icônes. Aucune
+// phrase ici : les mots sont dans textes.ts.
 //
-// Provisoire : tant que le pack de ressources n'a pas de glyphes pour les icônes de design/icones/ ni d'image
-// pour Oooscar, un repère entre crochets tient la place de l'icône. Le jour où le pack les apporte (glyphes dans
-// la plage privée d'Unicode), c'est ce fichier, et lui seul, qui change. À valider par Kr.
+// Les monnaies et Oooscar sont des glyphes de la planche du pack (plage privée d'Unicode, voir GLYPH). Les autres
+// icônes gardent pour l'instant un repère entre crochets ; c'est ce fichier, et lui seul, qui change. À valider par Kr.
 
 import type { StaffRarity } from "../protocol";
 
@@ -43,13 +42,31 @@ export function colored(color: string, text: string): string {
 }
 
 /**
- * Un repère par icône de design/icones/ utilisée. Objectifs, Amis, Silo, Personnel, Agence, Associés, Ville, Boutique, Pass, Palier, Possédé et Cadeau n'ont pas d'icône dans design/ :
- * leur repère est un manque du design system, à dessiner (voir addon/README.md).
+ * Les glyphes de la planche du pack (resource-pack/font/glyph_E2.png, écrite par tools/generer_glyphes.mjs) : un
+ * caractère de la plage privée d'Unicode par image de design/. Le caractère est U+E2<case>, la case vient de
+ * design/glyphes.json ; un test vérifie que les deux correspondent. À valider par Kr.
+ */
+export const GLYPH = {
+  donar: "",
+  lingot: "",
+  gemme: "",
+  "oooscar-joie": "",
+  "oooscar-fier": "",
+  "oooscar-oups": "",
+  "oooscar-panique": "",
+  "oooscar-dodo": "",
+} as const;
+
+/**
+ * Un repère par icône utilisée. Les monnaies ont leur glyphe ; les autres gardent un repère entre crochets, en attendant
+ * de passer aux glyphes déjà sur la planche (usine, carte, cadenas…). Objectifs, Amis, Silo, Personnel, Agence, Associés,
+ * Pass, Palier, Possédé et Cadeau n'ont pas d'icône dans design/ : leur repère est un manque du design system, à
+ * dessiner (voir addon/README.md).
  */
 export const ICON = {
-  donar: "[D]",
-  lingots: "[L]",
-  gemmes: "[G]",
+  donar: GLYPH.donar,
+  lingots: GLYPH.lingot,
+  gemmes: GLYPH.gemme,
   usine: "[U]",
   engrenage: "[T]",
   flamme: "[!]",
@@ -91,11 +108,11 @@ export const EXPRESSIONS = ["joie", "fier", "oups", "panique", "dodo"] as const;
 
 export type Expression = (typeof EXPRESSIONS)[number];
 
-/** Le repère d'une expression dans une bulle, en attendant l'image d'Oooscar du pack. */
+/** Le visage d'Oooscar dans une bulle : son glyphe, une expression par situation. */
 export const EXPRESSION_MARK: Record<Expression, string> = {
-  joie: "[joie]",
-  fier: "[fier]",
-  oups: "[oups]",
-  panique: "[panique]",
-  dodo: "[dodo]",
+  joie: GLYPH["oooscar-joie"],
+  fier: GLYPH["oooscar-fier"],
+  oups: GLYPH["oooscar-oups"],
+  panique: GLYPH["oooscar-panique"],
+  dodo: GLYPH["oooscar-dodo"],
 };

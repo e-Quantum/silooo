@@ -232,7 +232,7 @@ describe("rayonScreen", () => {
     const labels = labelsOf(screen);
     assert.equal(labels.length, GRADES.length + 1);
     assert.equal(labels[0], `${ICON.possede} ${must(GRADES[0]).nom}\n${BOUTIQUE_TEXTES.details.possede}`);
-    assert.ok(labels[1]?.startsWith(`${ICON.gemmes} ${must(GRADES[1]).nom}`), labels[1]);
+    assert.ok(labels[1]?.startsWith(`${bare(ICON.gemmes)} ${must(GRADES[1]).nom}`), labels[1]);
     assert.ok(labels[2]?.startsWith(`${ICON.cadenas} ${must(GRADES[2]).nom}`), labels[2]);
     assert.ok(labels[2]?.endsWith(BOUTIQUE_TEXTES.details.bloque), labels[2]);
     assert.equal(labels[GRADES.length], "Retour");
@@ -317,7 +317,7 @@ describe("articleScreen", () => {
     assert.ok(body.includes(BOUTIQUE_TEXTES.article.gradeOrdre), body);
     assert.ok(body.includes(BOUTIQUE_TEXTES.solde("12")), body);
     assert.deepEqual(labelsOf(screen), [
-      `${ICON.gemmes} Acheter\n${BOUTIQUE_TEXTES.details.prix("777")}`,
+      `${bare(ICON.gemmes)} Acheter\n${BOUTIQUE_TEXTES.details.prix("777")}`,
       `${ICON.cadeau} Offrir\n${BOUTIQUE_TEXTES.details.prix("777")}`,
       "Retour",
     ]);
@@ -351,7 +351,7 @@ describe("articleScreen", () => {
     assert.ok(body.includes(BOUTIQUE_TEXTES.article.abonnement(String(pilier.jours))), body);
     assert.ok(body.includes(BOUTIQUE_TEXTES.article.abonnementBonus(String(pilier.bonusDonarPourcent))), body);
     assert.ok(body.includes(BOUTIQUE_TEXTES.article.abonnementRendu(String(pilier.gemmesRendues))), body);
-    assert.ok(labelsOf(screen)[0]?.startsWith(`${ICON.gemmes} ${BOUTIQUE_TEXTES.article.prolonger}`), labelsOf(screen)[0]);
+    assert.ok(labelsOf(screen)[0]?.startsWith(`${bare(ICON.gemmes)} ${BOUTIQUE_TEXTES.article.prolonger}`), labelsOf(screen)[0]);
     assert.deepEqual(screen.targets[0], { kind: "buyItem", itemId: "pilier" });
     assert.deepEqual(screen.targets[screen.targets.length - 1], { kind: "go", route: { screen: "boutique" } });
   });

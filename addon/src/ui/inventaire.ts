@@ -42,6 +42,28 @@ function isNavigation(item: NavigationItem): boolean {
   return navigationRoute(item.typeId) !== undefined || (item.typeId === "minecraft:compass" && item.nameTag === "Menu");
 }
 
+/** L'identifiant d'un objet d'une case de NAVIGATION. */
+export function isNavigationItem(typeId: string): boolean {
+  return navigationRoute(typeId) !== undefined;
+}
+
+/**
+ * Vrai quand chaque objet de navigation est dans sa case et qu'aucun autre ne traîne ailleurs. Les objets n'ont pas de
+ * verrou (son texte couvrait le HUD) : le joueur peut en jeter ou en déplacer un, et ce test dit qu'il faut les remettre.
+ */
+export function navigationInPlace<Item extends NavigationItem>(inventory: NavigationInventory<Item>): boolean {
+  for (let index = 0; index < inventory.size; index += 1) {
+    const item = inventory.getItem(index);
+    const entry = NAVIGATION.find((candidate) => candidate.slot === index);
+    if (entry !== undefined) {
+      if (item?.typeId !== entry.id) return false;
+    } else if (item !== undefined && isNavigation(item)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Prépare le déplacement avant d'écrire : un inventaire plein ne perd aucun objet. */
 export function installNavigation<Item extends NavigationItem>(inventory: NavigationInventory<Item>, make: (entry: typeof NAVIGATION[number]) => Item): boolean {
   const contents = Array.from({ length: inventory.size }, (_, index) => inventory.getItem(index));

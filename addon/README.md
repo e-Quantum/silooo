@@ -160,7 +160,8 @@ Ce que `resource-pack/` doit apporter, et qui n'y est pas encore :
 
 1. Dans `hud_screen.json`, masquer le préfixe `silooo:hud|` du titre et placer le reste en haut à gauche.
 2. Faire de même pour `silooo:consigne|` du sous-titre, juste sous les monnaies.
-3. Les glyphes des icônes de `design/icones/` et les images d'Oooscar, pour remplacer les repères provisoires.
+3. Les glyphes des icônes de `design/icones/` et les images d'Oooscar, pour remplacer les repères provisoires (faits
+   pour les monnaies et Oooscar, `resource-pack/font/glyph_E2.png`).
 
 Le jour où ces trois points sont faits : `titleChannel: true`, et `ui/apparence.ts` change.
 
@@ -597,14 +598,15 @@ dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoir
 | Fiche, étape 4 | rien | Recrutement, bouton Recruter |
 | Fiche, bouton | rien | Retour |
 | Silo, titre | rien | SILO |
-| Silo, phrase | rien | Encaisse pour recevoir ta production. |
+| Silo, phrase | Encaisse pour recevoir ta production. | Ta production s'accumule ici. Encaisse-la pour la mettre en caisse et avancer tes objectifs. |
 | Silo, info | rien | Donar `<montant>` |
 | Silo, info | rien | Revenu `<revenu>` |
-| Silo, info | rien | Multiplicateur `<multiplicateur>` |
+| Silo, info | Multiplicateur `<multiplicateur>` | Bonus `<multiplicateur>` sur toute la production |
+| Silo, info, sous le bonus | rien | Lingots détenus, étoiles, ville et boosts |
 | Silo, bouton | rien | Encaisser |
 | Silo, bouton | rien | Retour |
 | Silo, après la collecte | rien | Encaissé `<montant>` Donar |
-| Silo, après la collecte | rien | Hors ligne `<durée>` |
+| Connexion, gain hors ligne (tchat, bulle dodo « Gagné pendant ton absence. ») | Hors ligne `<durée>` après une collecte | Encaissé `<montant>` Donar |
 | HUD, consigne d'une mission en cours (remplace le seuil de prestige) | Prestige à `<seuil>` Donar | `<consigne>` : `<fait>`/`<cible>`, par exemple Encaisse au Silo : 0/1 |
 | Menu, tuile Objectifs, ligne d'info | Bientôt (tuile verrouillée) | Mission `<fait>`/`<cible>` |
 | Menu, tuile Objectifs, ligne d'info quand le service n'a plus de mission | Bientôt (tuile verrouillée) | Plus de mission |
@@ -1264,8 +1266,10 @@ Au contrat (`api/`, non modifié par cette tranche) :
 Au design system :
 
 - Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence, Associés, Ville, Boutique (`[B]`), Pass (`[Y]`), palier réclamé (`[F]`) et à réclamer (`[K]`), article possédé (`[H]`) et cadeau (`[Q]`) (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`, Ville `[V]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
-- Pas d'image d'Oooscar utilisable en jeu : les bulles portent un repère entre crochets.
-- Pas de glyphes dans le pack de ressources pour les icônes qui existent dans `design/icones/`.
+- Les glyphes (`resource-pack/font/glyph_E2.png`, écrite par `tools/generer_glyphes.mjs` d'après `design/glyphes.json`) portent
+  les quatorze icônes de `design/icones/` et les cinq visages d'Oooscar. Seuls les monnaies (Donar, Lingots, Gemmes) et les
+  bulles d'Oooscar s'en servent ; les autres icônes dessinées (usine, carte, cadenas, flamme, éclair…) gardent leur repère
+  entre crochets jusqu'au prochain passage dans `ui/apparence.ts`.
 
 ## Ce qui reste à décider
 
@@ -1343,6 +1347,8 @@ Au design system :
   à garder le joueur immobile, et que rester accroupi passe bien la cinématique.
 - Les règles du monde (`applyWorldRules`) : paisible, aucune apparition de monstre, jour figé à midi, pas de météo, et
   qu'un monde créé avant elles les prend au redémarrage.
+- Les glyphes de la page E2 : qu'aucun glyphe de Bedrock n'occupe cette page, leur taille à côté du texte (cases de
+  32 pixels), et s'ils prennent la couleur du texte (le visage d'Oooscar est précédé du blanc pour ne pas virer au gris).
 - Le titre `silooo:cinema|` caché par le HUD avec le test « commence par » (pack 0.1.5), et un client qui avait le pack
   0.1.4 en cache reçoit bien le nouveau.
 - La téléportation vers une zone encore non chargée, et la remise du joueur à la fin de la cinématique.

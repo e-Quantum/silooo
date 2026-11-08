@@ -73,9 +73,12 @@ function say(expression: Expression, text: string): Bubble {
 /** Le nom de la mascotte, pour la ligne de la bulle. */
 const OOOSCAR = "Oooscar";
 
-/** Une bulle écrite sur une ligne : le nom, le repère de l'expression, puis la phrase. */
+/**
+ * Une bulle écrite sur une ligne : le nom, le visage d'Oooscar, puis la phrase. Le glyphe est précédé du blanc : si
+ * Bedrock teinte les glyphes avec la couleur du texte, le gris du nom ne doit pas assombrir le visage.
+ */
 export function renderBubble(bubble: Bubble): string {
-  return `${COLOR.muted}${OOOSCAR} ${EXPRESSION_MARK[bubble.expression]}${COLOR.reset} ${bubble.text}`;
+  return `${COLOR.muted}${OOOSCAR} ${COLOR.paper}${EXPRESSION_MARK[bubble.expression]}${COLOR.reset} ${bubble.text}`;
 }
 
 export const BULLES = {
@@ -702,12 +705,14 @@ export const CARTE_TEXTES = {
 
 export const SILO_TEXTES = {
   titre: "SILO",
-  phrase: "Encaisse pour recevoir ta production.",
+  /** Le compteur du HUD avance tout seul : encaisser fige la production et compte pour les objectifs. À valider par Kr. */
+  phrase: "Ta production s'accumule ici. Encaisse-la pour la mettre en caisse et avancer tes objectifs.",
   donar: (amount: string): string => `Donar ${amount}`,
   revenu: (rate: string): string => `Revenu ${rate}`,
-  multiplicateur: (multiplier: string): string => `Multiplicateur ${multiplier}`,
+  /** `CompanyState.multiplier` : Lingots détenus, étoiles, ville, grade et boosts (docs/economie.md). À valider par Kr. */
+  multiplicateur: (multiplier: string): string => `Bonus ${multiplier} sur toute la production`,
+  multiplicateurDetail: "Lingots détenus, étoiles, ville et boosts",
   encaisse: (amount: string): string => `Encaissé ${amount} Donar`,
-  horsLigne: (duration: string): string => `Hors ligne ${duration}`,
   encaisser: "Encaisser",
   retour: "Retour",
 } as const;

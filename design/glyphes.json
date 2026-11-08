@@ -1,0 +1,26 @@
+{
+  "description": "La planche de glyphes du pack de ressources : chaque image de design/ y prend une case, et son caractère de la plage privée d'Unicode est U+<page><case en deux chiffres hexadécimaux>. tools/generer_glyphes.mjs écrit resource-pack/font/glyph_<page>.png ; addon/src/ui/apparence.ts reprend les caractères, et un test vérifie qu'ils correspondent.",
+  "page": "E2",
+  "taille": 32,
+  "glyphes": [
+    { "nom": "donar", "source": "icones/donar.png", "case": 0 },
+    { "nom": "lingot", "source": "icones/lingot.png", "case": 1 },
+    { "nom": "gemme", "source": "icones/gemme.png", "case": 2 },
+    { "nom": "usine", "source": "icones/usine.png", "case": 3 },
+    { "nom": "carte", "source": "icones/carte.png", "case": 4 },
+    { "nom": "ville", "source": "icones/ville.png", "case": 5 },
+    { "nom": "marche", "source": "icones/marche.png", "case": 6 },
+    { "nom": "boutique", "source": "icones/boutique.png", "case": 7 },
+    { "nom": "cadenas", "source": "icones/cadenas.png", "case": 8 },
+    { "nom": "engrenage", "source": "icones/engrenage.png", "case": 9 },
+    { "nom": "eclair", "source": "icones/eclair.png", "case": 10 },
+    { "nom": "flamme", "source": "icones/flamme.png", "case": 11 },
+    { "nom": "etoile", "source": "icones/etoile.png", "case": 12 },
+    { "nom": "fermer", "source": "icones/fermer.png", "case": 13 },
+    { "nom": "oooscar-joie", "source": "mascotte/oooscar-joie.png", "case": 16 },
+    { "nom": "oooscar-fier", "source": "mascotte/oooscar-fier.png", "case": 17 },
+    { "nom": "oooscar-oups", "source": "mascotte/oooscar-oups.png", "case": 18 },
+    { "nom": "oooscar-panique", "source": "mascotte/oooscar-panique.png", "case": 19 },
+    { "nom": "oooscar-dodo", "source": "mascotte/oooscar-dodo.png", "case": 20 }
+  ]
+}

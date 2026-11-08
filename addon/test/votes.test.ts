@@ -105,6 +105,32 @@ describe("createVotes : l'arrivée du joueur", () => {
     assert.deepEqual(sent, [{ xuid: "1", text: reminderText() }]);
   });
 
+  it("un seul rappel par jour : la reconnexion du même jour ne relance pas, le lendemain si", async () => {
+    const sent: Array<{ xuid: Xuid; text: string }> = [];
+    const reads: Array<Xuid | undefined> = [];
+    const clock = fakeClock(T0);
+    const votes = createVotes({
+      api: {
+        todayVotes: (xuid) => {
+          reads.push(xuid);
+          return Promise.resolve(ok(votesToday({ mine: { votes: 0, streak: 0 } })));
+        },
+      },
+      online: () => ["1", "2"],
+      say: (xuid, text) => void sent.push({ xuid, text }),
+      clock,
+      log: recordingLogger(),
+    });
+    await votes.arrive("1");
+    await votes.arrive("1");
+    await votes.arrive("2");
+    assert.deepEqual(sent.map((s) => s.xuid), ["1", "2"], "le même jour, un rappel par joueur");
+    assert.deepEqual(reads, ["1", "2"], "le second passage ne relit pas le service");
+    clock.advance(24 * 60 * 60 * 1000);
+    await votes.arrive("1");
+    assert.deepEqual(sent.map((s) => s.xuid), ["1", "2", "1"]);
+  });
+
   it("le joueur a déjà voté : rien", async () => {
     const { votes, sent } = setup(ok(votesToday({ mine: { votes: 1, streak: 2 } })));
     await votes.arrive("1");

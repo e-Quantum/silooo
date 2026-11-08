@@ -102,15 +102,23 @@ export function createVotes(deps: VotesDeps): Votes {
     }
   }
 
+  // Le jour UTC du dernier rappel de chaque joueur : un joueur qui se reconnecte dans la journée n'est pas relancé.
+  const reminded = new Map<Xuid, string>();
+
   return {
     async arrive(xuid) {
       try {
+        const today = utcDay(clock.now());
+        if (reminded.get(xuid) === today) return;
         const result = await api.todayVotes(xuid);
         if (result.kind !== "ok") {
           log.warn(`rappel du vote de ${xuid} : ${describeFailure(result)}`);
           return;
         }
-        if (result.body.mine.votes === 0) tell(xuid, reminderText());
+        if (result.body.mine.votes === 0) {
+          reminded.set(xuid, today);
+          tell(xuid, reminderText());
+        }
       } catch (error) {
         log.warn(`rappel du vote de ${xuid} : ${describeError(error)}`);
       }

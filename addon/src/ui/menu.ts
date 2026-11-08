@@ -34,6 +34,7 @@ import {
   RESTORE_STEP_MAX,
   type CompanyState,
   type Factory,
+  type JoinResponse,
   type MissionState,
   type PrestigePreview,
   type Xuid,
@@ -88,7 +89,7 @@ import type { ActionFormSpec, FormAnswer, FormPresenter, ModalFormSpec, ModalAns
 import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
 import type { Invitations } from "./invitations";
 import type { Missions } from "./missions";
-import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
+import { formatAmount, formatCount, formatMultiplier, formatRate } from "./nombres";
 import { passNotice, palierScreen, paliersScreen, passScreen } from "./pass";
 import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
 import { playRepair } from "./reparation";
@@ -450,6 +451,7 @@ export function siloScreen(view: CompanyView, nowMs: number, notice?: Notice): S
     SILO_TEXTES.donar(formatAmount(counterValue(view.anchor, nowMs))),
     SILO_TEXTES.revenu(formatRate(view.state.ratePerHour)),
     SILO_TEXTES.multiplicateur(formatMultiplier(view.state.multiplier)),
+    colored(COLOR.muted, SILO_TEXTES.multiplicateurDetail),
   ];
   const entries: Entry[] = [
     { text: SILO_TEXTES.encaisser, target: { kind: "collect" } },
@@ -468,16 +470,25 @@ export function unavailableScreen(): Screen {
 // ---------------------------------------------------------------- ce que dit Oooscar après une action
 
 /**
+ * Ce que dit Oooscar à la connexion quand l'absence a rapporté du Donar (`offlineCollected` de `join`, déjà versé à
+ * l'entreprise) ; rien sinon. C'est le seul endroit où l'on parle d'absence : un encaissement se fait toujours en ligne.
+ */
+export function offlineNoticeText(join: Pick<JoinResponse, "offlineCollected">): string | undefined {
+  const earned = join.offlineCollected ?? 0;
+  if (!(earned > 0)) return undefined;
+  return [renderBubble(BULLES.collecteHorsLigne), SILO_TEXTES.encaisse(formatAmount(earned))].join("\n");
+}
+
+/**
  * La bulle (et les chiffres) qui suivent le résultat d'une action. Rien quand l'action a été ignorée. `staff` dit que
  * l'action touche le personnel : deux refus y ont des mots à eux (plus de poste libre, déjà embauché).
  */
 export function noticeOf(outcome: ActionOutcome, staff = false): Notice | undefined {
   switch (outcome.kind) {
-    case "collected": {
-      const lines = [SILO_TEXTES.encaisse(formatAmount(outcome.collected))];
-      if (outcome.offlineHours > 0) lines.push(SILO_TEXTES.horsLigne(formatDuration(outcome.offlineHours)));
-      return { bubble: outcome.offlineHours > 0 ? BULLES.collecteHorsLigne : BULLES.collecte, lines };
-    }
+    case "collected":
+      // Un encaissement se fait toujours au revenu plein : `offlineHours` y compte le temps depuis le dernier calcul, pas
+      // une absence. L'absence est versée par `join`, et dite à la connexion (offlineNoticeText).
+      return { bubble: BULLES.collecte, lines: [SILO_TEXTES.encaisse(formatAmount(outcome.collected))] };
     case "levelsBought":
       return { bubble: BULLES.montee };
     case "stepDone":

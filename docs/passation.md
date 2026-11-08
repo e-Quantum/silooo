@@ -262,6 +262,16 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     de monstres, jour figé à midi, sans météo ni fantômes : `difficulty=peaceful` dans `server.properties` et
     `applyWorldRules` posé par l'add-on à chaque démarrage.
 
+51. **Les correctifs P1 de lisibilité (8 novembre 2026, branche `claude/p1-video`, sur `claude/p0-video`).** Tranché sans
+    Kr : (a) une planche de glyphes `resource-pack/font/glyph_E2.png` (page E2, cases de 32 pixels), composée par
+    `tools/generer_glyphes.mjs` d'après `design/glyphes.json` et contrôlée par `verifier_pack.mjs` ; les monnaies du HUD
+    et les visages d'Oooscar s'en servent, les autres icônes gardent leur repère pour l'instant ; pack en 0.1.6.
+    (b) `offlineHours` de `collect` compte le temps depuis le dernier calcul, en ligne : l'encaissement ne parle plus
+    d'absence ; le gain hors ligne de `join` (`offlineCollected`, jusqu'ici jamais montré) est dit à la connexion.
+    (c) Un seul rappel de vote par joueur et par jour UTC, gardé en mémoire de l'add-on. (d) Les objets de navigation
+    perdent `lockMode` comme la boussole de la salle d'attente ; une ronde toutes les 2 secondes les remet dans leurs
+    cases et un objet jeté disparaît du sol. (e) Le Silo explique l'encaissement et le bonus.
+
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en
    Python, comme le plan le prévoit. Les outils qui lisent `definitions/` (vérification des schémas, plus
@@ -521,6 +531,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- Correctifs P1 (8 novembre, décision 51) : les glyphes des monnaies et d'Oooscar en jeu (taille, lisibilité du visage
+  réduit à 32 pixels) ; les textes du Silo (« Ta production s'accumule ici… », « Bonus `<multiplicateur>` sur toute la
+  production », « Lingots détenus, étoiles, ville et boosts ») ; la bulle de gain hors ligne dite à la connexion.
+
 - Correctifs P0 (8 novembre, décision 50) : le message de journal « règles du monde posées » (serveur seulement,
   aucun texte nouveau vu par les joueurs) ; le choix de midi figé, sans pluie ni nuit, est un choix de jeu à confirmer.
 
@@ -657,6 +671,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   pionnier) et la tuile Associés déplacée sous Personnel. Les points d'exclamation des bulles sont à relire.
 
 ## Journal
+
+- **8 novembre 2026 : correctifs P1 de lisibilité** (branche `claude/p1-video`, partie de `claude/p0-video`,
+  décision 51). Glyphes des monnaies et d'Oooscar à la place de `[D]`, `[L]`, `[G]` et `[joie]` ; plus de
+  « Hors ligne 0 min » à l'encaissement, le gain d'absence dit à la connexion ; un rappel de vote par jour ; objets de
+  navigation sans verrou ; Silo expliqué. Vérifié : 1748 tests de l'add-on, `tools/verifier.sh` vert sauf `deploy-start.sh`
+  (mode attente, `jq` absent du PC, comme au P0). Pas vérifié en jeu
+  (liste dans `addon/README.md`). Reste du P1 : passer les autres icônes dessinées aux glyphes. Pas déployé.
 
 - **8 novembre 2026 : correctifs P0 tirés d'une vidéo de partie** (branche `claude/p0-video`, décision 50). La
   découverte des usines est branchée (la Scierie apparaît en ruine au niveau d'entreprise 2 : plus de mur après la

@@ -2,7 +2,7 @@
 // branche les pièces et ne laisse jamais une exception tuer le script : sans réglages, l'add-on reste
 // inerte et le dit dans le journal du serveur.
 
-import { ItemLockMode, ItemStack, system, world, type Player } from "@minecraft/server";
+import { ItemStack, system, world, type Player } from "@minecraft/server";
 import { createCoreApi, type CoreApi } from "./api";
 import { createBetaTransport, readSettings } from "./beta";
 import { config } from "./config";
@@ -50,23 +50,25 @@ import { createPlayerStore, type PlayerStore } from "./state";
 import { createActions } from "./ui/actions";
 import { createAnnouncements, type Announcements } from "./ui/annonces";
 import { createCityEvents } from "./ui/annonces-ville";
-import { installNavigation, navigationRoute, currentFactoryRoute, type NAVIGATION } from "./ui/inventaire";
+import { installNavigation, isNavigationItem, navigationInPlace, navigationRoute, currentFactoryRoute, type NAVIGATION } from "./ui/inventaire";
 import { createLinkState, createViewStore, observeApi, type LinkState, type ViewStore } from "./ui/etat";
 import { createFormPresenter } from "./ui/formulaires";
 import { createHud, startHud } from "./ui/hud";
 import { createInvitations, type Invitations } from "./ui/invitations";
 import { createIncidents } from "./ui/incidents";
-import { createMenu } from "./ui/menu";
+import { createMenu, offlineNoticeText } from "./ui/menu";
 import { createMissions, type Missions } from "./ui/missions";
 import { CINEMATIQUE_TEXTES, ATELIER_TEXTES } from "./ui/textes";
 import { createVotes } from "./ui/votes";
 
-/** L'objet du menu, tel que le joueur le reçoit : nommé, gardé à la mort, impossible à jeter ou à ranger ailleurs. */
+/**
+ * L'objet du menu, tel que le joueur le reçoit : nommé, gardé à la mort. Pas de lockMode, comme la boussole de la salle
+ * d'attente : son texte d'objet verrouillé couvrait le HUD. Un objet jeté ou déplacé revient à sa case (keepNavigation).
+ */
 function newNavigationItem(entry: typeof NAVIGATION[number]): ItemStack {
   const item = new ItemStack(entry.id, 1);
   item.nameTag = entry.name;
   item.keepOnDeath = true;
-  item.lockMode = ItemLockMode.slot;
   return item;
 }
 
@@ -328,6 +330,19 @@ function startScreens(deps: {
     world.afterEvents.playerSpawn.subscribe(({ player }) => {
       scheduler.after(config.ui.menuItemDelaySeconds, guard(log, "inventaire", () => equip(player)));
     });
+    // Les objets n'ont pas de verrou : un objet jeté disparaît du sol, et celui qui manque ou a changé de case revient.
+    world.afterEvents.entitySpawn.subscribe(({ entity }) => {
+      if (entity.typeId !== "minecraft:item") return;
+      const typeId = entity.getComponent("minecraft:item")?.itemStack.typeId;
+      if (typeId !== undefined && isNavigationItem(typeId)) system.run(guard(log, "objet jeté", () => { if (entity.isValid) entity.remove(); }));
+    });
+    scheduler.every(config.ui.navigationCheckSeconds, guard(log, "inventaire", () => {
+      for (const player of world.getAllPlayers()) {
+        if (busy(player)) continue;
+        const inventory = player.getComponent("minecraft:inventory")?.container;
+        if (inventory !== undefined && !navigationInPlace(inventory)) installNavigation(inventory, newNavigationItem);
+      }
+    }));
     startHud(scheduler, guard(log, "HUD", hud.refresh));
   } catch (error) {
     log.error(`écrans indisponibles : ${describeError(error)}`);
@@ -372,8 +387,10 @@ function main(): void {
     // À l'arrivée, après le monde : les missions du joueur sont lues pour le HUD et le menu, ses invitations en attente et le vote
     // du jour s'il ne l'a pas fait lui sont dits.
     const hooks = combineHooks<Player>(log, worldPart.hooks, {
-      joined: async (player) => {
+      joined: async (player, join) => {
         const xuid = playerXuid(player);
+        const offline = offlineNoticeText(join);
+        if (offline !== undefined) tellPlayer(xuid, offline);
         await missions.arrive(xuid);
         invitations.arrive(xuid);
         await votes.arrive(xuid);

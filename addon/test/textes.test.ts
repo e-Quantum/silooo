@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { MEMBER_ROLES, PASS_TRACKS, REFUSAL_REASONS, STAFF_RARITIES, STAFF_ROLES } from "../src/protocol";
-import { COLOR, EXPRESSIONS, EXPRESSION_MARK, ICON, RARITY_COLOR, colored } from "../src/ui/apparence";
+import { COLOR, EXPRESSIONS, EXPRESSION_MARK, GLYPH, ICON, RARITY_COLOR, colored } from "../src/ui/apparence";
 import { formatAmount } from "../src/ui/nombres";
 import {
   AGENCE_TEXTES,
@@ -139,9 +139,10 @@ describe("bulles d'Oooscar", () => {
     assert.equal(failureBubble("error", "PAS_FAIT").expression, "oups");
   });
 
-  it("la bulle s'écrit sur une ligne : nom, repère de l'expression, phrase", () => {
-    assert.equal(renderBubble(BULLES.bientot).replaceAll(/§./g, ""), "Oooscar [oups] Pas encore disponible.");
+  it("la bulle s'écrit sur une ligne : nom, visage de l'expression, phrase", () => {
+    assert.equal(renderBubble(BULLES.bientot).replaceAll(/§./g, ""), `Oooscar ${EXPRESSION_MARK.oups} Pas encore disponible.`);
     assert.ok(renderBubble(BULLES.montee).startsWith(COLOR.muted));
+    assert.ok(renderBubble(BULLES.montee).includes(`${COLOR.paper}${EXPRESSION_MARK.joie}`), "le visage n'est pas teinté du gris du nom");
   });
 
   it("les cinq expressions sont celles des images de design/mascotte, ni plus ni moins", () => {
@@ -332,11 +333,28 @@ describe("règles d'écriture (design/README.md, « Écrire sans slop »)", () =
     }
   });
 
-  it("l'habillage n'ajoute que des codes de couleur, des repères entre crochets et un nom", () => {
+  it("l'habillage n'ajoute que des codes de couleur, des repères entre crochets ou des glyphes de la planche, et un nom", () => {
     assert.equal(colored(COLOR.donar, "x"), `${COLOR.donar}x${COLOR.reset}`);
-    for (const repere of Object.values(ICON)) assert.match(repere, /^\[[A-Z!]\]$/);
-    for (const repere of Object.values(EXPRESSION_MARK)) assert.match(repere, /^\[[a-z]+\]$/);
+    const glyphes = new Set<string>(Object.values(GLYPH));
+    for (const repere of Object.values(ICON)) assert.ok(/^\[[A-Z!]\]$/.test(repere) || glyphes.has(repere), repere);
+    for (const repere of Object.values(EXPRESSION_MARK)) assert.ok(glyphes.has(repere), repere);
     for (const code of Object.values(COLOR)) assert.match(code, /^§[0-9a-v]$/);
+  });
+
+  it("chaque glyphe est le caractère de sa case dans design/glyphes.json, et sa case a une image", () => {
+    const plan = JSON.parse(readFileSync(resolve(process.cwd(), "../design/glyphes.json"), "utf8")) as {
+      page: string;
+      glyphes: Array<{ nom: string; source: string; case: number }>;
+    };
+    for (const [nom, glyphe] of Object.entries(GLYPH)) {
+      const entree = plan.glyphes.find((g) => g.nom === nom);
+      assert.ok(entree, `${nom} est dans design/glyphes.json`);
+      const attendu = String.fromCodePoint(parseInt(`${plan.page}${entree.case.toString(16).padStart(2, "0")}`, 16));
+      assert.equal(glyphe, attendu, `${nom} : U+${plan.page}${entree.case.toString(16).padStart(2, "0").toUpperCase()}`);
+    }
+    for (const expression of EXPRESSIONS) {
+      assert.equal(EXPRESSION_MARK[expression], GLYPH[`oooscar-${expression}`], `le visage ${expression} est l'image oooscar-${expression}`);
+    }
   });
 });
 

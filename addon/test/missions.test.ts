@@ -259,7 +259,7 @@ describe("missions : l'annonce d'une mission terminée", () => {
       await missions.onAnnonce(event);
     }
     assert.equal(said.length, 5);
-    for (const { text } of said) assert.equal(bare(text), renderBubble(BULLES.missionInconnue).replaceAll(/§./g, ""));
+    for (const { text } of said) assert.equal(bare(text), bare(renderBubble(BULLES.missionInconnue)));
   });
 
   it("une mission que l'add-on ne connaît pas : la bulle de repli, la récompense du service", async () => {

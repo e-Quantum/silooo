@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { currentFactoryRoute, installNavigation, NAVIGATION, type NavigationItem } from "../src/ui/inventaire";
+import { currentFactoryRoute, installNavigation, NAVIGATION, navigationInPlace, type NavigationItem } from "../src/ui/inventaire";
 import { companyState, factory } from "./helpers";
 import { ILES } from "../src/monde/definitions";
 import { islandCenter } from "../src/monde/geometrie";
@@ -37,5 +37,27 @@ describe("navigation depuis l'inventaire", () => {
     const position = { ...islandCenter(state.island!, definition, ILES), y: ILES.hauteur + 1 };
     assert.deepEqual(currentFactoryRoute(state, position), { screen: "fiche", factoryId: "scierie", page: 0 });
     assert.deepEqual(currentFactoryRoute(state, { x: -4000, z: 0, y: 100 }), { screen: "carte", page: 0 });
+  });
+});
+
+describe("objets de navigation sans verrou", () => {
+  it("dit qu'il faut les remettre quand un objet manque, a changé de case ou traîne en double", () => {
+    const placed = (): Array<NavigationItem | undefined> => [...NAVIGATION.map(make), undefined, { typeId: "minecraft:stone" }, undefined, undefined, undefined];
+    assert.equal(navigationInPlace(inventory(placed())), true);
+
+    const dropped = placed();
+    dropped[2] = undefined;
+    assert.equal(navigationInPlace(inventory(dropped)), false, "un objet jeté");
+
+    const moved = placed();
+    [moved[1], moved[6]] = [moved[6], moved[1]];
+    assert.equal(navigationInPlace(inventory(moved)), false, "un objet rangé ailleurs");
+
+    const twice = placed();
+    twice[7] = make(NAVIGATION[0]);
+    assert.equal(navigationInPlace(inventory(twice)), false, "un double ramassé par terre");
+
+    assert.equal(installNavigation(inventory(moved), make), true);
+    assert.equal(navigationInPlace(inventory(moved)), true, "après la remise en place, tout est à sa case");
   });
 });
