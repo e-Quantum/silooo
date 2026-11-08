@@ -1170,3 +1170,25 @@ V21 est livrée avec la capture paginée, le passage en lecture seule, les réf�
 la réconciliation des envois, la reprise après suppression et la purge. Les tickets contenant des fils
 non archivés sont conservés. Le bot doit avoir les droits de gestion des fils pour vérifier leur présence.
 Les textes nouveaux restent **à valider par Kr** ; aucun déploiement ni recette humaine n'est déclaré.
+
+
+### Déploiement demandé par Kr — 8 novembre 2026
+
+Kr demande explicitement « déploie et continue » dans ce chat. L'image locale validée
+`ghcr.io/e-quantum/silooo-core:discord-f3b83cc` est déployée sur le seul service `silooo-core`.
+Le registre GitHub indisponible n'empêche pas cette construction locale à partir de `installDist`.
+Aucune classe compilée du jeu ou du site ne diffère de l'image précédente `lobby-d7bc9ab`.
+
+- Sauvegarde : `/var/www/silooo/sauvegardes/discord-f3b83cc-20261108` (base et monde).
+- V18 à V21 appliquées ; l'ancienne image valide le schéma, donc reste disponible pour retour arrière.
+- Heartbeat 204, site 200 ; JDA connecté ; plan réconcilié sans échec et 21 commandes lues par l'API Discord.
+- Droits du bot confirmés : gestion des salons, permissions/rôles et fils. QG public, phase attente conservée.
+- Les identifiants, images et dates de démarrage des 16 autres conteneurs ont été comparés : aucun changement.
+- Le nouveau fichier opérationnel `/var/www/silooo/deploy/compose.discord.yml` doit rester **le dernier** des
+  fichiers Compose tant que l'image de main ne contient pas le bot livré. Il surcharge seulement core/migrate ;
+  les surcharges gameplay et attente existantes restent en place. Le tag global de BDS n'est pas changé.
+- Reçu de déploiement : `/var/www/silooo/deploy/discord-release.json`. Aucun fichier d'environnement lu ou modifié.
+
+Le déploiement est autorisé par cette demande explicite ; les formulations nouvelles restent à valider
+éditorialement par Kr. La recette avec un vrai membre (ticket ouvert puis fermé) n'est pas simulée en production.
+La suite est C2 : expulsion, bannissement et débannissement avec aperçu et contrôles natifs.
