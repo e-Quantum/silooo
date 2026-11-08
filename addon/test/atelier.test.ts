@@ -71,6 +71,7 @@ describe("atelier de la Carrière", () => {
       cargo(previous) { return previous ?? `cargo-${++cargoCount}`; },
       worker(previous, _company, _at, _facing, active) { working.push(active); return previous ?? `worker-${++count}`; },
       fixture(previous, _company, type, _at, yaw) { pieces.push({ type, yaw }); return previous ?? `machine-${++fixtureCount}`; },
+      effect: () => {},
       remove: (id) => { removed.push(id); },
     };
     const workshop = createWorkshop(ILES, world, { now: () => 0 });
@@ -104,6 +105,7 @@ describe("atelier de la Carrière", () => {
       machine: () => true, loaded: () => loaded,
       worker: (old) => old ?? "worker",
       fixture: (old, _company, type) => old ?? type,
+      effect: () => {},
       cargo(previous, _company, at, working) { const id = previous ?? `pierre-${++created}`; seen.push({ id, at, working }); return id; },
       remove: (id) => { removed.push(id); },
     };
@@ -131,4 +133,25 @@ describe("atelier de la Carrière", () => {
     assert.equal(new Set(removed).size, ILES.atelier.transport.pierres + 1 + ILES.atelier.machinerie.length);
   });
 
+  it("joue les sons des machines et la fumée du poêle à leur période, seulement quand la Carrière tourne", () => {
+    let now = 0;
+    const joues: string[] = [];
+    const world: WorkshopWorld = {
+      machine: () => true, loaded: () => true, worker: (old) => old ?? "worker", fixture: (old, _c, type) => old ?? type,
+      cargo: (old) => old ?? "pierre", remove: () => {},
+      effect: (kind, id) => { joues.push(`${kind}:${id}`); },
+    };
+    const workshop = createWorkshop(ILES, world, { now: () => now });
+    const state = companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] });
+    workshop.sync(state, { x: 0, z: 0 });
+    assert.equal(joues.length, ILES.atelier.ambiance.length, "chaque effet part une fois au démarrage");
+    const plusCourte = Math.min(...ILES.atelier.ambiance.map((effet) => effet.periode));
+    now = plusCourte * 1000 - 1; workshop.tick();
+    assert.equal(joues.length, ILES.atelier.ambiance.length, "rien avant la fin de la période");
+    now = Math.max(...ILES.atelier.ambiance.map((effet) => effet.periode)) * 1000; workshop.tick();
+    assert.equal(joues.length, 2 * ILES.atelier.ambiance.length, "chaque effet repart à sa période");
+    workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", ratePerHour: 0, stoppedNoPower: true })] }, { x: 0, z: 0 });
+    now = 600_000; workshop.tick();
+    assert.equal(joues.length, 2 * ILES.atelier.ambiance.length, "à l'arrêt, plus de bruit ni de fumée");
+  });
 });

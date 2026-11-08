@@ -77,6 +77,10 @@ export function createWorkshopWorld(): WorkshopWorld {
       entity.teleport(at, { rotation: { x: 0, y: yaw } });
       return entity.id;
     },
+    effect(kind, id, at) {
+      if (kind === "son") overworld().playSound(id, at);
+      else overworld().spawnParticle(id, at);
+    },
     loaded: (at) => overworld().isChunkLoaded(at),
     cargo(previous, companyId, at, working, reset) {
       if (reset === true) {

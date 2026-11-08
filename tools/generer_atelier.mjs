@@ -10,6 +10,9 @@ const check = process.argv.includes("--verifier");
 const palette = JSON.parse(readFileSync(resolve(root, "design/tokens.json"))).color.tokens;
 const color = (name) => { const hex = palette.find((entry) => entry.name === name)?.value; if (!hex) throw Error(name); return [...hex.slice(1).match(/../g).map((part) => parseInt(part, 16)), 255]; };
 const ink=color("fonte-900"), steel=color("fonte-500"), light=color("acier-100"), blue=color("email-bleu"), gold=color("laiton"), paper=color("papier"), green=color("email-vert"), red=color("email-rouge"), skin=color("papier-ombre");
+// Tons des planches de la charte (design/decor/planches.png), qui ne sont pas des jetons de couleur.
+const decor=(hex)=>[...hex.slice(1).match(/../g).map((part)=>parseInt(part,16)),255];
+const bois_clair=decor("#9a6c43"), bois=decor("#6b4a2e"), bois_sombre=decor("#46301e");
 let failures=0;
 function output(path, value) {
   const file=resolve(root,path), data=Buffer.isBuffer(value)?value:Buffer.from(JSON.stringify(value,null,2)+"\n");
@@ -43,9 +46,11 @@ function blockTexture(kind,active=false) {
       return steel;
     }
     if(kind==="bureau_administration") {
-      if(x>3&&x<12&&y>3&&y<11)return ((x+y)%7===0)?green:blue;
-      if(y>11&&x>2&&x<13)return paper;
-      return steel;
+      // Le bureau du contremaître, époque 1 : planches (tons de design/decor/planches.png), un registre, un encrier.
+      if(x>3&&x<11&&y>3&&y<10)return (y===5||y===7)&&x>4&&x<10?skin:paper;
+      if(x>11&&x<14&&y>4&&y<8)return y===5?ink:gold;
+      if(y%5===4)return bois_sombre;
+      return ((x*3+y)%11===0)?bois:bois_clair;
     }
     if(x<3||x>12||y<3||y>12)return gold;
     return ((x*7+y*11)%9<3)?light:steel;
@@ -86,37 +91,22 @@ for(const name of names){
   output(`addon/pack/blocks/${name}.json`,{format_version:"1.21.90","minecraft:block":definition});
 }
 // Un salarié ordinaire de production, représenté sans créer d'embauche ni de bonus dans le service.
-const workerTexture=png(64,64,(x,y)=>{
-  const region=Math.floor(x/16),u=x%16,v=y%16;
-  if(y>=16){if(x<16&&y<32)return(u===0||u===15||v===15)?ink:gold;return steel;}
-  if(region===0){if(v<3)return gold;if(v===6&&(u===4||u===11))return ink;if(v===11&&u>5&&u<11)return ink;return skin;}
-  if(region===1){if(u<2||u>13)return ink;if(v<4)return paper;if(u===4||u===11)return gold;return blue;}
-  if(region===2)return v>11?paper:v<4?skin:blue;
-  return v>11?ink:blue;
-});
-output("design/personnel/ouvrier.png",workerTexture);output("resource-pack/textures/entity/ouvrier.png",workerTexture);
-const body=[
- {name:"root",pivot:[0,0,0]},
- {name:"corps",parent:"root",pivot:[0,12,0],cubes:[cube([-4,12,-2],[8,12,4],"*",[16,0])]},
- {name:"tete",parent:"corps",pivot:[0,24,0],cubes:[cube([-4,24,-4],[8,8,8],"*",[0,0]),cube([-4.5,31.5,-4.5],[9,2,9],"*",[0,16])]},
- {name:"bras_g",parent:"corps",pivot:[-5,22,0],cubes:[cube([-7,12,-2],[3,11,4],"*",[32,0])]},
- {name:"bras_d",parent:"corps",pivot:[5,22,0],cubes:[cube([4,12,-2],[3,11,4],"*",[32,0])]},
- {name:"jambe_g",parent:"root",pivot:[-2,12,0],cubes:[cube([-4,0,-2],[4,12,4],"*",[48,0])]},
- {name:"jambe_d",parent:"root",pivot:[2,12,0],cubes:[cube([0,0,-2],[4,12,4],"*",[48,0])]},
-];
-output("resource-pack/models/entity/ouvrier.geo.json",{format_version:"1.12.0","minecraft:geometry":[{description:{identifier:"geometry.silooo_ouvrier",texture_width:64,texture_height:64,visible_bounds_width:2,visible_bounds_height:3,visible_bounds_offset:[0,1,0]},bones:body}]});
-output("addon/pack/entities/ouvrier.json",{format_version:"1.21.0","minecraft:entity":{description:{identifier:"silooo:ouvrier",is_spawnable:false,is_summonable:true,properties:{"silooo:travaille":{type:"bool",default:false,client_sync:true}}},components:{"minecraft:type_family":{family:["silooo_ouvrier","npc"]},"minecraft:collision_box":{width:0.6,height:2.1},"minecraft:health":{value:1,max:1},"minecraft:physics":{},"minecraft:movement":{value:0},"minecraft:pushable":{is_pushable:false,is_pushable_by_piston:false},"minecraft:damage_sensor":{triggers:[{cause:"all",deals_damage:"no"}]},"minecraft:interact":{interactions:[{interact_text:"action.interact.silooo.personnel",on_interact:{event:"silooo:parler",target:"self"}}]}},events:{"silooo:parler":{set_property:{"silooo:travaille":"query.property('silooo:travaille')"}}}}});
-output("resource-pack/entity/ouvrier.entity.json",{format_version:"1.10.0","minecraft:client_entity":{description:{identifier:"silooo:ouvrier",materials:{default:"entity_alphatest"},textures:{default:"textures/entity/ouvrier"},geometry:{default:"geometry.silooo_ouvrier"},animations:{travail:"animation.silooo_ouvrier.travail"},scripts:{animate:["travail"]},render_controllers:["controller.render.silooo_ouvrier"]}}});
-output("resource-pack/animations/ouvrier.animation.json",{format_version:"1.8.0",animations:{"animation.silooo_ouvrier.travail":{loop:true,animation_length:2,bones:{bras_g:{rotation:["q.property('silooo:travaille') ? math.sin(q.anim_time * 180) * 28 - 20 : 0",0,0]},bras_d:{rotation:["q.property('silooo:travaille') ? math.sin(q.anim_time * 180 + 180) * 28 - 20 : 0",0,0]},tete:{rotation:["math.sin(q.anim_time * 60) * 3",0,0]}}}}});
-output("resource-pack/render_controllers/ouvrier.render_controllers.json",{format_version:"1.8.0",render_controllers:{"controller.render.silooo_ouvrier":{geometry:"Geometry.default",materials:[{"*":"Material.default"}],textures:["Texture.default"]}}});
+// Son apparence est celle des salariés de la Carrière de l'époque 1 (modèle, skin commun, gestes : docs/carriere.md) :
+// il pioche quand l'usine tourne, il se repose quand elle est arrêtée. Le comportement reste celui de la 0.1.4.
+output("addon/pack/entities/ouvrier.json",{format_version:"1.21.0","minecraft:entity":{description:{identifier:"silooo:ouvrier",is_spawnable:false,is_summonable:true,properties:{"silooo:travaille":{type:"bool",default:false,client_sync:true}}},components:{"minecraft:type_family":{family:["silooo_ouvrier","npc"]},"minecraft:collision_box":{width:0.6,height:2.1},"minecraft:health":{value:1,max:1},"minecraft:physics":{},"minecraft:movement":{value:0},"minecraft:pushable":{is_pushable:false,is_pushable_by_piston:false},"minecraft:damage_sensor":{triggers:[{cause:"all",deals_damage:false}]},"minecraft:interact":{interactions:[{interact_text:"action.interact.silooo.personnel",on_interact:{event:"silooo:parler",target:"self"}}]}},events:{"silooo:parler":{set_property:{"silooo:travaille":"query.property('silooo:travaille')"}}}}});
+output("resource-pack/entity/ouvrier.entity.json",{format_version:"1.10.0","minecraft:client_entity":{description:{identifier:"silooo:ouvrier",materials:{default:"entity_alphatest"},textures:{default:"textures/entity/salarie_commun"},geometry:{default:"geometry.silooo.salarie"},animations:{piocher:"animation.silooo_salarie.piocher",repos:"animation.silooo_salarie.inactif"},scripts:{animate:[{piocher:"q.property('silooo:travaille')"},{repos:"!q.property('silooo:travaille')"}]},sound_effects:{pioche:"silooo.carriere.pioche"},particle_effects:{eclats:"silooo:eclats_pierre"},render_controllers:["controller.render.silooo_ouvrier"]}}});
+output("resource-pack/render_controllers/ouvrier.render_controllers.json",{format_version:"1.8.0",render_controllers:{"controller.render.silooo_ouvrier":{geometry:"Geometry.default",materials:[{"*":"Material.default"}],textures:["Texture.default"],part_visibility:[{"charge":false}]}}});
 // Les pierres sont un décor animé : aucun objet ramassable ni quantité de stock.
 const transport=JSON.parse(readFileSync(resolve(root,"definitions/iles.json"))).atelier.transport;
-const stone=png(16,16,(x,y)=>((x*7+y*11)%13<3)?light:((x+y)%7===0)?ink:steel);
+// Les tons de la tuile de pierre de la charte (design/decor/pierre.png) : un éclat de carrière, lumière en haut à gauche.
+const pale=color("fonte-300");
+const stone=png(16,16,(x,y)=>{ if(x+y<6)return light; if(x+y>22)return steel; return ((x*7+y*11)%9<2)?light:((x*5+y*3)%11<2)?steel:pale; });
 output("design/production/pierre.png",stone);output("resource-pack/textures/entity/pierre.png",stone);
-const cargoBones=[{name:"root",pivot:[0,0,0],cubes:[cube([-2.5,0,-2.5],[5,4,5])]}];
+// Un caillou irrégulier d'un quart de bloc, posé sur la toile : deux pavés décalés plutôt qu'un cube.
+const cargoBones=[{name:"root",pivot:[0,0,0],cubes:[cube([-2,0,-2],[4,2,4]),cube([-1,2,-2],[3,1,3]),cube([1,0,1],[2,1,2])]}];
 output("resource-pack/models/entity/production.geo.json",{format_version:"1.12.0","minecraft:geometry":[{description:{identifier:"geometry.silooo_production",texture_width:16,texture_height:16,visible_bounds_width:1,visible_bounds_height:2,visible_bounds_offset:[0,0.5,0]},bones:cargoBones}]});
-output("addon/pack/entities/production.json",{format_version:"1.21.0","minecraft:entity":{description:{identifier:"silooo:production",is_spawnable:false,is_summonable:true,properties:{"silooo:actif":{type:"bool",default:false,client_sync:true}}},components:{"minecraft:type_family":{family:["silooo_production"]},"minecraft:collision_box":{width:0.05,height:0.05},"minecraft:health":{value:1,max:1},"minecraft:physics":{has_gravity:false,has_collision:false},"minecraft:pushable":{is_pushable:false,is_pushable_by_piston:false},"minecraft:damage_sensor":{triggers:[{cause:"all",deals_damage:"no"}]}}}});
+output("addon/pack/entities/production.json",{format_version:"1.21.0","minecraft:entity":{description:{identifier:"silooo:production",is_spawnable:false,is_summonable:true,properties:{"silooo:actif":{type:"bool",default:false,client_sync:true}}},components:{"minecraft:type_family":{family:["silooo_production"]},"minecraft:collision_box":{width:0.05,height:0.05},"minecraft:health":{value:1,max:1},"minecraft:physics":{has_gravity:false,has_collision:false},"minecraft:pushable":{is_pushable:false,is_pushable_by_piston:false},"minecraft:damage_sensor":{triggers:[{cause:"all",deals_damage:false}]}}}});
 output("resource-pack/entity/production.entity.json",{format_version:"1.10.0","minecraft:client_entity":{description:{identifier:"silooo:production",materials:{default:"entity_alphatest"},textures:{default:"textures/entity/pierre"},geometry:{default:"geometry.silooo_production"},animations:{transport:"animation.silooo_production.transport"},scripts:{animate:[{transport:"q.property('silooo:actif')"}]},render_controllers:["controller.render.silooo_production"]}}});
-output("resource-pack/animations/production.animation.json",{format_version:"1.8.0",animations:{"animation.silooo_production.transport":{loop:true,animation_length:2,bones:{root:{rotation:[0,"q.anim_time * 30",0]}}}}});
+output("resource-pack/animations/production.animation.json",{format_version:"1.8.0",animations:{"animation.silooo_production.transport":{loop:true,animation_length:1,bones:{root:{position:{"0.0":[0,0,0],"0.5":{pre:[0,0,0],post:[0,1,0]},"1.0":{pre:[0,1,0],post:[0,0,0]}}}}}}});
 output("resource-pack/render_controllers/production.render_controllers.json",{format_version:"1.8.0",render_controllers:{"controller.render.silooo_production":{geometry:"Geometry.default",materials:[{"*":"Material.default"}],textures:["Texture.default"]}}});
 console.log(`Atelier : ${check?"contrôle":"génération"} terminé, ${failures} erreur(s).`);if(failures)process.exit(1);
