@@ -719,6 +719,16 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## Journal
 
+- **8 novembre 2026, 20 h 55 : retours de Kr sur P0 à P3, le jeu du VPS reste la base.** Kr garde le jeu qui tourne sur
+  le VPS (Carrière 0.1.9, `claude/carriere-ile`) ; `claude/p0-video` à `claude/p3-video` ne se fusionnent pas tels quels.
+  Refusé : la Scierie qui apparaît au niveau 2 (« pas le but »), les cadenas (mal faits), le titre `silooo:cinema|`
+  (toujours visible), les glyphes (à refaire), la carte (Kr veut une carte interactive, après une nouvelle organisation
+  des îles), les menus et la fiche Usine (pas ce que veut Kr). Pas encore regardé par Kr : les missions après la mairie,
+  le temps de retour du niveau suivant, le garde-fou à une usine, le son et la ligne de montée, la barre de mission du
+  HUD. Le bot a de l'avance sur le VPS : `silooo-core:discord-2ade9f1`, commit absent de GitHub et du PC, à récupérer.
+  Silooo local : `docker compose` sur le PC (Docker Desktop), images de `claude/p3-video` ; un monde neuf créé par BDS
+  n'a pas « Beta APIs » et l'add-on ne s'y charge pas tant qu'on ne l'active pas dans son level.dat.
+
 - **8 novembre 2026 : P3, les menus** (branche `claude/p3-video`, décision 53). Carte qui dit ce qui ouvre chaque
   usine cachée, fiche Usine qui tient sans défiler, son et ligne en or à chaque montée, barre d'avancement de la mission
   dans le HUD. Pas vu sur un vrai client. Déploiement toujours en attente de Kr (voir l'entrée P2 ci-dessous).
