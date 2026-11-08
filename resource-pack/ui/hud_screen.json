@@ -36,8 +36,12 @@
         "binding_type": "global"
       },
       {
+        "binding_name": "#hud_title_text_string",
+        "binding_type": "global"
+      },
+      {
         "binding_type": "view",
-        "source_property_name": "(not ((('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text) or (('silooo:parole|' + (#text - 'silooo:parole|')) = #text)))",
+        "source_property_name": "(not ((#hud_title_text_string = 'silooo:cinema|') or (('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text) or (('silooo:parole|' + (#text - 'silooo:parole|')) = #text)))",
         "target_property_name": "#visible"
       }
     ]
@@ -50,8 +54,12 @@
         "binding_type": "global"
       },
       {
+        "binding_name": "#hud_title_text_string",
+        "binding_type": "global"
+      },
+      {
         "binding_type": "view",
-        "source_property_name": "(not ((('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text) or (('silooo:parole|' + (#text - 'silooo:parole|')) = #text)))",
+        "source_property_name": "(not ((#hud_title_text_string = 'silooo:cinema|') or (('silooo:consigne|' + (#text - 'silooo:consigne|')) = #text) or (('silooo:parole|' + (#text - 'silooo:parole|')) = #text)))",
         "target_property_name": "#visible"
       }
     ]

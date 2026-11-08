@@ -477,7 +477,8 @@
     "transport": {
       "longueur": 4,
       "vitesse": 1,
-      "pierres": 3
+      "pierres": 3,
+      "hauteur": 0.375
     },
     "structureRuine": "silooo:carriere_ruine",
     "solStructure": 16,
@@ -499,6 +500,38 @@
           "haut": 1
         },
         "lacet": 90
+      }
+    ],
+    "ambiance": [
+      {
+        "effet": "son",
+        "id": "silooo.carriere.moulin",
+        "position": {
+          "avant": -1.45,
+          "droite": -11,
+          "haut": 6.5
+        },
+        "periode": 4
+      },
+      {
+        "effet": "son",
+        "id": "silooo.carriere.tapis",
+        "position": {
+          "avant": -1,
+          "droite": -6,
+          "haut": 2.5
+        },
+        "periode": 2
+      },
+      {
+        "effet": "particule",
+        "id": "silooo:fumee_poele",
+        "position": {
+          "avant": -1,
+          "droite": 11,
+          "haut": 8
+        },
+        "periode": 8
       }
     ]
   }

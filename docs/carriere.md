@@ -103,6 +103,34 @@ La Carrière de l'époque 1 remplace celle de la 0.1.4 (`carriere_depart`) dans 
   l'ouvrier de la 0.1.4 ; aucun son n'est joué par l'add-on ([carriere/sons-inventaire.md](carriere/sons-inventaire.md)) ;
   la vente par particules (`silooo:miettes_coffre`, `silooo:jeton_donar`) et la fumée du poêle ne sont pas branchées.
 
+## Audit après la première visite en jeu (0.1.6)
+
+Corrigé :
+
+- **Entités tuables.** En `format_version` 1.21.0, `deals_damage` doit être le booléen `false` : la chaîne `"no"`
+  est ignorée et un coup tuait Oooscar, l'ouvrier, les pierres, les ailes et les pilons. Vu sur BDS 1.26.62.1 (la
+  chaîne `"no"` ne vaut qu'à partir de 1.21.50). Toutes les entités du pack sont passées à `false` ; un test de
+  `addon/test/pack.test.ts` le vérifie pour chacune.
+- **Sous-titres en double.** Le sous-titre natif n'était pas caché pendant la cinématique : le test « commence par
+  silooo:parole| » (concaténation et soustraction de chaînes) échoue sur un vrai client. Il est caché par l'égalité
+  du titre (`silooo:cinema|`), celle qui fait déjà apparaître le récit d'Oooscar.
+- **L'ouvrier de la 0.1.4** porte le modèle et le skin commun des salariés de l'atelier : il pioche quand l'usine
+  tourne (son et éclats à l'impact), il se repose quand elle est arrêtée.
+- **Pierres transportées** : un caillou irrégulier d'un quart de bloc dans les tons de la tuile de pierre, posé sur
+  la toile (`atelier.transport.hauteur`), qui sautille d'un pixel au lieu de tourner sur lui-même.
+- **Bureau d'administration** : redessiné en bureau de bois de l'époque 1 (registre, encrier).
+- **Ambiance** (`atelier.ambiance`) : le moulin et le tapis s'entendent, le poêle fume, seulement quand la Carrière
+  tourne.
+
+Ouvert, à trancher ou à voir en jeu :
+
+- **Blocs cassables.** Aucune protection : un joueur peut casser toute la Carrière. Le tutoriel veut qu'il casse des
+  pierres du front de taille ; reste à décider ce qui est protégé.
+- **Orientation des ailes et des pilons** : lacet 90 supposé d'après le modèle ; à confirmer en jeu.
+- **Un seul salarié** au lieu des deux de la maquette ; la vente par particules et les sons de vente ne sont pas
+  branchés ; en ruine, le moulin n'a pas d'ailes.
+- **Pose** : `StructureManager.place` fige le script 349 ms à la première pose (avertissement Watchdog).
+
 ## Les valeurs de `definitions/iles.json`
 
 Repère de la cinématique : `avant`, `droite`, `haut` depuis le centre de l'île ([cinematique.ts](../addon/src/monde/cinematique.ts)).

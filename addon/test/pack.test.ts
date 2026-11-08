@@ -87,8 +87,20 @@ describe("pack/entities/oooscar.json", () => {
   });
 
   it("ne reçoit aucun dégât, d'où qu'ils viennent", () => {
-    const capteur = entite()["minecraft:entity"].components["minecraft:damage_sensor"] as { triggers: Array<{ cause: string; deals_damage: string }> };
-    assert.ok(capteur.triggers.some((t) => t.cause === "all" && t.deals_damage === "no"));
+    const capteur = entite()["minecraft:entity"].components["minecraft:damage_sensor"] as { triggers: Array<{ cause: string; deals_damage: unknown }> };
+    assert.ok(capteur.triggers.some((t) => t.cause === "all" && t.deals_damage === false));
+  });
+
+  // Essai sur BDS 1.26.62.1 (8 novembre 2026) : en format 1.21.0, « deals_damage » doit être le booléen false ;
+  // la chaîne "no" y est ignorée et un seul coup de joueur tuait Oooscar, l'ouvrier, les pierres et les machines.
+  it("aucune entité du pack ne peut être tuée par un joueur", () => {
+    for (const nom of readdirSync(join(racine, "pack", "entities"))) {
+      const document = JSON.parse(readFileSync(join(racine, "pack", "entities", nom), "utf8")) as { format_version: string; "minecraft:entity": { components: Record<string, unknown> } };
+      const capteur = document["minecraft:entity"].components["minecraft:damage_sensor"] as { triggers: Array<{ cause: string; deals_damage: unknown }> } | undefined;
+      assert.ok(capteur?.triggers.some((t) => t.cause === "all"), `${nom} : pas de capteur de dégâts pour toutes les causes`);
+      const attendu = document.format_version < "1.21.50" ? false : "no";
+      assert.ok(capteur!.triggers.every((t) => t.deals_damage === attendu), `${nom} : deals_damage doit valoir ${JSON.stringify(attendu)} en format ${document.format_version}`);
+    }
   });
 
   it("ne laisse rien en mourant et n'est jamais persistante : elle se retire d'elle-même loin du joueur", () => {

@@ -329,7 +329,8 @@
         "transport",
         "structureRuine",
         "solStructure",
-        "machinerie"
+        "machinerie",
+        "ambiance"
       ],
       "properties": {
         "revision": {
@@ -441,7 +442,8 @@
           "required": [
             "longueur",
             "vitesse",
-            "pierres"
+            "pierres",
+            "hauteur"
           ],
           "properties": {
             "longueur": {
@@ -458,6 +460,12 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 6
+            },
+            "hauteur": {
+              "description": "Hauteur du dessous des pierres au-dessus du bas du bloc du convoyeur, en blocs : le dessus de la toile.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
             }
           }
         },
@@ -495,6 +503,41 @@
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180
+              }
+            }
+          }
+        },
+        "ambiance": {
+          "description": "Sons et particules joués en boucle quand la Carrière tourne (docs/carriere.md) : toutes les « periode » secondes, au point donné.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "effet",
+              "id",
+              "position",
+              "periode"
+            ],
+            "properties": {
+              "effet": {
+                "type": "string",
+                "enum": [
+                  "son",
+                  "particule"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^silooo[.:][a-z0-9_.]+$"
+              },
+              "position": {
+                "$ref": "#/$defs/vue"
+              },
+              "periode": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 60
               }
             }
           }

@@ -518,6 +518,8 @@ export type IlesDefinitions = {
       readonly longueur: number;
       readonly vitesse: number;
       readonly pierres: number;
+      /** Hauteur du dessous des pierres au-dessus du bas du bloc du convoyeur, en blocs : le dessus de la toile. */
+      readonly hauteur: number;
     };
     /** La structure posée quand la Carrière n'est pas active : en ruine ou en travaux. */
     readonly structureRuine: string;
@@ -528,6 +530,13 @@ export type IlesDefinitions = {
       readonly entite: string;
       readonly position: IlesVue;
       readonly lacet: number;
+    }[];
+    /** Sons et particules joués en boucle quand la Carrière tourne (docs/carriere.md) : toutes les « periode » secondes, au point donné. */
+    readonly ambiance: readonly {
+      readonly effet: "son" | "particule";
+      readonly id: string;
+      readonly position: IlesVue;
+      readonly periode: number;
     }[];
   };
 };

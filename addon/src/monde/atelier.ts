@@ -10,6 +10,8 @@ export interface WorkshopWorld {
   worker(previous: string | undefined, companyId: number, at: Pos, facing: Pos, working: boolean): string;
   /** Une machine animée par le pack (ailes du moulin, pilons) : apparaît une fois, tournée de `yaw` degrés. */
   fixture(previous: string | undefined, companyId: number, type: string, at: Pos, yaw: number): string;
+  /** Un son ou une particule du pack, joué une fois au point donné. */
+  effect(kind: "son" | "particule", id: string, at: Pos): void;
   loaded(at: Pos): boolean;
   cargo(previous: string | undefined, companyId: number, at: Pos, working: boolean, reset?: boolean): string;
   remove(id: string): void;
@@ -30,6 +32,20 @@ export function workshopRunning(state: CompanyState, factoryId: string): boolean
 export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, clock: Clock) {
   const workers = new Map<number, string>();
   const fixtures = new Map<number, string[]>();
+  /** Par entreprise : le repère de sa Carrière tant qu'elle tourne, et le dernier passage de chaque effet d'ambiance. */
+  const ambiance = new Map<number, { frame: Frame; last: number[] }>();
+  function playAmbiance(company: number): void {
+    const track = ambiance.get(company);
+    if (track === undefined) return;
+    const now = clock.now();
+    defs.atelier.ambiance.forEach((effet, index) => {
+      if (now - (track.last[index] ?? -Infinity) < effet.periode * 1000) return;
+      const at = viewPoint(track.frame, effet.position, defs);
+      if (!world.loaded(at)) return;
+      track.last[index] = now;
+      world.effect(effet.effet, effet.id, at);
+    });
+  }
   function removeFixtures(company: number): void {
     for (const id of fixtures.get(company) ?? []) world.remove(id);
     fixtures.delete(company);
@@ -53,7 +69,7 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
     const { longueur, vitesse, pierres } = defs.atelier.transport;
     for (let i = 0; i < pierres; i += 1) {
       const ratio = ((track.elapsed * vitesse + i * longueur / pierres) % longueur) / longueur;
-      const at = { x: start.x + 0.5 + (end.x - start.x) * ratio, y: start.y + 0.5, z: start.z + 0.5 + (end.z - start.z) * ratio };
+      const at = { x: start.x + 0.5 + (end.x - start.x) * ratio, y: start.y + defs.atelier.transport.hauteur, z: start.z + 0.5 + (end.z - start.z) * ratio };
       track.ids[i] = world.cargo(track.ids[i], company, at, track.working, i === 0 && track.ids.length === 0);
     }
   }
@@ -67,6 +83,7 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
         workers.delete(state.companyId);
         removeCargo(state.companyId);
         removeFixtures(state.companyId);
+        ambiance.delete(state.companyId);
         return;
       }
       const frame = frameOfIsland(origin, definition, defs);
@@ -79,6 +96,11 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
       const actor = world.worker(workers.get(state.companyId), state.companyId,
         viewPoint(frame, defs.atelier.salarie.position, defs), viewPoint(frame, defs.atelier.salarie.regard, defs), working);
       workers.set(state.companyId, actor);
+      if (working) {
+        if (!ambiance.has(state.companyId)) ambiance.set(state.companyId, { frame, last: [] });
+        else ambiance.get(state.companyId)!.frame = frame;
+        playAmbiance(state.companyId);
+      } else ambiance.delete(state.companyId);
       const before = fixtures.get(state.companyId) ?? [];
       fixtures.set(state.companyId, defs.atelier.machinerie.map((piece, index) =>
         world.fixture(before[index], state.companyId, piece.entite, viewPoint(frame, piece.position, defs), piece.lacet)));
@@ -87,13 +109,17 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
       else { updateCargo(state.companyId); previous.working = working; previous.frame = frame; }
       updateCargo(state.companyId);
     },
-    tick(): void { for (const company of cargo.keys()) updateCargo(company); },
+    tick(): void {
+      for (const company of cargo.keys()) updateCargo(company);
+      for (const company of ambiance.keys()) playAmbiance(company);
+    },
     reap(onlineCompanies: ReadonlySet<number>): void {
       for (const [company, actor] of workers) if (!onlineCompanies.has(company)) {
         world.remove(actor);
         workers.delete(company);
         removeCargo(company);
         removeFixtures(company);
+        ambiance.delete(company);
       }
     },
   };

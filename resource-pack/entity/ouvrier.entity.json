@@ -7,18 +7,30 @@
         "default": "entity_alphatest"
       },
       "textures": {
-        "default": "textures/entity/ouvrier"
+        "default": "textures/entity/salarie_commun"
       },
       "geometry": {
-        "default": "geometry.silooo_ouvrier"
+        "default": "geometry.silooo.salarie"
       },
       "animations": {
-        "travail": "animation.silooo_ouvrier.travail"
+        "piocher": "animation.silooo_salarie.piocher",
+        "repos": "animation.silooo_salarie.inactif"
       },
       "scripts": {
         "animate": [
-          "travail"
+          {
+            "piocher": "q.property('silooo:travaille')"
+          },
+          {
+            "repos": "!q.property('silooo:travaille')"
+          }
         ]
+      },
+      "sound_effects": {
+        "pioche": "silooo.carriere.pioche"
+      },
+      "particle_effects": {
+        "eclats": "silooo:eclats_pierre"
       },
       "render_controllers": [
         "controller.render.silooo_ouvrier"
