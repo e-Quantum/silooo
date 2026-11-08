@@ -1173,3 +1173,12 @@ validés par Bedrock, aucun échec de liaison avec le service. L'arrêt de l'anc
 137, 60 s) : `start.sh` ne transmet pas le signal d'arrêt à BDS, à corriger. Retour arrière : remettre
 `compose.gameplay.avant.yml` et recréer `silooo-bds`. La première visite de chaque joueur refait sa Carrière
 (`atelier.revision` 3). Rien n'a encore été vu dans un client.
+
+### Carrière 0.1.6, 8 novembre 2026
+
+Après la première visite de Kr : entités invulnérables, sous-titre natif caché pendant la cinématique, ouvrier habillé
+en salarié de l'atelier, pierres et bureau redessinés, sons du moulin et du tapis et fumée du poêle
+([carriere.md](carriere.md), « Audit après la première visite en jeu »). Image `silooo-bds:carriere-f43c9b0-lan`
+déployée à 7 h 40 UTC sur le seul service `silooo-bds` ; sauvegarde dans `sauvegardes/carriere-0.1.6-f43c9b0/`.
+Démarrage propre : packs 0.1.6, add-on démarré, blocs et structures validés. Ouvert : protection des blocs de l'île,
+orientation des machines à confirmer en jeu, second salarié, vente par particules.
