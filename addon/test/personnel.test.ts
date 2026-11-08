@@ -152,7 +152,7 @@ describe("écran Personnel", () => {
     assert.deepEqual(labelsOf(screen), [
       `${ICON.agence} Agence\nLes candidats du jour`,
       `${ICON.associes} Associés\nInvite des joueurs`,
-      `${ICON.usine} Carrière\n2 membres`,
+      `${bare(ICON.usine)} Carrière\n2 membres`,
       `${ICON.personnel} Sans usine\n1 membre`,
       "Retour",
     ]);
@@ -169,12 +169,12 @@ describe("écran Personnel", () => {
   it("une usine que l'entreprise ne montre pas mais où le service a mis quelqu'un a sa tuile, avant « Sans usine »", () => {
     const view = viewOf({ factories: [CARRIERE], staff: [CHLOE, staffMember({ staffId: 15, factoryId: "usine-neuve" })] });
     const screen = personnelScreen(view, 0, 8);
-    assert.deepEqual(labelsOf(screen).slice(2, 4), [`${ICON.usine} Usine neuve\n1 membre`, `${ICON.personnel} Sans usine\n1 membre`]);
+    assert.deepEqual(labelsOf(screen).slice(2, 4), [`${bare(ICON.usine)} Usine neuve\n1 membre`, `${ICON.personnel} Sans usine\n1 membre`]);
   });
 
   it("l'état de l'usine donne le repère de sa tuile : une usine en ruine garde son cadenas", () => {
     const view = viewOf({ factories: [factory({ factoryId: "carriere", state: "EN_RUINE", level: 0 })], staff: [ADELE] });
-    assert.ok(bare(personnelScreen(view, 0, 8).spec.buttons[2] ?? "").startsWith(`${ICON.cadenas} Carrière`));
+    assert.ok(bare(personnelScreen(view, 0, 8).spec.buttons[2] ?? "").startsWith(`${bare(ICON.cadenas)} Carrière`));
   });
 
   it("personne dans l'équipe : la phrase, le mot « personne », l'Agence, les associés et Retour", () => {
@@ -312,7 +312,7 @@ describe("choix de l'usine d'un membre", () => {
   it("toutes les usines de l'entreprise sauf la sienne, avec le nombre de membres qui y travaillent", () => {
     const screen = must(affecterScreen(view, 11, 0, 8));
     assert.equal(screen.spec.title, PERSONNEL_TEXTES.affecter.titre);
-    assert.deepEqual(labelsOf(screen), [`${ICON.usine} Scierie\nAucun membre`, `${ICON.usine} Ferme\nAucun membre`, "Retour"]);
+    assert.deepEqual(labelsOf(screen), [`${bare(ICON.usine)} Scierie\nAucun membre`, `${bare(ICON.usine)} Ferme\nAucun membre`, "Retour"]);
     assert.deepEqual(screen.targets[0], { kind: "assign", staffId: 11, factoryId: "scierie" });
     assert.deepEqual(screen.targets[1], { kind: "assign", staffId: 11, factoryId: "ferme" });
     assert.deepEqual(screen.targets[2], { kind: "go", route: { screen: "membre", staffId: 11 } });
@@ -321,7 +321,7 @@ describe("choix de l'usine d'un membre", () => {
   it("le nombre de membres vient de la liste du service, pas d'un calcul de postes", () => {
     const vue = viewOf({ factories: [CARRIERE, SCIERIE], staff: [ADELE, staffMember({ staffId: 16, factoryId: "scierie" })] });
     const screen = must(affecterScreen(vue, 11, 0, 8));
-    assert.equal(bare(screen.spec.buttons[0] ?? ""), `${ICON.usine} Scierie\n1 membre`);
+    assert.equal(bare(screen.spec.buttons[0] ?? ""), `${bare(ICON.usine)} Scierie\n1 membre`);
   });
 
   it("un membre sans usine peut aller dans toutes les usines", () => {
@@ -510,8 +510,8 @@ describe("choix de l'usine d'un candidat", () => {
     assert.equal(screen.spec.title, AGENCE_TEXTES.embauche.titre);
     assert.deepEqual(labelsOf(screen), [
       `${ICON.personnel} Sans usine\nRejoint l'équipe sans poste`,
-      `${ICON.usine} Carrière\n1 membre`,
-      `${ICON.usine} Scierie\nAucun membre`,
+      `${bare(ICON.usine)} Carrière\n1 membre`,
+      `${bare(ICON.usine)} Scierie\nAucun membre`,
       "Retour",
     ]);
   });

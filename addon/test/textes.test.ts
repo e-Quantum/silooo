@@ -564,9 +564,9 @@ describe("textes du prestige et de la carte", () => {
     }
   });
 
-  it("le repère du prestige est dans l'habillage provisoire, pas dans les textes", () => {
-    assert.equal(ICON.prestige, "[P]");
-    assert.equal(ICON.carte, "[C]");
+  it("le prestige et la carte ont leur glyphe de la planche, pas un repère dans les textes", () => {
+    assert.equal(ICON.prestige, GLYPH.etoile);
+    assert.equal(ICON.carte, GLYPH.carte);
   });
 });
 

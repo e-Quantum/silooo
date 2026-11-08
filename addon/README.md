@@ -161,7 +161,7 @@ Ce que `resource-pack/` doit apporter, et qui n'y est pas encore :
 1. Dans `hud_screen.json`, masquer le préfixe `silooo:hud|` du titre et placer le reste en haut à gauche.
 2. Faire de même pour `silooo:consigne|` du sous-titre, juste sous les monnaies.
 3. Les glyphes des icônes de `design/icones/` et les images d'Oooscar, pour remplacer les repères provisoires (faits
-   pour les monnaies et Oooscar, `resource-pack/font/glyph_E2.png`).
+   pour toutes les icônes dessinées et Oooscar, `resource-pack/font/glyph_E2.png` ; restent les icônes sans dessin).
 
 Le jour où ces trois points sont faits : `titleChannel: true`, et `ui/apparence.ts` change.
 
@@ -539,9 +539,11 @@ définitifs. Ils vivent dans `src/ui/textes.ts`, et un test vérifie que chacun 
 « rien » : ces écrans n'existaient pas, sauf là où la colonne dit autre chose.
 
 Les noms des usines ne sont pas dans ce tableau : ils viennent de `definitions/usines.json` (clé « nom »), recopiés
-dans `FACTORY_NAMES` et comparés au fichier par un test. Les repères provisoires (`[D] [L] [G] [U] [T] [!] [E] [X]
-[S] [C] [O] [A] [P] [M] [R] [N] [V] [B] [Y] [F] [K] [H] [Q]` pour les icônes, `[joie]`, `[fier]`, `[oups]`, `[panique]`, `[dodo]` pour Oooscar) sont dans
-`ui/apparence.ts` : ce sont des places gardées pour des images, pas des textes.
+dans `FACTORY_NAMES` et comparés au fichier par un test. Les icônes sont dans
+`ui/apparence.ts` : les glyphes de la planche pour les icônes dessinées (Donar, Lingots, Gemmes, usine, engrenage, flamme,
+éclair, cadenas, carte, ville, boutique, et l'étoile pour le prestige) et les visages d'Oooscar, des repères provisoires
+(`[S] [O] [A] [M] [R] [N] [Y] [F] [K] [H] [Q]`) pour les autres : ce sont des places gardées pour des images, pas des textes.
+Les tests relisent les glyphes en repères (`bare` dans `test/ui-helpers.ts`).
 
 | Où | Avant | Après |
 |---|---|---|
@@ -1265,11 +1267,10 @@ Au contrat (`api/`, non modifié par cette tranche) :
 
 Au design system :
 
-- Pas d'icône pour Objectifs, Amis, Silo, Personnel, Agence, Associés, Ville, Boutique (`[B]`), Pass (`[Y]`), palier réclamé (`[F]`) et à réclamer (`[K]`), article possédé (`[H]`) et cadeau (`[Q]`) (Objectifs est actif mais garde son repère `[O]`, Personnel `[M]`, Agence `[R]`, Associés `[N]`, Ville `[V]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
+- Pas d'icône pour Objectifs (`[O]`), Amis (`[A]`), Silo (`[S]`), Personnel (`[M]`), Agence (`[R]`), Associés (`[N]`), Pass (`[Y]`), palier réclamé (`[F]`) et à réclamer (`[K]`), article possédé (`[H]`) et cadeau (`[Q]`), ni de dossier `textures/ui/silooo/icones/` dans le pack de ressources.
 - Les glyphes (`resource-pack/font/glyph_E2.png`, écrite par `tools/generer_glyphes.mjs` d'après `design/glyphes.json`) portent
-  les quatorze icônes de `design/icones/` et les cinq visages d'Oooscar. Seuls les monnaies (Donar, Lingots, Gemmes) et les
-  bulles d'Oooscar s'en servent ; les autres icônes dessinées (usine, carte, cadenas, flamme, éclair…) gardent leur repère
-  entre crochets jusqu'au prochain passage dans `ui/apparence.ts`.
+  les quatorze icônes de `design/icones/` et les cinq visages d'Oooscar. Toutes servent sauf « marché » et « fermer », qui
+  n'ont pas encore d'usage dans les formulaires ; le prestige prend l'étoile.
 
 ## Ce qui reste à décider
 
@@ -1323,7 +1324,7 @@ Au design system :
   une bulle dans le tchat à l'arrivée ; offrir passe par les joueurs connectés, comme inviter, et le boost collectif ne s'offre
   pas ; le prix de « Passer premium » est celui du catalogue du service, pas celui de `definitions/pass.json` ; la piste gratuite s'appelle « Gratuit » et l'autre « Premium » ; la rareté la plus commune s'écrit « Ordinaire », le nom
   de `definitions/personnel.json` ; la ligne de tchat du boost collectif est la même pour tous, sans nom d'acheteur quand
-  l'événement n'en donne pas ; les repères `[B]`, `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]` sont provisoires.
+  l'événement n'en donne pas ; les repères `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]` sont provisoires.
 
 
 ## Ce qui ne se vérifie que sur un vrai BDS
@@ -1358,7 +1359,7 @@ Au design system :
   d'arrivée de chacune des quinze îles (hors du bâtiment et sur la plateforme, prouvé par les tests de géométrie,
   mais pas vu).
 - Les formulaires de la carte (seize lignes, deux pages) et du prestige (longueur du corps, retours à la ligne), et les
-  repères provisoires `[P]`, `[C]` et `[X]`.
+  glyphes de l'étoile, de la carte et du cadenas à la place des repères `[P]`, `[C]` et `[X]`.
 - Le personnel : `http.request` avec les méthodes PATCH et DELETE (`HttpRequestMethod.Patch`, `HttpRequestMethod.Delete`) :
   le DELETE n'a pas de corps, `requestId` et `actor` sont dans l'URL ; la longueur des formulaires de membre et de
   candidat (sept à neuf lignes, retours à la ligne), les tuiles de membre à deux lignes, les repères `[M]` et `[R]`, les
@@ -1376,7 +1377,7 @@ Au design system :
   porte de la mairie, le regard sur elle ; le rendu des préfabriqués (toits, étages, lanternes, porte à deux blocs).
 
 - La boutique et le pass : la longueur des formulaires (huit tuiles à deux lignes, la fiche d'un article, la fiche d'un palier
-  de sept lignes), les repères `[B]`, `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]`, une bulle de `GEMMES_RECUES` reçue par un joueur qui
+  de sept lignes), le glyphe de la boutique, les repères `[Y]`, `[F]`, `[K]`, `[H]` et `[Q]`, une bulle de `GEMMES_RECUES` reçue par un joueur qui
   vient de se connecter (publiée à ce moment-là), la ligne de tchat du boost collectif envoyée à tous, et le
   rappel du vote à l'arrivée pendant la cinématique.
 

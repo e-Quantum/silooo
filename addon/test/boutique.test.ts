@@ -115,7 +115,7 @@ describe("la tuile du menu", () => {
   it("porte le nom, l'icône et les Gemmes du service, et mène à la boutique", () => {
     const tile = boutiqueTile(viewOf({ gemmes: 1_250 }));
     const text = bare(tile.text);
-    assert.ok(text.startsWith(`${ICON.boutique} Boutique`), text);
+    assert.ok(text.startsWith(`${bare(ICON.boutique)} Boutique`), text);
     assert.ok(text.endsWith(BOUTIQUE_TEXTES.tuile("1 250")), text);
     assert.deepEqual(tile.target, { kind: "go", route: { screen: "boutique" } });
   });
@@ -127,9 +127,9 @@ describe("boutiqueScreen", () => {
     assert.equal(screen.spec.title, BOUTIQUE_TEXTES.titre);
     assert.deepEqual(kindsOf(screen), ["go:rayon", "go:article", "go:rayon", "go:article", "go:pass", "go:main"]);
     const labels = labelsOf(screen);
-    assert.equal(labels[0], `${ICON.boutique} Grades\n${BOUTIQUE_TEXTES.details.prochainGrade(must(GRADES[0]).nom)}`);
+    assert.equal(labels[0], `${bare(ICON.boutique)} Grades\n${BOUTIQUE_TEXTES.details.prochainGrade(must(GRADES[0]).nom)}`);
     assert.ok(labels[1]?.includes(must(PILIER).nom), labels[1]);
-    assert.equal(labels[2], `${ICON.boutique} Cosmétiques`);
+    assert.equal(labels[2], `${bare(ICON.boutique)} Cosmétiques`);
     assert.ok(labels[3]?.includes(BOUTIQUE_TEXTES.rayons.boost), labels[3]);
     assert.ok(labels[4]?.includes(BOUTIQUE_TEXTES.rayons.pass), labels[4]);
     assert.equal(labels[5], "Retour");
@@ -159,7 +159,7 @@ describe("boutiqueScreen", () => {
     const changes = Object.fromEntries(GRADES.map((grade) => [grade.id, { owned: true, available: false }]));
     const screen = boutiqueScreen(viewOf(), catalogOf({ ...changes, pilier: { owned: true } }), undefined, undefined);
     const labels = labelsOf(screen);
-    assert.equal(labels[0], `${ICON.boutique} Grades\n${BOUTIQUE_TEXTES.details.tousLesGrades}`);
+    assert.equal(labels[0], `${bare(ICON.boutique)} Grades\n${BOUTIQUE_TEXTES.details.tousLesGrades}`);
     assert.ok(labels[1]?.endsWith(BOUTIQUE_TEXTES.details.enCours), labels[1]);
   });
 
@@ -167,7 +167,7 @@ describe("boutiqueScreen", () => {
     for (const catalog of [undefined, FAILED]) {
       const screen = boutiqueScreen(viewOf(), catalog, undefined, undefined);
       assert.deepEqual(kindsOf(screen), ["go:rayon", "go:rayon", "go:pass", "go:main"]);
-      assert.equal(labelsOf(screen)[0], `${ICON.boutique} Grades`);
+      assert.equal(labelsOf(screen)[0], `${bare(ICON.boutique)} Grades`);
     }
   });
 
@@ -233,7 +233,7 @@ describe("rayonScreen", () => {
     assert.equal(labels.length, GRADES.length + 1);
     assert.equal(labels[0], `${ICON.possede} ${must(GRADES[0]).nom}\n${BOUTIQUE_TEXTES.details.possede}`);
     assert.ok(labels[1]?.startsWith(`${bare(ICON.gemmes)} ${must(GRADES[1]).nom}`), labels[1]);
-    assert.ok(labels[2]?.startsWith(`${ICON.cadenas} ${must(GRADES[2]).nom}`), labels[2]);
+    assert.ok(labels[2]?.startsWith(`${bare(ICON.cadenas)} ${must(GRADES[2]).nom}`), labels[2]);
     assert.ok(labels[2]?.endsWith(BOUTIQUE_TEXTES.details.bloque), labels[2]);
     assert.equal(labels[GRADES.length], "Retour");
     assert.deepEqual(screen.targets[0], { kind: "go", route: { screen: "article", itemId: must(GRADES[0]).id, shelf: "grades", page: 0 } });
@@ -267,7 +267,7 @@ describe("rayonScreen", () => {
       const count = VENDUS.filter((cosmetic) => cosmetic.categorie === categorie).length;
       assert.equal(
         labelsOf(screen)[index],
-        `${ICON.boutique} ${BOUTIQUE_TEXTES.categories[categorie]}\n${BOUTIQUE_TEXTES.details.articles(count)}`,
+        `${bare(ICON.boutique)} ${BOUTIQUE_TEXTES.categories[categorie]}\n${BOUTIQUE_TEXTES.details.articles(count)}`,
       );
       assert.deepEqual(screen.targets[index], { kind: "go", route: { screen: "rayon", rayon: categorie, page: 0 } });
     });
@@ -332,7 +332,7 @@ describe("articleScreen", () => {
     const grade = must(GRADES[2]);
     const screen = must(articleScreen(viewOf(), catalogOf({ [grade.id]: { available: false } }), grade.id, "grades", 0));
     const body = bare(screen.spec.body);
-    assert.ok(body.includes(`${ICON.cadenas} ${BOUTIQUE_TEXTES.article.bloque}`), body);
+    assert.ok(body.includes(`${bare(ICON.cadenas)} ${BOUTIQUE_TEXTES.article.bloque}`), body);
     assert.deepEqual(kindsOf(screen), ["go:offrir", "go:rayon"]);
   });
 

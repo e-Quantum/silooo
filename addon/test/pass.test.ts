@@ -144,7 +144,7 @@ describe("passScreen", () => {
     const ouverte = bare(must(passScreen(passOutcome({ premium: true }), catalogOf())).spec.body);
     assert.ok(ouverte.includes(`${ICON.possede} ${PASS_TEXTES.premium.actif}`), ouverte);
     const finie = bare(must(passScreen(passOutcome({ active: false }), catalogOf())).spec.body);
-    assert.ok(finie.includes(`${ICON.cadenas} ${PASS_TEXTES.pasEnCours}`), finie);
+    assert.ok(finie.includes(`${bare(ICON.cadenas)} ${PASS_TEXTES.pasEnCours}`), finie);
   });
 
   it("la bulle de l'action vient en tête du corps", () => {
@@ -166,9 +166,9 @@ describe("paliersScreen", () => {
     const screen = must(paliersScreen(passOutcome(), 0, 8));
     assert.equal(screen.spec.title, PASS_TEXTES.paliers.titre);
     assert.deepEqual(labelsOf(screen), [
-      `${ICON.cadenas} Palier 1\n${PASS_TEXTES.etats.premiumRequis}`,
+      `${bare(ICON.cadenas)} Palier 1\n${PASS_TEXTES.etats.premiumRequis}`,
       `${ICON.palierAReclamer} Palier 2\n${PASS_TEXTES.etats.aReclamer}`,
-      `${ICON.cadenas} Palier 3\n${PASS_TEXTES.tuile.des("180")}`,
+      `${bare(ICON.cadenas)} Palier 3\n${PASS_TEXTES.tuile.des("180")}`,
       "Retour",
     ]);
     assert.deepEqual(screen.targets[0], { kind: "go", route: { screen: "palier", tier: 1, page: 0 } });
@@ -220,7 +220,7 @@ describe("palierScreen", () => {
     const body = bare(screen.spec.body);
     assert.ok(body.includes(`${ICON.palierFait} ${PASS_TEXTES.etats.reclame}`), body);
     assert.ok(body.includes(PASS_TEXTES.ligne("Premium", cosmeticName("s1-fanion"))), body);
-    assert.ok(body.includes(`${ICON.cadenas} ${PASS_TEXTES.etats.premiumRequis}`), body);
+    assert.ok(body.includes(`${bare(ICON.cadenas)} ${PASS_TEXTES.etats.premiumRequis}`), body);
     assert.deepEqual(screen.targets, [{ kind: "go", route: { screen: "paliers", page: 3 } }]);
   });
 
@@ -235,7 +235,7 @@ describe("palierScreen", () => {
 
   it("un palier pas atteint dit qu'il ne l'est pas, sans bouton", () => {
     const screen = must(palierScreen(passOutcome(), 3, 0));
-    assert.ok(bare(screen.spec.body).includes(`${ICON.cadenas} ${PASS_TEXTES.etats.pasAtteint}`));
+    assert.ok(bare(screen.spec.body).includes(`${bare(ICON.cadenas)} ${PASS_TEXTES.etats.pasAtteint}`));
     assert.deepEqual(kindsOf(screen), ["go:paliers"]);
   });
 });

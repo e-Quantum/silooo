@@ -50,6 +50,17 @@ export const GLYPH = {
   donar: "",
   lingot: "",
   gemme: "",
+  usine: "",
+  carte: "",
+  ville: "",
+  marche: "",
+  boutique: "",
+  cadenas: "",
+  engrenage: "",
+  eclair: "",
+  flamme: "",
+  etoile: "",
+  fermer: "",
   "oooscar-joie": "",
   "oooscar-fier": "",
   "oooscar-oups": "",
@@ -58,30 +69,29 @@ export const GLYPH = {
 } as const;
 
 /**
- * Un repère par icône utilisée. Les monnaies ont leur glyphe ; les autres gardent un repère entre crochets, en attendant
- * de passer aux glyphes déjà sur la planche (usine, carte, cadenas…). Objectifs, Amis, Silo, Personnel, Agence, Associés,
- * Pass, Palier, Possédé et Cadeau n'ont pas d'icône dans design/ : leur repère est un manque du design system, à
- * dessiner (voir addon/README.md).
+ * Un repère par icône utilisée. Les icônes dessinées dans design/ ont leur glyphe de la planche ; le prestige prend
+ * l'étoile. Objectifs, Amis, Silo, Personnel, Agence, Associés, Pass, Palier, Possédé et Cadeau n'ont pas d'icône dans
+ * design/ : ils gardent un repère entre crochets, manque du design system à dessiner (voir addon/README.md).
  */
 export const ICON = {
   donar: GLYPH.donar,
   lingots: GLYPH.lingot,
   gemmes: GLYPH.gemme,
-  usine: "[U]",
-  engrenage: "[T]",
-  flamme: "[!]",
-  eclair: "[E]",
-  cadenas: "[X]",
+  usine: GLYPH.usine,
+  engrenage: GLYPH.engrenage,
+  flamme: GLYPH.flamme,
+  eclair: GLYPH.eclair,
+  cadenas: GLYPH.cadenas,
   silo: "[S]",
-  carte: "[C]",
-  prestige: "[P]",
+  carte: GLYPH.carte,
+  prestige: GLYPH.etoile,
   objectifs: "[O]",
   amis: "[A]",
   personnel: "[M]",
   agence: "[R]",
   associes: "[N]",
-  ville: "[V]",
-  boutique: "[B]",
+  ville: GLYPH.ville,
+  boutique: GLYPH.boutique,
   pass: "[Y]",
   /** Un palier du pass dont tout ce qui peut l'être est réclamé. */
   palierFait: "[F]",

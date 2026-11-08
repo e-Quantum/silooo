@@ -265,7 +265,8 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 51. **Les correctifs P1 de lisibilité (8 novembre 2026, branche `claude/p1-video`, sur `claude/p0-video`).** Tranché sans
     Kr : (a) une planche de glyphes `resource-pack/font/glyph_E2.png` (page E2, cases de 32 pixels), composée par
     `tools/generer_glyphes.mjs` d'après `design/glyphes.json` et contrôlée par `verifier_pack.mjs` ; les monnaies du HUD
-    et les visages d'Oooscar s'en servent, les autres icônes gardent leur repère pour l'instant ; pack en 0.1.6.
+    et les visages d'Oooscar s'en servent, puis toutes les icônes dessinées (usine, engrenage, flamme, éclair, cadenas,
+    carte, ville, boutique ; l'étoile pour le prestige) ; les icônes sans dessin gardent leur repère ; pack en 0.1.6.
     (b) `offlineHours` de `collect` compte le temps depuis le dernier calcul, en ligne : l'encaissement ne parle plus
     d'absence ; le gain hors ligne de `join` (`offlineCollected`, jusqu'ici jamais montré) est dit à la connexion.
     (c) Un seul rappel de vote par joueur et par jour UTC, gardé en mémoire de l'add-on. (d) Les objets de navigation
@@ -531,8 +532,8 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
-- Correctifs P1 (8 novembre, décision 51) : les glyphes des monnaies et d'Oooscar en jeu (taille, lisibilité du visage
-  réduit à 32 pixels) ; les textes du Silo (« Ta production s'accumule ici… », « Bonus `<multiplicateur>` sur toute la
+- Correctifs P1 (8 novembre, décision 51) : les glyphes des monnaies, d'Oooscar et des icônes dessinées en jeu (taille,
+  lisibilité du visage réduit à 32 pixels, l'étoile comme icône du prestige) ; les textes du Silo (« Ta production s'accumule ici… », « Bonus `<multiplicateur>` sur toute la
   production », « Lingots détenus, étoiles, ville et boosts ») ; la bulle de gain hors ligne dite à la connexion.
 
 - Correctifs P0 (8 novembre, décision 50) : le message de journal « règles du monde posées » (serveur seulement,
@@ -677,7 +678,8 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   « Hors ligne 0 min » à l'encaissement, le gain d'absence dit à la connexion ; un rappel de vote par jour ; objets de
   navigation sans verrou ; Silo expliqué. Vérifié : 1748 tests de l'add-on, `tools/verifier.sh` vert sauf `deploy-start.sh`
   (mode attente, `jq` absent du PC, comme au P0). Pas vérifié en jeu
-  (liste dans `addon/README.md`). Reste du P1 : passer les autres icônes dessinées aux glyphes. Pas déployé.
+  (liste dans `addon/README.md`). Puis les autres icônes dessinées passent aux glyphes (usine, engrenage, flamme, éclair, cadenas, carte, ville,
+  boutique, étoile pour le prestige) ; `bare` des tests les relit en repères. P1 terminé. Pas déployé.
 
 - **8 novembre 2026 : correctifs P0 tirés d'une vidéo de partie** (branche `claude/p0-video`, décision 50). La
   découverte des usines est branchée (la Scierie apparaît en ruine au niveau d'entreprise 2 : plus de mur après la
