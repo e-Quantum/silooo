@@ -169,14 +169,15 @@ class GiveawayFeature(
             options = listOf(
                 CommandOption(GiveawayTexts.TITLE_OPTION, GiveawayTexts.TITLE_DESCRIPTION, required = true),
                 CommandOption(GiveawayTexts.PRIZE_OPTION, GiveawayTexts.PRIZE_DESCRIPTION, required = true, choices = GiveawayPrize.ALL),
-                CommandOption(GiveawayTexts.AMOUNT_OPTION, GiveawayTexts.AMOUNT_DESCRIPTION),
-                CommandOption(GiveawayTexts.COSMETIC_OPTION, GiveawayTexts.COSMETIC_DESCRIPTION),
                 CommandOption(
                     GiveawayTexts.DURATION_OPTION,
                     GiveawayTexts.DURATION_DESCRIPTION,
                     required = true,
                     choices = GiveawayTexts.DURATIONS.map { it.toString() },
                 ),
+                // Discord exige les options obligatoires avant les facultatives : la durée passe avant le montant.
+                CommandOption(GiveawayTexts.AMOUNT_OPTION, GiveawayTexts.AMOUNT_DESCRIPTION),
+                CommandOption(GiveawayTexts.COSMETIC_OPTION, GiveawayTexts.COSMETIC_DESCRIPTION),
                 CommandOption(GiveawayTexts.MILESTONE_OPTION, GiveawayTexts.MILESTONE_DESCRIPTION, choices = listOf(GiveawayTexts.MILESTONE_YES)),
             ),
             staffOnly = true,
