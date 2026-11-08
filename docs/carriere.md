@@ -63,8 +63,8 @@ python3 -I tools/generer_sons.py --catalogue tools/generer_sons.catalogue.json
   identiques de `design/blocs/` dans `resource-pack/textures/blocks/silooo/`. Deux textures vanilla sont citées exprès
   (`planks_spruce`, `log_big_oak_top`, vues dans bedrock-samples v1.26.60.5) ; toute autre doit être dans le pack.
 - `tools/generer_sons.py --verifier` : refait les 27 signaux et compare l'empreinte des échantillons avant encodage. Les
-  octets Ogg changent à chaque encodage, on ne les compare pas. Essayé avec numpy 2.3.5 et scipy 1.16.3 : à épingler
-  en CI.
+  octets Ogg changent à chaque encodage, on ne les compare pas. Essayé avec numpy 2.3.5 et scipy 1.16.3, épinglés
+  en CI (`.github/workflows/ci.yml`) ; sur le PC, `tools/verifier.sh` les prend par `uv` s'ils manquent.
 - `tools/carriere/structure.py --verifier` : relit chaque `.mcstructure`, vérifie chaque bloc et chacun de ses états
   contre Bedrock 1.26.60 et les blocs Silooo, et refuse une structure qui diffère de ce qu'écrit `generer.py`.
 
