@@ -2,6 +2,13 @@ package com.silooo.core.discord.jda
 
 import com.silooo.core.discord.AutomodRule
 import com.silooo.core.discord.AutomodTrigger
+import com.silooo.core.discord.ArchiveLookup
+import com.silooo.core.discord.TicketArchiveBlocked
+import com.silooo.core.discord.TranscriptPage
+import com.silooo.core.discord.TranscriptMessage
+import com.silooo.core.discord.TranscriptAttachment
+import com.silooo.core.discord.DiscordChannelMissing
+import com.silooo.core.discord.archiveMessageNumber
 import com.silooo.core.discord.BotConfig
 import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.CategorySpec
@@ -26,6 +33,7 @@ import com.silooo.core.discord.ServerSnapshot
 import com.silooo.core.discord.rest.DiscordRest
 import java.time.Duration
 import java.util.EnumSet
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.future.await
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
@@ -308,8 +316,12 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
         )
     }
 
-    override suspend fun post(channelId: String, message: BotMessage): String =
-        messageChannel(channelId).sendMessage(JdaMessages.create(message)).submit().await().id
+    override suspend fun post(channelId: String, message: BotMessage): String {
+        val action = messageChannel(channelId).sendMessage(JdaMessages.create(message))
+        // JDA 6.7 impose enforce_nonce ; une référence persistée réutilise le même envoi après une perte de réponse.
+        message.nonce?.let { action.setNonce(it) }
+        return action.submit().await().id
+    }
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {
         try {
@@ -383,6 +395,91 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
             throw DiscordRefusal("Discord refuse de lire le salon " + channelId + " : " + e.meaning)
         } catch (e: InsufficientPermissionException) {
             throw DiscordRefusal("le bot n'a pas le droit de lire le salon " + channelId)
+        }
+    }
+
+    override suspend fun freezeTicketForArchive(channelId: String) {
+        val channel = guild.getTextChannelById(channelId) ?: run {
+            if (!rest.channelExists(guild.id, channelId)) throw DiscordChannelMissing(channelId)
+            throw DiscordRefusal("Le ticket n'est pas disponible dans le cache.")
+        }
+        if (!guild.selfMember.hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY, Permission.MANAGE_PERMISSIONS)) {
+            throw DiscordRefusal("Le bot ne peut pas fermer l'écriture de ce ticket.")
+        }
+        // Le contenu des fils n'appartient pas à l'historique du salon. Ne jamais le supprimer sans l'avoir conservé.
+        if (!guild.selfMember.hasPermission(channel, Permission.MANAGE_THREADS)) throw TicketArchiveBlocked("source-threads-unverified")
+        val hasThreads = try {
+            guild.retrieveActiveThreads().submit().await().any { it.parentChannel.id == channelId } ||
+                channel.retrieveArchivedPublicThreadChannels().takeAsync(1).await().isNotEmpty() ||
+                channel.retrieveArchivedPrivateThreadChannels().takeAsync(1).await().isNotEmpty()
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { throw TicketArchiveBlocked("source-threads-unverified") }
+        if (hasThreads) throw TicketArchiveBlocked("source-has-threads")
+        for (override in channel.permissionOverrides.toList()) {
+            if (override.id == guild.selfMember.id) continue
+            val wanted = closedTicketPermissions(override.allowedRaw, override.deniedRaw)
+            if (wanted.first != override.allowedRaw || wanted.second != override.deniedRaw) {
+                override.manager.setAllowed(wanted.first).setDenied(wanted.second).submit().await()
+            }
+        }
+        if (channel.getPermissionOverride(guild.publicRole) == null) {
+            channel.upsertPermissionOverride(guild.publicRole).setDenied(closedTicketPermissions(0L, 0L).second).submit().await()
+        }
+    }
+
+    override suspend fun transcriptPage(channelId: String, beforeId: String?, limit: Int): TranscriptPage {
+        require(limit in 1..100)
+        val channel = guild.getChannelById(GuildMessageChannel::class.java, channelId) ?: run {
+            if (!rest.channelExists(guild.id, channelId)) throw DiscordChannelMissing(channelId)
+            throw DiscordRefusal("Le salon du ticket n'est pas disponible dans le cache.")
+        }
+        if (!guild.selfMember.hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY) ||
+            GatewayIntent.MESSAGE_CONTENT !in guild.jda.gatewayIntents) throw DiscordRefusal("Les droits de lecture de l'archive sont incomplets.")
+        try {
+            val page = if (beforeId == null) channel.history.retrievePast(limit).submit().await()
+                else channel.getHistoryBefore(beforeId, limit).submit().await().retrievedHistory
+            return TranscriptPage(page.sortedBy { archiveMessageNumber(it.id) }.map { m ->
+                TranscriptMessage(m.id, m.author.id, m.member?.effectiveName ?: m.author.effectiveName,
+                    m.contentRaw, m.timeCreated.toInstant(),
+                    m.attachments.map { TranscriptAttachment(it.id, it.fileName, it.url, it.size.toLong(), it.contentType) },
+                    m.embeds.map { it.toData().toString() }, m.timeEdited?.toInstant())
+            })
+        } catch (e: ErrorResponseException) {
+            if (e.errorResponse == ErrorResponse.UNKNOWN_CHANNEL) throw DiscordChannelMissing(channelId)
+            throw DiscordRefusal("Discord a refusé de lire une page de l'archive.")
+        } catch (e: InsufficientPermissionException) { throw DiscordRefusal("Les droits de lecture de l'archive sont incomplets.") }
+    }
+
+    override suspend fun findArchivePart(channelId: String, reference: String, fileName: String, anchorId: String?, maxPages: Int): ArchiveLookup {
+        val channel = messageChannel(channelId)
+        if (!guild.selfMember.hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY)) throw DiscordRefusal("Le journal des archives est illisible.")
+        var before: String? = null
+        repeat(maxPages) {
+            val raw = if (before == null) channel.history.retrievePast(100).submit().await()
+                else channel.getHistoryBefore(before, 100).submit().await().retrievedHistory
+            val page = raw.sortedByDescending { archiveMessageNumber(it.id) }
+            for (message in page) {
+                if (message.author.id == guild.jda.selfUser.id && message.contentRaw.endsWith("\n" + reference) &&
+                    message.attachments.any { it.fileName == fileName }) return ArchiveLookup.Found(message.id)
+                if (anchorId != null && archiveMessageNumber(message.id) <= archiveMessageNumber(anchorId)) return ArchiveLookup.Absent
+            }
+            if (page.size < 100) return ArchiveLookup.Absent
+            val next = page.last().id
+            if (before != null && archiveMessageNumber(next) >= archiveMessageNumber(before!!)) return ArchiveLookup.Incomplete
+            before = next
+        }
+        return ArchiveLookup.Incomplete
+    }
+
+    override suspend fun removeArchivedTicketChannel(channelId: String) {
+        val channel = guild.getTextChannelById(channelId)
+        if (channel == null) {
+            if (!rest.channelExists(guild.id, channelId)) return
+            throw DiscordRefusal("Le salon archivé n'est pas disponible dans le cache.")
+        }
+        try { channel.delete().submit().await() }
+        catch (e: ErrorResponseException) {
+            if (e.errorResponse != ErrorResponse.UNKNOWN_CHANNEL) throw DiscordRefusal("Discord a refusé la suppression du ticket archivé.")
         }
     }
 
@@ -657,4 +754,11 @@ internal fun planPublicPermissionMasks(
 internal fun bureauPermissionMasks(oldAllow: Long, oldDeny: Long, allow: Long, deny: Long): Pair<Long, Long> {
     val managed = allow or deny
     return ((oldAllow and managed.inv()) or allow) to ((oldDeny and managed.inv()) or deny)
+}
+
+/** Les bits de lecture et les droits étrangers au verrouillage restent intacts. */
+internal fun closedTicketPermissions(allowed: Long, denied: Long): Pair<Long, Long> {
+    val mask = Permission.MESSAGE_SEND.rawValue or Permission.MESSAGE_SEND_IN_THREADS.rawValue or
+        Permission.CREATE_PUBLIC_THREADS.rawValue or Permission.CREATE_PRIVATE_THREADS.rawValue
+    return (allowed and mask.inv()) to (denied or mask)
 }

@@ -5,7 +5,7 @@
   "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils", "moderation", "signalements"],
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils", "moderation", "signalements", "archivesTickets"],
   "$defs": {
     "identifiantDuPlan": {
       "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
@@ -474,6 +474,62 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 1000
+        }
+      }
+    },
+    "archivesTickets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "messagesParPage",
+        "etapesParPassage",
+        "ticketsParPassage",
+        "repriseSecondes",
+        "bailSecondes",
+        "conservationJours",
+        "recherchePages",
+        "fichierMaxOctets"
+      ],
+      "properties": {
+        "messagesParPage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "etapesParPassage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "ticketsParPassage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "repriseSecondes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 3600
+        },
+        "bailSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        },
+        "conservationJours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "recherchePages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "fichierMaxOctets": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 8000000
         }
       }
     }

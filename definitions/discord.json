@@ -104,5 +104,15 @@
     "purgeSecondes": 21600,
     "motifMaxCaracteres": 500,
     "contenuMaxCaracteres": 1000
+  },
+  "archivesTickets": {
+    "messagesParPage": 100,
+    "etapesParPassage": 8,
+    "ticketsParPassage": 3,
+    "repriseSecondes": 30,
+    "bailSecondes": 300,
+    "conservationJours": 30,
+    "recherchePages": 10,
+    "fichierMaxOctets": 4000000
   }
 }

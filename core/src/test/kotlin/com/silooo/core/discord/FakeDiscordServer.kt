@@ -204,10 +204,41 @@ class FakeDiscordServer(
 
     override suspend fun post(channelId: String, message: BotMessage): String {
         channel(channelId)
+        if (message.nonce != null) posted.firstOrNull { it.channelId == channelId && it.message.nonce == message.nonce }?.let { return it.messageId }
         val id = newId()
         posted += Posted(channelId, id, message)
         messages += channelId to message.text
         return id
+    }
+
+    val frozenTickets = mutableSetOf<String>()
+    val ticketThreads = mutableSetOf<String>()
+    override suspend fun freezeTicketForArchive(channelId: String) {
+        if (channels.none { it.id == channelId }) throw DiscordChannelMissing(channelId)
+        if (channelId in ticketThreads) throw TicketArchiveBlocked("source-has-threads")
+        frozenTickets += channelId
+    }
+    val transcripts = mutableMapOf<String, MutableList<TranscriptMessage>>()
+    val transcriptReads = mutableListOf<Triple<String, String?, Int>>()
+    var archiveLookupIncomplete = false
+    override suspend fun transcriptPage(channelId: String, beforeId: String?, limit: Int): TranscriptPage {
+        if (channels.none { it.id == channelId }) throw DiscordChannelMissing(channelId)
+        transcriptReads += Triple(channelId, beforeId, limit)
+        val source = transcripts[channelId] ?: histories[channelId]?.mapIndexed { index, m ->
+            TranscriptMessage((index + 1).toString(), m.authorId, m.authorName, m.text, m.at)
+        } ?: posted.filter { it.channelId == channelId && (channelId to it.messageId) !in deletedMessages }.map {
+            TranscriptMessage(it.messageId, "bot", "Oooscar", it.message.text, java.time.Instant.parse("2026-11-05T10:00:00Z"))
+        }
+        return TranscriptPage(source.filter { beforeId == null || archiveMessageNumber(it.id) < archiveMessageNumber(beforeId) }.sortedBy { archiveMessageNumber(it.id) }.takeLast(limit))
+    }
+    override suspend fun findArchivePart(channelId: String, reference: String, fileName: String, anchorId: String?, maxPages: Int): ArchiveLookup {
+        if (archiveLookupIncomplete) return ArchiveLookup.Incomplete
+        val sent = posted.firstOrNull { it.channelId == channelId && it.message.text.endsWith("\n" + reference) &&
+            it.message.document?.name == fileName && (channelId to it.messageId) !in deletedMessages }
+        return sent?.let { ArchiveLookup.Found(it.messageId) } ?: ArchiveLookup.Absent
+    }
+    override suspend fun removeArchivedTicketChannel(channelId: String) {
+        if (channels.any { it.id == channelId }) deleteChannel(channelId)
     }
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {

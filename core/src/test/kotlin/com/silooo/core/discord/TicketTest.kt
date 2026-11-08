@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test
  */
 class TicketTest {
     private val zone = ZoneId.of("Europe/Paris")
+    private val archiveRules = TicketArchiveRules(100, 8, 3, 30, 300, 30, 10, 4_000_000)
 
     /** 17 h 10 UTC : 18 h 10 à Paris en novembre. */
     private val at = Instant.parse("2026-11-05T17:10:00Z")
@@ -31,6 +32,7 @@ class TicketTest {
         val fake = FakeDiscordServer(refused = refused)
         val timer = FakeTimer()
         val store = InMemoryTicketStore()
+        val archives = InMemoryTicketArchiveStore()
         val messages = InMemoryBotMessageStore()
         val staff: String = runBlocking { fake.createRole(RoleSpec("staff", null, false, false)) }
         val moderation: String = runBlocking { fake.createRole(RoleSpec("moderation", null, false, false)) }
@@ -39,7 +41,7 @@ class TicketTest {
             buildMap {
                 if (withTickets) put("tickets", fake.createChannel(category, ChannelSpec("tickets", ChannelKind.TEXTE, null, emptySet(), null, false)))
                 put("aide", fake.createChannel(category, ChannelSpec("aide", ChannelKind.FORUM, null, null, null, false)))
-                put("journal-du-bot", fake.createChannel(category, ChannelSpec("journal-du-bot", ChannelKind.TEXTE, null, emptySet(), null, false)))
+                put("journal-du-bot", fake.createChannel(category, ChannelSpec("journal-du-bot", ChannelKind.TEXTE, null, emptySet(), setOf(staff, moderation), false)))
             }
         }
         val ids = ServerIds(
@@ -48,11 +50,12 @@ class TicketTest {
             if (withCategory) mapOf("aide" to category) else emptyMap(),
         )
         val context = BotContext(fake, ids, timer, ServerPhase.ATTENTE)
-        val feature = TicketFeature(context, store, messages, BotJournal(context), zone)
+        val feature = TicketFeature(context, store, messages, BotJournal(context), zone, archives, archiveRules)
 
         val help: String get() = "<#" + channels.getValue("aide") + ">"
         val ticketsPosts: List<FakeDiscordServer.Posted> get() = fake.posted.filter { it.channelId == channels["tickets"] }
         val journal: List<String> get() = fake.posted.filter { it.channelId == channels["journal-du-bot"] }.map { it.message.text }
+        val archiveFiles: List<String> get() = fake.posted.filter { it.channelId == channels["journal-du-bot"] }.mapNotNull { it.message.document?.bytes?.toString(Charsets.UTF_8) }
 
         fun start() = runBlocking { feature.start() }
 
@@ -128,7 +131,7 @@ class TicketTest {
         setup.start()
         val first = setup.ticketsPosts.single()
 
-        val restarted = TicketFeature(setup.context, setup.store, setup.messages, BotJournal(setup.context), zone)
+        val restarted = TicketFeature(setup.context, setup.store, setup.messages, BotJournal(setup.context), zone, setup.archives, archiveRules)
         runBlocking { restarted.start() }
 
         assertEquals(1, setup.ticketsPosts.size, "aucun nouveau message")
@@ -308,15 +311,13 @@ class TicketTest {
         val closed = setup.ticket(1)
         assertEquals(setup.timer.now(), closed?.closedAt)
         assertEquals("42", closed?.closedBy)
-        assertEquals(
-            listOf(
-                "Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@42>.",
-                "5 novembre 2026 à 18 h 10, Oooscar : <@42> Ton ticket est ouvert. Dis-nous tout ici : le staff lit.\n" +
-                    "5 novembre 2026 à 18 h 12, Ana : Mon achat n'est pas arrivé.\n" +
-                    "5 novembre 2026 à 18 h 20, Kr : Je regarde.",
-            ),
-            setup.journal.drop(before),
-        )
+        assertEquals(1, setup.journal.drop(before).size)
+        val archive = setup.archiveFiles.single()
+        assertTrue(archive.contains("2026-11-05T17:10:00Z | Oooscar"))
+        assertTrue(archive.contains("Ana (42) | message 2"))
+        assertTrue(archive.contains("Mon achat n'est pas arrivé."))
+        assertTrue(archive.contains("Je regarde."))
+        assertTrue(archive.indexOf("Mon achat n'est pas arrivé.") < archive.indexOf("Je regarde."))
         assertEquals(listOf(channel), setup.fake.deleted)
         assertTrue(setup.fake.channels.none { it.id == channel })
     }
@@ -341,13 +342,13 @@ class TicketTest {
         assertEquals(1, byModeration.acknowledged)
         assertEquals("66", setup.ticket(1)?.closedBy)
         assertEquals(listOf(channel), setup.fake.deleted)
-        assertEquals("Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@66>.", setup.journal[before])
+        assertTrue(setup.journal[before].startsWith("Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@66>."))
 
         val second = Setup()
         second.openPurchase()
         second.close(1, second.staffMember())
         assertEquals("77", second.ticket(1)?.closedBy)
-        assertEquals("Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@77>.", second.journal.last())
+        assertTrue(second.journal.last().startsWith("Archive du ticket n°1 (achat) de <@42>, fermeture demandée par <@77>."))
     }
 
     @Test
@@ -378,41 +379,29 @@ class TicketTest {
     }
 
     @Test
-    @DisplayName("L'archive est coupée entre deux lignes en messages de 2 000 caractères au plus, sans rien perdre ni couper une ligne")
-    fun archiveIsCutAt2000() {
+    @DisplayName("Les lignes du ticket sont conservées dans un fichier texte sans limite de 2 000 caractères")
+    fun archiveKeepsEveryLineInAFile() {
         val setup = Setup()
         val channel = setup.openPurchase()
         repeat(40) { setup.say(channel, "42", "Ana", "Message " + (it + 1) + " " + "x".repeat(80)) }
-        val before = setup.journal.size
-
         setup.close(1)
-
-        val archive = setup.journal.drop(before + 1)
-        assertTrue(archive.size >= 2, "quarante lignes d'une centaine de caractères ne tiennent pas dans un message")
-        assertTrue(archive.all { it.length <= 2000 })
-        val lines = archive.flatMap { it.split("\n") }
-        assertEquals(40, lines.size, "une ligne n'est jamais coupée")
-        assertEquals((1..40).map { "5 novembre 2026 à 18 h 10, Ana : Message " + it + " " + "x".repeat(80) }, lines)
-        assertTrue(
-            archive.zipWithNext().all { (full, next) -> full.length + 1 + next.substringBefore("\n").length > 2000 },
-            "chaque message est plein avant de passer au suivant",
-        )
+        val archive = setup.archiveFiles.single()
+        assertTrue(archive.length > 2000)
+        assertEquals(40, Regex("Ana \\(42\\) \\| message").findAll(archive).count())
+        for (i in 1..40) assertTrue(archive.contains("Message " + i + " " + "x".repeat(80)))
+        assertEquals(listOf(channel), setup.fake.deleted)
     }
 
     @Test
-    @DisplayName("Un message de plus de 2 000 caractères est coupé en morceaux de 2 000 au plus")
-    fun aHugeMessageIsSplit() {
+    @DisplayName("Un grand message Unicode est conservé sans découpe ni perte")
+    fun aHugeMessageIsKept() {
         val setup = Setup()
         val channel = setup.openPurchase()
-        setup.say(channel, "42", "Ana", "y".repeat(4500))
-        val before = setup.journal.size
-
+        val content = "é𝄞".repeat(1500)
+        setup.say(channel, "42", "Ana", content)
         setup.close(1)
-
-        val archive = setup.journal.drop(before + 1)
-        assertTrue(archive.size >= 3)
-        assertTrue(archive.all { it.length <= 2000 })
-        assertEquals("5 novembre 2026 à 18 h 10, Ana : " + "y".repeat(4500), archive.joinToString(""))
+        assertTrue(setup.archiveFiles.single().contains(content))
+        assertEquals(listOf(channel), setup.fake.deleted)
     }
 
     @Test
@@ -428,10 +417,8 @@ class TicketTest {
         assertEquals(1, reply.acknowledged)
         assertNull(setup.ticket(1)?.closedAt)
         assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
-        assertEquals(
-            listOf("Ticket n°1 : l'archive n'a pas pu être lue, le salon reste."),
-            setup.journal.drop(before),
-        )
+        assertTrue(setup.journal.drop(before).isEmpty())
+        assertNotNull(runBlocking { setup.archives.find(1) }?.lastError)
         assertTrue(setup.fake.deleted.isEmpty())
     }
 
@@ -475,7 +462,7 @@ class TicketTest {
         setup.fake.memberRoles[other.id] = mutableSetOf(setup.staff)
         assertEquals(TicketTexts.UNAVAILABLE, setup.action("prendre", other).sent.single().first.text)
         assertEquals(TicketTexts.NOT_ASSIGNED, setup.action("liberer", other).sent.single().first.text)
-        val restarted = TicketFeature(setup.context, setup.store, setup.messages, BotJournal(setup.context), zone)
+        val restarted = TicketFeature(setup.context, setup.store, setup.messages, BotJournal(setup.context), zone, setup.archives, archiveRules)
         val state = FakeReply()
         runBlocking { restarted.handle(DiscordEvent.CommandUsed("ticket", mapOf("action" to "etat"), member, setup.ticket(1)?.channelId, state)) }
         assertTrue(state.sent.single().first.text.contains("<@77>"))
@@ -512,7 +499,7 @@ class TicketTest {
         val setup = Setup()
         val channel = setup.openPurchase()
         val noJournal = BotContext(setup.fake, ServerIds(mapOf("staff" to setup.staff), emptyMap(), emptyMap()), setup.timer, ServerPhase.ATTENTE)
-        val feature = TicketFeature(noJournal, setup.store, setup.messages, BotJournal(noJournal), zone)
+        val feature = TicketFeature(noJournal, setup.store, setup.messages, BotJournal(noJournal), zone, setup.archives, archiveRules)
         val reply = FakeReply()
         runBlocking { feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + "1", member, channel, "1", reply)) }
         assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
@@ -528,10 +515,10 @@ class TicketTest {
         val setup = Setup()
         val channel = setup.openPurchase()
         val rejecting = object : DiscordServer by setup.fake {
-            override suspend fun send(channelId: String, text: String) { throw DiscordRefusal("envoi refusé") }
+            override suspend fun post(channelId: String, message: BotMessage): String { throw DiscordRefusal("envoi refusé") }
         }
         val context = BotContext(rejecting, setup.ids, setup.timer, ServerPhase.ATTENTE)
-        val feature = TicketFeature(context, setup.store, setup.messages, BotJournal(context), zone)
+        val feature = TicketFeature(context, setup.store, setup.messages, BotJournal(context), zone, setup.archives, archiveRules)
         val reply = FakeReply()
         runBlocking { feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + "1", member, channel, "1", reply)) }
         assertEquals(TicketTexts.ARCHIVE_FAILED, reply.sent.single().first.text)
@@ -543,17 +530,17 @@ class TicketTest {
     fun partialArchiveFailurePreservesTicketAndCanBeRetried() {
         val setup = Setup()
         val channel = setup.openPurchase()
-        setup.say(channel, member.id, member.name, "Mon achat manque.")
+        repeat(101) { setup.say(channel, member.id, member.name, "Mon achat manque " + it) }
         var sends = 0
         val partial = object : DiscordServer by setup.fake {
-            override suspend fun send(channelId: String, text: String) {
+            override suspend fun post(channelId: String, message: BotMessage): String {
                 sends++
                 if (sends == 2) throw DiscordRefusal("archive interrompue")
-                setup.fake.send(channelId, text)
+                return setup.fake.post(channelId, message)
             }
         }
         val context = BotContext(partial, setup.ids, setup.timer, ServerPhase.ATTENTE)
-        val feature = TicketFeature(context, setup.store, setup.messages, BotJournal(context), zone)
+        val feature = TicketFeature(context, setup.store, setup.messages, BotJournal(context), zone, setup.archives, archiveRules)
         val reply = FakeReply()
         runBlocking { feature.handle(DiscordEvent.ButtonPressed(TicketTexts.CLOSE_PREFIX + "1", member, channel, "1", reply)) }
         assertEquals(2, sends)
@@ -562,7 +549,18 @@ class TicketTest {
         assertTrue(setup.fake.deleted.isEmpty())
         setup.close(1)
         assertNotNull(setup.ticket(1)?.closedAt)
-        assertTrue(setup.journal.last().contains("Mon achat manque."))
+        assertTrue(setup.archiveFiles.any { it.contains("Mon achat manque 100") })
+        assertEquals(listOf(channel), setup.fake.deleted)
+    }
+
+    @Test
+    fun slashClosureCompletesItsPrivateAcknowledgement() {
+        val setup = Setup()
+        val channel = setup.openPurchase()
+        val response = setup.action("fermer")
+        assertEquals(TicketTexts.CLOSED, response.sent.single().first.text)
+        assertTrue(response.sent.single().second)
+        assertEquals(1, response.acknowledged)
         assertEquals(listOf(channel), setup.fake.deleted)
     }
 

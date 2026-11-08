@@ -98,6 +98,22 @@ interface DiscordServer {
      */
     suspend fun history(channelId: String, limit: Int): List<ChannelMessage>
 
+    /** Passage en lecture seule du ticket avant sa capture, sans changer les droits de lecture. */
+    suspend fun freezeTicketForArchive(channelId: String) {
+        throw DiscordRefusal("Le verrouillage du ticket n'est pas disponible.")
+    }
+
+    /** Une page de l'historique complet, strictement avant le curseur, sans tronquer le contenu. */
+    suspend fun transcriptPage(channelId: String, beforeId: String?, limit: Int): TranscriptPage {
+        throw DiscordRefusal("La lecture paginée n'est pas disponible.")
+    }
+
+    /** Recherche un envoi propre au bot depuis son point de réservation. Une recherche incomplète interdit de reposter. */
+    suspend fun findArchivePart(channelId: String, reference: String, fileName: String, anchorId: String?, maxPages: Int): ArchiveLookup = ArchiveLookup.Incomplete
+
+    /** Suppression du seul ticket déjà archivé ; un 404 confirmé vaut succès, un refus reste un échec. */
+    suspend fun removeArchivedTicketChannel(channelId: String) { deleteChannel(channelId) }
+
     /** Déplace [userId] dans le vocal [channelId] ; le membre n'est pas en vocal, ou Discord refuse : [DiscordRefusal]. */
     suspend fun moveToVoice(userId: String, channelId: String)
 

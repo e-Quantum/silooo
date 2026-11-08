@@ -324,6 +324,16 @@ export type DiscordDefinitions = {
     readonly motifMaxCaracteres: number;
     readonly contenuMaxCaracteres: number;
   };
+  readonly archivesTickets: {
+    readonly messagesParPage: number;
+    readonly etapesParPassage: number;
+    readonly ticketsParPassage: number;
+    readonly repriseSecondes: number;
+    readonly bailSecondes: number;
+    readonly conservationJours: number;
+    readonly recherchePages: number;
+    readonly fichierMaxOctets: number;
+  };
 };
 
 /** Un identifiant du plan du serveur : minuscules, chiffres et tirets. */

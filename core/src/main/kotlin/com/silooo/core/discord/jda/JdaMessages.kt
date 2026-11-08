@@ -51,6 +51,7 @@ internal object JdaMessages {
         if (message.mentionUserIds.isNotEmpty()) request.mentionUsers(*message.mentionUserIds.toTypedArray())
         if (message.mentionRoleIds.isNotEmpty()) request.mentionRoles(*message.mentionRoleIds.toTypedArray())
         val upload = message.image?.let { FileUpload.fromData(it.bytes, it.name) }
+            ?: message.document?.let { FileUpload.fromData(it.bytes, it.name) }
         val rows = rows(message)
         if (message.card) {
             val children = mutableListOf<ContainerChildComponent>(TextDisplay.of(message.text))

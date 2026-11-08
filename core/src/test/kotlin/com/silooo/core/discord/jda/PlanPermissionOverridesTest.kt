@@ -51,4 +51,16 @@ class PlanPermissionOverridesTest {
         assertEquals(setOf(Permission.VIEW_CHANNEL, Permission.VOICE_CONNECT), planPublicDenials(isPrivate = true, readOnly = false, locked = true))
         assertEquals(emptySet<Permission>(), planPublicDenials(isPrivate = false, readOnly = false, locked = false))
     }
+    @Test
+    fun `ticket closure denies writing and preserves every unrelated permission bit`() {
+        val reading = Permission.VIEW_CHANNEL.rawValue or Permission.MESSAGE_HISTORY.rawValue
+        val unrelated = 1L shl 60
+        val writing = Permission.MESSAGE_SEND.rawValue or Permission.MESSAGE_SEND_IN_THREADS.rawValue or
+            Permission.CREATE_PUBLIC_THREADS.rawValue or Permission.CREATE_PRIVATE_THREADS.rawValue
+        val result = closedTicketPermissions(reading or writing or unrelated, Permission.MANAGE_WEBHOOKS.rawValue)
+        assertEquals(reading or unrelated, result.first)
+        assertEquals(writing or Permission.MANAGE_WEBHOOKS.rawValue, result.second)
+        assertEquals(result, closedTicketPermissions(result.first, result.second))
+    }
+
 }

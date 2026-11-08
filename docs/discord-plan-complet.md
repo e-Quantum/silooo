@@ -121,10 +121,12 @@ pas seulement masqués dans l'interface. Une désactivation annule les minuterie
 - Vérification des rôles courants et du salon source ; affectation concurrente testée sur SQL.
 - Fermeture après réception de l'archive uniquement ; refus de lecture ou d'envoi = ticket ouvert et salon conservé.
 
-Limites explicites : l'archive actuelle porte toujours sur les **200 derniers messages textuels**. Elle ne constitue
-pas un transcript intégral et ne recopie pas les pièces jointes. Une panne après un envoi partiel peut produire des
-doublons au prochain essai. Une panne après fermeture SQL mais avant suppression peut laisser le salon fermé en
-base et encore présent sur Discord. C1b traite ces cas avec un état durable et une reprise contrôlée.
+## Tranche C1b du 8 novembre
+
+Le [parcours des archives](discord-archives.md) remplace la limite de 200 messages par une lecture paginée.
+Les textes, cartes et références de pièces jointes sont conservés en SQL avant leur envoi par fichiers dans le
+journal privé. Une fermeture interrompue reprend depuis son état durable ; la purge retire le contenu SQL puis
+les copies Discord après la durée configurée. Les médias ne sont pas téléchargés et leurs liens peuvent expirer.
 
 ## Recette et suite
 
@@ -132,7 +134,7 @@ Tests attendus : affectation SQL concurrente, relecture depuis un autre store, r
 bouton envoyé dans un autre salon, archive absente/refusée, reprise après échec, migrations et catalogue JDA.
 La vérification globale est `bash tools/verifier.sh`, sans affaiblir les tests existants.
 
-Prochain lot recommandé : **C1b**, pour supprimer la limite des 200 messages et reprendre les fermetures interrompues,
-puis **C2**, pour pouvoir remplacer les gestes de Dyno encore utilisés. D1 conserve ses validations visuelles ;
+Prochain lot recommandé : **C2**, pour reprendre les gestes de Dyno encore utilisés,
+ainsi que les formulaires et le transfert qui restent ouverts dans C1. D1 conserve ses validations visuelles ;
 D4/D5 restent à développer et D6 conserve sa recette réelle. Aucun module n'est déclaré opérationnel sur le serveur
 sur la seule présence du code.

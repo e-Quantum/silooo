@@ -13,8 +13,12 @@ data class BotMessage(
     val card: Boolean = false,
     val mentionUserIds: Set<String> = emptySet(),
     val mentionRoleIds: Set<String> = emptySet(),
+    val document: TextFile? = null,
+    val nonce: String? = null,
 ) {
     init {
+        require(document == null || (image == null && !card)) { "un document texte ne se combine pas avec une image ou une carte" }
+        require(nonce == null || nonce.matches(Regex("[a-z0-9]{1,25}"))) { "une référence d’envoi invalide" }
         require(text.isNotBlank()) { "un message vide" }
         require(text.length <= MAX_TEXT) { "Discord refuse un message de plus de " + MAX_TEXT + " caractères" }
         require(buttons.size <= MAX_BUTTONS) { "Discord met au plus " + MAX_BUTTONS + " boutons sur une ligne" }
@@ -40,6 +44,15 @@ class ImageFile(val name: String, val bytes: ByteArray) {
     private companion object {
         val NAME = Regex("[a-z0-9-]+\\.(png|gif)")
     }
+}
+
+/** Un transcript UTF-8, sans exécutable et sous le plafond retenu pour les envois du bot. */
+class TextFile(val name: String, val bytes: ByteArray) {
+    init {
+        require(name.matches(Regex("[a-z0-9-]{1,100}\\.txt")))
+        require(bytes.size in 1..MAX_BYTES)
+    }
+    companion object { const val MAX_BYTES = 8_000_000 }
 }
 
 /** Un bouton ; [url] : un lien plutôt qu'un geste, alors [id] n'est pas envoyé à Discord. */

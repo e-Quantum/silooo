@@ -28,7 +28,20 @@ object TicketTexts {
     const val RELEASED = "Le ticket est à nouveau disponible."
     const val UNAVAILABLE = "Ce ticket est déjà pris en charge ou fermé."
     const val NOT_ASSIGNED = "Seul le responsable du ticket peut le libérer."
-    const val ARCHIVE_FAILED = "L'archive n'a pas pu être envoyée. Le ticket reste ouvert ; réessaie la fermeture plus tard."
+    const val ARCHIVE_FAILED = "La fermeture n'est pas terminée. Le salon est conservé ; tu peux réessayer."
+    const val CLOSING = "Fermeture en cours. Le ticket passe en lecture seule pendant la préparation de l'archive."
+    const val CLOSED = "Le ticket est fermé."
+
+    fun archiveFailure(code: String): String = when (code) {
+        "source-has-threads" -> "Ce ticket contient des fils de discussion. Leur contenu doit être conservé avant de fermer le salon."
+        "source-threads-unverified" -> "Les fils du ticket n'ont pas pu être vérifiés. Contrôle les droits de lecture et de gestion des fils."
+        "destination-not-private" -> "Le journal des archives doit être privé et correspondre au salon configuré."
+        "archive-delivery-uncertain" -> "La réception d'un fichier doit être vérifiée avant un nouvel envoi."
+        "archive-part-too-large" -> "Le fichier serait trop grand. Réduis le nombre de messages par page dans les réglages du bot."
+        "invalid-history-cursor" -> "L'historique n'a pas pu être lu dans l'ordre. Le salon est conservé."
+        "lease-lost" -> "Un autre traitement a repris cette fermeture."
+        else -> "Un accès à Discord ou au stockage a échoué. La reprise conserve le salon."
+    }
 
     /** Les valeurs du menu : [GAME] renvoie vers l'aide, les autres ouvrent un salon privé qui porte la valeur dans son nom. */
     const val GAME = "jeu"
@@ -89,11 +102,9 @@ object TicketTexts {
  * `#aide`, chacun des autres choix ouvre un salon privé (le membre, le staff et la modération le voient) dans la
  * catégorie Aide, nommé d'après le choix et le numéro du ticket. Un membre n'a qu'un ticket ouvert à la fois.
  *
- * Le bouton « Fermer le ticket », pour l'auteur et le staff, recopie les 200 derniers
- * messages du salon dans `#journal-du-bot` (ceux du bot compris, en messages de 2 000 caractères au plus, coupés entre
- * deux lignes), ferme le ticket en base, puis supprime le salon. Une lecture ou un envoi refusé laisse le ticket ouvert. Le message du menu est retrouvé
- * par sa clé ([BotMessageStore]) : modifié sur place à chaque démarrage et après chaque choix, reposté seulement s'il a disparu. Au
- * démarrage, un ticket ouvert dont le salon a été supprimé à la main est fermé.
+ * La fermeture passe par TicketArchiver : capture paginée durable, livraison privée, puis suppression reprenable.
+ * Le menu est retrouvé par BotMessageStore. Un salon disparu avec une archive en cours n'est pas fermé sans preuve.
+
  */
 class TicketFeature(
     private val context: BotContext,
@@ -101,7 +112,11 @@ class TicketFeature(
     private val messages: BotMessageStore,
     private val journal: BotJournal,
     private val zone: ZoneId = ZoneId.of("Europe/Paris"),
+    private val archives: TicketArchiveStore,
+    archiveRules: TicketArchiveRules,
+
 ) : Feature {
+    private val archiver = TicketArchiver(context, store, archives, archiveRules)
     override val name = "tickets"
     override val commands = listOf(CommandSpec("ticket", "Voir ou gérer le ticket de ce salon", options = listOf(
         CommandOption("action", "Le geste à effectuer", required = true, choices = listOf("etat", "prendre", "liberer", "fermer")),
@@ -118,6 +133,7 @@ class TicketFeature(
             }
         }
         closeVanished()
+        archiver.start()
     }
 
     override suspend fun handle(event: DiscordEvent) {
@@ -156,6 +172,7 @@ class TicketFeature(
         if (open.isEmpty()) return
         val existing = context.server.snapshot().channels.map { it.id }.toSet()
         for (ticket in open.filter { it.channelId !in existing }) {
+            if (archives.find(ticket.id) != null) continue
             store.close(ticket.id, BOT, context.timer.now())
             journal.line(TicketTexts.journalVanished(ticket.id))
         }
@@ -240,12 +257,17 @@ class TicketFeature(
             "prendre" -> TicketTexts.CLAIM_PREFIX
             "liberer" -> TicketTexts.RELEASE_PREFIX
             "fermer" -> TicketTexts.CLOSE_PREFIX
-            "etat" -> return tell(event.reply, "Ticket n°" + ticket.id + " : " +
-                (if (ticket.closedAt != null) "fermé." else ticket.assignedTo?.let { "pris en charge par <@" + it + ">." } ?: "en attente du staff."))
+            "etat" -> {
+                val archive = archives.find(ticket.id)
+                val closing = if (archive?.lastError != null && isStaff(event.user))
+                    TicketTexts.CLOSING + "\n" + TicketTexts.archiveFailure(archive.lastError) else TicketTexts.CLOSING
+                return tell(event.reply, if (archive != null && archive.state !in setOf(TicketArchiveState.DONE, TicketArchiveState.PURGING)) closing
+                    else "Ticket n°" + ticket.id + " : " + (if (ticket.closedAt != null) "fermé." else ticket.assignedTo?.let { "pris en charge par <@" + it + ">." } ?: "en attente du staff."))
+            }
             else -> return tell(event.reply, TicketTexts.WRONG_CHANNEL)
         }
         val button = DiscordEvent.ButtonPressed(prefix + ticket.id, event.user, event.channelId, "", event.reply)
-        if (prefix == TicketTexts.CLOSE_PREFIX) close(button) else assign(button, prefix == TicketTexts.RELEASE_PREFIX)
+        if (prefix == TicketTexts.CLOSE_PREFIX) close(button, respondWhenComplete = true) else assign(button, prefix == TicketTexts.RELEASE_PREFIX)
     }
 
     private suspend fun assign(event: DiscordEvent.ButtonPressed, release: Boolean) {
@@ -255,6 +277,7 @@ class TicketFeature(
             ?: return tell(event.reply, TicketTexts.ALREADY_CLOSED)
         if (event.channelId != ticket.channelId) return tell(event.reply, TicketTexts.WRONG_CHANNEL)
         if (ticket.closedAt != null) return tell(event.reply, TicketTexts.ALREADY_CLOSED)
+        if (archives.find(ticket.id) != null) return tell(event.reply, TicketTexts.CLOSING)
         val changed = if (release) store.release(ticket.id, event.user.id)
             else store.claim(ticket.id, event.user.id, context.timer.now())
         if (!changed) return tell(event.reply, if (release) TicketTexts.NOT_ASSIGNED else TicketTexts.UNAVAILABLE)
@@ -262,52 +285,24 @@ class TicketFeature(
         journal.line("Ticket n°" + ticket.id + (if (release) " libéré par <@" else " pris en charge par <@") + event.user.id + ">.")
     }
 
-    private suspend fun close(event: DiscordEvent.ButtonPressed) {
+    private suspend fun close(event: DiscordEvent.ButtonPressed, respondWhenComplete: Boolean = false) {
         if (event.user.isBot) return
         val ticket = event.id.removePrefix(TicketTexts.CLOSE_PREFIX).toIntOrNull()?.let { store.byId(it) }
-        if (ticket == null || ticket.closedAt != null) return tell(event.reply, TicketTexts.ALREADY_CLOSED)
+        if (ticket == null) return tell(event.reply, TicketTexts.ALREADY_CLOSED)
+        val job = archives.find(ticket.id)
+        if ((ticket.closedAt != null && job == null) || job?.state in setOf(TicketArchiveState.DONE, TicketArchiveState.PURGING)) return tell(event.reply, TicketTexts.ALREADY_CLOSED)
         if (event.channelId != ticket.channelId) return tell(event.reply, TicketTexts.WRONG_CHANNEL)
         if (event.user.id != ticket.userId && !isStaff(event.user)) return tell(event.reply, TicketTexts.NOT_ALLOWED)
-
         event.reply.acknowledge()
-        val lines = try {
-            context.server.history(ticket.channelId, HISTORY).filter { it.text.isNotBlank() }.map { TicketTexts.archiveLine(it, zone) }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) {
-            log.warn("Bot Discord, tickets : lecture de l'archive refusée pour {}", ticket.id)
-            journal.line(TicketTexts.journalUnread(ticket.id))
-            return tell(event.reply, TicketTexts.ARCHIVE_FAILED)
+        val complete = try { archiver.request(ticket, event.user.id) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { false }
+        if (complete) {
+            if (respondWhenComplete) tell(event.reply, TicketTexts.CLOSED)
+        } else {
+            val pending = archives.find(ticket.id)
+            tell(event.reply, if (pending != null && pending.lastError == null) TicketTexts.CLOSING else TicketTexts.ARCHIVE_FAILED)
         }
-        try {
-            journal.archive(TicketTexts.journalClosed(ticket.id, ticket.kind, ticket.userId, event.user.id))
-            pack(lines).forEach { journal.archive(it) }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) {
-            log.warn("Bot Discord, tickets : envoi de l'archive refusé pour {}", ticket.id)
-            return tell(event.reply, TicketTexts.ARCHIVE_FAILED)
-        }
-        store.close(ticket.id, event.user.id, context.timer.now())
-        try {
-            context.server.deleteChannel(ticket.channelId)
-        } catch (e: DiscordRefusal) {
-            log.warn("Bot Discord, tickets : le salon du ticket {} n'a pas pu être supprimé : {}", ticket.id, e.message)
-        }
-    }
-
-    /** Les lignes de l'archive en messages de [BotMessage.MAX_TEXT] caractères au plus, coupés entre deux lignes. */
-    private fun pack(lines: List<String>): List<String> {
-        val packed = mutableListOf<String>()
-        val current = StringBuilder()
-        for (line in lines.flatMap { it.chunked(BotMessage.MAX_TEXT) }) {
-            if (current.isNotEmpty() && current.length + 1 + line.length > BotMessage.MAX_TEXT) {
-                packed += current.toString()
-                current.setLength(0)
-            }
-            if (current.isNotEmpty()) current.append('\n')
-            current.append(line)
-        }
-        if (current.isNotEmpty()) packed += current.toString()
-        return packed
     }
 
     private fun staffRoles(): Set<String> = setOfNotNull(context.ids.role(STAFF), context.ids.role(MODERATION))
@@ -326,9 +321,6 @@ class TicketFeature(
 
         /** L'auteur d'un ticket que le bot ferme lui-même ; un identifiant Discord n'a jamais cette forme. */
         const val BOT = "bot"
-
-        /** Les derniers messages du salon que l'archive recopie. */
-        const val HISTORY = 200
 
         val log = LoggerFactory.getLogger(TicketFeature::class.java)
     }

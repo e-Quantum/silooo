@@ -1,6 +1,14 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 8 novembre 2026, reprise complète des références et première tranche des tickets.
+Dernière mise à jour : 8 novembre 2026, lot C1b développé et validé automatiquement.
+
+### Lot C1b : reprise autonome
+
+Main `d7bc9ab` intégré. V21 est réservée au parcours durable des archives de tickets.
+Voir [discord-archives.md](discord-archives.md) : capture paginée, reprise des envois et des suppressions,
+contrôle du journal privé, fichiers UTF-8 et purge. Les textes restent à valider par Kr.
+Le code est validé automatiquement ; le déploiement et la recette humaine restent ouverts.
+
 
 ### Reprise du 8 novembre : plan complet et support
 
@@ -15,7 +23,7 @@ des tickets. Aucun changement de source ou de service SileneMC.
 - [x] Comparatif, catalogue, dépendances et priorités C0 à C7 rédigés.
 - [x] Prise en charge/libération persistantes, commande `/ticket`, statut et contrôle des rôles actuels écrits.
 - [x] Fermeture sécurisée : conserver le ticket et son salon si l'archive ne peut pas être lue ou envoyée.
-- [ ] Transcript intégral, pièces jointes et reprise durable d'une fermeture interrompue : prochain lot C1b.
+- [x] Transcript textuel paginé, références des pièces jointes et reprise durable d'une fermeture interrompue : C1b validé.
 - [ ] Formulaires, priorité, transfert et participants : reste de C1.
 - [ ] Déploiement et recette réelle de cette tranche, distincts des tests automatisés.
 
@@ -1147,3 +1155,18 @@ Publication du 8 novembre : le push HTTPS n'a pas d'identifiant GitHub configur�
 la création de l'arbre avec HTTP 403 « Resource not accessible by integration ». Aucun push ni déploiement
 n'a abouti. Les commits validés restent sur `claude/discord-complet-20261108` ; le plan, le patch et un bundle Git
 sont exportés dans les livrables du chat. La recette humaine et les validations de textes restent ouvertes.
+
+
+### Validation du lot C1b — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur : 2 467 tests du service (0 échec, 0 erreur, 0 ignoré),
+1 742 tests add-on et son build, 170 contrôles d'outillage. Les tests du service comprennent 18 scénarios
+du coordinateur d'archives, 4 tests SQL sur une MariaDB 12.3.3 isolée, 25 tests de tickets et 2 tests
+des fichiers d'archive. Les contrôles des définitions, types générés, textes, liens et pack passent.
+Le contrôle Chromium du site reste ignoré faute de navigateur ; un cas de permissions de fichiers est
+automatiquement ignoré par l'outillage exécuté en root. Aucun test SQL n'est ignoré.
+
+V21 est livrée avec la capture paginée, le passage en lecture seule, les références de fichiers et cartes,
+la réconciliation des envois, la reprise après suppression et la purge. Les tickets contenant des fils
+non archivés sont conservés. Le bot doit avoir les droits de gestion des fils pour vérifier leur présence.
+Les textes nouveaux restent **à valider par Kr** ; aucun déploiement ni recette humaine n'est déclaré.

@@ -1247,3 +1247,27 @@ Publication du 8 novembre : le push HTTPS n'a pas d'identifiant GitHub configur�
 la création de l'arbre avec HTTP 403 « Resource not accessible by integration ». Aucun push ni déploiement
 n'a abouti. Les commits validés restent sur `claude/discord-complet-20261108` ; le plan, le patch et un bundle Git
 sont exportés dans les livrables du chat. La recette humaine et les validations de textes restent ouvertes.
+
+
+### Archives complètes des tickets — 8 novembre 2026
+
+Reprise autonome demandée par Kr. Main `d7bc9ab` intégré sans réécriture de l'historique.
+V21 réservée aux archives des tickets : progression paginée, livraisons et reprise de fermeture.
+Décision prise sans Kr : archive textuelle par fichiers, références des pièces jointes sans téléchargement
+des médias, copie SQL temporaire et purge après la durée définie dans `definitions/discord.json`.
+Les nouveaux textes de fermeture restent **à valider par Kr**. Aucun service de production modifié.
+
+
+### Validation du lot C1b — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur : 2 467 tests du service (0 échec, 0 erreur, 0 ignoré),
+1 742 tests add-on et son build, 170 contrôles d'outillage. Les tests du service comprennent 18 scénarios
+du coordinateur d'archives, 4 tests SQL sur une MariaDB 12.3.3 isolée, 25 tests de tickets et 2 tests
+des fichiers d'archive. Les contrôles des définitions, types générés, textes, liens et pack passent.
+Le contrôle Chromium du site reste ignoré faute de navigateur ; un cas de permissions de fichiers est
+automatiquement ignoré par l'outillage exécuté en root. Aucun test SQL n'est ignoré.
+
+V21 est livrée avec la capture paginée, le passage en lecture seule, les références de fichiers et cartes,
+la réconciliation des envois, la reprise après suppression et la purge. Les tickets contenant des fils
+non archivés sont conservés. Le bot doit avoir les droits de gestion des fils pour vérifier leur présence.
+Les textes nouveaux restent **à valider par Kr** ; aucun déploiement ni recette humaine n'est déclaré.
