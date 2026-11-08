@@ -11,13 +11,13 @@ Lire ceci avant tout le reste : c'est ce qui est vrai ce soir, le détail est da
 
 **Ce qui tourne sur le VPS** (projet Docker `silooo`, déployé à la main par les sessions de la Carrière et du Discord) :
 
-- `silooo-bds:carriere-26a4b77-lan` : la Carrière 0.1.9, image construite sur le VPS depuis `claude/carriere-ile`.
+- `silooo-bds:carriere-e53a1cd` : la Carrière 0.1.9, image construite sur le VPS depuis `claude/carriere-ile`.
   C'est **le jeu de référence** : Kr le garde.
-- `silooo-core:discord-2ade9f1` : le service avec le bot Oooscar. **Le commit `2ade9f1` n'est ni sur GitHub ni sur le
-  PC** : il n'existe que sur le VPS. À récupérer en premier (le pousser sur une branche `claude/`), sinon ce travail se
-  perd au prochain déploiement.
-- La base `silooo` du VPS est à V17 (`V17__salle_attente.sql`, appliquée le 7 novembre). Les migrations du commit
-  `2ade9f1`, s'il en a, ne sont pas connues.
+- `silooo-core:discord-2ade9f1` : le service avec le bot Oooscar, fait par une session Codex sous le compte `krenter`
+  du VPS. **Récupéré le 8 novembre à 21 h** : `2ade9f1` et la passe « c2b » non commitée (verrou des salons, V23) sont
+  sur `claude/discord-complet-20261108` (c82ae78), qui contient aussi tout `claude/discord-gestion-20261107`.
+- La base `silooo` du VPS est à **V22** : Codex y a appliqué V18 à V22 (modération, signalements, attribution et
+  archives des tickets, modération des membres). V23 (verrou des salons) n'est pas appliquée.
 
 **Ce qui est sur `main` et pas déployé** (`1aae851`, intégration de 19 h 25) : la Carrière (packs en 0.1.10) plus P0 à
 P3. `tools/verifier.sh` y était vert. Le BDS de `main` demande le core de `main` (P2 et P3 changent le contrat), et le
@@ -54,10 +54,11 @@ core de `main` n'a pas le bot de `2ade9f1` : déployer `main` aujourd'hui ferait
 
 **Ce qui n'est pas fini, dans l'ordre conseillé :**
 
-1. Récupérer `2ade9f1` depuis le VPS et le pousser sur une branche (le VPS n'a pas d'accès GitHub : passer par le PC).
+1. ~~Récupérer `2ade9f1`~~ : fait, `claude/discord-complet-20261108`. Le VPS pousse sur GitHub en SSH.
 2. Décider avec Kr ce qu'on retire de `main` parmi P0 à P3 (le tableau ci-dessus), puis le retirer par des commits
    de retour arrière, jamais en réécrivant l'historique.
-3. Intégrer le bot (`2ade9f1` et `claude/discord-gestion-20261107`, migrations renumérotées), puis `claude/attente-discord`.
+3. Intégrer le bot : prêt dans `claude/integration-discord` (`main` + `claude/discord-complet-20261108`, sans conflit,
+   V18 à V22 identiques à la production ; 2 518 tests du core dont les 383 SQL, aucun ignoré). Puis `claude/attente-discord`.
 4. Seulement après : déployer `main` avec `deploy/scripts/deploy.sh`, qui remplace les deux images construites à la main.
 5. Plus tard, à la demande de Kr : la nouvelle organisation des îles, puis la carte interactive, de nouveaux menus et
    une nouvelle fiche Usine, des glyphes et des cadenas refaits.
