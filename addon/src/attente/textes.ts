@@ -53,6 +53,20 @@ export const ACCUEIL_TEXTES = {
   horsLigne: "§7Le classement revient dans un instant.",
 } as const;
 
+/** L'adresse courte du Discord, celle du QR code et de la ligne qui bouge dans la barre d'action (silooo.com/discord/). */
+export const LIEN_DISCORD = `${SITE}/discord`;
+
+/** L'affiche Discord (bannière, QR code, bouton), à l'arrivée et à chaque chute. À VALIDER PAR KR. */
+export const AFFICHE_TEXTES = {
+  titre: "Le Discord de Silooo",
+  corps: "§fSilooo ouvre bientôt. Rejoins le Discord pour être prévenu de la bêta.",
+  suite: "§7Pour devenir Pionnier, relie ton compte avec /lier.",
+  lien: `§6§l${LIEN_DISCORD}§r`,
+  badge: "Discord",
+  legendeQr: "Scanne avec ton téléphone",
+  continuer: "Continuer",
+} as const;
+
 export const HOLOGRAMME_TEXTES = {
   silooo: "§l§6SILOOO§r\n§fOuverture bientôt",
   liens: `§f${SITE}\n§b${DISCORD_INVITATION}`,

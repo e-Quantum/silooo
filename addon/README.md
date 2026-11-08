@@ -1054,7 +1054,9 @@ nouveau : l'avant est « rien ». Les textes sont dans `src/attente/textes.ts` ;
 | Accueil, boutons | Devenir Pionnier / Ton code pour Discord ; Tu es Pionnier / Tu seras prévenu de la bêta ; Sauter / Reprendre le parcours ; Rejoindre Silooo / Le monde de test (testeurs) |
 | Accueil, sections | Dernières infos ; Rien de neuf pour l'instant. ; Le classement · cette semaine ; Ton rang : `<n>` ; Personne n'a encore sauté cette semaine. ; Déjà `<n>` pionniers. ; Le classement revient dans un instant. |
 | Hologrammes | SILOOO / Ouverture bientôt ; silooo.com / discord.gg/ySnDWk4Dus ; Dernières infos ; La semaine ; Personne encore |
-| Barre d'action | Score `<n>` · Record `<n>` |
+| Barre d'action | Score `<n>` · Record `<n>` · silooo.com/discord (la ligne scintille) |
+| Affiche Discord, à l'arrivée et à chaque chute | LE DISCORD DE SILOOO ; Silooo ouvre bientôt. Rejoins le Discord pour être prévenu de la bêta. ; Pour devenir Pionnier, relie ton compte avec /lier. ; silooo.com/discord ; Discord (badge de la bannière) ; Scanne avec ton téléphone (sous le QR code) ; Continuer |
+| Affiche Discord, visuels | bannière (logo, Oooscar, ciel et herbe de `design/`) et QR code vers https://silooo.com/discord/ |
 | Sous-titres | Chute à `<n>` ; Les sauts s'allongent (palier) |
 | Tchat, record battu | Nouveau record : `<n>` blocs. ; Ton record compte sur Discord : relie ton compte pour voir ton pseudo au podium du lundi. |
 | Tchat, rappel tous les 25 points | `<n>` blocs. Relie ton compte avec /lier sur Discord. |
@@ -1063,7 +1065,7 @@ nouveau : l'avant est « rien ». Les textes sont dans `src/attente/textes.ts` ;
 | Liaison vue en jeu | Bienvenue, Pionnier ; Ton compte Discord est relié ; nom au-dessus du joueur : Pionnier · `<pseudo>` |
 | Tchat, transfert raté | Le monde de test ne répond pas. Réessaie dans un moment. |
 | Nom du serveur (compose) | Silooo · ouverture bientôt |
-| Pack de ressources | Silooo, salle d'attente ; Les hologrammes de la salle d'attente de Silooo. |
+| Pack de ressources | Silooo, salle d'attente ; Les hologrammes et l'affiche Discord de la salle d'attente de Silooo. |
 | Écran Pionnier | inchangé depuis la v1 : 1. Rejoins le Discord de Silooo ; 2. Obtiens ton code ici. ; 3. Sur Discord, tape /lier puis ton code. ; Ton code ; Il reste valable 10 minutes. ; Obtenir mon code, Nouveau code, Réessayer, Fermer |
 | Discord, podium du lundi | Le saut infini de la semaine, dans la salle d'attente de Silooo : ; 1. `<pseudo>`, `<n>` blocs ; un joueur non relié ; Pour voir ton pseudo ici, relie ton compte avec /lier. |
 

@@ -249,6 +249,19 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     revient si elle est jetée. 32 places au lieu de 40 : la plage UDP ouverte (19175-19206) en compte 32, et 19207 est
     déjà pris par le monde de test. Le XUID reste l'empreinte du gamertag (décision 25) : un gamertag qui change donne
     encore une nouvelle ligne, jusqu'au vrai XUID.
+50. **L'affiche Discord de la salle d'attente (8 novembre 2026).** Demande de Kr : amener les visiteurs vers le Discord.
+    Tranché sans Kr : la pop-up est celle de Hubyy (`hub/src/main/resources/pub-pack/ui/server_form.json` et
+    `UIForms.createPubPoster`, lus seulement) : un `server_form.json` de pack qui dessine l'écran quand le titre porte un
+    marqueur, trois boutons (bannière, QR code, suite) dont le texte porte la zone ; recopiée dans
+    `resource-pack-attente/ui/server_form.json`, marqueur `§s§d§i§s`, sans le bouton « Rejoindre » ; textures de
+    `design/textures/` (panneau de fonte, bouton rouge, plaque bleue, ticket) ; bannière faite de `design/` par
+    `tools/generer_banniere_discord.py` (celle de Hubyy est une image distante, absente du dépôt) ; QR code de
+    `https://silooo.com/discord/` par `tools/generer_qr_discord.mjs` (un module = 8 pixels, aucun lissage). Elle s'ouvre
+    à l'arrivée, juste avant l'accueil, puis à chaque chute, jamais par-dessus un autre écran. La barre d'action ajoute
+    « silooo.com/discord », aqua, avec un reflet blanc qui la traverse toutes les 3 secondes environ (`lienAnime`) : ni
+    titre ni gras, le parcours reste lisible. Le pack de ressources passe en 0.2.0. Jamais essayé en jeu : l'affiche
+    remplace le `server_form.json` standard sur ce serveur seulement. Textes **à valider par Kr** : `AFFICHE_TEXTES`,
+    `addon/README.md` « Textes à valider, salle d'attente ».
 
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en

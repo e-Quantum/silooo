@@ -27,6 +27,7 @@ import type { LobbyBoard, LobbyPlayer, Xuid } from "../protocol";
 import { consoleLogger, createRequestIdGenerator, describeError } from "../runtime";
 import { createFormPresenter } from "../ui/formulaires";
 import { construireAccueil, montrerAccueil } from "./accueil";
+import { lienAnime, montrerAffiche } from "./affiche";
 import { ajouter, cleBloc, dansZone, ecrireFile, lireFile, sansLesOccupes, zoneAutour, zonesDeBalayage, type Zone } from "./menage";
 import { couloirLibre, depart, estTombe, prochainBloc, surLeBloc, type Bloc, type Pas } from "./parcours";
 import { ecranPionnier } from "./pionnier";
@@ -356,6 +357,21 @@ function attendre(secondes: number): Promise<void> {
   return new Promise((resolve) => system.runTimeout(resolve, Math.max(1, Math.round(secondes * TICKS))));
 }
 
+/**
+ * L'affiche Discord (bannière et QR code), à l'arrivée du joueur et à chacune de ses chutes. Elle ne s'ouvre pas par-dessus
+ * un autre écran : [essais] vaut 1 pour une chute, ATTENTE.rythmes.accueilEssais à l'arrivée.
+ */
+async function ouvrirAffiche(player: Player, essais: number): Promise<void> {
+  const visiteur = visiteurs.get(player.id);
+  if (visiteur === undefined || visiteur.ecranOuvert) return;
+  visiteur.ecranOuvert = true;
+  try {
+    await montrerAffiche({ show: (spec) => ecrans.show(player, spec), attendre, essais });
+  } finally {
+    visiteur.ecranOuvert = false;
+  }
+}
+
 async function ouvrirAccueil(player: Player, nouveau: boolean): Promise<void> {
   const visiteur = visiteurs.get(player.id);
   if (visiteur === undefined || visiteur.ecranOuvert) return;
@@ -439,6 +455,7 @@ function rejoindre(player: Player): void {
   void chargerJoueur(player, visiteur)
     .catch((error: unknown) => log.warn(`état du visiteur : ${describeError(error)}`))
     .then(() => attendre(ATTENTE.rythmes.accueilSecondes))
+    .then(() => (player.isValid ? ouvrirAffiche(player, ATTENTE.rythmes.accueilEssais) : undefined))
     .then(() => (player.isValid ? ouvrirAccueil(player, nouveau) : undefined))
     .catch((error: unknown) => log.error(`accueil : ${describeError(error)}`));
 }
@@ -481,11 +498,13 @@ function tour(player: Player, course: Course, visiteur: Visiteur): void {
     // le bloc de départ reste
     retirerOuPlusTard(dimension, course.score > 0 ? [course.actuel.bloc, course.suivant.bloc] : [course.suivant.bloc]);
     demarrer(player, course.couloir);
+    void ouvrirAffiche(player, 1).catch((error: unknown) => log.warn(`affiche Discord : ${describeError(error)}`));
     void envoyerCourse(player, visiteur, score, secondes).catch((error: unknown) => log.warn(`course : ${describeError(error)}`));
     return;
   }
   const record = Math.max(visiteur.joueur?.best ?? 0, course.score);
-  player.onScreenDisplay.setActionBar(ATTENTE_TEXTES.barre(course.score, record));
+  // Un pas d'animation = 2 ticks, la cadence de cette boucle : « silooo.com/discord » scintille à droite du score.
+  player.onScreenDisplay.setActionBar(`${ATTENTE_TEXTES.barre(course.score, record)} §8·§r ${lienAnime(system.currentTick / 2)}`);
 }
 
 // ---------------------------------------------------------------- le branchement
