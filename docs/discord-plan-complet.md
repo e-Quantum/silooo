@@ -43,7 +43,7 @@ reflètent cet état ; elles ne constituent pas une approbation manuelle supplé
 | --- | --- | --- |
 | John : accueil, liaison, annonces et événements | Parcours console/téléphone/PC, annonces avec aperçu, rôles de notification choisis | Socle déjà présent ; audit du parcours à poursuivre |
 | John : tickets et transcription | Sujets privés, formulaire par catégorie, prise en charge, suivi, archive | Prise en charge et archives durables livrées ; formulaires et transfert restent prévus |
-| John : modération et historique | Avertir, timeout, rétablir, dossier ; expulsion et bannissement/débannissement ; puis nettoyage, mode lent, verrouillage | C2a livré et déployé ; C2b reste prévu |
+| John : modération et historique | Avertir, timeout, rétablir, dossier ; expulsion et bannissement/débannissement ; puis nettoyage, mode lent, verrouillage | C2a livré et déployé ; C2b en validation |
 | John : réponses et journaux | FAQ contrôlée, événements de serveur, journal des changements et des échecs | Prévu ; journal technique déjà présent |
 | John : concours et soutiens | Giveaways gratuits, opt-in, rôle Soutien et récompenses décidées par le service | Socle présent ; livraison des lots en jeu à achever |
 | Bot vocal : liaison et synchronisation | Liaison prouvée, rôles du jeu, surnom ; salons temporaires et bureaux d'entreprise | Socle présent ; recette réelle et outils du propriétaire à poursuivre |
@@ -136,6 +136,14 @@ Les sanctions utilisent les mêmes confirmations et dossiers durables que les ti
 le journal ; les droits natifs restent distincts et ne sont pas accordés automatiquement aux rôles.
 Le bannissement conserve les messages ; le dossier se consulte par identifiant après un départ.
 C2 reste ouvert pour les purges, le mode lent et les verrouillages avec restauration exacte.
+
+## Tranche C2b du 8 novembre
+
+Le [parcours des salons](discord-salons.md) couvre la purge avec sélection stable, le mode lent et
+les verrouillages persistants. V23 garde séparément les dossiers et les permissions de restauration.
+Les salons visés sont explicites dans les définitions ; les forums, fils, tickets, bureaux et panneaux
+sont exclus. Les exceptions manuelles conflictuelles provoquent un refus ; aucune mutation incertaine
+n'est rejouée automatiquement. Le déploiement et la recette restent à confirmer dans la passation.
 
 ## Recette et suite
 

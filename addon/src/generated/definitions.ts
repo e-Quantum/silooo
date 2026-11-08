@@ -334,6 +334,14 @@ export type DiscordDefinitions = {
     readonly recherchePages: number;
     readonly fichierMaxOctets: number;
   };
+  readonly salonsModeration: {
+    readonly salons: readonly string[];
+    readonly purgeMaxMessages: number;
+    readonly rechercheMessages: number;
+    readonly ancienneteMaxJours: number;
+    readonly modesLentsSecondes: readonly number[];
+    readonly repriseVerrouSecondes: number;
+  };
 };
 
 /** Un identifiant du plan du serveur : minuscules, chiffres et tirets. */

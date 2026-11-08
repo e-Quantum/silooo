@@ -51,6 +51,14 @@ class ClosedServer(
         inner.membershipAction(actorId, targetId, action, reason, allowedRoleIds)
     }
 
+    override suspend fun channelModerationSnapshot(actorId: String, channelId: String, action: ChannelAction, allowedRoleIds: Set<String>): ChannelModerationSnapshot {
+        throw ChannelActionRefused("La modération des salons publics est retenue tant que le QG est fermé.")
+    }
+    override suspend fun channelModerationExecute(case: ChannelModerationCase, now: java.time.Instant, allowedRoleIds: Set<String>, rules: ChannelModerationRules): Int {
+        heldCount.incrementAndGet()
+        throw ChannelActionRefused("La modération des salons publics est retenue tant que le QG est fermé.")
+    }
+
     override suspend fun post(channelId: String, message: BotMessage): String = inner.post(channelId, onlyStaffRoles(message))
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {

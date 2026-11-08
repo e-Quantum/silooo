@@ -144,7 +144,9 @@ internal class JdaEvents(
 
     override fun onButtonInteraction(event: ButtonInteractionEvent) {
         if (event.guild?.idLong != guildId && !isAccountButton(event.componentId)) return
-        offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event)))
+        if (isModerationButton(event.componentId)) {
+            event.deferEdit().queue({ offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event, deferred = true))) })
+        } else offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event)))
     }
 
     override fun onStringSelectInteraction(event: StringSelectInteractionEvent) {
@@ -214,4 +216,5 @@ internal class JdaReply(
 internal val ACCOUNT_COMMANDS = setOf("entreprise", "usine")
 internal fun isAccountButton(id: String): Boolean = id.startsWith("jeu-montrer:") || id.startsWith("rappels-arreter:")
 
-internal val MODERATION_COMMANDS = setOf("avertir", "timeout", "retablir", "dossier", "gestion")
+internal val MODERATION_COMMANDS = setOf("avertir", "timeout", "retablir", "dossier", "gestion", "expulser", "bannir", "debannir", "purger", "mode-lent", "verrouiller", "deverrouiller")
+internal fun isModerationButton(id: String) = id.startsWith("moderation-") || id.startsWith("salon-confirmer:") || id.startsWith("salon-annuler:")

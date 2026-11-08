@@ -39,6 +39,8 @@ class DiscordRest(
     private val api: String = API,
 ) : AutoCloseable {
 
+    internal val channelModeration = ChannelModerationRest(token, client, api)
+
     /** L'accueil guidé du serveur [guildId] ; un serveur qui n'en a jamais eu rend un état vide, désactivé. */
     suspend fun onboarding(guildId: String): OnboardingState =
         exchange("lire l'accueil guidé") { client.get(api + "/guilds/" + guildId + "/onboarding") { asBot() } }

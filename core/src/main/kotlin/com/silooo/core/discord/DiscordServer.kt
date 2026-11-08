@@ -40,6 +40,13 @@ interface DiscordServer {
         throw DiscordRefusal("La modération des membres n'est pas disponible.")
     }
 
+    suspend fun channelModerationSnapshot(actorId: String, channelId: String, action: ChannelAction, allowedRoleIds: Set<String>): ChannelModerationSnapshot =
+        throw ChannelActionRefused("La modération des salons n'est pas disponible.")
+    suspend fun channelPurgeCandidates(actorId: String, channelId: String, count: Int, now: Instant, allowedRoleIds: Set<String>, rules: ChannelModerationRules): List<String> =
+        throw ChannelActionRefused("La purge n'est pas disponible.")
+    suspend fun channelModerationExecute(case: ChannelModerationCase, now: Instant, allowedRoleIds: Set<String>, rules: ChannelModerationRules): Int =
+        throw ChannelActionRefused("La modération des salons n'est pas disponible.")
+
     /** Droits effectifs du membre, et pas seulement ceux du bot, pour lire un message signalé. */
     suspend fun canReadChannel(channelId: String, userId: String): Boolean = false
 

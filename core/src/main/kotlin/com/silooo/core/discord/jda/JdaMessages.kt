@@ -125,6 +125,8 @@ internal object JdaMessages {
             CommandPermission.MODERATE_MEMBERS -> Permission.MODERATE_MEMBERS
             CommandPermission.KICK_MEMBERS -> Permission.KICK_MEMBERS
             CommandPermission.BAN_MEMBERS -> Permission.BAN_MEMBERS
+            CommandPermission.MANAGE_MESSAGES -> Permission.MESSAGE_MANAGE
+            CommandPermission.MANAGE_CHANNELS -> Permission.MANAGE_CHANNEL
             null -> null
         }
         if (permission != null) data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(permission))

@@ -114,5 +114,25 @@
     "conservationJours": 30,
     "recherchePages": 10,
     "fichierMaxOctets": 4000000
+  },
+  "salonsModeration": {
+    "salons": [
+      "discussion",
+      "medias",
+      "captures"
+    ],
+    "purgeMaxMessages": 100,
+    "rechercheMessages": 100,
+    "ancienneteMaxJours": 13,
+    "modesLentsSecondes": [
+      0,
+      5,
+      10,
+      30,
+      60,
+      300,
+      3600
+    ],
+    "repriseVerrouSecondes": 300
   }
 }

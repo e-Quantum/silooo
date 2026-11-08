@@ -65,6 +65,7 @@ class ManagementFeature(private val context: BotContext) : Feature {
         val text = buildString {
             append("Gestion du Discord\nPhase : ").append(context.phase.name.lowercase()).append("\n\n")
             append("Modération : /avertir, /timeout, /retablir, /expulser, /bannir, /debannir, /dossier.\n")
+            append("Salons : /purger, /mode-lent, /verrouiller, /deverrouiller.\n")
             append("Signaler : menu Applications du message, puis Signaler.\n")
             if (staff) append("Publication : /annonce, /spoil, /giveaway, /sondage, /suggestion.\n")
             append("\nSalons du staff\n")

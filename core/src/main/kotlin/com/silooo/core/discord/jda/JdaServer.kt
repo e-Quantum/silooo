@@ -169,6 +169,15 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
     override suspend fun timeoutMember(actorId: String, targetId: String, until: java.time.Instant?, reason: String, allowedRoleIds: Set<String>) =
         JdaStaffActions(guild).timeout(actorId, targetId, until, reason, allowedRoleIds)
 
+    override suspend fun channelModerationSnapshot(actorId: String, channelId: String, action: com.silooo.core.discord.ChannelAction, allowedRoleIds: Set<String>) =
+        rest.channelModeration.snapshot(guild.id, guild.selfMember.id, actorId, channelId, action, allowedRoleIds)
+
+    override suspend fun channelPurgeCandidates(actorId: String, channelId: String, count: Int, now: java.time.Instant, allowedRoleIds: Set<String>, rules: com.silooo.core.discord.ChannelModerationRules) =
+        rest.channelModeration.candidates(guild.id, guild.selfMember.id, actorId, channelId, count, allowedRoleIds, rules, now)
+
+    override suspend fun channelModerationExecute(case: com.silooo.core.discord.ChannelModerationCase, now: java.time.Instant, allowedRoleIds: Set<String>, rules: com.silooo.core.discord.ChannelModerationRules) =
+        rest.channelModeration.execute(guild.id, guild.selfMember.id, case, allowedRoleIds, rules, now)
+
     override suspend fun canReadChannel(channelId: String, userId: String): Boolean = JdaStaffActions(guild).canRead(channelId, userId)
 
     override suspend fun rulesChannelId(): String? = guild.rulesChannel?.id

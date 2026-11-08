@@ -42,6 +42,7 @@ object BotFeatures {
         ) + listOf(
             ManagementFeature(context),
             ModerationFeature(context, definitions.moderation, JdbcModerationStore(database, definitions.moderation.retentionDays), ServerModerationGateway(context), journal),
+            ChannelModerationFeature(context, definitions.channelModeration, definitions.moderation, JdbcChannelModerationStore(database), ServerChannelModerationGateway(context, definitions.channelModeration), journal),
             SignalementFeature(context, signalements, definitions.reporting.rules(), context.server::canReadChannel),
             WelcomeFeature(context, definitions.welcome, members, reports, remindersAvailable = true),
             ReminderFeature(context, definitions.reminders, definitions.zone, JdbcReminderStore(database), links),

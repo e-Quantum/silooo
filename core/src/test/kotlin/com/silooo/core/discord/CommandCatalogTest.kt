@@ -26,8 +26,8 @@ class CommandCatalogTest {
             throw AssertionError("Le catalogue ne lit pas le nombre de joueurs")
         })(context)
         val commands = features.flatMap { it.commands }
-        assertEquals(setOf("spoil", "annonce", "niveau", "giveaway", "lier", "delier", "entreprise", "usine", "classement", "vote", "rappels", "bureau", "sondage", "suggestion", "gestion", "avertir", "timeout", "retablir", "dossier", "expulser", "bannir", "debannir", "Signaler", "ticket"), commands.map { it.name }.toSet())
-        assertEquals(24, commands.size, "aucun nom dupliqué dans le catalogue")
+        assertEquals(setOf("spoil", "annonce", "niveau", "giveaway", "lier", "delier", "entreprise", "usine", "classement", "vote", "rappels", "bureau", "sondage", "suggestion", "gestion", "avertir", "timeout", "retablir", "dossier", "expulser", "bannir", "debannir", "purger", "mode-lent", "verrouiller", "deverrouiller", "Signaler", "ticket"), commands.map { it.name }.toSet())
+        assertEquals(28, commands.size, "aucun nom dupliqué dans le catalogue")
 
         for (spec in commands) {
             val command = JdaMessages.command(spec)
@@ -50,6 +50,8 @@ class CommandCatalogTest {
                 "gestion", "avertir", "timeout", "retablir", "dossier" -> Permission.MODERATE_MEMBERS.rawValue
                 "expulser" -> Permission.KICK_MEMBERS.rawValue
                 "bannir", "debannir" -> Permission.BAN_MEMBERS.rawValue
+                "purger" -> Permission.MESSAGE_MANAGE.rawValue
+                "mode-lent", "verrouiller", "deverrouiller" -> Permission.MANAGE_CHANNEL.rawValue
                 else -> null
             }
             assertEquals(expected != null, spec.staffOnly)

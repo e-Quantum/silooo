@@ -1371,3 +1371,15 @@ Publication de C2a : le push HTTPS de `claude/discord-complet-20261108` échoue 
 faute d'identifiant GitHub disponible (terminal prompts disabled). Aucune clé n'est recherchée.
 Le déploiement local est confirmé ; la branche, le patch et un bundle Git sont conservés dans
 les livrables du chat. La branche reste à publier avant l'intégration de ces fonctions dans main.
+
+
+### C2b — salons, en développement — 8 novembre 2026
+
+V23 réservée aux confirmations de purge/mode lent/verrouillage et aux permissions à restaurer.
+Décisions autonomes : salons de texte publics autorisés par les définitions uniquement ; tickets, forums,
+journaux et panneaux exclus. Purge des messages sélectionnés à l'aperçu, épinglés et anciens conservés.
+Verrou sur les quatre bits d'écriture de @everyone ; refus si une exception non staff le contourne.
+Les états initiaux durent jusqu'au déverrouillage, indépendamment de la rétention de l'audit.
+Aucune mutation n'est rejouée automatiquement après un résultat incertain ; un déverrouillage demandé
+manuellement peut réconcilier l'état après l'attente configurée. Aucun nouveau droit natif accordé aux rôles.
+Les textes nouveaux sont **à valider par Kr**.
