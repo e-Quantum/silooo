@@ -6,7 +6,9 @@ Dernière mise à jour : 8 novembre 2026, reprise complète des références et 
 
 Le [plan complet](discord-plan-complet.md) devient l'ordre des prochains lots. Sources vérifiées : John, le bot
 vocal et Gaby dans `/var/www/minecraft/deploy/discord-*` (lecture autorisée par Kr), documentation Dyno et site Hurix.
-La branche `claude/discord-complet-20261108` part de main `61ce234` et réunit la gestion Discord `6ce48e0`.
+La branche `claude/discord-complet-20261108` part de main `61ce234`, réunit la gestion Discord `6ce48e0`,
+puis intègre main `bfd9f07` : l'admission en bêta est automatique (décision 21 du site). Les anciens paragraphes
+sur l'approbation manuelle décrivent l'historique ; ils ne priment pas sur cette règle.
 V17 de la salle d'attente reste intacte ; modération et signalements prennent V18 et V19 ; V20 ajoute l'affectation
 des tickets. Aucun changement de source ou de service SileneMC.
 
@@ -1130,3 +1132,13 @@ session livre seulement le core, et communique le tag de l'add-on correspondant 
 - Textes à valider par Kr : instructions de liaison et déliaison, cartes entreprise/usine/classement/vote, préférences
   et messages des rappels, bureaux publics, sondages et résultats, tableau du jeu, records, états de suggestions.
 - Décision autonome provisoire : paliers de prestige 1/5/10/25/50, laiton à partir de 5. Aucun effet économique.
+
+
+### Validation de la reprise Discord — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur sur la version intégrant main `bfd9f07` :
+2 439 tests Gradle, sans échec, erreur ni test ignoré (MariaDB 12.3.3 de test comprise) ;
+1 742 tests add-on et son build ; 170 contrôles d'outillage ; définitions, textes, plan Discord,
+liens et pack de ressources valides. Les tests SQL des tickets et le parcours de gestion passent.
+Le contrôle du site dans Chromium est ignoré, le navigateur n'étant pas installé.
+La recette humaine Discord et le déploiement restent à faire ; les nouveaux textes restent à valider par Kr.

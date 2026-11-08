@@ -1,6 +1,7 @@
 package com.silooo.core.registration
 
 import java.sql.Connection
+import java.time.Clock
 import java.util.Locale
 
 /** Une inscription telle que le site la montre. L'identifiant Discord n'y est pas : il ne sort jamais de la base. */
@@ -72,27 +73,36 @@ object SiteRegistrations {
     fun key(gamertag: String): String = gamertag.trim().replace(SPACES, " ").lowercase(Locale.ROOT)
 }
 
-/** Les deux moments où une inscription peut devenir admise. */
-enum class AdmissionMoment { REGISTRATION, DISCORD_LINK }
+/**
+ * Les trois chemins par lesquels un joueur entre en bêta (décision 21 de `docs/site-passation.md` : l'admission est
+ * automatique, le staff n'admet personne). [admittedBy] est ce que `beta_access.admitted_by` garde, un chemin par mot.
+ */
+enum class AdmissionPath(val admittedBy: String) {
+    /** (a) Le joueur a relié son compte Discord en jeu : la preuve D3, un code montré en jeu et saisi sur Discord. */
+    DISCORD_IN_GAME("regle:discord-jeu"),
+
+    /** (b) Il est Pionnier par le code de la salle d'attente (`issueLobbyLinkCode`). */
+    LOBBY_PIONEER("regle:pionnier-salle"),
+
+    /** (c) Il s'est inscrit sur le site avec la connexion Microsoft (Xbox), avant ou après l'ouverture. */
+    MICROSOFT("regle:microsoft"),
+}
 
 /**
- * La règle d'admission, en un seul endroit (`SILOOO_SITE_ADMISSION`). `admitted_at` est posé :
- *  - avec [TOUS], dès l'inscription ;
- *  - avec [DISCORD], au moment où le compte Discord est relié.
- * Kr peut aussi admettre à la main (requête dans `core/README.md`). Le site ne retire jamais une admission.
+ * La règle d'admission, en un seul endroit. Un joueur entre en bêta par un des [AdmissionPath] et par rien d'autre : une
+ * inscription par Discord seul, une saisie sur `/compte/lier/` sans preuve du jeu, ou un lien Discord posé sur le site
+ * n'admettent personne. [admit] pose `beta_access` (ce que `session/join` lira en mode `beta`) et `admitted_at` de
+ * `site_registrations` (V7, que le bot lit), les deux ensemble ; une admission n'est jamais retirée. Le site reste
+ * celui qui écrit : le staff n'admet plus, et il n'y a plus de réglage.
  */
-enum class SiteAdmission(val word: String) {
-    DISCORD("discord"),
-    TOUS("tous"),
-    ;
-
-    /** `true` quand l'inscription doit être admise à ce moment. */
-    fun admitsAt(moment: AdmissionMoment): Boolean = when (this) {
-        TOUS -> true
-        DISCORD -> moment == AdmissionMoment.DISCORD_LINK
-    }
-
-    companion object {
-        fun parse(raw: String): SiteAdmission? = entries.firstOrNull { it.word == raw.trim().lowercase() }
+class SiteAdmission(
+    private val betaAccess: BetaAccessStore = JdbcBetaAccessStore(),
+    private val registrations: SiteRegistrationStore = JdbcSiteRegistrationStore(),
+    private val clock: Clock = Clock.systemUTC(),
+) {
+    /** `true` si le joueur vient d'entrer, `false` s'il l'était déjà. [gamertag] donne la clé de V7, [playerXuid] l'empreinte de `beta_access`. */
+    fun admit(connection: Connection, gamertag: String, playerXuid: String, path: AdmissionPath): Boolean {
+        registrations.admit(connection, SiteRegistrations.key(gamertag))
+        return betaAccess.admit(connection, playerXuid, path.admittedBy, clock.instant())
     }
 }

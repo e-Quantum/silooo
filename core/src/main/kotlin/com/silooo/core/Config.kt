@@ -6,7 +6,6 @@ import com.silooo.core.discord.BotMode
 import com.silooo.core.discord.BotToken
 import com.silooo.core.discord.ServerPhase
 import com.silooo.core.registration.DiscordConfig
-import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.XboxConfig
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
@@ -51,8 +50,6 @@ data class ServiceConfig(
     val discordUrl: String? = null,
     /** L'adresse et le port du jeu, la boutique et les sites de vote que les pages affichent (`SILOOO_SITE_ADRESSE_JEU` et suivantes). */
     val siteSettings: SiteSettings = SiteSettings(),
-    /** La règle d'admission des inscrits (`SILOOO_SITE_ADMISSION`). */
-    val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
     /** L'application Discord de « Relier Discord » ; `null` tant que Kr ne l'a pas créée. */
     val discord: DiscordConfig? = null,
     /** L'application Azure de « Se connecter avec Xbox » (`SILOOO_XBOX_CLIENT_ID` et `SILOOO_XBOX_CLIENT_SECRET`) ; `null` tant que Kr ne l'a pas créée : pas de porte Xbox. */
@@ -69,7 +66,7 @@ data class ServiceConfig(
     override fun toString() =
         "ServiceConfig(port=$port, apiKey=***, database=$database, definitionsDir=$definitionsDir, apiRequestRetention=$apiRequestRetention, " +
             "deliveryPoll=$deliveryPoll, sitePort=$sitePort, siteMode=${siteMode.word}, siteUrl=$siteUrl, discordUrl=$discordUrl, siteSettings=$siteSettings, " +
-            "siteAdmission=${siteAdmission.word}, discord=$discord, xbox=$xbox, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier, " +
+            "discord=$discord, xbox=$xbox, siteTrustedProxy=$siteTrustedProxy, payNowWebhookSecret=${if (payNowWebhookSecret == null) "absente" else "***"}, votifier=$votifier, " +
             "bot=${bot ?: "non"})"
 }
 
@@ -95,7 +92,6 @@ object Config {
     const val SITE_VOTE_SITES = "SILOOO_SITE_SITES_DE_VOTE"
     const val SITE_URL_SILENEMC = "SILOOO_SITE_URL_SILENEMC"
     const val SITE_URL_HUBYY = "SILOOO_SITE_URL_HUBYY"
-    const val SITE_ADMISSION = "SILOOO_SITE_ADMISSION"
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
     const val XBOX_CLIENT_ID = "SILOOO_XBOX_CLIENT_ID"
@@ -204,7 +200,6 @@ object Config {
         val siteUrl = reader.siteUrl(SITE_URL, DEFAULT_SITE_URL)
         val discordUrl = reader.siteUrl(SITE_URL_DISCORD, null)
         val siteSettings = reader.siteSettings()
-        val siteAdmission = reader.siteAdmission()
         val discord = reader.discord()
         val xbox = reader.xbox()
         val trustedProxy = reader.trustedProxy()
@@ -217,7 +212,7 @@ object Config {
             deliveryPoll = checkNotNull(deliveryPoll),
             sitePort = checkNotNull(sitePort), siteMode = checkNotNull(siteMode), siteUrl = checkNotNull(siteUrl), discordUrl = discordUrl,
             siteSettings = checkNotNull(siteSettings),
-            siteAdmission = checkNotNull(siteAdmission), discord = discord, xbox = xbox, siteTrustedProxy = checkNotNull(trustedProxy),
+            discord = discord, xbox = xbox, siteTrustedProxy = checkNotNull(trustedProxy),
             votifier = votifier,
             payNowWebhookSecret = payNowSecret,
             bot = bot,
@@ -407,17 +402,6 @@ object Config {
                 }
             }
             return sites
-        }
-
-        /** `discord` quand la variable n'est pas posée ; toute valeur inconnue arrête le démarrage. */
-        fun siteAdmission(): SiteAdmission? {
-            val raw = env[SITE_ADMISSION]
-            if (raw.isNullOrBlank()) return SiteAdmission.DISCORD
-            val rule = SiteAdmission.parse(raw)
-            if (rule == null) {
-                problems += "$SITE_ADMISSION doit valoir ${SiteAdmission.entries.joinToString(" ou ") { it.word }}"
-            }
-            return rule
         }
 
         /** Les deux variables de l'application Discord, ou aucune : une seule des deux est une erreur. */

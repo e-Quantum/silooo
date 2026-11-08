@@ -16,7 +16,7 @@ lit « Pour la direction du jeu », la direction du Discord lit « Pour la direc
   refaire, trois posées à Kr (T1 et T3 appliquées par leur recommandation, décisions 15 et 19 ; T2 attend). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
   est dans `docs/references/site-kit/`.
 - **Étape en cours** : `claude/site-socle`, `claude/site-gabarit`, `claude/site-attente` et `claude/site-comptes` sont finies
-  (fusionnées sur `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-admission` (décision 21), puis `claude/site-admin`.
+  (fusionnées sur `main` après `tools/verifier.sh` vert) ; `claude/site-ile` et `claude/site-admission` (décision 21) aussi ; la suivante est `claude/site-admin`.
 - **Kr** : une question encore ouverte dans la révision (T2) ; T1 et T3 ont été appliquées par leur recommandation
   (décisions 15 et 19), Kr peut les retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
 - **Le déploiement** : fait le 5 novembre 2026 à 21 h 46, à la demande de Kr en séance (« poste le site web dans l'état,
@@ -49,7 +49,7 @@ La page d'attente :
   `web_sessions`, pas dans Redis), R18 pour moitié (`beta_access` écrite par la règle ; le staff avec l'admin), R19 pour
   moitié (le Pionnier noté une fois, à l'inscription d'avant l'ouverture ; l'objet côté jeu), R21 pour `/compte/lier`,
   R23 selon T3
-- [ ] `claude/site-admission` (avant l'admin, décision 21) : la règle d'admission automatique en un seul endroit
+- [x] `claude/site-admission` (avant l'admin, décision 21) : la règle d'admission automatique en un seul endroit
   (`SiteAdmission`) et écrite dans `beta_access` pour les trois chemins : Discord relié en jeu, Pionnier (site avant
   l'ouverture, ou code de la salle d'attente, `issueLobbyLinkCode`), inscription sur le site par Microsoft ; ce que
   devient `SILOOO_SITE_ADMISSION` ; la porte au `session/join` en `beta` demandée à la direction du jeu (contrat d'abord)
@@ -182,6 +182,21 @@ garde une copie non suivie de `docs/references/site/`, identique octet pour octe
    partagés** : `Config.kt` (`xbox()`), `Main.kt` (`HttpXboxIdentity`), `Application.kt` (`Dependencies` : `xboxIdentity`,
    `guildJoiner`, les cinq dépôts des comptes), `core/README.md` (« Trois modes », les deux variables).
 
+11. **Ce que `claude/site-admission` touche et demande** (8 novembre 2026, décision 21 : l'admission est automatique).
+   (a) **Fichiers partagés, au minimum** : `Config.kt`, `Main.kt` et `Application.kt` perdent `siteAdmission` et
+   `SILOOO_SITE_ADMISSION` ; `GameDiscordLinks` (`discord/linking/`) perd le paramètre `admitted` de `enrollLobbyVisitor`
+   (la salle d'attente admet toujours) et appelle `SiteAdmission.admit` à la fin de `redeem` (le Discord relié en jeu
+   admet) : deux appels, aucun autre changement de comportement ; l'OpenAPI ne change que la phrase de
+   `issueLobbyLinkCode` (« admis selon `SILOOO_SITE_ADMISSION` » devient « admis en bêta, `regle:pionnier-salle` »), pas
+   le schéma. (b) **À retirer chez vous** : la ligne `# SILOOO_SITE_ADMISSION=discord` de `deploy/exemple.env.txt` et celle
+   de `docs/deploiement.md` (le site n'écrit pas dans `deploy/`) ; la variable posée dans un `.env` est ignorée sans
+   erreur. (c) **La porte au `session/join` en mode `beta`, à vous (contrat d'abord)** : refuser un joueur qui n'a pas de
+   ligne dans `beta_access` (`BetaAccessStore.find(connection, xuid)`, `registration/WebAccounts.kt`), avec un code
+   `Refused` de votre choix et un texte que le site pourra répéter. `beta_access` est la seule source : elle est écrite
+   par les trois chemins de la décision 21 (le `xuid` est l'empreinte du gamertag, comme dans `players`), jamais par le
+   staff. Le Pionnier (objet en jeu) reste lu dans `site_registrations.pioneer`. (d) **Pour le Discord** : voir le point 5
+   de « Pour la direction du Discord ».
+
 ## Pour la direction du Discord
 
 Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « Pour la direction du site »). Réponses
@@ -203,6 +218,14 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
 4. **Les actus** : une actu publiée depuis l'admin du site (R49) deviendra un événement du service pour le bot
    (décision 43 : le service publie, le bot écoute), avec un champ « aussi dans #annonces ». Le dessin de
    l'événement vous sera proposé ici avant la branche `claude/site-admin`.
+
+5. **L'admission n'est plus une décision du staff** (décision 21, 8 novembre 2026). Les boutons « Admettre » / « Refuser » /
+   « Plus tard » de `#admissions` posent `admitted_at` par `SiteRegistrationStore.admit`, sans écrire `beta_access` : le jeu
+   (qui lira `beta_access`) ne verrait pas cette admission, et la règle ne passe plus par le staff. Les chemins sont
+   `GameDiscordLinks.redeem` (Discord relié en jeu), la salle d'attente et la connexion Microsoft du site ; ils écrivent
+   `site_registrations.admitted_at` et `beta_access` ensemble (`SiteAdmission`). À vous d'en tirer la suite pour `#admissions` :
+   une liste en lecture, ou plus de cartes, et le rôle Bêta donné quand `beta_access` porte le joueur. Le site n'a rien
+   changé chez vous.
 
 ## À faire par Kr
 
@@ -395,6 +418,21 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
    la dit pas encore exactement (une inscription Xbox n'est admise qu'avec `tous`, le Pionnier en jeu passe par le jeu) :
    à aligner avant l'admin. La porte au `session/join` en mode `beta` reste au jeu (contrat d'abord), avec ces trois
    conditions.
+
+22. **`SILOOO_SITE_ADMISSION` disparaît** (8 novembre 2026, `claude/site-admission`, par la recommandation la plus simple). La
+   décision 21 fixe la règle : il n'y a plus rien à régler. La variable, `Config.siteAdmission`, `Dependencies.siteAdmission`
+   et l'énumération `discord` / `tous` sont supprimés ; une valeur restée dans un fichier d'environnement est ignorée
+   (elle n'arrête plus le démarrage). `SiteAdmission` est devenu la règle : `admit(connection, gamertag, playerXuid,
+   chemin)` pose `beta_access` et `admitted_at` ensemble, une seule fois, avec un `admitted_by` par chemin :
+   `regle:discord-jeu` (a, la preuve D3 faite par `GameDiscordLinks.redeem`), `regle:pionnier-salle` (b,
+   `enrollLobbyVisitor`, donc `issueLobbyLinkCode`), `regle:microsoft` (c, le retour de `/connexion/xbox/`, avant et après
+   l'ouverture ; avant, la ligne V7 est aussi Pionnier). Ce qui n'admet plus : la connexion Discord seule, le Discord posé
+   sur le site par un compte Xbox (déjà admis par c), une inscription sans preuve. Le Pionnier du site par Discord seul
+   n'a pas de gamertag, donc rien à admettre : il entre par a ou par c le jour où il en a un. Aucune migration (V11 porte
+   `beta_access`). Pas de remplissage des comptes Xbox inscrits sous l'ancienne règle `discord` : la porte Xbox attend
+   l'application Azure de Kr, donc il n'y en a pas en production ; une connexion Xbox admet de toute façon à chaque passage.
+   Le chemin `registration/DiscordLinks.redeem` (code tapé en jeu, route `POST /v1/links/discord` pas encore au contrat)
+   garde son paramètre `admit` : la route, quand elle viendra, appelle `SiteAdmission` avec `regle:discord-jeu`.
 
 ## À valider par Kr
 
@@ -713,3 +751,10 @@ plus. Ce qui les remplace, tout à valider :
   quatrième fichier). Tests du site verts (214), 66 pages à 360 et 1 280 px sans écart, capture de l'attente relue,
   scène vérifiée sous quatre angles dans Chromium (WebGL logiciel). `tools/verifier.sh` vert sans l'étape Gradle
   complète (sur le VPS, seuls les tests du site sont joués ici, le reste par la CI de la branche). Suite : `claude/site-admin`.
+- 8 novembre 2026 (direction du site, `claude/site-admission`). La décision 21 est dans le code : `SiteAdmission` est la règle
+  et écrit `beta_access` avec `admitted_at` pour les trois chemins (Discord relié en jeu, Pionnier de la salle d'attente, inscription
+  Microsoft) ; `SILOOO_SITE_ADMISSION` est supprimée (décision 22), aucune migration.
+- Tests : un par chemin (`SiteAdmissionTest`, `AccountRoutesTest`, `LobbyLinkRoutesTest`, `GameDiscordLinksSqlTest`) et le cas non
+  admis : inscrit par Discord seul après l'ouverture, aucune ligne `beta_access` ni V7. R18 est corrigée dans `site-revision.md`.
+- Demandé à la direction du jeu : la porte de `session/join` en mode `beta` (point 11 de sa section) ; à la direction du Discord :
+  `#admissions` n'admet plus (point 5). Suite proposée : `claude/site-admin` (R20, R42, reste de R49), sans admission.

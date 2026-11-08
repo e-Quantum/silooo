@@ -82,8 +82,6 @@ import com.silooo.core.registration.WebAccountStore
 import com.silooo.core.registration.WebSessionStore
 import com.silooo.core.registration.XboxIdentity
 import com.silooo.core.registration.JdbcSiteRegistrationStore
-import com.silooo.core.registration.AdmissionMoment
-import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.SiteRegistrationStore
 import com.silooo.core.site.SiteCaches
 import com.silooo.core.site.SiteMode
@@ -187,8 +185,6 @@ class Dependencies(
     val siteSettings: SiteSettings = SiteSettings(),
     /** Les accès SQL des inscriptions du site (`site_registrations`) : la seule table où le site écrit. */
     val siteRegistrationStore: SiteRegistrationStore = JdbcSiteRegistrationStore(),
-    /** La règle d'admission des inscrits (`SILOOO_SITE_ADMISSION`). */
-    val siteAdmission: SiteAdmission = SiteAdmission.DISCORD,
     /** Le fournisseur de « Se connecter avec Discord » ; `null` : l'application Discord n'est pas configurée, la porte dit « bientôt ». */
     val discordIdentity: DiscordIdentity? = null,
     /** Le fournisseur de « Se connecter avec Xbox » ; `null` : l'application Azure n'est pas configurée, la porte dit « bientôt ». */
@@ -247,7 +243,7 @@ class Dependencies(
         com.silooo.core.site.NewsArticles.published(com.silooo.core.site.NewsArticles.fromClasspath())
     },
     val lobbyLinkIssuer: (Connection, Xuid, String) -> GameLinkCode = { connection, actor, gamertag ->
-        GameDiscordLinks(database, clock).enrollLobbyVisitor(connection, actor, gamertag, siteAdmission.admitsAt(AdmissionMoment.REGISTRATION))
+        GameDiscordLinks(database, clock).enrollLobbyVisitor(connection, actor, gamertag)
     },
 )
 

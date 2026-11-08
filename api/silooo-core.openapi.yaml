@@ -54,7 +54,7 @@ paths:
       description: |
         La salle d'attente (serveur Bedrock ouvert à tous avant l'ouverture) n'appelle que cette route. Le joueur y est
         connu de Xbox, pas encore du service : la route crée sa ligne `players` (sans entreprise : `join` la créera),
-        l'inscrit pionnier dans `site_registrations` (admis selon `SILOOO_SITE_ADMISSION`, moment de l'inscription),
+        l'inscrit pionnier dans `site_registrations` et l'admet en bêta (`beta_access`, `admitted_by` = `regle:pionnier-salle`),
         puis émet le même code que `issueDiscordLinkCode`, à saisir avec `/lier` sur Discord.
       operationId: issueLobbyLinkCode
       requestBody:

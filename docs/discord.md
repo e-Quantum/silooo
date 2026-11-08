@@ -241,9 +241,9 @@ et chaque message porte « Arrêter ce rappel » : Silo plein, Vote party, séri
 entreprise (invitation, prestige lancé), Gemmes reçues. Trois par jour au plus, aucun de 22 h à 7 h à l'heure du
 joueur, sauf les Gemmes reçues. Le tuto d'arrivée est le seul message privé non demandé.
 
-**Le staff** agit par boutons, qui vérifient le rôle de celui qui clique : `#✅・admissions` (chaque inscription de la
-page d'attente en carte, lue dans `site_registrations`, avec Admettre, Refuser, Plus tard ; Admettre pose
-l'admission, donne le rôle Bêta, envoie l'invitation en privé ; sans liaison prouvée, l'inscrit attend) ; `/annonce`
+**Le staff** agit par boutons, qui vérifient le rôle de celui qui clique. Depuis la décision 21 du site,
+l'admission en bêta est automatique pour tous : `#✅・admissions` suit les inscriptions et ne crée pas de validation
+manuelle supplémentaire. Le profil et les rôles du jeu demandent toujours une liaison prouvée. `/annonce`
 (titre, texte, image, « Publier aussi dans les Actus du site », « Mentionner le rôle Actus », aperçu, contrôle anti-IA
 avant l'aperçu) ; `#🚩・signalements` (réservé à Modération) ; `#📒・journal-du-bot` (chaque geste du staff et du bot,
 le même journal que l'admin du site, et le rapport du lundi). `#🎫・tickets` porte un menu (question de jeu, achat ou

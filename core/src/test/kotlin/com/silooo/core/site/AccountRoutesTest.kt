@@ -17,7 +17,6 @@ import com.silooo.core.registration.InMemoryWebAccountStore
 import com.silooo.core.registration.InMemoryWebSessionStore
 import com.silooo.core.registration.LinkCodes
 import com.silooo.core.registration.RedeemOutcome
-import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.XboxFailure
 import com.silooo.core.registration.XboxProfile
 import io.ktor.client.HttpClient
@@ -141,7 +140,6 @@ class AccountRoutesTest {
 
     private fun withRig(
         mode: SiteMode = SiteMode.ATTENTE,
-        admission: SiteAdmission = SiteAdmission.DISCORD,
         withXbox: Boolean = true,
         withDiscord: Boolean = true,
         withJoiner: Boolean = true,
@@ -164,7 +162,7 @@ class AccountRoutesTest {
             siteModule(
                 Dependencies(
                     database, "cle", definitions = TestDefinitions.loaded, clock = clock, siteMode = mode, siteUrl = siteUrl,
-                    siteRegistrationStore = registrations, siteAdmission = admission,
+                    siteRegistrationStore = registrations,
                     discordIdentity = if (withDiscord) discord else null, xboxIdentity = if (withXbox) xbox else null,
                     guildJoiner = if (withJoiner) joiner else null, siteTrustedProxy = trustedProxy,
                     webAccountStore = accounts, waitlistStore = waitlist, discordLinkStore = links, betaAccessStore = beta, webSessionStore = sessions,
@@ -246,10 +244,10 @@ class AccountRoutesTest {
         assertNotNull(rig.tx { rig.waitlist.find(it, account.id) })
         val row = checkNotNull(rig.tx { rig.registrations.find(it, "kr test") })
         assertEquals(gamertag, row.gamertag)
-        assertFalse(row.admitted, "la règle discord n'admet pas à l'inscription")
+        assertTrue(row.admitted, "la connexion Microsoft admet dès l'inscription (c)")
         assertFalse(row.linked)
         assertEquals(1L, rig.tx { rig.registrations.countPioneers(it) })
-        assertNull(rig.tx { rig.beta.find(it, playerXuid) })
+        assertEquals("regle:microsoft", rig.tx { rig.beta.find(it, playerXuid) }?.admittedBy)
 
         val cookie = checkNotNull(rig.cookie(response, "silooo_session"))
         val noted = rig.page(rig.get("/pionniers/etat/", cookie))
@@ -268,12 +266,33 @@ class AccountRoutesTest {
     }
 
     @Test
-    @DisplayName("Avec la règle « tous », l'inscription par Xbox est admise tout de suite et beta_access est écrit")
-    fun admissionByRuleAtRegistration() = withRig(admission = SiteAdmission.TOUS) { rig ->
+    @DisplayName("Admission (c) : une seconde connexion Xbox n'écrit rien de plus ; la date et le chemin d'admission ne bougent pas")
+    fun xboxAdmissionIsWrittenOnce() = withRig { rig ->
         rig.loginXbox()
-        assertTrue(checkNotNull(rig.tx { rig.registrations.find(it, "kr test") }).admitted)
-        val access = checkNotNull(rig.tx { rig.beta.find(it, playerXuid) })
-        assertEquals("regle:tous", access.admittedBy)
+        val first = checkNotNull(rig.tx { rig.beta.find(it, playerXuid) })
+        rig.clock.advance(java.time.Duration.ofHours(2))
+        rig.loginXbox()
+        assertEquals(first, rig.tx { rig.beta.find(it, playerXuid) })
+        assertEquals(1, rig.beta.rows.size)
+    }
+
+    @Test
+    @DisplayName("Admission : inscrit par Discord seul après l'ouverture, sans Discord relié en jeu ni Xbox, personne n'est admis")
+    fun discordAloneAfterOpeningIsNotAdmitted() = withRig(SiteMode.OUVERT) { rig ->
+        val response = rig.enterDiscord()
+        assertEquals("/compte/", rig.location(response))
+        assertNotNull(rig.tx { rig.accounts.findByDiscord(it, discordId) })
+        assertTrue(rig.beta.rows.isEmpty(), "aucune ligne beta_access")
+        assertTrue(rig.registrations.rows.isEmpty(), "aucune inscription V7")
+        assertEquals(0L, rig.tx { rig.waitlist.count(it) })
+    }
+
+    @Test
+    @DisplayName("Admission : inscrit par Discord seul avant l'ouverture, Pionnier de la liste d'attente mais sans gamertag, il n'est pas admis")
+    fun discordAloneBeforeOpeningIsNotAdmitted() = withRig { rig ->
+        rig.enterDiscord()
+        assertEquals(1L, rig.tx { rig.waitlist.count(it) })
+        assertTrue(rig.beta.rows.isEmpty())
     }
 
     @Test
@@ -386,7 +405,7 @@ class AccountRoutesTest {
     }
 
     @Test
-    @DisplayName("Connecté par Xbox, relier Discord : le compte et l'inscription V7 sont reliés, admis par la règle, beta_access écrit ; un Discord pris : 409")
+    @DisplayName("Connecté par Xbox, relier Discord : le compte et l'inscription V7 sont reliés ; l'admission reste celle de Microsoft ; un Discord pris : 409")
     fun linkDiscordToXboxAccount() = withRig { rig ->
         val session = rig.loginXbox()
         val response = rig.enterDiscord(join = false, session = session)
@@ -396,8 +415,8 @@ class AccountRoutesTest {
         assertEquals(account.id, rig.tx { rig.accounts.findByDiscord(it, discordId) }?.id)
         val row = checkNotNull(rig.tx { rig.registrations.find(it, "kr test") })
         assertTrue(row.linked)
-        assertTrue(row.admitted, "la règle discord admet au lien")
-        assertEquals("regle:discord", rig.tx { rig.beta.find(it, playerXuid) }?.admittedBy)
+        assertTrue(row.admitted)
+        assertEquals("regle:microsoft", rig.tx { rig.beta.find(it, playerXuid) }?.admittedBy, "le Discord posé sur le site n'admet pas")
 
         // Un autre compte Xbox qui relie le même Discord est refusé.
         rig.xbox.profile = XboxProfile("2535400000000002", "Autre Joueur")
@@ -524,7 +543,7 @@ class AccountRoutesTest {
     }
 
     @Test
-    @DisplayName("Ouvert : plus d'inscription (/pionniers/ mène à la connexion, l'état au compte), une connexion Xbox n'écrit ni liste d'attente ni V7")
+    @DisplayName("Ouvert : plus d'inscription (/pionniers/ mène à la connexion, l'état au compte), une connexion Xbox n'écrit pas de liste d'attente ni de Pionnier, mais admet (c)")
     fun openSiteDoesNotRegister() = withRig(SiteMode.OUVERT) { rig ->
         assertEquals(HttpStatusCode.MovedPermanently, rig.get("/pionniers/").status)
         assertEquals("/connexion/", rig.location(rig.get("/pionniers/")))
@@ -534,6 +553,8 @@ class AccountRoutesTest {
         val session = rig.session(response)
         assertEquals(0L, rig.tx { rig.waitlist.count(it) })
         assertEquals(0L, rig.tx { rig.registrations.countPioneers(it) })
+        assertTrue(checkNotNull(rig.tx { rig.registrations.find(it, "kr test") }).admitted)
+        assertEquals("regle:microsoft", rig.tx { rig.beta.find(it, playerXuid) }?.admittedBy)
         val compte = rig.page(rig.get("/compte/", session))
         assertFalse(compte.contains("Pionnier"))
         assertEquals("/compte/", rig.location(rig.enterDiscord(session = session)))

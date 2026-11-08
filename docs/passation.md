@@ -1229,3 +1229,16 @@ Décisions prises sans Kr : priorité au support privé, puis aux outils de mod�
 diagnostics ; le détail des dépendances et des exclusions est dans `docs/discord-plan-complet.md`.
 La lecture des bots SileneMC dans `/var/www/minecraft/deploy/discord-*` est autorisée par Kr le 8 novembre
 pour cette comparaison ; aucune modification des sources ou services SileneMC.
+
+Mise à jour d'intégration : main `bfd9f07` est intégré à cette reprise Discord. L'admission en bêta
+reste automatique pour tous (décision 21) ; le Discord n'ajoute pas de validation manuelle.
+
+
+### Validation de la reprise Discord — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur sur la version intégrant main `bfd9f07` :
+2 439 tests Gradle, sans échec, erreur ni test ignoré (MariaDB 12.3.3 de test comprise) ;
+1 742 tests add-on et son build ; 170 contrôles d'outillage ; définitions, textes, plan Discord,
+liens et pack de ressources valides. Les tests SQL des tickets et le parcours de gestion passent.
+Le contrôle du site dans Chromium est ignoré, le navigateur n'étant pas installé.
+La recette humaine Discord et le déploiement restent à faire ; les nouveaux textes restent à valider par Kr.

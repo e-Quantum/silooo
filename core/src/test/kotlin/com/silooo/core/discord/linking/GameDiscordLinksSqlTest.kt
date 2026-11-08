@@ -32,7 +32,9 @@ class GameDiscordLinksSqlTest {
         assertEquals("7", link.xuid); assertEquals("KrTest", link.gamertag)
         assertEquals("11", Db.string("select discord_user_id from site_registrations where gamertag_key='krtest'"))
         assertEquals(0L, Db.long("select pioneer from site_registrations where gamertag_key='krtest'"))
-        assertNull(Db.string("select admitted_at from site_registrations where gamertag_key='krtest'"))
+        // Chemin a : le Discord relié en jeu admet en bêta, sans faire du joueur un Pionnier.
+        assertNotNull(Db.string("select admitted_at from site_registrations where gamertag_key='krtest'"))
+        assertEquals("regle:discord-jeu", Db.string("select admitted_by from beta_access where player_xuid=7"))
         assertEquals(0L, Db.count("web_accounts"))
         assertEquals(GameLinkStatus.INVALID_CODE, s.redeem("11", code.code).status)
         assertEquals(link, s.findByDiscord("11"))

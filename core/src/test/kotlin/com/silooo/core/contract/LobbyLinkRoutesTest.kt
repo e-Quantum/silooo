@@ -5,7 +5,6 @@ import com.silooo.core.TestDefinitions
 import com.silooo.core.db.MariaDbSupport
 import com.silooo.core.discord.linking.GameDiscordLinks
 import com.silooo.core.discord.linking.GameLinkStatus
-import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.siloooModule
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
@@ -27,8 +26,8 @@ class LobbyLinkRoutesTest {
     private val contract = OpenApi.load()
     @BeforeEach fun prepare() = MariaDbSupport.prepare()
 
-    private fun dependencies(admission: SiteAdmission = SiteAdmission.DISCORD) =
-        Dependencies(database = MariaDbSupport.database, apiKey = "test-key", definitions = TestDefinitions.loaded, clock = clock, siteAdmission = admission)
+    private fun dependencies() =
+        Dependencies(database = MariaDbSupport.database, apiKey = "test-key", definitions = TestDefinitions.loaded, clock = clock)
 
     @Test fun `Un visiteur inconnu est inscrit pionnier, relie son Discord, puis joue`() = testApplication {
         val deps = dependencies()
@@ -49,7 +48,9 @@ class LobbyLinkRoutesTest {
         assertEquals("Ana Bedrock", MariaDbSupport.string("SELECT gamertag FROM players WHERE xuid = 123456"))
         assertEquals(0L, MariaDbSupport.count("company_members"))
         assertEquals(1L, MariaDbSupport.long("SELECT pioneer FROM site_registrations WHERE gamertag_key = 'ana bedrock'"))
-        assertNull(MariaDbSupport.string("SELECT admitted_at FROM site_registrations WHERE gamertag_key = 'ana bedrock'"))
+        // Chemin b : le Pionnier de la salle d'attente entre en bêta, sans Discord relié.
+        assertNotNull(MariaDbSupport.string("SELECT admitted_at FROM site_registrations WHERE gamertag_key = 'ana bedrock'"))
+        assertEquals("regle:pionnier-salle", MariaDbSupport.string("SELECT admitted_by FROM beta_access WHERE player_xuid = 123456"))
 
         val code = json.jsonObject.getValue("code").jsonPrimitive.content
         val linked = GameDiscordLinks(MariaDbSupport.database, clock).redeem("42", code)
@@ -66,10 +67,10 @@ class LobbyLinkRoutesTest {
         assertEquals(1L, MariaDbSupport.count("company_members"))
     }
 
-    @Test fun `Une inscription existante passe pionnier, admise si la regle le dit`() = testApplication {
+    @Test fun `Une inscription existante passe pionnier et est admise`() = testApplication {
         MariaDbSupport.insertPlayer("7", "KrTest")
         MariaDbSupport.update("INSERT INTO site_registrations (gamertag_key, gamertag, pioneer) VALUES ('kr neuf', 'Kr Neuf', false)")
-        application { siloooModule(dependencies(SiteAdmission.TOUS)) }
+        application { siloooModule(dependencies()) }
         val response = client.post("/v1/lobby/link-codes") {
             header("X-Silooo-Key", "test-key")
             contentType(ContentType.Application.Json)
@@ -79,6 +80,7 @@ class LobbyLinkRoutesTest {
         assertEquals("Kr Neuf", MariaDbSupport.string("SELECT gamertag FROM players WHERE xuid = 7"))
         assertEquals(1L, MariaDbSupport.long("SELECT pioneer FROM site_registrations WHERE gamertag_key = 'kr neuf'"))
         assertNotNull(MariaDbSupport.string("SELECT admitted_at FROM site_registrations WHERE gamertag_key = 'kr neuf'"))
+        assertEquals("regle:pionnier-salle", MariaDbSupport.string("SELECT admitted_by FROM beta_access WHERE player_xuid = 7"))
         assertEquals(1L, MariaDbSupport.count("discord_game_codes"))
     }
 }

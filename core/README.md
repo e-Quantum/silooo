@@ -59,7 +59,6 @@ bash tools/verifier.sh                       # depuis la racine : tout le dépô
 | `SILOOO_SITE_SITES_DE_VOTE` | Les sites de vote, `nom\|url` séparés par des points-virgules (une entrée mal formée arrête le service) | non, aucun site par défaut |
 | `SILOOO_SITE_URL_SILENEMC` | Le site de SileneMC, dans « Voir aussi » au pied de chaque page, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
 | `SILOOO_SITE_URL_HUBYY` | Le site de Hubyy, à côté, qui commence par `http` | non, pas de lien tant qu'elle n'est pas posée |
-| `SILOOO_SITE_ADMISSION` | La règle d'admission des pionniers : `discord` (admis quand le compte Discord est relié) ou `tous` (admis dès l'inscription, pour l'ouverture) ; toute autre valeur arrête le service | non, `discord` par défaut |
 | `SILOOO_DISCORD_CLIENT_ID` | L'identifiant de l'application Discord de « Relier Discord » ; va avec le secret (une seule des deux arrête le service) | non, pas de bouton « Relier Discord » sans elle |
 | `SILOOO_DISCORD_CLIENT_SECRET` | Le secret de cette application ; ne s'affiche jamais | non, voir ci-dessus |
 | `SILOOO_XBOX_CLIENT_ID` | L'identifiant de l'application Azure de la connexion Xbox du site (comptes Microsoft personnels) ; va avec le secret (une seule des deux arrête le service) | non, pas de porte Xbox sans elle |

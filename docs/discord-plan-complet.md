@@ -31,6 +31,12 @@ Les tableaux suivants sont des choix de produit pour **Silooo**, inspirés de ce
 limites nouveaux devront vivre dans `definitions/discord.json` avec leur schéma. Aucune donnée ou clé de
 production de SileneMC n'est copiée.
 
+## Admission en bêta
+
+La décision 21 du site s'applique : l'admission est automatique pour tous. Les cartes et notifications Discord
+reflètent cet état ; elles ne constituent pas une approbation manuelle supplémentaire. La branche a intégré main
+`bfd9f07`, qui unifie cette règle. La liaison prouvée reste nécessaire pour le profil et les rôles du jeu.
+
 ## Ce que l'on reprend de SileneMC
 
 | Source existante | Adaptation pour Silooo | État dans cette reprise |
