@@ -1142,3 +1142,8 @@ session livre seulement le core, et communique le tag de l'add-on correspondant 
 liens et pack de ressources valides. Les tests SQL des tickets et le parcours de gestion passent.
 Le contrôle du site dans Chromium est ignoré, le navigateur n'étant pas installé.
 La recette humaine Discord et le déploiement restent à faire ; les nouveaux textes restent à valider par Kr.
+
+Publication du 8 novembre : le push HTTPS n'a pas d'identifiant GitHub configuré ; le connecteur GitHub refuse
+la création de l'arbre avec HTTP 403 « Resource not accessible by integration ». Aucun push ni déploiement
+n'a abouti. Les commits validés restent sur `claude/discord-complet-20261108` ; le plan, le patch et un bundle Git
+sont exportés dans les livrables du chat. La recette humaine et les validations de textes restent ouvertes.
