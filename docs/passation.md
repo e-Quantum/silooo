@@ -1254,6 +1254,14 @@ Image `silooo-bds:carriere-6224b73` (sans couche `-lan` : le gabarit de `main` m
 arrêt propre par la console (`stop`, politique de redémarrage coupée avant), sauvegarde dans
 `sauvegardes/carriere-0.1.8-6224b73/`. Vérification : `tools/verifier.sh` vert, Gradle avec le JDK 17.
 
+### Carrière 0.1.9, 8 novembre 2026
+
+Après la visite de Kr sur la 0.1.8 ([carriere.md](carriere.md), « Après la visite de Kr ») : ménage des entités
+restées des versions précédentes, emprise de la 0.1.4 vidée (ses bords et sa cheminée flottaient), trémie au départ du
+tapis, gravier devant le pelleteur, wagonnets chargés, joueur tombé reposé sur sa Carrière (`secours` dans `iles.json`).
+Le monde paisible et la cinématique accroupie sont repris tels quels de `claude/p0-video` (bcdc775, décision 50) : la
+fusion reconnaîtra les mêmes lignes.
+
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.

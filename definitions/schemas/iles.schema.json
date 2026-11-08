@@ -17,7 +17,8 @@
     "materiaux",
     "usines",
     "cinematique",
-    "atelier"
+    "atelier",
+    "secours"
   ],
   "properties": {
     "version": {
@@ -331,7 +332,8 @@
         "solStructure",
         "machinerie",
         "ambiance",
-        "libre"
+        "libre",
+        "ancienneEmprise"
       ],
       "properties": {
         "revision": {
@@ -645,6 +647,48 @@
               }
             }
           }
+        },
+        "ancienneEmprise": {
+          "description": "L'emprise de la Carrière de la 0.1.4 (carriere_depart, 39 × 20 × 39, posée de hauteur - 3 à hauteur + 16), vidée avant chaque pose : ses bords et sa cheminée dépassaient de la nouvelle structure et flottaient autour de l'île.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "demiCote",
+            "bas",
+            "haut"
+          ],
+          "properties": {
+            "demiCote": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            },
+            "bas": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            },
+            "haut": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            }
+          }
+        }
+      }
+    },
+    "secours": {
+      "description": "Un joueur qui tombe sous les îles de plus de « sousLesIles » blocs est reposé à l'arrivée de sa Carrière.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sousLesIles"
+      ],
+      "properties": {
+        "sousLesIles": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 200
         }
       }
     }

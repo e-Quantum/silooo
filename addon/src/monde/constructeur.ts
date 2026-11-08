@@ -299,7 +299,7 @@ export function createIslandBuilder(deps: BuilderDeps): IslandBuilder {
             const plan = planIsland(defs, usine, origin, state);
             const withBase = markOrigin(known[factoryId]) !== `${origin.x},${origin.z}`;
             const ops: Op[] = plan.structure !== undefined && writer.structure !== undefined
-              ? [{ kind: "structure", ...plan.structure }, ...plan.state.filter((op) => op.kind === "text")]
+              ? [...(plan.clear ?? []), { kind: "structure", ...plan.structure }, ...plan.state.filter((op) => op.kind === "text")]
               : withBase ? [...plan.base, ...plan.state] : [...plan.state];
             return { segments: [{ box: plan.box, ops }], detail: withBase ? ", plateforme comprise" : "" };
           },

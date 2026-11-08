@@ -51,6 +51,8 @@ export interface WorldSettings {
   /** Secondes entre deux relevés des îles des joueurs présents (usine changée par une action, île donnée après le join). */
   readonly syncSeconds: number;
   readonly productionTickSeconds: number;
+  /** Tous les combien on regarde si un joueur est tombé sous les îles (monde/secours.ts). */
+  readonly rescueSeconds: number;
   /** Opérations de bloc exécutées d'un coup avant de rendre la main au serveur : une île ne fige pas le jeu. */
   readonly opsPerBatch: number;
   readonly batchPauseSeconds: number;
@@ -145,6 +147,7 @@ export const config: Config = {
   world: {
     syncSeconds: 5,
     productionTickSeconds: 0.1,
+    rescueSeconds: 0.5,
     opsPerBatch: 8,
     batchPauseSeconds: 0.05,
     buildRetrySeconds: 2,

@@ -66,6 +66,7 @@ describe("atelier de la Carrière", () => {
     const working: boolean[] = [];
     const pieces: Array<{ type: string; yaw: number }> = [];
     const world: WorkshopWorld = {
+      sweep: () => 0,
       machine: () => ready,
       loaded: () => true,
       cargo(previous) { return previous ?? `cargo-${++cargoCount}`; },
@@ -85,11 +86,12 @@ describe("atelier de la Carrière", () => {
     workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", incidentId: 3, ratePerHour: 0 })] }, { x: 0, z: 0 });
     assert.deepEqual(working, [true, true, false]);
     // Les ailes du moulin et les pilons apparaissent avec le salarié, une seule fois chacun, tournés comme iles.json le dit.
-    assert.equal(fixtureCount, ILES.atelier.machinerie.length);
-    assert.deepEqual(pieces.slice(0, ILES.atelier.machinerie.length), ILES.atelier.machinerie.map((m) => ({ type: m.entite, yaw: m.lacet })));
+    const enMarche = ILES.atelier.machinerie.filter((m) => m.proprietes.marche !== undefined);
+    assert.equal(fixtureCount, enMarche.length);
+    assert.deepEqual(pieces.slice(0, enMarche.length), enMarche.map((m) => ({ type: m.entite, yaw: m.lacet })));
     workshop.reap(new Set());
     const stones = Array.from({ length: ILES.atelier.transport.pierres }, (_, i) => `cargo-${i + 1}`);
-    assert.deepEqual(removed, ["worker-1", ...stones, ...ILES.atelier.machinerie.map((_, i) => `machine-${i + 1}`)]);
+    assert.deepEqual(removed, ["worker-1", ...stones, ...enMarche.map((_, i) => `machine-${i + 1}`)]);
   });
 
   it("reconstruit une ancienne Carrière une seule fois, en gardant les autres îles et la ville", () => {
@@ -103,6 +105,7 @@ describe("atelier de la Carrière", () => {
     const seen: Array<{ id: string; at: { x: number; y: number; z: number }; working: boolean }> = [];
     const removed: string[] = [];
     const native: WorkshopWorld = {
+      sweep: () => 0,
       machine: () => true, loaded: () => loaded,
       worker: (old) => old ?? "worker",
       fixture: (old, _company, type) => old ?? type,
@@ -131,13 +134,14 @@ describe("atelier de la Carrière", () => {
     workshop.sync(state, { x: 0, z: 0 });
     assert.equal(created, ILES.atelier.transport.pierres, "les mêmes pierres sont réutilisées");
     workshop.reap(new Set());
-    assert.equal(new Set(removed).size, ILES.atelier.transport.pierres + 1 + ILES.atelier.machinerie.length);
+    assert.equal(new Set(removed).size, ILES.atelier.transport.pierres + 1 + new Set(ILES.atelier.machinerie.filter((m) => m.proprietes.marche !== undefined).map((m) => m.entite)).size);
   });
 
   it("joue les sons des machines et la fumée du poêle à leur période, seulement quand la Carrière tourne", () => {
     let now = 0;
     const joues: string[] = [];
     const world: WorkshopWorld = {
+      sweep: () => 0,
       machine: () => true, loaded: () => true, worker: (old) => old ?? "worker", fixture: (old, _c, type) => old ?? type,
       cargo: (old) => old ?? "pierre", remove: () => {},
       // Seule l'ambiance compte ici : les arrivées au coffre ont leur propre test.
@@ -163,6 +167,7 @@ describe("atelier de la Carrière", () => {
     const removed: string[] = [];
     let created = 0, workers = 0, stones = 0;
     const world: WorkshopWorld = {
+      sweep: () => 0,
       machine(_at, type) { checked.push(type); return true; },
       loaded: () => true,
       worker: (old) => { workers += 1; return old ?? "worker"; },
@@ -180,10 +185,54 @@ describe("atelier de la Carrière", () => {
     assert.equal(workers + stones, 0, "ni salarié ni pierres sur la ruine");
     pieces.length = 0;
     workshop.sync(companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] }), { x: 0, z: 0 });
-    assert.deepEqual(pieces.map((p) => [p.type, p.properties]), ILES.atelier.machinerie.map((piece) => [piece.entite, piece.proprietes.marche]));
-    assert.deepEqual(pieces.slice(0, enRuine.length).map((p) => p.id), ["piece-1", "piece-2"], "les ailes et les pilons sont réutilisés");
+    const marche = ILES.atelier.machinerie.filter((piece) => piece.proprietes.marche !== undefined);
+    assert.deepEqual(pieces.map((p) => [p.type, p.properties]), marche.map((piece) => [piece.entite, piece.proprietes.marche]));
+    const enRuineIds = new Map(ILES.atelier.machinerie.map((piece, i) => [i, piece.proprietes.ruine === undefined ? undefined : `piece-${enRuine.indexOf(piece) + 1}`]));
+    const enMarche = ILES.atelier.machinerie.map((piece, i) => [i, piece] as const).filter(([, piece]) => piece.proprietes.marche !== undefined);
+    for (const [k, [i]] of enMarche.entries()) {
+      if (enRuineIds.get(i) !== undefined) assert.equal(pieces[k]!.id, enRuineIds.get(i), "les ailes et les pilons sont réutilisés");
+    }
     assert.ok(pieces.some((p) => p.type === "silooo:salarie" && p.properties["silooo:geste"] === "pelleter"), "le second salarié pellette au bocard");
-    assert.deepEqual(removed, []);
+    assert.equal(pieces.filter((p) => p.type === "silooo:wagonnet").length, 2, "deux wagonnets chargés sur les rails");
+    const seulementRuine = ILES.atelier.machinerie.flatMap((piece, i) => piece.proprietes.marche === undefined ? [enRuineIds.get(i)] : []);
+    assert.deepEqual(removed, seulementRuine, "le wagonnet renversé part avec la ruine");
+  });
+
+  it("nettoie une fois les restes des versions précédentes autour de l'île, sans toucher à ce qu'il suit", () => {
+    const sweeps: Array<{ company: number; radius: number; keep: string[] }> = [];
+    const world: WorkshopWorld = {
+      machine: () => true, loaded: () => true, worker: (old) => old ?? "ouvrier", fixture: (old, _c, type) => old ?? type,
+      cargo: (old) => old ?? "pierre", remove: () => {}, effect: () => {},
+      sweep(company, _around, radius, keep) { sweeps.push({ company, radius, keep: [...keep].sort() }); return 1; },
+    };
+    const workshop = createWorkshop(ILES, world, { now: () => 0 });
+    const state = companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] });
+    workshop.sync(state, { x: 0, z: 0 });
+    workshop.sync(state, { x: 0, z: 0 });
+    assert.equal(sweeps.length, 1, "une seule fois par démarrage");
+    assert.ok(sweeps[0]!.radius > ILES.atelier.ancienneEmprise.demiCote, "jusqu'à l'ancienne emprise, où l'ouvrier de la 0.1.4 est resté");
+    assert.ok(sweeps[0]!.keep.includes("ouvrier") && sweeps[0]!.keep.includes("pierre"));
+    for (const piece of ILES.atelier.machinerie) if (piece.proprietes.marche !== undefined) assert.ok(sweeps[0]!.keep.includes(piece.entite));
+    workshop.reap(new Set());
+    workshop.sync(state, { x: 0, z: 0 });
+    assert.equal(sweeps.length, 2, "de nouveau au retour du joueur");
+  });
+
+  it("vide l'emprise de l'ancienne Carrière avant de poser la nouvelle", () => {
+    const definition = usineIle(ILES, "carriere")!;
+    const plan = planIsland(ILES, definition, { x: 0, z: 0 }, "ACTIVE");
+    const old = ILES.atelier.ancienneEmprise;
+    assert.ok(plan.clear !== undefined && plan.clear.length === old.bas + old.haut + 1, "une couche par fill : jamais plus de 32 768 blocs");
+    for (const op of plan.clear) {
+      assert.equal(op.kind, "fill");
+      if (op.kind !== "fill") continue;
+      assert.equal(op.block, ILES.materiaux.vide);
+      assert.equal(op.to.x - op.from.x, 2 * old.demiCote);
+      for (const p of [op.from, op.to]) for (const axis of ["x", "y", "z"] as const) assert.ok(p[axis] >= plan.box.from[axis] && p[axis] <= plan.box.to[axis], axis);
+    }
+    assert.equal(Math.min(...plan.clear.map((op) => (op.kind === "fill" ? op.from.y : 0))), ILES.hauteur - old.bas);
+    assert.equal(Math.max(...plan.clear.map((op) => (op.kind === "fill" ? op.to.y : 0))), ILES.hauteur + old.haut);
+    assert.equal(planIsland(ILES, usineIle(ILES, "scierie")!, { x: 0, z: 0 }, "EN_RUINE").clear, undefined, "les autres îles n'ont rien à vider");
   });
 
   it("mène les pierres des pilons au coffre de vente, et chaque arrivée fait son bruit dans le coffre", () => {
@@ -191,6 +240,7 @@ describe("atelier de la Carrière", () => {
     const effects: Array<{ id: string; at: { x: number; y: number; z: number } }> = [];
     const positions = new Map<string, Array<{ x: number; y: number; z: number }>>();
     const world: WorkshopWorld = {
+      sweep: () => 0,
       machine: () => true, loaded: () => true, worker: (old) => old ?? "worker", fixture: (old, _c, type) => old ?? type, remove: () => {},
       cargo(previous, _company, at) { const id = previous ?? `pierre-${positions.size + 1}`; positions.set(id, [...(positions.get(id) ?? []), at]); return id; },
       effect: (_kind, id, at) => { effects.push({ id, at }); },

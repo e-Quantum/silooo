@@ -62,6 +62,25 @@
           "pilon_tombe": "query.property('silooo:ruine')"
         }
       ]
+    },
+    "controller.render.silooo_wagonnet": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default"
+      ],
+      "part_visibility": [
+        {
+          "*": true
+        },
+        {
+          "charge": "!query.property('silooo:ruine')"
+        }
+      ]
     }
   }
 }

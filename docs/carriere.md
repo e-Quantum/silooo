@@ -143,12 +143,31 @@ Corrigé :
 - Chaque pièce de `atelier.machinerie` dit, dans `proprietes`, les états où elle existe (`marche`, `arret`, `ruine`) et
   les propriétés d'entité qu'elle y prend : aucun de ces choix n'est dans le code.
 
+## Après la visite de Kr sur la 0.1.8 (0.1.9)
+
+- **Un troisième ouvrier minait dans le vide près d'un sapin** : l'ouvrier de la 0.1.4, resté dans le monde à son
+  ancienne place (l'add-on ne retirait que ceux proches de la nouvelle). Au premier passage sur une île après un
+  démarrage, l'atelier retire désormais toutes les entités de décor de l'entreprise (ou sans entreprise) qu'il ne suit
+  pas, jusqu'à l'ancienne emprise.
+- **Micro-îles sur les côtés et cheminée au-dessus des ouvriers** : les restes de la Carrière de la 0.1.4
+  (`carriere_depart`, 39 × 20 × 39, une cheminée de deepslate et un feu de camp). Plus large et plus haute que la
+  nouvelle structure, elle dépassait de 4 blocs de chaque côté et au-dessus. `atelier.ancienneEmprise` est vidée, une
+  couche par fill, juste avant chaque pose ; `atelier.revision` passe à 4 pour refaire les Carrières déjà posées.
+- **Le pelleteur pellettait dans le vide** : un tas de gravier devant lui, au bord de l'auge.
+- **Les pierres volaient au début du tapis** : le bout de tapis plus bas, à la sortie de l'auge, est remplacé par une
+  trémie en bois. Les pierres y entrent sous les pilons et ressortent par le dessus, au niveau du tapis.
+- **Wagonnets** : deux wagonnets en bois cerclés de fer, chargés de pierre, sur les rails (au pied du chevalement et en
+  haut, devant la trémie du bocard) ; un wagonnet renversé dans la ruine. Modèle `silooo:wagonnet`, textures de la
+  planche des machines, plus une plaque de fer.
+- **Faim, vie** : le monde paisible et le jour figé de la session vidéo (décision 50), repris tels quels.
+- **Chute** : un joueur qui tombe à plus de `secours.sousLesIles` (24) blocs sous les îles est reposé à l'arrivée de sa
+  Carrière (`monde/secours.ts`).
+
 Ouvert, à trancher ou à voir en jeu :
 
 - **Orientation** des ailes, des pilons (lacet 90) et du salarié pelleteur (lacet 0, face aux pilons) : déduite du
   modèle et de la rotation de la structure ; à confirmer en jeu.
-- **Wagonnets et charrette** de la maquette : il leur faut un modèle d'entité, que le pack n'a pas encore. Les rails
-  restent vides.
+- **La charrette** de la maquette : pas encore de modèle.
 - **Les jetons** (`silooo:jeton_donar`, `silooo.vente.jeton`) à l'encaissement : c'est l'écran du Silo, hors de
   l'île ; pas branché.
 - **Pose** : `StructureManager.place` fige le script 349 ms à la première pose (avertissement Watchdog).
@@ -178,5 +197,6 @@ Les textes de la cinématique et le récit au-dessus de l'inventaire sont ceux d
 - Les gestes, les cinq réactions d'Oooscar (`dodo` en plus des quatre demandées), les machines, les particules.
 - Les 27 sons, et la musique vanilla sur les îles (non traitée).
 - Le second salarié qui pellette, les machines cassées sur la ruine, le bruit du coffre à chaque pierre (0.1.8).
+- Les wagonnets et leur plaque de fer, la trémie au départ du tapis, le tas de gravier (0.1.9).
 - Rails et wagonnets, choisis au cadrage, alors que l'époque 1 prévoit des charrettes : les deux sont là.
 - Les valeurs de `iles.json` ci-dessus.

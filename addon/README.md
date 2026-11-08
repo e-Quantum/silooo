@@ -1342,6 +1342,8 @@ Au design system :
 - La Carrière (docs/carriere.md) : le sens des ailes et des pilons (`lacet`), le salarié qui pellette face aux pilons, les
   pierres qui suivent les coins du tapis jusque sur le coffre, les miettes et le bruit à chaque arrivée, les machines
   cassées sur la ruine dès la cinématique, et la protection (casse refusée hors du front de taille, pose refusée au clic).
+  En 0.1.9 : les wagonnets (modèle et sens), le ménage des anciennes entités, l'ancienne emprise vidée, et un joueur
+  tombé sous les îles reposé à l'arrivée sans dégâts de chute.
 - Les codes de couleur de matériaux `§p`, `§u` et `§n`, propres à Bedrock et récents.
 - Le refus `UserBusy` d'un formulaire et les nouveaux essais.
 - L'événement `itemUse` sur la boussole, et son `lockMode` (`inventory`, pas de lâcher, pas de déplacement).

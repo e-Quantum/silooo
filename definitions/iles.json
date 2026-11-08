@@ -2,6 +2,9 @@
   "version": 2,
   "commentaire": "Les mini-îles des usines autour de l'île principale. Valeurs de départ, à valider par Kr. L'origine de la case vient du service (CompanyState.island) ; tout le reste est relatif à elle. Les identifiants d'usine sont ceux de usines.json.",
   "hauteur": 100,
+  "secours": {
+    "sousLesIles": 24
+  },
   "centreDansLaCase": {
     "x": 300,
     "z": 300
@@ -257,7 +260,7 @@
     ]
   },
   "atelier": {
-    "revision": 3,
+    "revision": 4,
     "introductionRevision": 2,
     "volumes": [
       {
@@ -486,10 +489,15 @@
         {
           "avant": -4,
           "droite": -6,
-          "haut": 1.375
+          "haut": 1
         },
         {
-          "avant": -3,
+          "avant": -4,
+          "droite": -6,
+          "haut": 2
+        },
+        {
+          "avant": -3.5,
           "droite": -6,
           "haut": 2.375
         },
@@ -587,6 +595,54 @@
             "silooo:geste": "inactif"
           }
         }
+      },
+      {
+        "entite": "silooo:wagonnet",
+        "position": {
+          "avant": -7,
+          "droite": 6,
+          "haut": 0.0625
+        },
+        "lacet": 0,
+        "proprietes": {
+          "marche": {
+            "silooo:ruine": false
+          },
+          "arret": {
+            "silooo:ruine": false
+          }
+        }
+      },
+      {
+        "entite": "silooo:wagonnet",
+        "position": {
+          "avant": -7,
+          "droite": -3,
+          "haut": 5.0625
+        },
+        "lacet": 0,
+        "proprietes": {
+          "marche": {
+            "silooo:ruine": false
+          },
+          "arret": {
+            "silooo:ruine": false
+          }
+        }
+      },
+      {
+        "entite": "silooo:wagonnet",
+        "position": {
+          "avant": -5,
+          "droite": 4,
+          "haut": 0
+        },
+        "lacet": 20,
+        "proprietes": {
+          "ruine": {
+            "silooo:ruine": true
+          }
+        }
       }
     ],
     "ambiance": [
@@ -634,6 +690,11 @@
           "haut": 9
         }
       }
-    ]
+    ],
+    "ancienneEmprise": {
+      "demiCote": 19,
+      "bas": 3,
+      "haut": 16
+    }
   }
 }

@@ -13,6 +13,11 @@ export interface WorkshopWorld {
    * degrés, et ses propriétés d'entité prennent les valeurs données.
    */
   fixture(previous: string | undefined, companyId: number, type: string, at: Pos, yaw: number, properties: Readonly<Record<string, boolean | string>>): string;
+  /**
+   * Retire autour de `around` les entités de décor de l'atelier (salariés, machines, pierres, wagonnets) de cette
+   * entreprise, ou sans entreprise, sauf celles de `keep` : les restes des versions et des démarrages précédents.
+   */
+  sweep(companyId: number, around: Pos, radius: number, keep: ReadonlySet<string>): number;
   /** Un son ou une particule du pack, joué une fois au point donné. */
   effect(kind: "son" | "particule", id: string, at: Pos): void;
   loaded(at: Pos): boolean;
@@ -130,7 +135,17 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
     // Une pierre tombe dans le coffre de vente : miettes et bruit du coffre (iles.json, transport.arrivee).
     if (arrived && track.working) for (const effet of arrivee) world.effect(effet.effet, effet.id, end);
   }
+  /** Les entreprises dont l'île a déjà été nettoyée des restes depuis le démarrage. */
+  const swept = new Set<number>();
+  function sweepOnce(company: number, frame: Frame): void {
+    if (swept.has(company)) return;
+    swept.add(company);
+    const keep = new Set<string>([...(fixtures.get(company) ?? []), ...(cargo.get(company)?.ids ?? []), workers.get(company)]
+      .filter((id): id is string => id !== undefined));
+    world.sweep(company, viewPoint(frame, { avant: 0, droite: 0, haut: 0 }, defs), defs.atelier.ancienneEmprise.demiCote + 4, keep);
+  }
   function forget(company: number): void {
+    swept.delete(company);
     const previous = workers.get(company);
     if (previous !== undefined) world.remove(previous);
     workers.delete(company);
@@ -155,7 +170,10 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
         for (const machine of defs.atelier.machines) {
           if (machine.enRuine === true) standing = world.machine(workshopBlock(frame, defs.hauteur, machine.position), machine.bloc, false) && standing;
         }
-        if (standing) placeFixtures(state.companyId, frame, "ruine");
+        if (standing) {
+          placeFixtures(state.companyId, frame, "ruine");
+          sweepOnce(state.companyId, frame);
+        }
         return;
       }
       const working = workshopRunning(state, definition.id);
@@ -177,6 +195,7 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
       if (previous === undefined) cargo.set(state.companyId, { ids: [], laps: [], frame, working, elapsed: 0, last: clock.now() });
       else { updateCargo(state.companyId); previous.working = working; previous.frame = frame; }
       updateCargo(state.companyId);
+      sweepOnce(state.companyId, frame);
     },
     tick(): void {
       for (const company of cargo.keys()) updateCargo(company);

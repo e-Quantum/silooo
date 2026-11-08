@@ -266,6 +266,7 @@ def build_bocard(g, ruine):
         g.set(x0, Y0 + 6, z0 + 1, "minecraft:cobweb")
     else:
         g.set(x1 - 1, Y0 + 3, RAIL_Z, "minecraft:lantern")  # suspendue sous le plancher de la trémie
+        g.set(x0, Y0 + 1, PILON_Z, "minecraft:gravel")  # le tas que le salarié pellette dans l'auge
     # transmission vers le moulin
     g.set(x1 + 1, Y0 + 6, PILON_Z, "minecraft:dark_oak_log")
     g.set(x1 + 2, Y0 + 6, PILON_Z, rouet)
@@ -323,10 +324,14 @@ def build_tapis(g, ruine):
     path = tapis_path()
     for i, (x, y, z) in enumerate(path):
         trou = ruine and 3 <= i <= 5  # un tronçon de toile arraché
+        if i == 0:
+            # À la sortie de l'auge, une trémie : les pierres y entrent sous les pilons et ressortent par le dessus,
+            # au niveau du tapis. Un bout de tapis plus bas les aurait fait monter dans le vide.
+            g.set(x, y, z, "silooo:tremie_bois")
+            g.set(x, Y0 + 1, z, "minecraft:spruce_planks")
+            continue
         if not trou:
             g.set(x, y, z, "silooo:tapis_toile[dechire]" if ruine else "silooo:tapis_toile")
-        if i == 0:
-            g.set(x, Y0 + 1, z, "minecraft:spruce_planks")
         elif i % 3 == 2 and not (ETAL[0] <= x <= ETAL[2] and ETAL[1] <= z <= ETAL[3]):
             g.fill(x, Y0 + 1, z, x, y - 1, z, "minecraft:spruce_fence")
 

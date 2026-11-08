@@ -87,6 +87,9 @@ export function protectCarriere(origins: () => readonly Xz[]): void {
   });
 }
 
+/** Les entités que l'atelier fait apparaître, et qu'il retire seul. */
+const DECOR_TYPES = new Set(["silooo:ouvrier", "silooo:salarie", "silooo:ailes_moulin", "silooo:pilons", "silooo:production", "silooo:wagonnet"]);
+
 export function createWorkshopWorld(): WorkshopWorld {
   const type = "silooo:ouvrier";
   return {
@@ -122,6 +125,17 @@ export function createWorkshopWorld(): WorkshopWorld {
       entity.teleport(at, { rotation: { x: 0, y: yaw } });
       for (const [name, value] of Object.entries(properties)) if (entity.getProperty(name) !== value) entity.setProperty(name, value);
       return entity.id;
+    },
+    sweep(companyId, around, radius, keep) {
+      let removed = 0;
+      for (const entity of overworld().getEntities({ location: around, maxDistance: radius })) {
+        if (!DECOR_TYPES.has(entity.typeId) || keep.has(entity.id)) continue;
+        const owner = entity.getDynamicProperty("silooo:company-id");
+        if (owner !== undefined && owner !== companyId) continue;
+        entity.remove();
+        removed += 1;
+      }
+      return removed;
     },
     effect(kind, id, at) {
       if (kind === "son") overworld().playSound(id, at);

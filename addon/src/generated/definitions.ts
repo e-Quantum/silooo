@@ -559,6 +559,16 @@ export type IlesDefinitions = {
       readonly de: IlesVue;
       readonly a: IlesVue;
     }[];
+    /** L'emprise de la Carrière de la 0.1.4 (carriere_depart, 39 × 20 × 39, posée de hauteur - 3 à hauteur + 16), vidée avant chaque pose : ses bords et sa cheminée dépassaient de la nouvelle structure et flottaient autour de l'île. */
+    readonly ancienneEmprise: {
+      readonly demiCote: number;
+      readonly bas: number;
+      readonly haut: number;
+    };
+  };
+  /** Un joueur qui tombe sous les îles de plus de « sousLesIles » blocs est reposé à l'arrivée de sa Carrière. */
+  readonly secours: {
+    readonly sousLesIles: number;
   };
 };
 
