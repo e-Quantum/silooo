@@ -1264,3 +1264,9 @@ Les identifiants, images et démarrages des 16 autres conteneurs sont inchangés
 La recette avec un vrai compte de test reste ouverte ; aucune sanction réelle n'a servi de test.
 Les textes nouveaux restent **à valider par Kr**. Prochain lot : C2b (purge, mode lent, verrouillage
 et restauration exacte des permissions), puis formulaires/transferts restants de C1.
+
+
+Publication de C2a : le push HTTPS de `claude/discord-complet-20261108` échoue encore
+faute d'identifiant GitHub disponible (terminal prompts disabled). Aucune clé n'est recherchée.
+Le déploiement local est confirmé ; la branche, le patch et un bundle Git sont conservés dans
+les livrables du chat. La branche reste à publier avant l'intégration de ces fonctions dans main.
