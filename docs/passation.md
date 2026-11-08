@@ -1261,6 +1261,8 @@ restées des versions précédentes, emprise de la 0.1.4 vidée (ses bords et sa
 tapis, gravier devant le pelleteur, wagonnets chargés, joueur tombé reposé sur sa Carrière (`secours` dans `iles.json`).
 Le monde paisible et la cinématique accroupie sont repris tels quels de `claude/p0-video` (bcdc775, décision 50) : la
 fusion reconnaîtra les mêmes lignes.
+Image `silooo-bds:carriere-e53a1cd` déployée le 8 novembre à 19 h 10 UTC sur le seul service `silooo-bds`, après accord
+de Kr ; arrêt propre par la console, sauvegarde dans `sauvegardes/carriere-0.1.9-e53a1cd/`. `tools/verifier.sh` vert.
 
 ### D3 — répartition du 6 novembre 2026
 
