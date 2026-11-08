@@ -4,6 +4,7 @@ import com.silooo.core.db.MariaDbSupport
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -57,4 +58,25 @@ class TicketSqlTest {
         val again = store.open("42", "compte", "", start + Duration.ofDays(1))
         assertEquals(again, store.openOf("42")?.id, "un membre peut rouvrir un ticket après la fermeture")
     }
+    @Test
+    fun assignmentIsAtomicAndPersistsAcrossStoreInstances() = runBlocking {
+        val id = store.open("42", "achat", "9001", start)
+        val outcomes = kotlinx.coroutines.coroutineScope {
+            (1..8).map { actor -> async(kotlinx.coroutines.Dispatchers.IO) {
+                actor.toString() to store.claim(id, actor.toString(), start)
+            } }.map { it.await() }
+        }
+        val winner = outcomes.single { it.second }.first
+        assertEquals(winner, JdbcTicketStore(MariaDbSupport.database).byId(id)?.assignedTo)
+        assertEquals(start, store.byId(id)?.claimedAt)
+        assertEquals(false, store.release(id, "stranger"))
+        assertEquals(true, store.release(id, winner))
+        assertNull(store.byId(id)?.assignedTo)
+        assertNull(store.byId(id)?.claimedAt)
+        assertEquals(true, store.claim(id, "77", start))
+        store.close(id, "42", start + Duration.ofMinutes(1))
+        assertEquals(false, store.release(id, "77"))
+        assertEquals(false, store.claim(id, "88", start))
+    }
+
 }

@@ -35,6 +35,30 @@ class ClosedServer(
         return inner.direct(userId, message)
     }
 
+    override suspend fun timeoutMember(actorId: String, targetId: String, until: java.time.Instant?, reason: String, allowedRoleIds: Set<String>) {
+        if (inner.rolesOf(targetId).none { it in staffRoleIds }) {
+            heldCount.incrementAndGet()
+            throw DiscordRefusal("Le serveur est encore fermé à ces actions.")
+        }
+        inner.timeoutMember(actorId, targetId, until, reason, allowedRoleIds)
+    }
+
+    override suspend fun membershipAction(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoleIds: Set<String>) {
+        if (inner.freshRolesOf(targetId).none { it in staffRoleIds }) {
+            heldCount.incrementAndGet()
+            throw DiscordRefusal("Le serveur est encore fermé à ces actions.")
+        }
+        inner.membershipAction(actorId, targetId, action, reason, allowedRoleIds)
+    }
+
+    override suspend fun channelModerationSnapshot(actorId: String, channelId: String, action: ChannelAction, allowedRoleIds: Set<String>): ChannelModerationSnapshot {
+        throw ChannelActionRefused("La modération des salons publics est retenue tant que le QG est fermé.")
+    }
+    override suspend fun channelModerationExecute(case: ChannelModerationCase, now: java.time.Instant, allowedRoleIds: Set<String>, rules: ChannelModerationRules): Int {
+        heldCount.incrementAndGet()
+        throw ChannelActionRefused("La modération des salons publics est retenue tant que le QG est fermé.")
+    }
+
     override suspend fun post(channelId: String, message: BotMessage): String = inner.post(channelId, onlyStaffRoles(message))
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {

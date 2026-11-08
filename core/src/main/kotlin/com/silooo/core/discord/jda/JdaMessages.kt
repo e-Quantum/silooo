@@ -4,6 +4,8 @@ import com.silooo.core.discord.BotMessage
 import com.silooo.core.discord.ButtonSpec
 import com.silooo.core.discord.ButtonStyle
 import com.silooo.core.discord.CommandSpec
+import com.silooo.core.discord.CommandKind
+import com.silooo.core.discord.CommandPermission
 import com.silooo.core.discord.FormSpec
 import com.silooo.core.discord.MenuSpec
 import com.silooo.core.discord.OptionKind
@@ -22,6 +24,7 @@ import net.dv8tion.jda.api.components.textinput.TextInputStyle
 import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions
 import net.dv8tion.jda.api.interactions.commands.OptionType
+import net.dv8tion.jda.api.interactions.commands.build.CommandData
 import net.dv8tion.jda.api.interactions.commands.build.Commands
 import net.dv8tion.jda.api.interactions.commands.build.OptionData
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
@@ -48,6 +51,7 @@ internal object JdaMessages {
         if (message.mentionUserIds.isNotEmpty()) request.mentionUsers(*message.mentionUserIds.toTypedArray())
         if (message.mentionRoleIds.isNotEmpty()) request.mentionRoles(*message.mentionRoleIds.toTypedArray())
         val upload = message.image?.let { FileUpload.fromData(it.bytes, it.name) }
+            ?: message.document?.let { FileUpload.fromData(it.bytes, it.name) }
         val rows = rows(message)
         if (message.card) {
             val children = mutableListOf<ContainerChildComponent>(TextDisplay.of(message.text))
@@ -99,15 +103,33 @@ internal object JdaMessages {
         return builder.build()
     }
 
-    fun command(spec: CommandSpec): SlashCommandData {
+    fun command(spec: CommandSpec): CommandData {
+        if (spec.kind == CommandKind.MESSAGE) return permissions(Commands.message(spec.name), spec)
         val data = Commands.slash(spec.name, spec.description)
         for (option in spec.options) {
-            val type = if (option.kind == OptionKind.FICHIER) OptionType.ATTACHMENT else OptionType.STRING
+            val type = when (option.kind) {
+                OptionKind.FICHIER -> OptionType.ATTACHMENT
+                OptionKind.MEMBRE -> OptionType.USER
+                OptionKind.TEXTE -> OptionType.STRING
+            }
             val optionData = OptionData(type, option.name, option.description, option.required)
             option.choices.forEach { optionData.addChoice(it, it) }
             data.addOptions(optionData)
         }
-        if (spec.staffOnly) data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_SERVER))
+        return permissions(data, spec)
+    }
+
+    private fun permissions(data: CommandData, spec: CommandSpec): CommandData {
+        val permission = when (spec.defaultPermission) {
+            CommandPermission.MANAGE_SERVER -> Permission.MANAGE_SERVER
+            CommandPermission.MODERATE_MEMBERS -> Permission.MODERATE_MEMBERS
+            CommandPermission.KICK_MEMBERS -> Permission.KICK_MEMBERS
+            CommandPermission.BAN_MEMBERS -> Permission.BAN_MEMBERS
+            CommandPermission.MANAGE_MESSAGES -> Permission.MESSAGE_MANAGE
+            CommandPermission.MANAGE_CHANNELS -> Permission.MANAGE_CHANNEL
+            null -> null
+        }
+        if (permission != null) data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(permission))
         return data
     }
 }

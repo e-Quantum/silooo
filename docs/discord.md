@@ -6,6 +6,13 @@ Silooo — Maquettes. L'état du chantier, ses étapes et ce qui revient à Kr s
 [discord-passation.md](discord-passation.md). Les corrections de la critique du plan priment sur le cadrage : elles
 sont intégrées ici, et rappelées dans la section « Ce que la critique corrige ».
 
+## Révision du 8 novembre 2026
+
+Kr demande de compléter Oooscar avec les fonctions utiles des bots SileneMC, Dyno et Hurix.
+Le [plan complet](discord-plan-complet.md) recense les sources consultées, le catalogue cible, les lots C0 à C7,
+les dépendances et la première tranche de support. Il complète les étapes D0 à D6 ; les choix de jeu ci-dessous
+restent applicables. La livraison de code, le déploiement et la recette réelle sont suivis séparément.
+
 ## En une page
 
 Le Discord est le prolongement du jeu : on y voit le serveur vivre, on y parle avec ceux qui jouent, on y montre son
@@ -234,9 +241,9 @@ et chaque message porte « Arrêter ce rappel » : Silo plein, Vote party, séri
 entreprise (invitation, prestige lancé), Gemmes reçues. Trois par jour au plus, aucun de 22 h à 7 h à l'heure du
 joueur, sauf les Gemmes reçues. Le tuto d'arrivée est le seul message privé non demandé.
 
-**Le staff** agit par boutons, qui vérifient le rôle de celui qui clique : `#✅・admissions` (chaque inscription de la
-page d'attente en carte, lue dans `site_registrations`, avec Admettre, Refuser, Plus tard ; Admettre pose
-l'admission, donne le rôle Bêta, envoie l'invitation en privé ; sans liaison prouvée, l'inscrit attend) ; `/annonce`
+**Le staff** agit par boutons, qui vérifient le rôle de celui qui clique. Depuis la décision 21 du site,
+l'admission en bêta est automatique pour tous : `#✅・admissions` suit les inscriptions et ne crée pas de validation
+manuelle supplémentaire. Le profil et les rôles du jeu demandent toujours une liaison prouvée. `/annonce`
 (titre, texte, image, « Publier aussi dans les Actus du site », « Mentionner le rôle Actus », aperçu, contrôle anti-IA
 avant l'aperçu) ; `#🚩・signalements` (réservé à Modération) ; `#📒・journal-du-bot` (chaque geste du staff et du bot,
 le même journal que l'admin du site, et le rapport du lundi). `#🎫・tickets` porte un menu (question de jeu, achat ou

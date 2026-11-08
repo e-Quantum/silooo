@@ -41,7 +41,11 @@ Les recettes sont dans `.claude/skills/<nom>/SKILL.md`.
 | [site-passation.md](site-passation.md) | L'état du chantier du site, la file des écarts à corriger, « À faire par Kr », le journal |
 | [site-revision.md](site-revision.md) | La révision de `main` contre le kit de Kr : chaque écart, sa preuve, son verdict |
 | [discord.md](discord.md) | Le Discord de Silooo : le cadrage condensé, le plan du serveur, Oooscar, ce que la critique corrige |
+| [discord-plan-complet.md](discord-plan-complet.md) | Le catalogue élargi SileneMC/Dyno/Hurix, ses lots, dépendances et critères de réception |
 | [discord-passation.md](discord-passation.md) | L'état du chantier du Discord, les étapes D0 à D6, « À faire par Kr », le journal |
+| [discord-salons.md](discord-salons.md) | Purge, mode lent, verrouillage et restauration persistante des permissions |
+| [discord-moderation.md](discord-moderation.md) | Les sanctions natives, confirmations, droits et dossiers après départ |
+| [discord-archives.md](discord-archives.md) | Les archives complètes des tickets, les reprises, la rétention et leurs limites |
 | [discord-guide.md](discord-guide.md) | Le Guide du serveur Discord, que l'API ne règle pas : le mode Communauté, le mot d'accueil, les tâches, les trois rubriques et leurs images, à poser par Kr |
 | [plan-construction.md](plan-construction.md) | Le plan en 8 phases, l'architecture, l'installation sur le VPS, la CI |
 | [game-design.md](game-design.md) | Le jeu, en entier : économie, progression, écrans, textes |

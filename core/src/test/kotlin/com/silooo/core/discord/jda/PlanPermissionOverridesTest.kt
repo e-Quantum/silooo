@@ -1,10 +1,20 @@
 package com.silooo.core.discord.jda
 
 import net.dv8tion.jda.api.Permission
+import com.silooo.core.discord.ManagedRolePermission
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 
 class PlanPermissionOverridesTest {
+    @Test
+    fun `role updates add only required native permissions and preserve existing ones`() {
+        val existing = Permission.CREATE_INSTANT_INVITE.rawValue or (1L shl 60)
+        val result = mergedRolePermissions(existing, setOf(ManagedRolePermission.MODERATE_MEMBERS))
+        assertEquals(existing or Permission.MODERATE_MEMBERS.rawValue, result)
+        assertFalse(result and Permission.ADMINISTRATOR.rawValue != 0L)
+    }
+
     @Test
     fun `a public channel preserves manual send locks and unrelated permissions`() {
         val masks = planPublicPermissionMasks(
@@ -41,4 +51,16 @@ class PlanPermissionOverridesTest {
         assertEquals(setOf(Permission.VIEW_CHANNEL, Permission.VOICE_CONNECT), planPublicDenials(isPrivate = true, readOnly = false, locked = true))
         assertEquals(emptySet<Permission>(), planPublicDenials(isPrivate = false, readOnly = false, locked = false))
     }
+    @Test
+    fun `ticket closure denies writing and preserves every unrelated permission bit`() {
+        val reading = Permission.VIEW_CHANNEL.rawValue or Permission.MESSAGE_HISTORY.rawValue
+        val unrelated = 1L shl 60
+        val writing = Permission.MESSAGE_SEND.rawValue or Permission.MESSAGE_SEND_IN_THREADS.rawValue or
+            Permission.CREATE_PUBLIC_THREADS.rawValue or Permission.CREATE_PRIVATE_THREADS.rawValue
+        val result = closedTicketPermissions(reading or writing or unrelated, Permission.MANAGE_WEBHOOKS.rawValue)
+        assertEquals(reading or unrelated, result.first)
+        assertEquals(writing or Permission.MANAGE_WEBHOOKS.rawValue, result.second)
+        assertEquals(result, closedTicketPermissions(result.first, result.second))
+    }
+
 }

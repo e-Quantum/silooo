@@ -1123,3 +1123,25 @@ refusé, serveur inconnu, Discord injoignable, plan illisible) s'écrit dans les
   `wording/AntiIaTest` (59 cas, dont ceux de `tools/tests/anti-ia/`) et
   `ConfigDiscordTest` pour les variables. Les textes du bot et du plan passent `tools/anti_ia.py`
   (la clé `emoji` exceptée).
+
+
+### Gestion des tickets (8 novembre 2026)
+
+`/ticket action:etat|prendre|liberer|fermer` agit dans le salon du ticket, y compris pour les anciens tickets.
+Les boutons de prise en charge et de libération sont posés sur les nouveaux tickets. Le responsable est conservé
+en base (V20) et l'affectation est atomique. Seul un membre qui possède actuellement Staff ou Modération peut
+prendre en charge un ticket ; seul son responsable peut le libérer. L'auteur et le staff peuvent le fermer.
+
+Une fermeture engagée passe le ticket en lecture seule et conserve sa progression en base (V21).
+L'archive est paginée, sans limite des 200 derniers messages. Les pièces jointes sont référencées ; leurs octets
+ne sont pas recopiés. Les refus de Discord ou de stockage conservent le salon et la reprise. Les nouveaux textes
+restent à valider par Kr. Le [parcours des archives](../docs/discord-archives.md) précise les droits nécessaires et les limites.
+
+
+### Archives des tickets (C1b)
+
+Le lot V21 remplace l'archive des 200 derniers messages par une capture paginée et persistante.
+`TicketArchiver` reprend les fermetures et les purges au démarrage et par minuterie. Les réglages sont dans
+`archivesTickets` de `definitions/discord.json`. Les envois passent par le journal privé et par des références
+stables. Le [parcours et ses limites](../docs/discord-archives.md) décrit la reprise, la rétention et les médias.
+Les nouveaux messages restent à valider par Kr avant mise en service.

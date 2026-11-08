@@ -17,6 +17,39 @@ interface DiscordServer {
     /** Place les seuls rôles de jeu, du moins au plus élevé, au-dessus de la couleur d'accueil. */
     suspend fun positionGameRoles(orderedRoleIds: List<String>, aboveRoleId: String) {}
 
+    /** Lecture fraîche de la cible et de la hiérarchie, pour les seules actions de modération. */
+    suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>): ModerationTarget? = null
+
+    /** Lectures propres à chaque permission native ; les implémentations non équipées refusent par défaut. */
+    suspend fun moderationActionTarget(actorId: String, targetId: String, action: ModerationAction, allowedRoleIds: Set<String>): ModerationTarget? = when (action) {
+        ModerationAction.WARN, ModerationAction.TIMEOUT, ModerationAction.RESTORE -> moderationTarget(actorId, targetId, allowedRoleIds)
+        else -> null
+    }
+
+    /** Le dossier reste consultable par identifiant après le départ de sa cible. */
+    suspend fun moderationHistoryTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>): ModerationTarget? =
+        moderationTarget(actorId, targetId, allowedRoleIds)
+
+    /** Expulsion/bannissement/débannissement, avec contrôle natif final et sans effacement des messages. */
+    suspend fun membershipAction(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoleIds: Set<String>) {
+        throw DiscordRefusal("La modération des membres n'est pas disponible.")
+    }
+
+    /** Dernière vérification des droits avant l'action native. null retire l'exclusion temporaire. */
+    suspend fun timeoutMember(actorId: String, targetId: String, until: Instant?, reason: String, allowedRoleIds: Set<String>) {
+        throw DiscordRefusal("La modération des membres n'est pas disponible.")
+    }
+
+    suspend fun channelModerationSnapshot(actorId: String, channelId: String, action: ChannelAction, allowedRoleIds: Set<String>): ChannelModerationSnapshot =
+        throw ChannelActionRefused("La modération des salons n'est pas disponible.")
+    suspend fun channelPurgeCandidates(actorId: String, channelId: String, count: Int, now: Instant, allowedRoleIds: Set<String>, rules: ChannelModerationRules): List<String> =
+        throw ChannelActionRefused("La purge n'est pas disponible.")
+    suspend fun channelModerationExecute(case: ChannelModerationCase, now: Instant, allowedRoleIds: Set<String>, rules: ChannelModerationRules): Int =
+        throw ChannelActionRefused("La modération des salons n'est pas disponible.")
+
+    /** Droits effectifs du membre, et pas seulement ceux du bot, pour lire un message signalé. */
+    suspend fun canReadChannel(channelId: String, userId: String): Boolean = false
+
     /** Les rôles, catégories et salons tels qu'ils sont maintenant. */
     suspend fun snapshot(): ServerSnapshot
 
@@ -87,6 +120,22 @@ interface DiscordServer {
      */
     suspend fun history(channelId: String, limit: Int): List<ChannelMessage>
 
+    /** Passage en lecture seule du ticket avant sa capture, sans changer les droits de lecture. */
+    suspend fun freezeTicketForArchive(channelId: String) {
+        throw DiscordRefusal("Le verrouillage du ticket n'est pas disponible.")
+    }
+
+    /** Une page de l'historique complet, strictement avant le curseur, sans tronquer le contenu. */
+    suspend fun transcriptPage(channelId: String, beforeId: String?, limit: Int): TranscriptPage {
+        throw DiscordRefusal("La lecture paginée n'est pas disponible.")
+    }
+
+    /** Recherche un envoi propre au bot depuis son point de réservation. Une recherche incomplète interdit de reposter. */
+    suspend fun findArchivePart(channelId: String, reference: String, fileName: String, anchorId: String?, maxPages: Int): ArchiveLookup = ArchiveLookup.Incomplete
+
+    /** Suppression du seul ticket déjà archivé ; un 404 confirmé vaut succès, un refus reste un échec. */
+    suspend fun removeArchivedTicketChannel(channelId: String) { deleteChannel(channelId) }
+
     /** Déplace [userId] dans le vocal [channelId] ; le membre n'est pas en vocal, ou Discord refuse : [DiscordRefusal]. */
     suspend fun moveToVoice(userId: String, channelId: String)
 
@@ -95,6 +144,9 @@ interface DiscordServer {
 
     /** Le nom que le serveur affiche pour [userId] (son surnom, sinon son nom) ; `null` s'il n'est plus là. */
     suspend fun memberName(userId: String): String?
+
+    /** Lecture explicite sans cache pour les décisions de gestion du staff. */
+    suspend fun freshRolesOf(userId: String): Set<String> = rolesOf(userId)
 
     /** Les identifiants des rôles du membre [userId] ; vide s'il n'est plus là. */
     suspend fun rolesOf(userId: String): Set<String>
@@ -191,7 +243,12 @@ data class ServerSnapshot(
 )
 
 /** [color] : `#rrggbb` en minuscules, ou `null` sans couleur. */
-data class ExistingRole(val id: String, val name: String, val color: String?)
+data class ExistingRole(
+    val id: String,
+    val name: String,
+    val color: String?,
+    val permissions: Set<ManagedRolePermission> = emptySet(),
+)
 
 data class ExistingCategory(val id: String, val name: String)
 
@@ -203,7 +260,13 @@ data class ExistingChannel(
     val topic: String?,
 )
 
-data class RoleSpec(val name: String, val color: String?, val hoisted: Boolean, val mentionable: Boolean)
+data class RoleSpec(
+    val name: String,
+    val color: String?,
+    val hoisted: Boolean,
+    val mentionable: Boolean,
+    val permissions: Set<ManagedRolePermission> = emptySet(),
+)
 
 /** [viewers] : les identifiants Discord des rôles qui voient la catégorie ; `null`, tout le monde. */
 data class CategorySpec(val name: String, val viewers: Set<String>?)

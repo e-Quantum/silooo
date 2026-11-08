@@ -1,6 +1,36 @@
 # Passation du Discord : l'état du chantier
 
-Dernière mise à jour : 6 novembre 2026, reprise des correctifs D2 sur le VPS.
+Dernière mise à jour : 8 novembre 2026, lot C1b développé et validé automatiquement.
+
+### Lot C1b : reprise autonome
+
+Main `d7bc9ab` intégré. V21 est réservée au parcours durable des archives de tickets.
+Voir [discord-archives.md](discord-archives.md) : capture paginée, reprise des envois et des suppressions,
+contrôle du journal privé, fichiers UTF-8 et purge. Les textes restent à valider par Kr.
+Le code est validé automatiquement ; le déploiement et la recette humaine restent ouverts.
+
+
+### Reprise du 8 novembre : plan complet et support
+
+Le [plan complet](discord-plan-complet.md) devient l'ordre des prochains lots. Sources vérifiées : John, le bot
+vocal et Gaby dans `/var/www/minecraft/deploy/discord-*` (lecture autorisée par Kr), documentation Dyno et site Hurix.
+La branche `claude/discord-complet-20261108` part de main `61ce234`, réunit la gestion Discord `6ce48e0`,
+puis intègre main `bfd9f07` : l'admission en bêta est automatique (décision 21 du site). Les anciens paragraphes
+sur l'approbation manuelle décrivent l'historique ; ils ne priment pas sur cette règle.
+V17 de la salle d'attente reste intacte ; modération et signalements prennent V18 et V19 ; V20 ajoute l'affectation
+des tickets. Aucun changement de source ou de service SileneMC.
+
+- [x] Comparatif, catalogue, dépendances et priorités C0 à C7 rédigés.
+- [x] Prise en charge/libération persistantes, commande `/ticket`, statut et contrôle des rôles actuels écrits.
+- [x] Fermeture sécurisée : conserver le ticket et son salon si l'archive ne peut pas être lue ou envoyée.
+- [x] Transcript textuel paginé, références des pièces jointes et reprise durable d'une fermeture interrompue : C1b validé.
+- [ ] Formulaires, priorité, transfert et participants : reste de C1.
+- [ ] Déploiement et recette réelle de cette tranche, distincts des tests automatisés.
+
+Les libellés de tickets sont **à valider par Kr**. Le code garde la limite d'archive de 200 messages textuels,
+explicitée dans le plan. D1, D4, D5 et la recette D6 restent ouverts. Ne pas retirer Dyno avant la reprise et la
+recette de ses fonctions encore utilisées.
+
 
 ### Reprise du 5 novembre 2026 sur le VPS
 
@@ -1110,3 +1140,145 @@ session livre seulement le core, et communique le tag de l'add-on correspondant 
 - Textes à valider par Kr : instructions de liaison et déliaison, cartes entreprise/usine/classement/vote, préférences
   et messages des rappels, bureaux publics, sondages et résultats, tableau du jeu, records, états de suggestions.
 - Décision autonome provisoire : paliers de prestige 1/5/10/25/50, laiton à partir de 5. Aucun effet économique.
+
+
+### Validation de la reprise Discord — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur sur la version intégrant main `bfd9f07` :
+2 439 tests Gradle, sans échec, erreur ni test ignoré (MariaDB 12.3.3 de test comprise) ;
+1 742 tests add-on et son build ; 170 contrôles d'outillage ; définitions, textes, plan Discord,
+liens et pack de ressources valides. Les tests SQL des tickets et le parcours de gestion passent.
+Le contrôle du site dans Chromium est ignoré, le navigateur n'étant pas installé.
+La recette humaine Discord et le déploiement restent à faire ; les nouveaux textes restent à valider par Kr.
+
+Publication du 8 novembre : le push HTTPS n'a pas d'identifiant GitHub configuré ; le connecteur GitHub refuse
+la création de l'arbre avec HTTP 403 « Resource not accessible by integration ». Aucun push ni déploiement
+n'a abouti. Les commits validés restent sur `claude/discord-complet-20261108` ; le plan, le patch et un bundle Git
+sont exportés dans les livrables du chat. La recette humaine et les validations de textes restent ouvertes.
+
+
+### Validation du lot C1b — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur : 2 467 tests du service (0 échec, 0 erreur, 0 ignoré),
+1 742 tests add-on et son build, 170 contrôles d'outillage. Les tests du service comprennent 18 scénarios
+du coordinateur d'archives, 4 tests SQL sur une MariaDB 12.3.3 isolée, 25 tests de tickets et 2 tests
+des fichiers d'archive. Les contrôles des définitions, types générés, textes, liens et pack passent.
+Le contrôle Chromium du site reste ignoré faute de navigateur ; un cas de permissions de fichiers est
+automatiquement ignoré par l'outillage exécuté en root. Aucun test SQL n'est ignoré.
+
+V21 est livrée avec la capture paginée, le passage en lecture seule, les références de fichiers et cartes,
+la réconciliation des envois, la reprise après suppression et la purge. Les tickets contenant des fils
+non archivés sont conservés. Le bot doit avoir les droits de gestion des fils pour vérifier leur présence.
+Les textes nouveaux restent **à valider par Kr** ; aucun déploiement ni recette humaine n'est déclaré.
+
+
+### Déploiement demandé par Kr — 8 novembre 2026
+
+Kr demande explicitement « déploie et continue » dans ce chat. L'image locale validée
+`ghcr.io/e-quantum/silooo-core:discord-f3b83cc` est déployée sur le seul service `silooo-core`.
+Le registre GitHub indisponible n'empêche pas cette construction locale à partir de `installDist`.
+Aucune classe compilée du jeu ou du site ne diffère de l'image précédente `lobby-d7bc9ab`.
+
+- Sauvegarde : `/var/www/silooo/sauvegardes/discord-f3b83cc-20261108` (base et monde).
+- V18 à V21 appliquées ; l'ancienne image valide le schéma, donc reste disponible pour retour arrière.
+- Heartbeat 204, site 200 ; JDA connecté ; plan réconcilié sans échec et 21 commandes lues par l'API Discord.
+- Droits du bot confirmés : gestion des salons, permissions/rôles et fils. QG public, phase attente conservée.
+- Les identifiants, images et dates de démarrage des 16 autres conteneurs ont été comparés : aucun changement.
+- Le nouveau fichier opérationnel `/var/www/silooo/deploy/compose.discord.yml` doit rester **le dernier** des
+  fichiers Compose tant que l'image de main ne contient pas le bot livré. Il surcharge seulement core/migrate ;
+  les surcharges gameplay et attente existantes restent en place. Le tag global de BDS n'est pas changé.
+- Reçu de déploiement : `/var/www/silooo/deploy/discord-release.json`. Aucun fichier d'environnement lu ou modifié.
+
+Le déploiement est autorisé par cette demande explicite ; les formulations nouvelles restent à valider
+éditorialement par Kr. La recette avec un vrai membre (ticket ouvert puis fermé) n'est pas simulée en production.
+La suite est C2 : expulsion, bannissement et débannissement avec aperçu et contrôles natifs.
+
+
+### C2 — modération des membres, en développement — 8 novembre 2026
+
+V22 réservée à l'extension du journal pour expulsion, bannissement et débannissement.
+Décision autonome : bannir seulement une cible présente, sans effacer ses messages ; débannir par
+identifiant seulement un compte effectivement banni. Les permissions natives d'expulsion/bannissement
+ne sont pas accordées automatiquement aux rôles. Les dossiers restent consultables après un départ.
+Les nouveaux textes d'aperçu et de résultat restent **à valider par Kr**.
+
+
+### Validation C2a — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur : 2 487 tests du service, sans échec, erreur ni
+test ignoré (MariaDB isolée comprise), 1 742 tests add-on et leur build, 170 contrôles d'outillage.
+Les tests comprennent le parcours existant timeout/signalement, le parcours SQL des trois nouvelles
+commandes, 10 scénarios de confirmation et 7 tests du véritable adaptateur JDA avec réseau intercepté.
+Le contrôle Chromium reste ignoré faute de navigateur ; un sous-cas de permissions de fichiers est
+automatiquement ignoré par l'outillage en root. Aucun test SQL n'est ignoré.
+
+L'aperçu, le motif, le contrôle des droits natifs distincts et les vérifications fraîches de hiérarchie
+précèdent toute sanction. Aucun vrai membre n'a été expulsé, banni ou débanni pour les tests.
+La sauvegarde préalable à V22 est `/var/www/silooo/sauvegardes/discord-c2-20261108`.
+Le déploiement de C2a suit cette validation ; les textes restent **à valider par Kr**.
+
+
+### Reprise après un déploiement concurrent — 8 novembre 2026
+
+Pendant l'interruption du chat, le core a été remplacé à 12:20 UTC par `lobby-d5d4d6a`
+(correction des codes Microsoft longs du site). Détection avant toute bascule du core par cette session.
+V22 a été appliquée à 15:53 UTC ; aucun membre n'a reçu de sanction. L'image candidate `discord-b04ab0f`
+n'a pas été démarrée. Main `d5d4d6a` est intégré sans réécriture ; nouvelle vérification complète avant
+construction et déploiement. La surcharge Discord pointe temporairement sur l'image courante du core.
+Les changements de conteneurs survenus pendant cette interruption sont distingués de nos opérations.
+
+
+### Validation après intégration de main d5d4d6a — 8 novembre 2026
+
+Vérification complète verte : 2 488 tests du service, 0 échec, 0 erreur, 0 ignoré ;
+1 742 tests add-on et build ; 170 contrôles d'outillage. Chromium reste ignoré faute de navigateur
+et le sous-cas de permissions de fichiers reste ignoré sous root ; aucun test SQL n'est ignoré.
+La correction récente des codes Microsoft longs est conservée. La sauvegarde actualisée est
+`/var/www/silooo/sauvegardes/discord-c2-reprise-20261108`. L'image courante `lobby-d5d4d6a`
+valide le schéma V22 et ne lit pas les nouveaux dossiers de modération : retour arrière possible
+sans interpréter les nouvelles valeurs d'action avec l'ancien enum de C1.
+
+
+### C2a déployé et contrôlé — 8 novembre 2026, 16:03 UTC
+
+Image `ghcr.io/e-quantum/silooo-core:discord-2ade9f1`, code `2ade9f1` incluant main `d5d4d6a`.
+La comparaison avec le JAR de production précédent donne **zéro classe modifiée hors Discord** :
+la correction des codes Microsoft du site est conservée. Le seul conteneur recréé est `silooo-core`.
+Les identifiants, images et démarrages des 16 autres conteneurs sont inchangés depuis la reprise
+à 15:54 UTC ; les quatre fichiers Compose existants gardent les mêmes sommes de contrôle.
+
+- V22 appliquée ; validation finale des migrations sans opération restante.
+- Heartbeat 204, site 200, JDA connecté et chargé, plan réconcilié avec 0 échec.
+- Catalogue relu par REST : **24 commandes**, dont `/expulser`, `/bannir`, `/debannir`.
+- Permissions natives par défaut de ces trois commandes vérifiées ; le bot possède les droits
+  d'expulsion, de bannissement et de gestion des fils. Les rôles humains ne reçoivent pas de nouveau droit.
+- Phase Discord `attente`, QG public ; mode du site laissé à sa valeur par défaut `attente`.
+- Sauvegarde actualisée : `/var/www/silooo/sauvegardes/discord-c2-reprise-20261108`.
+- Reçu : `/var/www/silooo/deploy/discord-release.json`. Surcharge `compose.discord.yml` à conserver
+  **en dernier**, après les quatre fichiers actuels ; elle épingle seulement core et migrate.
+- Retour arrière disponible sur `ghcr.io/e-quantum/silooo-core:lobby-d5d4d6a`, schéma V22 validé.
+  Cette version retrouve le catalogue antérieur et garde les tables de C1/C2 sans les lire. L'image C1
+  `discord-f3b83cc` n'est pas le retour arrière recommandé après création de dossiers kick/ban/unban :
+  son ancien enum ne sait pas les interpréter. Ne pas supprimer V22 ni restaurer un ancien dump à chaud.
+
+La recette avec un vrai compte de test reste ouverte ; aucune sanction réelle n'a servi de test.
+Les textes nouveaux restent **à valider par Kr**. Prochain lot : C2b (purge, mode lent, verrouillage
+et restauration exacte des permissions), puis formulaires/transferts restants de C1.
+
+
+Publication de C2a : le push HTTPS de `claude/discord-complet-20261108` échoue encore
+faute d'identifiant GitHub disponible (terminal prompts disabled). Aucune clé n'est recherchée.
+Le déploiement local est confirmé ; la branche, le patch et un bundle Git sont conservés dans
+les livrables du chat. La branche reste à publier avant l'intégration de ces fonctions dans main.
+
+
+### C2b — salons, en développement — 8 novembre 2026
+
+V23 réservée aux confirmations de purge/mode lent/verrouillage et aux permissions à restaurer.
+Décisions autonomes : salons de texte publics autorisés par les définitions uniquement ; tickets, forums,
+journaux et panneaux exclus. Purge des messages sélectionnés à l'aperçu, épinglés et anciens conservés.
+Verrou sur les quatre bits d'écriture de @everyone ; refus si une exception non staff le contourne.
+Les états initiaux durent jusqu'au déverrouillage, indépendamment de la rétention de l'audit.
+Aucune mutation n'est rejouée automatiquement après un résultat incertain ; un déverrouillage demandé
+manuellement peut réconcilier l'état après l'attente configurée. Aucun nouveau droit natif accordé aux rôles.
+Les textes nouveaux sont **à valider par Kr**.

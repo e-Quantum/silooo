@@ -127,4 +127,25 @@ class DiscordRestTest {
             """{"message": "Invalid Form Body", "code": 50035, "errors": {"default_channel_ids": {"_errors": """ +
                 """[{"code": "BASE_TYPE_BAD_LENGTH", "message": "Must be between 7 and 50 in length."}]}}}"""
     }
+    @Test
+    fun `channel absence requires a matching Discord error code`() = runBlocking {
+        rest { request ->
+            assertEquals("/api/channels/123", request.url.encodedPath)
+            respond("{\"code\":10003}", HttpStatusCode.NotFound, headersOf(HttpHeaders.ContentType, "application/json"))
+        }.use { assertFalse(it.channelExists("456", "123")) }
+        for (code in listOf(HttpStatusCode.Forbidden, HttpStatusCode.NotFound)) {
+            rest { respond("{\"code\":50001}", code, headersOf(HttpHeaders.ContentType, "application/json")) }.use { api ->
+                assertThrows(DiscordRefusal::class.java) { runBlocking { api.channelExists("456", "123") } }
+            }
+        }
+    }
+
+    @Test
+    fun `existing channel must belong to this guild and be a text ticket`() = runBlocking {
+        rest { respond("{\"id\":\"123\",\"guild_id\":\"456\",\"type\":0}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json")) }
+            .use { assertTrue(it.channelExists("456", "123")) }
+        rest { respond("{\"id\":\"123\",\"guild_id\":\"999\",\"type\":0}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json")) }
+            .use { api -> assertThrows(DiscordRefusal::class.java) { runBlocking { api.channelExists("456", "123") } } }
+    }
+
 }

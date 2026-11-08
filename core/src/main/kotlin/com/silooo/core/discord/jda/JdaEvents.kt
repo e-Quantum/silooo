@@ -18,6 +18,7 @@ import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateFlagsEven
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent
@@ -90,12 +91,15 @@ internal class JdaEvents(
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
         if (event.guild?.idLong != guildId && event.name !in ACCOUNT_COMMANDS) return
-        val options = event.options.filter { it.type != OptionType.ATTACHMENT }.associate { it.name to it.asString }
+        val options = event.options.filter { it.type != OptionType.ATTACHMENT }.associate { it.name to if (it.type == OptionType.USER) it.asUser.id else it.asString }
         val attachments = event.options.filter { it.type == OptionType.ATTACHMENT }
         val user = actor(event)
         val channelId = event.channel.id
         if (attachments.isEmpty()) {
-            offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null)))
+            val deferred = event.name in MODERATION_COMMANDS
+            if (deferred) {
+                event.deferReply(true).queue({ offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null, deferred = true))) })
+            } else offer(DiscordEvent.CommandUsed(event.name, options, user, channelId, JdaReply(event, event, null)))
             return
         }
         // Recevoir un fichier peut prendre plus de trois secondes : on accuse réception d'abord (visible du membre
@@ -133,9 +137,16 @@ internal class JdaEvents(
         return base.ifEmpty { "fichier" } + "." + extension
     }
 
+    override fun onMessageContextInteraction(event: MessageContextInteractionEvent) {
+        if (event.guild?.idLong != guildId || event.name != "Signaler") return
+        offer(DiscordEvent.MessageReported(actor(event), event.target.channelId, event.target.id, JdaReply(event, event, null)))
+    }
+
     override fun onButtonInteraction(event: ButtonInteractionEvent) {
         if (event.guild?.idLong != guildId && !isAccountButton(event.componentId)) return
-        offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event)))
+        if (isModerationButton(event.componentId)) {
+            event.deferEdit().queue({ offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event, deferred = true))) })
+        } else offer(DiscordEvent.ButtonPressed(event.componentId, actor(event), event.channel.id, event.messageId, JdaReply(event, event, event)))
     }
 
     override fun onStringSelectInteraction(event: StringSelectInteractionEvent) {
@@ -146,7 +157,7 @@ internal class JdaEvents(
     override fun onModalInteraction(event: ModalInteractionEvent) {
         if (event.guild?.idLong != guildId) return
         val fields = event.values.associate { it.customId to it.asString }
-        offer(DiscordEvent.FormSubmitted(event.modalId, fields, actor(event), event.channel.id, JdaReply(event, null, event)))
+        offer(DiscordEvent.FormSubmitted(event.modalId, fields, actor(event), event.channel.id, JdaReply(event, null, if (event.message == null) null else event)))
     }
 
     private fun actor(event: Interaction): DiscordUser =
@@ -176,8 +187,8 @@ internal class JdaReply(
     private val deferred: Boolean = false,
 ) : Reply {
     override suspend fun send(message: BotMessage, onlyToUser: Boolean) {
-        if (deferred) {
-            replies.hook.sendMessage(JdaMessages.create(message)).submit().await()
+        if (deferred || replies.isAcknowledged) {
+            replies.hook.sendMessage(JdaMessages.create(message)).setEphemeral(onlyToUser).submit().await()
         } else {
             replies.reply(JdaMessages.create(message)).setEphemeral(onlyToUser).submit().await()
         }
@@ -190,7 +201,8 @@ internal class JdaReply(
 
     override suspend fun edit(message: BotMessage) {
         val target = edits ?: throw DiscordRefusal("ce geste n'a pas de message à modifier")
-        target.editMessage(JdaMessages.edit(message)).submit().await()
+        if (replies.isAcknowledged) replies.hook.editOriginal(JdaMessages.edit(message)).submit().await()
+        else target.editMessage(JdaMessages.edit(message)).submit().await()
     }
 
     override suspend fun acknowledge() {
@@ -203,3 +215,6 @@ internal class JdaReply(
 /** Hors du QG, seules les cartes du joueur et ses boutons privés sont routés. Aucun geste staff. */
 internal val ACCOUNT_COMMANDS = setOf("entreprise", "usine")
 internal fun isAccountButton(id: String): Boolean = id.startsWith("jeu-montrer:") || id.startsWith("rappels-arreter:")
+
+internal val MODERATION_COMMANDS = setOf("avertir", "timeout", "retablir", "dossier", "gestion", "expulser", "bannir", "debannir", "purger", "mode-lent", "verrouiller", "deverrouiller")
+internal fun isModerationButton(id: String) = id.startsWith("moderation-") || id.startsWith("salon-confirmer:") || id.startsWith("salon-annuler:")

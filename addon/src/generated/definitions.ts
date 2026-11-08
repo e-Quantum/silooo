@@ -308,6 +308,40 @@ export type DiscordDefinitions = {
       readonly role: DiscordIdentifiantDuPlan;
     }[];
   };
+  readonly moderation: {
+    readonly confirmationSecondes: number;
+    readonly conservationJours: number;
+    readonly dossiersParPage: number;
+    readonly motifMaxCaracteres: number;
+    readonly dureesHeures: readonly number[];
+    readonly purgeSecondes: number;
+  };
+  readonly signalements: {
+    readonly delaiSecondes: number;
+    readonly formulaireSecondes: number;
+    readonly conservationJours: 30;
+    readonly purgeSecondes: number;
+    readonly motifMaxCaracteres: number;
+    readonly contenuMaxCaracteres: number;
+  };
+  readonly archivesTickets: {
+    readonly messagesParPage: number;
+    readonly etapesParPassage: number;
+    readonly ticketsParPassage: number;
+    readonly repriseSecondes: number;
+    readonly bailSecondes: number;
+    readonly conservationJours: number;
+    readonly recherchePages: number;
+    readonly fichierMaxOctets: number;
+  };
+  readonly salonsModeration: {
+    readonly salons: readonly string[];
+    readonly purgeMaxMessages: number;
+    readonly rechercheMessages: number;
+    readonly ancienneteMaxJours: number;
+    readonly modesLentsSecondes: readonly number[];
+    readonly repriseVerrouSecondes: number;
+  };
 };
 
 /** Un identifiant du plan du serveur : minuscules, chiffres et tirets. */

@@ -25,6 +25,20 @@ class InMemoryTicketStore : TicketStore {
 
     override suspend fun openOnes(): List<Ticket> = tickets.filter { it.closedAt == null }.sortedBy { it.id }
 
+    override suspend fun claim(id: Int, by: String, at: Instant): Boolean {
+        val ticket = byId(id) ?: return false
+        if (ticket.closedAt != null || ticket.assignedTo != null) return false
+        replace(id) { it.copy(assignedTo = by, claimedAt = at) }
+        return true
+    }
+
+    override suspend fun release(id: Int, by: String): Boolean {
+        val ticket = byId(id) ?: return false
+        if (ticket.closedAt != null || ticket.assignedTo != by) return false
+        replace(id) { it.copy(assignedTo = null, claimedAt = null) }
+        return true
+    }
+
     override suspend fun close(id: Int, by: String, at: Instant) {
         replace(id) { if (it.closedAt == null) it.copy(closedAt = at, closedBy = by) else it }
     }

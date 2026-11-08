@@ -13,8 +13,12 @@ data class BotMessage(
     val card: Boolean = false,
     val mentionUserIds: Set<String> = emptySet(),
     val mentionRoleIds: Set<String> = emptySet(),
+    val document: TextFile? = null,
+    val nonce: String? = null,
 ) {
     init {
+        require(document == null || (image == null && !card)) { "un document texte ne se combine pas avec une image ou une carte" }
+        require(nonce == null || nonce.matches(Regex("[a-z0-9]{1,25}"))) { "une référence d’envoi invalide" }
         require(text.isNotBlank()) { "un message vide" }
         require(text.length <= MAX_TEXT) { "Discord refuse un message de plus de " + MAX_TEXT + " caractères" }
         require(buttons.size <= MAX_BUTTONS) { "Discord met au plus " + MAX_BUTTONS + " boutons sur une ligne" }
@@ -40,6 +44,15 @@ class ImageFile(val name: String, val bytes: ByteArray) {
     private companion object {
         val NAME = Regex("[a-z0-9-]+\\.(png|gif)")
     }
+}
+
+/** Un transcript UTF-8, sans exécutable et sous le plafond retenu pour les envois du bot. */
+class TextFile(val name: String, val bytes: ByteArray) {
+    init {
+        require(name.matches(Regex("[a-z0-9-]{1,100}\\.txt")))
+        require(bytes.size in 1..MAX_BYTES)
+    }
+    companion object { const val MAX_BYTES = 8_000_000 }
 }
 
 /** Un bouton ; [url] : un lien plutôt qu'un geste, alors [id] n'est pas envoyé à Discord. */
@@ -108,10 +121,18 @@ data class CommandSpec(
     val description: String,
     val options: List<CommandOption> = emptyList(),
     val staffOnly: Boolean = false,
+    val defaultPermission: CommandPermission? = if (staffOnly) CommandPermission.MANAGE_SERVER else null,
+    val kind: CommandKind = CommandKind.SLASH,
 ) {
     init {
-        require(NAME.matches(name)) { "un nom de commande en minuscules, sans espace" }
-        require(description.length in 1..MAX_DESCRIPTION) { "une description de commande de 1 à " + MAX_DESCRIPTION + " caractères" }
+        if (kind == CommandKind.SLASH) {
+            require(NAME.matches(name)) { "un nom de commande en minuscules, sans espace" }
+            require(description.length in 1..MAX_DESCRIPTION) { "une description de commande de 1 à " + MAX_DESCRIPTION + " caractères" }
+        } else {
+            require(name.length in 1..32 && name.none { it.isISOControl() }) { "un nom de menu de 1 à 32 caractères" }
+            require(description.isEmpty() && options.isEmpty()) { "un menu de message n'a ni description ni options" }
+        }
+        require(defaultPermission == null || staffOnly) { "une permission de commande implique une commande réservée au staff" }
         var optionalSeen = false
         for (option in options) {
             require(!optionalSeen || !option.required) {
@@ -139,4 +160,6 @@ data class CommandOption(
     val kind: OptionKind = OptionKind.TEXTE,
 )
 
-enum class OptionKind { TEXTE, FICHIER }
+enum class OptionKind { TEXTE, FICHIER, MEMBRE }
+enum class CommandKind { SLASH, MESSAGE }
+enum class CommandPermission { MANAGE_SERVER, MODERATE_MEMBERS, KICK_MEMBERS, BAN_MEMBERS, MANAGE_MESSAGES, MANAGE_CHANNELS }

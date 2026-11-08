@@ -42,6 +42,10 @@ data class DiscordDefinitions(
     @SerialName("admissions") val admissions: AdmissionRules,
     @SerialName("bienvenue") val banner: BannerRules,
     @SerialName("profils") val profiles: GameProfileRules,
+    @SerialName("moderation") val moderation: ModerationRules,
+    @SerialName("signalements") val reporting: SignalementSettings,
+    @SerialName("archivesTickets") val ticketArchives: TicketArchiveRules,
+    @SerialName("salonsModeration") val channelModeration: ChannelModerationRules,
 ) {
     /** Le fuseau des heures du fichier. */
     val zone: ZoneId get() = ZoneId.of(timeZone)
@@ -82,6 +86,12 @@ data class DiscordDefinitions(
             if (tier.role !in roleIds) problems += "profils.paliersPrestige : le rôle « ${tier.role} » n'est pas dans le plan"
             val roleColor = plan.roles.firstOrNull { it.id == tier.role }?.couleur
             if (tier.minimum >= profiles.brassFromPrestige && roleColor != profiles.prestigeColor) problems += "profils.paliersPrestige : la couleur du rôle « ${tier.role} » doit correspondre à couleurPrestige"
+        }
+        for (id in channelModeration.channels) {
+            val channel = plan.channels.firstOrNull { it.id == id }
+            val category = plan.categories.firstOrNull { category -> category.salons.any { it.id == id } }
+            if (channel == null || channel.type != ChannelKind.TEXTE || channel.visible != null || channel.ecriture != null || category?.visible != null)
+                problems += "salonsModeration.salons : « $id » doit être un salon de texte public sans écriture réservée"
         }
         return problems
     }

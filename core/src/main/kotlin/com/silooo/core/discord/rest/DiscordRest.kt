@@ -39,6 +39,8 @@ class DiscordRest(
     private val api: String = API,
 ) : AutoCloseable {
 
+    internal val channelModeration = ChannelModerationRest(token, client, api)
+
     /** L'accueil guidé du serveur [guildId] ; un serveur qui n'en a jamais eu rend un état vide, désactivé. */
     suspend fun onboarding(guildId: String): OnboardingState =
         exchange("lire l'accueil guidé") { client.get(api + "/guilds/" + guildId + "/onboarding") { asBot() } }
@@ -53,6 +55,21 @@ class DiscordRest(
                 setBody(OnboardingJson.write(state))
             }
         }
+
+    /** Seul le code 10003 confirme une absence. Un salon d'un autre serveur ou un refus restent des erreurs. */
+    suspend fun channelExists(guildId: String, channelId: String): Boolean {
+        require(channelId.matches(Regex("[0-9]{1,20}")))
+        val response = try { client.get(api + "/channels/" + channelId) { asBot() } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { throw DiscordRefusal("La présence du salon n'a pas pu être vérifiée.") }
+        val body = try { Json.parseToJsonElement(response.bodyAsText()) as? JsonObject }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { null }
+        if (response.status.value == 404 && (body?.get("code") as? JsonPrimitive)?.content == "10003") return false
+        if (response.status.value == 200 && (body?.get("guild_id") as? JsonPrimitive)?.content == guildId &&
+            (body?.get("type") as? JsonPrimitive)?.content == "0") return true
+        throw DiscordRefusal("Discord a refusé de vérifier le salon du ticket.")
+    }
 
     private fun HttpRequestBuilder.asBot() {
         header(HttpHeaders.Authorization, "Bot " + token.reveal())

@@ -5,7 +5,7 @@
   "description": "Forme de definitions/discord.json : les délais de l'accueil, les vocaux d'info, les coulisses, l'XP de tchat, les tableaux, les petits jeux, le rapport du lundi, les rappels, les giveaways, les concours, les admissions et l'image d'accueil. Les chiffres vivent dans le fichier de données, pas ici : le schéma ne fixe que les types et les bornes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils"],
+  "required": ["version", "commentaire", "fuseau", "accueil", "statut", "vocauxInfo", "spoils", "xp", "reactions", "meilleursMoments", "monteCharge", "rapport", "rappels", "giveaways", "concours", "aides", "admissions", "bienvenue", "profils", "moderation", "signalements", "archivesTickets", "salonsModeration"],
   "$defs": {
     "identifiantDuPlan": {
       "description": "Un identifiant du plan du serveur : minuscules, chiffres et tirets.",
@@ -380,6 +380,209 @@
             "required": ["minimum", "role"],
             "properties": { "minimum": { "type": "integer", "minimum": 1 }, "role": { "$ref": "#/$defs/identifiantDuPlan" } }
           }
+        }
+      }
+    },
+    "moderation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmationSecondes",
+        "conservationJours",
+        "dossiersParPage",
+        "motifMaxCaracteres",
+        "dureesHeures",
+        "purgeSecondes"
+      ],
+      "properties": {
+        "confirmationSecondes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "conservationJours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650
+        },
+        "dossiersParPage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "motifMaxCaracteres": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "dureesHeures": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          }
+        },
+        "purgeSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      }
+    },
+    "signalements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "delaiSecondes",
+        "formulaireSecondes",
+        "conservationJours",
+        "purgeSecondes",
+        "motifMaxCaracteres",
+        "contenuMaxCaracteres"
+      ],
+      "properties": {
+        "delaiSecondes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "formulaireSecondes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "conservationJours": {
+          "type": "integer",
+          "enum": [
+            30
+          ]
+        },
+        "purgeSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "motifMaxCaracteres": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "contenuMaxCaracteres": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      }
+    },
+    "archivesTickets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "messagesParPage",
+        "etapesParPassage",
+        "ticketsParPassage",
+        "repriseSecondes",
+        "bailSecondes",
+        "conservationJours",
+        "recherchePages",
+        "fichierMaxOctets"
+      ],
+      "properties": {
+        "messagesParPage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "etapesParPassage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "ticketsParPassage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "repriseSecondes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 3600
+        },
+        "bailSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        },
+        "conservationJours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "recherchePages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "fichierMaxOctets": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 8000000
+        }
+      }
+    },
+    "salonsModeration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "salons",
+        "purgeMaxMessages",
+        "rechercheMessages",
+        "ancienneteMaxJours",
+        "modesLentsSecondes",
+        "repriseVerrouSecondes"
+      ],
+      "properties": {
+        "salons": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "purgeMaxMessages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "rechercheMessages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "ancienneteMaxJours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 13
+        },
+        "modesLentsSecondes": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 21600
+          }
+        },
+        "repriseVerrouSecondes": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
         }
       }
     }

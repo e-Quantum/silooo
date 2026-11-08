@@ -2,8 +2,8 @@
   "$schema": "./plan-serveur.schema.json",
   "commentaire": "Le plan du serveur Discord de Silooo (docs/discord.md). Le bot crée ce qui manque et ne supprime jamais rien. Chaque entrée porte la phase où elle apparaît : attente (le QG du chantier), beta, ouvert. Les noms, les emoji et les sujets sont à valider par Kr. Les catégories s'écrivent en minuscules : Discord les affiche en capitales.",
   "roles": [
-    { "id": "staff", "nom": "Staff", "couleur": "#e0614f", "separe": true },
-    { "id": "moderation", "nom": "Modération", "couleur": "#e0614f", "separe": true },
+    { "id": "staff", "nom": "Staff", "couleur": "#e0614f", "separe": true, "permissions": ["gerer-serveur", "moderer-membres", "gerer-messages", "gerer-fils", "voir-journal"] },
+    { "id": "moderation", "nom": "Modération", "couleur": "#e0614f", "separe": true, "permissions": ["moderer-membres", "gerer-messages", "gerer-fils", "voir-journal"] },
     { "id": "aide", "nom": "Aide", "couleur": "#4f9a74", "separe": true },
     { "id": "createur", "nom": "Créateur", "couleur": "#5c84b8", "separe": true, "phase": "beta" },
     { "id": "pionnier", "nom": "Pionnier", "couleur": "#efe3c6" },

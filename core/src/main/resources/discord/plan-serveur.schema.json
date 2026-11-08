@@ -37,7 +37,13 @@
         "couleur": { "$ref": "#/$defs/couleur" },
         "separe": { "type": "boolean", "description": "Affiché à part dans la liste des membres." },
         "mentionnable": { "type": "boolean", "description": "Mentionnable par tout le monde ; le bot mentionne ce qu'il veut." },
-        "phase": { "$ref": "#/$defs/phase" }
+        "phase": { "$ref": "#/$defs/phase" },
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["gerer-serveur", "moderer-membres", "gerer-messages", "gerer-fils", "voir-journal"] },
+          "description": "Droits Discord natifs requis par ce rôle ; appliqués par ajout aux droits déjà présents."
+        }
       }
     },
     "categorie": {
