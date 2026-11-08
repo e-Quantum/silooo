@@ -1359,6 +1359,16 @@ fusion reconnaîtra les mêmes lignes.
 Image `silooo-bds:carriere-e53a1cd` déployée le 8 novembre à 19 h 10 UTC sur le seul service `silooo-bds`, après accord
 de Kr ; arrêt propre par la console, sauvegarde dans `sauvegardes/carriere-0.1.9-e53a1cd/`. `tools/verifier.sh` vert.
 
+### Intégration vidéo et Carrière, 8 novembre 2026
+
+Branche `claude/integration-video-carriere` : `main` (d5d4d6a), puis `claude/p3-video` (P0 à P3, avance rapide), puis
+`claude/carriere-ile`. Conflits résolus : les versions des packs passent à 0.1.10 (au-dessus de la 0.1.6 de P3 et de la
+0.1.9 en production), `verifier_pack.mjs` contrôle `generer_oooscar`, `generer_atelier` et `generer_glyphes`
+(`generer_structure.mjs` n'existe plus), la passation garde les deux côtés. Les règles du monde de P0, présentes des deux
+côtés, ne sont posées qu'une fois. `tools/verifier.sh` vert, Gradle compris. Pas déployée : P2 et P3 changent le contrat
+du service, donc le BDS de cette branche demande le core de cette branche, et le core en production
+(`discord-2ade9f1`) vient d'un commit Discord absent de GitHub.
+
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.
