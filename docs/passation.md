@@ -516,7 +516,8 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   les particules, les 27 sons (`resource-pack/sounds/`), les six noms affichés de `resource-pack/texts/fr_FR.lang`
   (section « Carrière ») et les valeurs proposées pour `definitions/iles.json` (plans de la cinématique, apparition,
   anneau). Branchée dans l'add-on 0.1.5 (branche `claude/carriere-epoque1-jeu`, sur la 0.1.4 de Codex) ; rien n'a
-  été vu dans un client Bedrock avant le déploiement.
+  été vu dans un client Bedrock avant le déploiement. En 0.1.8 (branche `claude/carriere-ile`) : le second salarié
+  qui pellette, les machines cassées de la ruine, le bruit et les miettes du coffre à chaque pierre.
 
 - Salle d'attente v2 (7 novembre) : l'accueil, les hologrammes, les rappels, le podium du lundi d'Oooscar
   (`core/.../discord/LobbyPodium.kt`, `LobbyPodiumTexts`), « Pionnier · pseudo », le nom « Silooo · ouverture bientôt »,
@@ -1237,6 +1238,17 @@ Image `silooo-bds:carriere-26a4b77-lan` déployée à 7 h 57 UTC sur le seul ser
 `sauvegardes/carriere-0.1.7-26a4b77/`. Démarrage propre. Vérification : verte, sauf `verifier_site.mjs`, qui échoue
 parce qu'un Chromium de Playwright installé le 8 novembre à 7 h 38 dans `~/.cache/ms-playwright` ne trouve pas
 `libatk-1.0.so.0` ; sans lui, les 170 tests de l'outillage passent. À régler sur le VPS (bibliothèques ou retrait).
+
+### Carrière 0.1.8, 8 novembre 2026
+
+Branche `claude/carriere-ile`, la même Carrière rebasée sur `main` (d5d4d6a) : elle remplace `claude/carriere-epoque1-jeu`,
+jamais poussée. Plus proche de la maquette ([carriere.md](carriere.md), « Plus proche de la maquette ») : second salarié
+qui pellette au bocard, pierres des pilons jusqu'au coffre avec miettes et bruit à l'arrivée, machines cassées sur la
+ruine, ailes et pilons immobiles à l'arrêt. La protection est branchée par `protectCarriere` de `monde/bedrock.ts` :
+`main.ts` n'a plus qu'un appel. Fusion avec `claude/p0-video` et `claude/p1-video` (session vidéo du PC), essayée à
+blanc : restent la version des packs (prendre la plus haute, et la monter d'un cran), la liste d'outils de
+`tools/verifier_pack.mjs` (`generer_structure.mjs` n'existe plus, garder `generer_glyphes.mjs`) et cette passation ;
+le masquage du titre de la cinématique et celui des sous-titres sont compatibles.
 
 ### D3 — répartition du 6 novembre 2026
 
