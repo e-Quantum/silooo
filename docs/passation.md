@@ -1249,6 +1249,10 @@ ruine, ailes et pilons immobiles à l'arrêt. La protection est branchée par `p
 blanc : restent la version des packs (prendre la plus haute, et la monter d'un cran), la liste d'outils de
 `tools/verifier_pack.mjs` (`generer_structure.mjs` n'existe plus, garder `generer_glyphes.mjs`) et cette passation ;
 le masquage du titre de la cinématique et celui des sous-titres sont compatibles.
+Image `silooo-bds:carriere-6224b73` (sans couche `-lan` : le gabarit de `main` met déjà
+`enable-lan-visibility=true`) déployée le 8 novembre à 17 h 40 UTC sur le seul service `silooo-bds`, après accord de Kr ;
+arrêt propre par la console (`stop`, politique de redémarrage coupée avant), sauvegarde dans
+`sauvegardes/carriere-0.1.8-6224b73/`. Vérification : `tools/verifier.sh` vert, Gradle avec le JDK 17.
 
 ### D3 — répartition du 6 novembre 2026
 
