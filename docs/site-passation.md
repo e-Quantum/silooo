@@ -16,7 +16,7 @@ lit « Pour la direction du jeu », la direction du Discord lit « Pour la direc
   refaire, trois posées à Kr (T1 et T3 appliquées par leur recommandation, décisions 15 et 19 ; T2 attend). Le kit de Kr est sur `main` : `docs/site.md` le reprend, complété par « Où en est `main` » ; l'original
   est dans `docs/references/site-kit/`.
 - **Étape en cours** : `claude/site-socle`, `claude/site-gabarit`, `claude/site-attente` et `claude/site-comptes` sont finies
-  (fusionnées sur `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-admin`.
+  (fusionnées sur `main` après `tools/verifier.sh` vert) ; la suivante est `claude/site-admission` (décision 21), puis `claude/site-admin`.
 - **Kr** : une question encore ouverte dans la révision (T2) ; T1 et T3 ont été appliquées par leur recommandation
   (décisions 15 et 19), Kr peut les retourner. Sans réponse, la recommandation s'applique (décision 12 ci-dessous).
 - **Le déploiement** : fait le 5 novembre 2026 à 21 h 46, à la demande de Kr en séance (« poste le site web dans l'état,
@@ -49,8 +49,12 @@ La page d'attente :
   `web_sessions`, pas dans Redis), R18 pour moitié (`beta_access` écrite par la règle ; le staff avec l'admin), R19 pour
   moitié (le Pionnier noté une fois, à l'inscription d'avant l'ouverture ; l'objet côté jeu), R21 pour `/compte/lier`,
   R23 selon T3
-- [ ] `claude/site-admin` : R20 (les cinq pages admin, rôle staff, journal), R42 (bêta : seul le staff paie), le reste
-  de R49 (actus écrites dans l'admin), le reste de R18 (l'admission par le staff écrite dans `beta_access`)
+- [ ] `claude/site-admission` (avant l'admin, décision 21) : la règle d'admission automatique en un seul endroit
+  (`SiteAdmission`) et écrite dans `beta_access` pour les trois chemins : Discord relié en jeu, Pionnier (site avant
+  l'ouverture, ou code de la salle d'attente, `issueLobbyLinkCode`), inscription sur le site par Microsoft ; ce que
+  devient `SILOOO_SITE_ADMISSION` ; la porte au `session/join` en `beta` demandée à la direction du jeu (contrat d'abord)
+- [ ] `claude/site-admin` : R20 (les pages admin, rôle staff, journal ; `/admin/inscriptions` en lecture seule, plus
+  d'admission par le staff, décision 21), R42 (bêta : seul le staff paie), le reste de R49 (actus écrites dans l'admin)
 
 La bêta :
 
@@ -382,6 +386,15 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
    avec sa colonne par `aspect-ratio` (le `zoom` par paliers disparaît) ; les deux nuages CSS restent, derrière la scène.
    (f) Refaire les données après un changement de la Carrière : enregistrer l'aperçu (Artifact, action read), puis
    `node tools/site_ile.mjs <apercu.html>` ; l'image fixe se refait en capturant la scène.
+
+21. **L'admission en bêta est automatique, dite par Kr** (8 novembre 2026 ; corrige R18 et le kit). Le staff ne choisit
+   personne : quand Kr ouvre la bêta, entre tout joueur qui remplit l'une des trois conditions : (a) il a relié son compte
+   Discord en jeu ; (b) il est Pionnier (inscrit avant l'ouverture, sur le site ou en jeu) ; (c) il s'est inscrit sur le
+   site avec la connexion Microsoft (Xbox). Conséquences : `/admin/inscriptions` ne sert plus à admettre (au plus une
+   liste en lecture) ; `beta_access` s'écrit par cette règle seule, et `SILOOO_SITE_ADMISSION` (`discord` ou `tous`) ne
+   la dit pas encore exactement (une inscription Xbox n'est admise qu'avec `tous`, le Pionnier en jeu passe par le jeu) :
+   à aligner avant l'admin. La porte au `session/join` en mode `beta` reste au jeu (contrat d'abord), avec ces trois
+   conditions.
 
 ## À valider par Kr
 
