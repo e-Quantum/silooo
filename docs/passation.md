@@ -1230,6 +1230,14 @@ déployée à 7 h 40 UTC sur le seul service `silooo-bds` ; sauvegarde dans `sau
 Démarrage propre : packs 0.1.6, add-on démarré, blocs et structures validés. Ouvert : protection des blocs de l'île,
 orientation des machines à confirmer en jeu, second salarié, vente par particules.
 
+### Carrière 0.1.7, 8 novembre 2026
+
+Protection de l'île de départ (décision de Kr) : tout est protégé sauf le front de taille ([carriere.md](carriere.md)).
+Image `silooo-bds:carriere-26a4b77-lan` déployée à 7 h 57 UTC sur le seul service `silooo-bds` ; sauvegarde dans
+`sauvegardes/carriere-0.1.7-26a4b77/`. Démarrage propre. Vérification : verte, sauf `verifier_site.mjs`, qui échoue
+parce qu'un Chromium de Playwright installé le 8 novembre à 7 h 38 dans `~/.cache/ms-playwright` ne trouve pas
+`libatk-1.0.so.0` ; sans lui, les 170 tests de l'outillage passent. À régler sur le VPS (bibliothèques ou retrait).
+
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.
