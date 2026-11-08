@@ -285,6 +285,17 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     2 h au plus jusqu'à la découverte d'une deuxième usine (aujourd'hui, un seul niveau : la Scierie arrive au niveau
     d'entreprise 2). (d) La carte dit « Ta ville ouvre avec la première zone. » au lieu de « Achète la première zone. »,
     lu comme si l'île où se tient le joueur était fermée.
+53. **Les menus, P3 du plan tiré de la vidéo (8 novembre 2026, branche `claude/p3-video`, sur `claude/p2-video`).**
+    Tranché sans Kr : (a) sur la carte, sous le cadenas d'une usine cachée, ce qui l'ouvre, lu dans la clé `decouverte`
+    de `definitions/usines.json` (« Niveau d'entreprise 4 », « Époque 2 », « Après Fonderie ») ; une usine qui en suit
+    une encore cachée dit « Après une autre usine », pour ne pas la nommer. (b) La fiche Usine tient sans défiler :
+    niveau et revenu sur une ligne, le temps de retour passe sous « Monter de 1 » avec le prix, et « Encaisser » quitte
+    la fiche (il reste au Silo et à deux clics du menu). (c) Une montée réussie joue un son (`config.ui.sons` :
+    `random.orb`, `random.levelup` quand elle franchit un palier) et met une ligne en or sous la bulle : « NIVEAU 12 »
+    ou « PALIER ATTEINT · PRODUCTION ×2 », d'après les niveaux du service avant et après ; une étape de remise en état
+    joue `random.anvil_use`. Pas de titre à l'écran : le formulaire ouvert le cacherait. (d) La mission en cours a une
+    barre (■, un segment par pas jusqu'à 10, dix au-delà) ; sans canal de titre (`titleChannel` à `false`, le cas
+    d'aujourd'hui), elle passe au-dessus des monnaies dans la barre d'action, au lieu de n'être lisible qu'à Objectifs.
 
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en
@@ -545,6 +556,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- P3 (8 novembre, décision 53) : sous les cadenas de la carte, « Niveau d'entreprise `<n>` », « Époque `<n>` »,
+  « Après `<usine>` », « Après une autre usine » ; la fiche Usine sans « Encaisser », « Niveau `<n>` · Revenu
+  `<revenu>` », « Coût `<montant>` Donar · retour `<durée>` » sous « Monter de 1 » (remplace « Le prochain niveau
+  se rembourse en `<durée>` », jamais déployé) ; « NIVEAU `<n>` » et « PALIER ATTEINT · PRODUCTION ×2 » en or après
+  une montée ; les trois sons ; la barre ■ de la mission et sa place dans la barre d'action. À regarder sur un vrai
+  client : le caractère ■ et la longueur de la barre d'action à deux lignes.
+
 - P2 (8 novembre, décision 52) : les titres, consignes et bulles des trois missions (« Plus haut, plus vite », « Achète
   des niveaux à l'Usine », « Ton usine tourne plus vite. » ; « Une deuxième usine », « Remets une usine en état »,
   « Deux usines tournent, bien joué ! » ; « Ta première zone », « Achète la première zone », « La première zone est à
@@ -691,6 +709,10 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   pionnier) et la tuile Associés déplacée sous Personnel. Les points d'exclamation des bulles sont à relire.
 
 ## Journal
+
+- **8 novembre 2026 : P3, les menus** (branche `claude/p3-video`, décision 53). Carte qui dit ce qui ouvre chaque
+  usine cachée, fiche Usine qui tient sans défiler, son et ligne en or à chaque montée, barre d'avancement de la mission
+  dans le HUD. Pas vu sur un vrai client. Déploiement toujours en attente de Kr (voir l'entrée P2 ci-dessous).
 
 - **8 novembre 2026 : P2, économie et progression** (branche `claude/p2-video`, décision 52). Trois missions après
   la mairie, temps de retour du niveau suivant donné par le service et affiché dans la fiche Usine, garde-fou du joueur

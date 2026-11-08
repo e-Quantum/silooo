@@ -62,17 +62,40 @@ function gainLine(view: CompanyView): string {
   return colored(COLOR.paper, `+${formatRate(view.state.ratePerHour)}`);
 }
 
+/** Un segment de la barre d'avancement d'une mission. */
+export const BAR_SEGMENT = "■";
+
+/** Une barre plus longue se lirait mal : au-delà, chaque segment vaut une part de la cible. */
+export const BAR_MAX_SEGMENTS = 10;
+
+/**
+ * La barre d'avancement d'une mission, d'après `progress` et `target` du service : un segment par pas quand la cible est
+ * petite (3/3 donne trois segments), sinon dix. Les segments faits sont en vert, les autres en gris. Un avancement qui
+ * dépasse la cible remplit la barre, sans plus. Rien d'autre n'est tiré de ces deux nombres.
+ */
+export function progressBar(progress: number, target: number): string {
+  if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(progress)) return "";
+  const segments = Number.isInteger(target) && target <= BAR_MAX_SEGMENTS ? target : BAR_MAX_SEGMENTS;
+  const done = Math.min(segments, Math.max(0, Math.floor((progress * segments) / target)));
+  return `${COLOR.success}${BAR_SEGMENT.repeat(done)}${COLOR.locked}${BAR_SEGMENT.repeat(segments - done)}${COLOR.reset}`;
+}
+
+/** La mission en cours que cet add-on sait dire, avec sa barre, ou undefined. */
+function missionLine(missions: MissionState | undefined): string | undefined {
+  const current = missions?.current ?? null;
+  const texts = current === null ? undefined : missionTexts(current.id);
+  if (current === null || texts === undefined) return undefined;
+  const bar = progressBar(current.progress, current.target);
+  const text = colored(COLOR.muted, HUD_TEXTES.mission(texts.consigne, formatCount(current.progress), formatCount(current.target)));
+  return bar === "" ? text : `${text} ${bar}`;
+}
+
 /**
  * La consigne : la mission en cours (sa consigne, puis `progress`/`target` du service), sinon le seuil de prestige.
  * Une mission dont cet add-on n'a pas les textes laisse la place au prestige : il n'invente pas de mots pour elle.
  */
 function consigneLine(view: CompanyView, missions: MissionState | undefined): string {
-  const current = missions?.current ?? null;
-  const texts = current === null ? undefined : missionTexts(current.id);
-  if (current !== null && texts !== undefined) {
-    return HUD_TEXTES.mission(texts.consigne, formatCount(current.progress), formatCount(current.target));
-  }
-  return HUD_TEXTES.consigne(formatAmount(view.state.threshold));
+  return missionLine(missions) ?? colored(COLOR.muted, HUD_TEXTES.consigne(formatAmount(view.state.threshold)));
 }
 
 function offlineLine(): string {
@@ -86,14 +109,17 @@ export function renderHud(input: HudInput): HudFrame {
 
   if (!titleChannel) {
     if (offline) return { title: "", subtitle: "", actionBar: offlineLine() };
-    return { title: "", subtitle: "", actionBar: `${currencyLine(view, nowMs)}${SEPARATOR}${gainLine(view)}` };
+    // Sans canal de titre, la mission en cours passe au-dessus des monnaies, dans la barre d'action : l'objectif reste à l'écran.
+    const bottom = `${currencyLine(view, nowMs)}${SEPARATOR}${gainLine(view)}`;
+    const mission = missionLine(missions);
+    return { title: "", subtitle: "", actionBar: mission === undefined ? bottom : `${mission}\n${bottom}` };
   }
   if (offline) {
     return { title: `${HUD_TITLE_PREFIX}${offlineLine()}`, subtitle: HUD_SUBTITLE_PREFIX, actionBar: "" };
   }
   return {
     title: `${HUD_TITLE_PREFIX}${currencyLine(view, nowMs)}`,
-    subtitle: `${HUD_SUBTITLE_PREFIX}${colored(COLOR.muted, consigneLine(view, missions))}`,
+    subtitle: `${HUD_SUBTITLE_PREFIX}${consigneLine(view, missions)}`,
     actionBar: gainLine(view),
   };
 }

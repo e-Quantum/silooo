@@ -5,9 +5,10 @@
 import brut from "../../../definitions/iles.json";
 import brutBoutique from "../../../definitions/boutique.json";
 import brutPersonnel from "../../../definitions/personnel.json";
+import brutUsines from "../../../definitions/usines.json";
 import brutVille from "../../../definitions/ville.json";
 import brutVote from "../../../definitions/vote.json";
-import type { BoutiqueDefinitions, IlesDefinitions, PersonnelDefinitions, VilleDefinitions, VoteDefinitions } from "../generated/definitions";
+import type { BoutiqueDefinitions, IlesDefinitions, PersonnelDefinitions, UsinesDefinitions, VilleDefinitions, VoteDefinitions } from "../generated/definitions";
 
 /**
  * Le JSON importé a des chaînes larges (`string`), les types générés ont les unions exactes du schéma : le passage
@@ -26,6 +27,9 @@ export type CosmeticCategory = BoutiqueDefinitions["cosmetiques"][number]["categ
 
 /** Le personnel : definitions/personnel.json. Le nom de chaque rareté vient d'ici. */
 export const PERSONNEL: PersonnelDefinitions = brutPersonnel as unknown as PersonnelDefinitions;
+
+/** Les usines : definitions/usines.json. Seule la clé `decouverte` sert ici : la carte dit ce qui ouvre une usine cachée. */
+export const USINES: UsinesDefinitions = brutUsines as unknown as UsinesDefinitions;
 
 /** Les votes : definitions/vote.json. Le nom de chaque site de vote vient d'ici (le rappel du vote du jour). */
 export const VOTE: VoteDefinitions = brutVote as unknown as VoteDefinitions;

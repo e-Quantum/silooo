@@ -152,8 +152,10 @@ dans `config.ts`.
 - En dessous : rien, le contrat n'a ni île, ni membres connectés, ni ping.
 
 `config.ui.hud.titleChannel` est à `false` : tant que `resource-pack/` ne masque pas ces deux préfixes, le canal de
-titre afficherait le préfixe au milieu de l'écran. Tout le HUD passe alors par la barre d'action, qui ne porte pas la
-consigne : tant que `titleChannel` est à `false`, la mission se lit dans le menu, à Objectifs. Quand le service ne
+titre afficherait le préfixe au milieu de l'écran. Tout le HUD passe alors par la barre d'action : la mission en cours,
+avec sa barre, sur une première ligne, puis les monnaies et le gain. Sans mission que l'add-on sait dire, la barre
+d'action garde sa seule ligne ; le seuil de prestige n'y monte pas. La barre d'une mission compte un segment ■ par pas
+jusqu'à dix pas, dix segments au-delà, en vert pour les pas faits (`progressBar`, `ui/hud.ts`). Quand le service ne
 répond pas, le HUD se réduit à « Service hors ligne ».
 
 Ce que `resource-pack/` doit apporter, et qui n'y est pas encore :
@@ -585,11 +587,12 @@ Les tests relisent les glyphes en repères (`bare` dans `test/ui-helpers.ts`).
 | Fiche, phrase d'une usine en travaux | rien | Les travaux avancent, étape par étape. |
 | Fiche, phrase d'un incident de sorte inconnue (le service ne dit plus qu'il bloque : il ralentit) | Un incident bloque sa production. | Un incident ralentit sa production. |
 | Fiche, phrase d'un arrêt faute de courant | rien | Elle est à l'arrêt, sans courant. |
-| Fiche, info | rien | Niveau `<niveau>` |
-| Fiche, info | rien | Revenu `<revenu>` |
+| Fiche, info, le niveau et le revenu sur une ligne (à valider par Kr) | Niveau `<niveau>`, puis Revenu `<revenu>` sur deux lignes | Niveau `<niveau>` · Revenu `<revenu>` |
 | Fiche, info | rien | Palier ×2 au niveau `<niveau>` |
 | Fiche, info | rien | Coût `<montant>` Donar |
-| Fiche, info, quand le service donne `nextPaybackHours` (à valider par Kr) | rien | Le prochain niveau se rembourse en `<durée>` |
+| Fiche, en or sous la bulle après une montée (à valider par Kr) | rien | NIVEAU `<niveau>` |
+| Fiche, en or sous la bulle quand la montée franchit le palier (à valider par Kr) | rien | PALIER ATTEINT · PRODUCTION ×2 |
+| Fiche, sous « Monter de 1 », quand le service donne `nextPaybackHours` (à valider par Kr) | Coût `<montant>` Donar | Coût `<montant>` Donar · retour `<durée>` |
 | Fiche, info d'une usine en travaux | rien | Étape `<n>` sur `<total>` : `<nom de l'étape>` |
 | Fiche, bouton | rien | Monter de 1 |
 | Fiche, bouton | rien | Monter de 10 |
@@ -704,6 +707,10 @@ viennent du service, mis en forme par `ui/nombres.ts`. Les noms d'époque sont c
 | Carte, phrase | rien | Choisis une île pour t'y rendre. |
 | Carte, île principale, tuile verrouillée tant que l'entreprise n'a pas de zone | Île principale, avec le mot Bientôt | Île principale, avec Ta ville ouvre avec la première zone. (à valider par Kr) |
 | Carte, usine que l'entreprise n'a pas | rien | ????? |
+| Carte, sous le cadenas, une usine ouverte par le niveau d'entreprise (à valider par Kr) | rien | Niveau d'entreprise `<n>` |
+| Carte, sous le cadenas, une usine ouverte par une époque (à valider par Kr) | rien | Époque `<n>` |
+| Carte, sous le cadenas, une usine qui suit une usine de l'entreprise (à valider par Kr) | rien | Après `<nom de l'usine>` |
+| Carte, sous le cadenas, une usine qui suit une usine encore cachée (à valider par Kr) | rien | Après une autre usine |
 | Carte, usine entière | rien | Entière · niv. `<niveau>` |
 | Carte, usine en ruine | rien | En ruine |
 | Carte, usine en travaux | rien | En travaux `<étape>`/`<total>` |
@@ -1286,8 +1293,9 @@ Au design system :
 
 - Où Oooscar dit la fin d'une mission : pour l'instant dans le tchat du joueur (`player.sendMessage`), faute d'un autre
   endroit qui ne soit pas réécrit chaque seconde par le HUD. Une vraie bulle à l'écran dépend du pack de ressources.
-- La consigne du HUD n'est visible qu'avec `titleChannel` à `true` (le sous-titre) ; à `false` elle manque, et la
-  mission se lit à Objectifs. Le réglage reste à `false` tant que le pack ne masque pas les préfixes.
+- La consigne du HUD passe par le sous-titre avec `titleChannel` à `true` ; à `false`, la mission en cours monte
+  dans la barre d'action, au-dessus des monnaies, et le seuil de prestige ne se lit qu'au menu. Le réglage reste à
+  `false` tant que le pack n'est pas vu sur un vrai client.
 - « Une action en deux clics » : le Silo y est (Silo, Encaisser), pas la montée d'une usine (Usines, la tuile, le
   bouton). Un accès direct depuis le menu principal à l'usine la plus rentable serait possible, mais il demande un
   choix de jeu (laquelle ?) qui n'est pas pris ici.

@@ -7,9 +7,12 @@ import { COLOR } from "../src/ui/apparence";
 import { anchorOf, counterValue } from "../src/ui/compteur";
 import { createViewStore, type CompanyView } from "../src/ui/etat";
 import {
+  BAR_MAX_SEGMENTS,
+  BAR_SEGMENT,
   HUD_SUBTITLE_PREFIX,
   HUD_TITLE_PREFIX,
   createHud,
+  progressBar,
   renderHud,
   startHud,
   type HudPlayerLike,
@@ -299,19 +302,19 @@ describe("renderHud, la consigne de la mission", () => {
   it("montre la consigne de la mission en cours et son avancement tel que le service le donne", () => {
     assert.equal(
       consigne(render(missionState())),
-      `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.mission("Encaisse au Silo", "0", "1")}`,
+      `${HUD_SUBTITLE_PREFIX}${HUD_TEXTES.mission("Encaisse au Silo", "0", "1")} ${bare(progressBar(0, 1))}`,
     );
-    assert.equal(consigne(render(missionState())), `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 0/1`);
+    assert.equal(consigne(render(missionState())), `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 0/1 ■`);
   });
 
   it("met en forme les nombres du service, sans rien calculer : un avancement qui dépasse la cible reste tel quel", () => {
     assert.equal(
       consigne(render(missionState({ current: mission({ progress: 1_250, target: 20_000 }) }))),
-      `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : ${formatCount(1_250)}/${formatCount(20_000)}`,
+      `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : ${formatCount(1_250)}/${formatCount(20_000)} ■■■■■■■■■■`,
     );
     assert.equal(
       consigne(render(missionState({ current: mission({ progress: 5, target: 3 }) }))),
-      `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 5/3`,
+      `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 5/3 ■■■`,
     );
   });
 
@@ -339,17 +342,41 @@ describe("renderHud, la consigne de la mission", () => {
     assert.equal(avec.actionBar, sans.actionBar);
   });
 
-  it("sans canal de titre, la barre d'action reste la même avec ou sans mission", () => {
+  it("sans canal de titre, la mission en cours passe au-dessus des monnaies, dans la barre d'action", () => {
     const sans = render(undefined, false);
     const avec = render(missionState(), false);
-    assert.deepEqual(avec, sans);
-    assert.doesNotMatch(avec.actionBar, /Encaisse/);
+    assert.equal(avec.title, "");
+    assert.equal(avec.subtitle, "");
+    assert.equal(bare(avec.actionBar), `Encaisse au Silo : 0/1 ■\n${bare(sans.actionBar)}`);
+    // Sans mission que cet add-on sait dire, la barre d'action ne change pas : le prestige n'y monte pas.
+    assert.deepEqual(render({ current: null, completed: ["bienvenue-mairie"] }, false), sans);
   });
 
   it("service injoignable : « hors ligne » seulement, aucune consigne", () => {
     const frame = render(missionState(), true, "down");
     assert.doesNotMatch(bare(frame.subtitle), /Encaisse|\d\/\d/);
     assert.doesNotMatch(bare(frame.title), /Encaisse|\d\/\d/);
+  });
+});
+
+describe("progressBar, l'avancement d'une mission", () => {
+  const segments = (bar: string) => ({ faits: bare(bar.split(COLOR.locked)[0] ?? ""), restants: bare(bar.split(COLOR.locked)[1] ?? "") });
+
+  it("une petite cible : un segment par pas, les faits en vert, les autres en gris", () => {
+    assert.deepEqual(segments(progressBar(2, 3)), { faits: BAR_SEGMENT.repeat(2), restants: BAR_SEGMENT });
+    assert.ok(progressBar(2, 3).startsWith(COLOR.success));
+    assert.deepEqual(segments(progressBar(3, 3)), { faits: BAR_SEGMENT.repeat(3), restants: "" });
+  });
+
+  it("une grande cible : dix segments au plus, jamais plus que la barre", () => {
+    assert.equal(bare(progressBar(1_250, 20_000)), BAR_SEGMENT.repeat(BAR_MAX_SEGMENTS));
+    assert.deepEqual(segments(progressBar(10_000, 20_000)), { faits: BAR_SEGMENT.repeat(5), restants: BAR_SEGMENT.repeat(5) });
+    assert.deepEqual(segments(progressBar(9, 3)), { faits: BAR_SEGMENT.repeat(3), restants: "" });
+  });
+
+  it("une cible nulle ou absurde : pas de barre", () => {
+    assert.equal(progressBar(0, 0), "");
+    assert.equal(progressBar(1, Number.NaN), "");
   });
 });
 
@@ -391,7 +418,7 @@ describe("createHud, les missions", () => {
     );
     courant = missionState({ current: mission({ progress: 0, target: 1 }) });
     hud.refresh();
-    assert.equal(bare(sent.title?.options?.subtitle ?? ""), `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 0/1`);
+    assert.equal(bare(sent.title?.options?.subtitle ?? ""), `${HUD_SUBTITLE_PREFIX}Encaisse au Silo : 0/1 ■`);
     courant = { current: null, completed: ["bienvenue-mairie"] };
     hud.refresh();
     assert.equal(

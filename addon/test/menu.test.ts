@@ -6,12 +6,15 @@ import { COLOR } from "../src/ui/apparence";
 import { counterValue } from "../src/ui/compteur";
 import { createViewStore, type CompanyView } from "../src/ui/etat";
 import { createMissions } from "../src/ui/missions";
+import { USINES } from "../src/monde/definitions";
 import type { TravelOutcome } from "../src/monde/voyage";
 import {
   apresScreen,
   carteScreen,
   createMenu,
+  cheerOf,
   ficheScreen,
+  lockDetail,
   mainScreen,
   noticeOf,
   offlineNoticeText,
@@ -213,7 +216,7 @@ describe("fiche d'une usine active", () => {
   });
   const screen = ficheScreen(view, "mine-profonde", 1);
 
-  it("suit l'ordre de la fiche : situation, nom, phrase, puis trois infos tirées des champs du service", () => {
+  it("suit l'ordre de la fiche : situation, nom, phrase, puis deux infos tirées des champs du service", () => {
     assert.ok(screen);
     assert.equal(screen.spec.title, FICHE_TEXTES.titre);
     assert.deepEqual(bare(screen.spec.body).split("\n"), [
@@ -221,30 +224,28 @@ describe("fiche d'une usine active", () => {
       "Mine profonde",
       FICHE_TEXTES.phrase.ACTIVE,
       "",
-      `Niveau ${formatCount(12)}`,
-      `Revenu ${formatRate(36_000)}`,
+      `Niveau ${formatCount(12)} · Revenu ${formatRate(36_000)}`,
       `Palier ×2 au niveau ${formatCount(25)}`,
     ]);
   });
 
-  it("quatre montées, la collecte, le personnel de cette usine et le retour", () => {
+  it("quatre montées, le personnel de cette usine et le retour : Encaisser reste au Silo, la fiche tient sans défiler", () => {
     assert.ok(screen);
     assert.deepEqual(
       screen.targets.map((t) => (t.kind === "buy" ? t.amount : t.kind)),
-      ["1", "10", "palier", "max", "collect", "go", "go"],
+      ["1", "10", "palier", "max", "go", "go"],
     );
-    assert.deepEqual(screen.targets[4], { kind: "collect" });
-    assert.deepEqual(screen.targets[5], { kind: "go", route: { screen: "equipe", factoryId: "mine-profonde", page: 0 } });
-    assert.deepEqual(screen.targets[6], { kind: "go", route: { screen: "usines", page: 1 } });
+    assert.deepEqual(screen.targets[4], { kind: "go", route: { screen: "equipe", factoryId: "mine-profonde", page: 0 } });
+    assert.deepEqual(screen.targets[5], { kind: "go", route: { screen: "usines", page: 1 } });
     assert.deepEqual(screen.spec.buttons.map((b) => bare(b).split("\n")[0]), [
       FICHE_TEXTES.monter["1"],
       FICHE_TEXTES.monter["10"],
       FICHE_TEXTES.monter.palier,
       FICHE_TEXTES.monter.max,
-      SILO_TEXTES.encaisser,
       MENU_TEXTES.personnel,
       FICHE_TEXTES.retour,
     ]);
+    assert.ok(!screen.spec.buttons.some((b) => bare(b) === SILO_TEXTES.encaisser));
   });
 
   it("le coût du service est sur le bouton « de 1 » ; les autres n'affichent aucun prix, le contrat n'en donne pas", () => {
@@ -260,13 +261,17 @@ describe("fiche d'une usine active", () => {
     }
   });
 
-  it("le temps de retour du service s'ajoute aux infos quand il est donné, sans calcul de l'add-on", () => {
-    const avecRetour = ficheScreen(viewOf({ factories: [factory({ nextPaybackHours: 2.25 })] }), "carriere", 0);
+  it("le temps de retour du service s'ajoute au prix, sous « Monter de 1 », sans calcul de l'add-on", () => {
+    const avecRetour = ficheScreen(viewOf({ factories: [factory({ nextCost: 1_250, nextPaybackHours: 2.25 })] }), "carriere", 0);
     assert.ok(avecRetour);
-    assert.equal(bare(avecRetour.spec.body).split("\n").at(-1), FICHE_TEXTES.remboursement(formatDuration(2.25)));
-    const sansRetour = ficheScreen(viewOf({ factories: [factory({ nextPaybackHours: null })] }), "carriere", 0);
+    assert.equal(
+      bare(avecRetour.spec.buttons[0] ?? ""),
+      `${FICHE_TEXTES.monter["1"]}\n${FICHE_TEXTES.coutRetour(formatAmount(1_250), formatDuration(2.25))}`,
+    );
+    assert.doesNotMatch(avecRetour.spec.body, /retour/);
+    const sansRetour = ficheScreen(viewOf({ factories: [factory({ nextCost: 1_250, nextPaybackHours: null })] }), "carriere", 0);
     assert.ok(sansRetour);
-    assert.doesNotMatch(sansRetour.spec.body, /rembourse/);
+    assert.equal(bare(sansRetour.spec.buttons[0] ?? ""), `${FICHE_TEXTES.monter["1"]}\n${FICHE_TEXTES.cout(formatAmount(1_250))}`);
   });
 
   it("une usine inconnue du service : pas de fiche", () => {
@@ -463,6 +468,25 @@ function setup(
   return { menu, presenter, api, views, log, waits, store, missions, missionsApi };
 }
 
+describe("cheerOf, la ligne en or après une montée", () => {
+  it("le nouveau niveau du service, en or, et le son de la montée", () => {
+    const cheer = cheerOf(factory({ level: 3, nextMilestone: 25 }), factory({ level: 4, nextMilestone: 25 }));
+    assert.equal(cheer?.cheer, "montee");
+    assert.equal(bare(cheer?.line ?? ""), FICHE_TEXTES.celebration.niveau("4"));
+    assert.ok(cheer?.line.startsWith(COLOR.donar));
+  });
+
+  it("un palier franchi : PALIER ATTEINT et le son du palier", () => {
+    const cheer = cheerOf(factory({ level: 20, nextMilestone: 25 }), factory({ level: 25, nextMilestone: 50 }));
+    assert.equal(cheer?.cheer, "palier");
+    assert.equal(bare(cheer?.line ?? ""), FICHE_TEXTES.celebration.palier);
+  });
+
+  it("sans l'état d'après, rien : l'add-on n'invente pas de niveau", () => {
+    assert.equal(cheerOf(factory({ level: 3 }), undefined), undefined);
+  });
+});
+
 describe("parcours : menu, Usines, fiche, montée", () => {
   it("succès : la fiche revient avec le nouveau niveau et la bulle de joie", async () => {
     const { menu, presenter, api } = setup(
@@ -472,7 +496,7 @@ describe("parcours : menu, Usines, fiche, montée", () => {
     await menu.open(PLAYER);
     assert.deepEqual(presenter.shown.map(titleOf), ["MENU", "USINES", "USINE", "USINE"]);
     assert.match(bare(presenter.shown[2]?.body ?? ""), /Niveau 3/);
-    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[joie\] Usine améliorée !\n\nACTIVE\nCarrière/);
+    assert.match(bare(presenter.shown[3]?.body ?? ""), /^Oooscar \[joie\] Usine améliorée !\nNIVEAU 4\n\nACTIVE\nCarrière/);
     assert.match(bare(presenter.shown[3]?.body ?? ""), /Niveau 4/);
     assert.deepEqual(api.calls, [
       { op: "buyLevels", companyId: 7, factoryId: "carriere", action: { requestId: "id-1", actor: XUID }, amount: "1" },
@@ -1048,7 +1072,7 @@ describe("écran de la carte", () => {
     assert.equal(hidden.length, FACTORY_IDS.length - 3);
     for (const text of hidden) {
       assert.ok(text.startsWith(COLOR.locked), text);
-      assert.equal(bare(text), `[X] ${CARTE_TEXTES.inconnue}`);
+      assert.equal(bare(text).split("\n")[0], `[X] ${CARTE_TEXTES.inconnue}`);
     }
     for (const target of screen.targets.slice(4, 1 + FACTORY_IDS.length)) {
       assert.deepEqual(target, { kind: "soon", bubble: BULLES.usinePasEncore });
@@ -1057,6 +1081,24 @@ describe("écran de la carte", () => {
     for (const id of FACTORY_IDS.slice(3)) {
       assert.ok(!all.includes(FACTORY_NAMES[id as keyof typeof FACTORY_NAMES]), id);
     }
+  });
+
+  it("sous le cadenas, ce qui ouvre l'usine, lu dans la clé decouverte de definitions/usines.json", () => {
+    const detail = (id: string) => bare(screen.spec.buttons[1 + FACTORY_IDS.indexOf(id)] ?? "").split("\n")[1];
+    assert.equal(detail("mine-profonde"), CARTE_TEXTES.verrou.niveauEntreprise(4));
+    assert.equal(detail("fonderie"), CARTE_TEXTES.verrou.epoque(2));
+    // L'Atelier d'outils suit la Fonderie, encore cachée : son nom ne fuit pas.
+    assert.equal(detail("atelier-outils"), CARTE_TEXTES.verrou.apresInconnue);
+    for (const id of FACTORY_IDS.slice(3)) {
+      const rule = USINES.usines.find((usine) => usine.id === id)?.decouverte ?? "";
+      assert.equal(detail(id), lockDetail(id, new Map()), id);
+      assert.notEqual(detail(id), MENU_TEXTES.bientot, `${id} : la règle « ${rule} » n'est pas lue`);
+    }
+  });
+
+  it("une usine qui suit une usine de l'entreprise la nomme ; une règle inconnue garde « Bientôt »", () => {
+    assert.equal(lockDetail("atelier-outils", new Map([["fonderie", {}]])), CARTE_TEXTES.verrou.apres("Fonderie"));
+    assert.equal(lockDetail("usine-du-futur", new Map()), MENU_TEXTES.bientot);
   });
 
   it("l'ordre est celui du jeu, pas celui du service", () => {

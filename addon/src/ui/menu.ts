@@ -39,7 +39,7 @@ import {
   type PrestigePreview,
   type Xuid,
 } from "../protocol";
-import { ILES, VILLE } from "../monde/definitions";
+import { ILES, USINES, VILLE } from "../monde/definitions";
 import type { Pos, Xz } from "../monde/geometrie";
 import { parcelAt, type ParcelReading } from "../monde/ville";
 import type { TravelOutcome } from "../monde/voyage";
@@ -223,14 +223,11 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
 
   const infos: string[] = [];
   if (canBuyLevels(factory)) {
+    // Deux lignes, pas quatre : la fiche tient sans défiler, avec ses quatre montées (design/composants/Fiche.md, trois infos au plus).
     infos.push(
-      FICHE_TEXTES.niveau(formatCount(factory.level)),
-      FICHE_TEXTES.revenu(formatRate(factory.ratePerHour)),
+      FICHE_TEXTES.niveauRevenu(formatCount(factory.level), formatRate(factory.ratePerHour)),
       FICHE_TEXTES.palier(formatCount(factory.nextMilestone)),
     );
-    if (factory.nextPaybackHours !== undefined && factory.nextPaybackHours !== null) {
-      infos.push(FICHE_TEXTES.remboursement(formatDuration(factory.nextPaybackHours)));
-    }
   } else if (step !== undefined) {
     infos.push(FICHE_TEXTES.etape(step, RESTORE_STEP_MAX, FICHE_TEXTES.etapes[step - 1]?.nom ?? ""));
   }
@@ -244,17 +241,21 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
     });
   }
   if (canBuyLevels(factory)) {
+    // Le prix et le temps de retour du niveau suivant, tels que le service les donne, sous le bouton qui l'achète.
+    const payback = factory.nextPaybackHours;
+    const cost = formatAmount(factory.nextCost);
+    const nextDetail = payback === undefined || payback === null ? FICHE_TEXTES.cout(cost) : FICHE_TEXTES.coutRetour(cost, formatDuration(payback));
     for (const amount of BUY_AMOUNTS) {
       entries.push({
-        text: amount === "1" ? button(FICHE_TEXTES.monter[amount], FICHE_TEXTES.cout(formatAmount(factory.nextCost))) : FICHE_TEXTES.monter[amount],
+        text: amount === "1" ? button(FICHE_TEXTES.monter[amount], nextDetail) : FICHE_TEXTES.monter[amount],
         target: { kind: "buy", factoryId, amount },
       });
     }
   } else if (step !== undefined) {
     entries.push({ text: FICHE_TEXTES.etapes[step - 1]?.bouton ?? "", target: { kind: "restore", factoryId, step } });
   }
+  // Encaisser vit au Silo, pas ici : la fiche garde la place de ses montées.
   if (factory.state === "ACTIVE") {
-    entries.push({ text: SILO_TEXTES.encaisser, target: { kind: "collect" } });
     entries.push({ text: MENU_TEXTES.personnel, target: go({ screen: "equipe", factoryId, page: 0 }) });
   }
   entries.push({ text: FICHE_TEXTES.retour, target: go({ screen: "usines", page }) });
@@ -324,6 +325,31 @@ function carteDetail(factory: Factory, status: FactoryStatus): string {
   }
 }
 
+/** Le nombre après un préfixe de `decouverte` (`niveau-entreprise-3` → 3), ou undefined. */
+function discoveryNumber(rule: string, prefix: string): number | undefined {
+  if (!rule.startsWith(prefix)) return undefined;
+  const value = Number(rule.slice(prefix.length));
+  return Number.isInteger(value) && value >= 1 ? value : undefined;
+}
+
+/**
+ * Sous le cadenas d'une usine cachée, ce qui l'ouvre : la clé `decouverte` de definitions/usines.json, lue et dite, pas
+ * calculée (le service décide quand l'usine se révèle). Une règle que cet add-on ne sait pas lire garde « Bientôt ».
+ */
+export function lockDetail(factoryId: string, owned: ReadonlyMap<string, unknown>): string {
+  const rule = USINES.usines.find((usine) => usine.id === factoryId)?.decouverte;
+  if (rule === undefined) return MENU_TEXTES.bientot;
+  const level = discoveryNumber(rule, "niveau-entreprise-");
+  if (level !== undefined) return CARTE_TEXTES.verrou.niveauEntreprise(level);
+  const era = discoveryNumber(rule, "epoque-");
+  if (era !== undefined) return CARTE_TEXTES.verrou.epoque(era);
+  if (rule.startsWith("apres-")) {
+    const before = rule.slice("apres-".length);
+    return owned.has(before) ? CARTE_TEXTES.verrou.apres(factoryName(before)) : CARTE_TEXTES.verrou.apresInconnue;
+  }
+  return MENU_TEXTES.bientot;
+}
+
 /**
  * La carte des îles : l'île principale (verrouillée tant que l'entreprise n'a pas sa première zone, puis un voyage à la
  * mairie), puis une ligne par usine dans l'ordre du jeu. Une usine de l'entreprise mène à son île ; une usine qu'elle n'a pas reste cachée (« ????? »).
@@ -337,7 +363,7 @@ export function carteScreen(view: CompanyView, page: number, tilesPerScreen: num
     const factory = owned.get(id);
     if (factory === undefined) {
       rows.push({
-        text: `${COLOR.locked}${ICON.cadenas} ${CARTE_TEXTES.inconnue}${COLOR.reset}`,
+        text: `${COLOR.locked}${ICON.cadenas} ${CARTE_TEXTES.inconnue}\n${lockDetail(id, owned)}${COLOR.reset}`,
         target: { kind: "soon", bubble: BULLES.usinePasEncore },
       });
     } else {
@@ -551,7 +577,26 @@ export interface MenuPlayer {
   readonly name: string;
 }
 
+/**
+ * Ce qu'un achat réussi fait entendre (main.ts, config.ui.sons) : une montée, un palier franchi (la production double),
+ * une étape de remise en état.
+ */
+export type Cheer = "montee" | "palier" | "etape";
+
+/**
+ * La ligne en or qui suit la bulle après une montée : le nouveau niveau, ou le palier franchi. Les deux niveaux viennent de
+ * l'état du service avant et après l'achat ; rien n'est calculé ici.
+ */
+export function cheerOf(before: Factory | undefined, after: Factory | undefined): { readonly cheer: Cheer; readonly line: string } | undefined {
+  if (after === undefined) return undefined;
+  const palier = before !== undefined && after.level >= before.nextMilestone && before.nextMilestone > before.level;
+  const line = palier ? FICHE_TEXTES.celebration.palier : FICHE_TEXTES.celebration.niveau(formatCount(after.level));
+  return { cheer: palier ? "palier" : "montee", line: `${COLOR.donar}${COLOR.bold}${line}${COLOR.reset}` };
+}
+
 export interface MenuDeps<P extends MenuPlayer> {
+  /** Joue le son d'un achat réussi (main.ts : player.playSound). Absent, ou s'il lève : le menu reste muet, l'achat est fait. */
+  readonly cheer?: (player: P, cheer: Cheer) => void;
   readonly discordLink?: { readonly api: Pick<CoreApi, "issueDiscordLinkCode">; readonly newRequestId: () => string };
   readonly views: Pick<ViewStore, "get">;
   /** Les missions : lues pour la tuile Objectifs, relues quand le joueur ouvre l'écran des objectifs. */
@@ -805,14 +850,37 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
     }
   }
 
-  async function act(xuid: Xuid, target: Target): Promise<Notice | undefined> {
+  function factoryOf(xuid: Xuid, factoryId: string): Factory | undefined {
+    return views.get(xuid)?.state.factories.find((factory) => factory.factoryId === factoryId);
+  }
+
+  function playCheer(player: P, cheer: Cheer): void {
+    try {
+      deps.cheer?.(player, cheer);
+    } catch (error) {
+      deps.log.warn(`Son d'achat : ${describeError(error)}`);
+    }
+  }
+
+  async function act(player: P, xuid: Xuid, target: Target): Promise<Notice | undefined> {
     switch (target.kind) {
       case "collect":
         return noticeOf(await actions.collect(xuid));
-      case "buy":
-        return noticeOf(await actions.buyLevels(xuid, target.factoryId, target.amount));
-      case "restore":
-        return noticeOf(await actions.restoreStep(xuid, target.factoryId, target.step));
+      case "buy": {
+        const before = factoryOf(xuid, target.factoryId);
+        const outcome = await actions.buyLevels(xuid, target.factoryId, target.amount);
+        const notice = noticeOf(outcome);
+        if (outcome.kind !== "levelsBought" || notice === undefined) return notice;
+        const cheer = cheerOf(before, factoryOf(xuid, target.factoryId));
+        if (cheer === undefined) return notice;
+        playCheer(player, cheer.cheer);
+        return { ...notice, lines: [cheer.line, ...(notice.lines ?? [])] };
+      }
+      case "restore": {
+        const outcome = await actions.restoreStep(xuid, target.factoryId, target.step);
+        if (outcome.kind === "stepDone") playCheer(player, "etape");
+        return noticeOf(outcome);
+      }
       case "soon":
         return { bubble: target.bubble ?? BULLES.bientot };
       case "hire":
@@ -1018,7 +1086,7 @@ export function createMenu<P extends MenuPlayer>(deps: MenuDeps<P>): Menu<P> {
           notice = travelNotice(outcome);
         }
       } else {
-        notice = await act(xuid, target);
+        notice = await act(player, xuid, target);
       }
     }
   }

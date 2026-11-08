@@ -353,12 +353,17 @@ export const FICHE_TEXTES = {
     INCIDENT: "Un incident ralentit sa production.",
     SANS_COURANT: "Elle est à l'arrêt, sans courant.",
   } satisfies Record<FactoryStatus, string>,
-  niveau: (level: string): string => `Niveau ${level}`,
-  revenu: (rate: string): string => `Revenu ${rate}`,
+  /** Le niveau et le revenu sur une ligne : la fiche tient sans défiler (à valider par Kr). */
+  niveauRevenu: (level: string, rate: string): string => `Niveau ${level} · Revenu ${rate}`,
   palier: (level: string): string => `Palier ×2 au niveau ${level}`,
   cout: (amount: string): string => `Coût ${amount} Donar`,
-  /** Le temps que le service donne pour rembourser le niveau suivant (Factory.nextPaybackHours), à valider par Kr. */
-  remboursement: (duree: string): string => `Le prochain niveau se rembourse en ${duree}`,
+  /** La ligne en or après une montée réussie, sous la bulle d'Oooscar (à valider par Kr). */
+  celebration: {
+    niveau: (level: string): string => `NIVEAU ${level}`,
+    palier: "PALIER ATTEINT · PRODUCTION ×2",
+  },
+  /** Sous « Monter de 1 » : le prix, puis le temps que le service donne pour le rembourser (Factory.nextPaybackHours), à valider par Kr. */
+  coutRetour: (amount: string, duree: string): string => `Coût ${amount} Donar · retour ${duree}`,
   etape: (step: number, total: number, name: string): string => `Étape ${step} sur ${total} : ${name}`,
   /** L'équipe de l'usine, d'après la liste du personnel du service : combien de membres, et s'il y a un chef. */
   equipe: (membres: string, avecChef: boolean): string => `Équipe : ${membres}, ${avecChef ? "avec chef" : "sans chef"}`,
@@ -712,6 +717,17 @@ export const CARTE_TEXTES = {
   ilePrincipaleVerrouillee: "Ta ville ouvre avec la première zone.",
   /** La ligne d'une usine que l'entreprise n'a pas encore : son nom reste caché. */
   inconnue: "?????",
+  /**
+   * Sous le cadenas d'une usine cachée : ce qui l'ouvre, d'après sa clé `decouverte` (definitions/usines.json). Le niveau
+   * d'entreprise est la somme des niveaux des usines. Une usine qui en suit une autre que l'entreprise n'a pas encore ne la
+   * nomme pas (à valider par Kr).
+   */
+  verrou: {
+    niveauEntreprise: (level: number): string => `Niveau d'entreprise ${level}`,
+    epoque: (era: number): string => `Époque ${era}`,
+    apres: (nom: string): string => `Après ${nom}`,
+    apresInconnue: "Après une autre usine",
+  },
   /** La ligne d'info d'une usine de l'entreprise, d'après son état dans le service. */
   etat: {
     entiere: (level: string): string => `Entière · niv. ${level}`,

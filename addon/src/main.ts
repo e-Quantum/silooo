@@ -272,6 +272,11 @@ function startScreens(deps: {
       ...(travelCity === undefined ? {} : { travelCity }),
       ...(where === undefined ? {} : { where }),
       ...(originOf === undefined ? {} : { originOf }),
+      // Un achat réussi se fait entendre, au seul joueur qui achète.
+      cheer: (player, cheer) => {
+        const son = config.ui.sons[cheer];
+        if (player.isValid) player.playSound(son.id, { volume: son.volume, pitch: son.pitch });
+      },
       presenter: createFormPresenter(),
       clock: systemClock,
       wait: (seconds) => pause(scheduler, seconds),

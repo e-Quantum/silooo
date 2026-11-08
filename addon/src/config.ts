@@ -28,6 +28,13 @@ export interface HudSettings {
   readonly titleStaySeconds: number;
 }
 
+/** Un son de Minecraft (`player.playSound`), son volume et sa hauteur. */
+export interface SoundSetting {
+  readonly id: string;
+  readonly volume: number;
+  readonly pitch: number;
+}
+
 export interface UiSettings {
   /** Identifiant de l'objet qui ouvre le menu, et que le joueur reçoit à son premier join. */
   readonly menuItem: string;
@@ -43,6 +50,8 @@ export interface UiSettings {
   readonly formBusyRetries: number;
   /** Attente entre deux de ces essais. */
   readonly formBusyRetrySeconds: number;
+  /** Les sons d'un achat réussi, par moment (ui/menu.ts, Cheer). */
+  readonly sons: Readonly<Record<"montee" | "palier" | "etape", SoundSetting>>;
   /** Tuiles au plus par écran de menu (design/composants/Menu.md : grille de 4 sur 2). */
   readonly tilesPerScreen: number;
   readonly hud: HudSettings;
@@ -137,6 +146,12 @@ export const config: Config = {
     formBusyRetries: 10,
     formBusyRetrySeconds: 0.5,
     tilesPerScreen: 8,
+    /** Les sons d'un achat réussi (ui/menu.ts, Cheer) : des sons de Minecraft, joués au seul joueur qui achète. */
+    sons: {
+      montee: { id: "random.orb", volume: 0.7, pitch: 1.2 },
+      palier: { id: "random.levelup", volume: 0.8, pitch: 1 },
+      etape: { id: "random.anvil_use", volume: 0.5, pitch: 1.1 },
+    },
     hud: {
       /** Une fois par seconde au plus : design/composants/Hud.md. */
       refreshSeconds: 1,
