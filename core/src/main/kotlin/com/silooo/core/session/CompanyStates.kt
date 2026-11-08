@@ -41,6 +41,7 @@ fun buildCompanyState(
             incidentId = factory.openIncidentId,
             incidentKind = factory.incidentKind,
             stoppedNoPower = numbers.stoppedNoPower,
+            nextPaybackHours = numbers.nextPaybackHours,
         )
     },
     zonesOwned = zonesOwned,

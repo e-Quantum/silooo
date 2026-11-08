@@ -23,7 +23,7 @@ import {
   usinesScreen,
   type MenuDeps,
 } from "../src/ui/menu";
-import { formatAmount, formatCount, formatRate } from "../src/ui/nombres";
+import { formatAmount, formatCount, formatDuration, formatRate } from "../src/ui/nombres";
 import {
   BULLES,
   CARTE_TEXTES,
@@ -258,6 +258,15 @@ describe("fiche d'une usine active", () => {
     for (const target of screen.targets.filter((t) => t.kind === "buy")) {
       assert.equal(target.kind === "buy" && target.factoryId, "mine-profonde");
     }
+  });
+
+  it("le temps de retour du service s'ajoute aux infos quand il est donné, sans calcul de l'add-on", () => {
+    const avecRetour = ficheScreen(viewOf({ factories: [factory({ nextPaybackHours: 2.25 })] }), "carriere", 0);
+    assert.ok(avecRetour);
+    assert.equal(bare(avecRetour.spec.body).split("\n").at(-1), FICHE_TEXTES.remboursement(formatDuration(2.25)));
+    const sansRetour = ficheScreen(viewOf({ factories: [factory({ nextPaybackHours: null })] }), "carriere", 0);
+    assert.ok(sansRetour);
+    assert.doesNotMatch(sansRetour.spec.body, /rembourse/);
   });
 
   it("une usine inconnue du service : pas de fiche", () => {

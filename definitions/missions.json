@@ -6,6 +6,24 @@
       "evenement": "collect",
       "cible": 1,
       "recompense": "lingotsHorsPrestige.missionBienvenue"
+    },
+    {
+      "id": "monter-une-usine",
+      "evenement": "achatNiveaux",
+      "cible": 3,
+      "recompense": "lingotsHorsPrestige.missionSuivante"
+    },
+    {
+      "id": "remettre-en-etat",
+      "evenement": "etapeRemiseEnEtat",
+      "cible": 4,
+      "recompense": "lingotsHorsPrestige.missionSuivante"
+    },
+    {
+      "id": "premiere-zone",
+      "evenement": "achatZone",
+      "cible": 1,
+      "recompense": "lingotsHorsPrestige.missionSuivante"
     }
   ]
 }

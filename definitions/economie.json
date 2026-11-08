@@ -2,6 +2,7 @@
   "version": 1,
   "niveaux": {
     "croissancePrix": 1.11,
+    "retourMaxSeuleUsineHeures": 2,
     "formulePrix": "prix(n -> n+k) = prixNiveau1 * croissance^n * (croissance^k - 1) / (croissance - 1)",
     "paliersX2": {
       "fixes": [
@@ -80,6 +81,7 @@
   },
   "lingotsHorsPrestige": {
     "missionBienvenue": 10,
+    "missionSuivante": 2,
     "moyenneParHeureDeJeu": 1,
     "commandeDuJour": 1,
     "trouvaille": 1

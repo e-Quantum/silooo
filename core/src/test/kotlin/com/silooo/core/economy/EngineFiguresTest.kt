@@ -64,6 +64,22 @@ class EngineFiguresTest {
         assertTrue(factory.nextMilestone > factory.level)
         assertEquals(engine.doublings(factory.level) + 1, engine.doublings(factory.nextMilestone), "le palier suivant double la production")
         assertFalse(factory.stoppedNoPower)
+
+        val gain = noMultiplier * (engine.factoryRate(starting.factoryId, starting.level + 1) - engine.factoryRate(starting.factoryId, starting.level))
+        assertEquals(factory.nextCost / gain, factory.nextPaybackHours!!, 1e-9, "le retour du niveau suivant : son prix sur ce qu'il ajoute")
+    }
+
+    @Test
+    @DisplayName("Une usine en ruine n'a pas de temps de retour : elle ne produit pas")
+    fun ruinHasNoPayback() {
+        val company = fx.newCompany()
+        val ruin = engine.factoryIds().first { it != starting.factoryId }
+        fx.putFactory(company.id, FactoryRecord(ruin, FactoryState.EN_RUINE, 0, 0, null))
+
+        val figures = fx.figuresOf(company.id)
+
+        assertEquals(null, figures.forFactory(ruin).nextPaybackHours)
+        assertTrue(figures.forFactory(starting.factoryId).nextPaybackHours!! > 0.0)
     }
 
     @Test

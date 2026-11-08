@@ -28,8 +28,8 @@
           "maxLength": 48
         },
         "evenement": {
-          "description": "L'action du joueur que le service compte. collect : un encaissement qui rapporte du Donar.",
-          "enum": ["collect"]
+          "description": "L'action du joueur que le service compte. collect : un encaissement qui rapporte du Donar ; achatNiveaux : un achat de niveaux d'usine, quel qu'en soit le nombre ; etapeRemiseEnEtat : une étape de remise en état d'usine ; achatZone : l'achat d'une zone de la ville.",
+          "enum": ["collect", "achatNiveaux", "etapeRemiseEnEtat", "achatZone"]
         },
         "cible": {
           "description": "Nombre d'actions à faire pour terminer la mission.",

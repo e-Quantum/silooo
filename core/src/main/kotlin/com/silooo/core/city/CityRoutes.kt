@@ -9,6 +9,7 @@ import com.silooo.core.definitions.DefinitionsChecks
 import com.silooo.core.economy.companyId
 import com.silooo.core.economy.companyUpdated
 import com.silooo.core.economy.rejectable
+import com.silooo.core.mission.MissionService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -59,6 +60,7 @@ fun Route.cityRoutes(dependencies: Dependencies) {
         companies = dependencies.companyStore,
         city = dependencies.cityStore,
         figures = dependencies.economyFigures,
+        missions = MissionService(dependencies.definitions, dependencies.missionStore, dependencies.pass),
     )
 
     post("/companies/{companyId}/city/zones/{zoneIndex}") {

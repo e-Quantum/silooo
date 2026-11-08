@@ -32,4 +32,16 @@ enum class MissionEvent {
     /** Un encaissement qui rapporte du Donar. */
     @SerialName("collect")
     COLLECT,
+
+    /** Un achat de niveaux d'usine, quel qu'en soit le nombre (1, 10, palier ou max). */
+    @SerialName("achatNiveaux")
+    BUY_LEVELS,
+
+    /** Une étape de remise en état d'usine. */
+    @SerialName("etapeRemiseEnEtat")
+    RESTORE_STEP,
+
+    /** L'achat d'une zone de la ville. */
+    @SerialName("achatZone")
+    BUY_ZONE,
 }

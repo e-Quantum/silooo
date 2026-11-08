@@ -208,13 +208,29 @@ export interface MissionTexts {
  * l'avancement et les Lingots (api/silooo-core.openapi.yaml, getMissions) : les mots sont ici. TypeScript refuse un
  * identifiant sans textes ou des textes sans identifiant, et un test les compare au fichier de données.
  *
- * Bienvenue à la mairie : le joueur encaisse une première fois (le service compte un collect qui rapporte du Donar).
+ * Bienvenue à la mairie : le joueur encaisse une première fois (le service compte un collect qui rapporte du Donar). Puis il
+ * achète des niveaux trois fois, fait les quatre étapes d'une remise en état et achète la première zone de la ville.
  */
 export const MISSION_TEXTES: Readonly<Record<MissionId, MissionTexts>> = {
   "bienvenue-mairie": {
     titre: "Bienvenue à la mairie",
     consigne: "Encaisse au Silo",
     fin: say("joie", "Premier encaissement, bien joué !"),
+  },
+  "monter-une-usine": {
+    titre: "Plus haut, plus vite",
+    consigne: "Achète des niveaux à l'Usine",
+    fin: say("fier", "Ton usine tourne plus vite."),
+  },
+  "remettre-en-etat": {
+    titre: "Une deuxième usine",
+    consigne: "Remets une usine en état",
+    fin: say("joie", "Deux usines tournent, bien joué !"),
+  },
+  "premiere-zone": {
+    titre: "Ta première zone",
+    consigne: "Achète la première zone",
+    fin: say("fier", "La première zone est à toi."),
   },
 };
 
@@ -341,6 +357,8 @@ export const FICHE_TEXTES = {
   revenu: (rate: string): string => `Revenu ${rate}`,
   palier: (level: string): string => `Palier ×2 au niveau ${level}`,
   cout: (amount: string): string => `Coût ${amount} Donar`,
+  /** Le temps que le service donne pour rembourser le niveau suivant (Factory.nextPaybackHours), à valider par Kr. */
+  remboursement: (duree: string): string => `Le prochain niveau se rembourse en ${duree}`,
   etape: (step: number, total: number, name: string): string => `Étape ${step} sur ${total} : ${name}`,
   /** L'équipe de l'usine, d'après la liste du personnel du service : combien de membres, et s'il y a un chef. */
   equipe: (membres: string, avecChef: boolean): string => `Équipe : ${membres}, ${avecChef ? "avec chef" : "sans chef"}`,
@@ -687,8 +705,11 @@ export const CARTE_TEXTES = {
   titre: "CARTE",
   phrase: "Choisis une île pour t'y rendre.",
   ilePrincipale: "Île principale",
-  /** La ligne d'info de l'île principale tant que l'entreprise n'a pas sa première zone : ce qui la débloque. */
-  ilePrincipaleVerrouillee: "Achète la première zone.",
+  /**
+   * La ligne d'info de l'île principale tant que l'entreprise n'a pas sa première zone. Le joueur est déjà sur l'île : c'est sa
+   * ville qui est fermée, pas l'île (à valider par Kr).
+   */
+  ilePrincipaleVerrouillee: "Ta ville ouvre avec la première zone.",
   /** La ligne d'une usine que l'entreprise n'a pas encore : son nom reste caché. */
   inconnue: "?????",
   /** La ligne d'info d'une usine de l'entreprise, d'après son état dans le service. */

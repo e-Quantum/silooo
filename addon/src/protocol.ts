@@ -31,6 +31,8 @@ export interface Factory {
   /** La sorte de l'incident ouvert (`definitions/incidents.json`, tableau `sortes`) ; nulle sans incident. Elle dit quel mini-jeu proposer. */
   incidentKind?: string | null;
   stoppedNoPower?: boolean;
+  /** Heures que le niveau suivant met à se rembourser, calculées par le service ; nulles quand l'usine ne produit pas. */
+  nextPaybackHours?: number | null;
 }
 
 export interface IslandOrigin {
@@ -457,6 +459,9 @@ function readFactory(value: unknown, path: string): Factory {
   if (rec["incidentId"] !== undefined) factory.incidentId = rec["incidentId"] === null ? null : num(rec, "incidentId", path);
   if (rec["incidentKind"] !== undefined) factory.incidentKind = rec["incidentKind"] === null ? null : str(rec, "incidentKind", path);
   if (rec["stoppedNoPower"] !== undefined) factory.stoppedNoPower = bool(rec, "stoppedNoPower", path);
+  if (rec["nextPaybackHours"] !== undefined) {
+    factory.nextPaybackHours = rec["nextPaybackHours"] === null ? null : num(rec, "nextPaybackHours", path);
+  }
   return factory;
 }
 

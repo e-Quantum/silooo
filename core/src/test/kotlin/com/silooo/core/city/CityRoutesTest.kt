@@ -19,6 +19,7 @@ import com.silooo.core.economy.EngineFixture
 import com.silooo.core.economy.EngineFixture.Companion.hours
 import com.silooo.core.economy.InMemoryCompanyStore
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.InMemoryMissionStore
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.Regime
@@ -122,6 +123,7 @@ class CityRoutesTest {
                     companyBootstrap = fixture.bootstrap,
                     companyStore = companies,
                     cityStore = city,
+                    missionStore = InMemoryMissionStore(fixture.store),
                 ),
             )
         }

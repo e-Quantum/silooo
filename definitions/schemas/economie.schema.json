@@ -11,9 +11,10 @@
     "niveaux": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["croissancePrix", "formulePrix", "paliersX2"],
+      "required": ["croissancePrix", "formulePrix", "paliersX2", "retourMaxSeuleUsineHeures"],
       "properties": {
         "croissancePrix": { "type": "number", "exclusiveMinimum": 1 },
+        "retourMaxSeuleUsineHeures": { "type": "number", "exclusiveMinimum": 0, "description": "Garde-fou d'équilibrage, que le jeu ne lit pas : tant que l'usine de départ est seule, chacun de ses niveaux se rembourse en ce nombre d'heures au plus. Un test du service le vérifie." },
         "formulePrix": { "type": "string", "minLength": 1 },
         "paliersX2": {
           "type": "object",
@@ -96,9 +97,10 @@
     "lingotsHorsPrestige": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["missionBienvenue", "moyenneParHeureDeJeu", "commandeDuJour", "trouvaille"],
+      "required": ["missionBienvenue", "missionSuivante", "moyenneParHeureDeJeu", "commandeDuJour", "trouvaille"],
       "properties": {
         "missionBienvenue": { "type": "integer", "minimum": 0 },
+        "missionSuivante": { "type": "integer", "minimum": 0 },
         "moyenneParHeureDeJeu": { "type": "number", "minimum": 0 },
         "commandeDuJour": { "type": "integer", "minimum": 0 },
         "trouvaille": { "type": "integer", "minimum": 0 }

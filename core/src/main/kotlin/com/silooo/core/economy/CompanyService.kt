@@ -152,6 +152,7 @@ class CompanyService(
                 put("cost", quote.cost)
             },
         )
+        missions.record(connection, actor, MissionEvent.BUY_LEVELS)
         return updated(connection, actor, after, revealed(connection, after, factories.replacing(bought)))
     }
 
@@ -193,6 +194,7 @@ class CompanyService(
                 put("level", restored.level)
             },
         )
+        missions.record(connection, actor, MissionEvent.RESTORE_STEP)
         if (finished) announceNoPower(connection, company, factories, restored, actor)
         return updated(connection, actor, after, revealed(connection, after, factories.replacing(restored)))
     }

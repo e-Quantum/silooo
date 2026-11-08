@@ -272,6 +272,19 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     (c) Un seul rappel de vote par joueur et par jour UTC, gardé en mémoire de l'add-on. (d) Les objets de navigation
     perdent `lockMode` comme la boussole de la salle d'attente ; une ronde toutes les 2 secondes les remet dans leurs
     cases et un objet jeté disparaît du sol. (e) Le Silo explique l'encaissement et le bonus.
+52. **L'économie et la progression, P2 du plan tiré de la vidéo (8 novembre 2026, branche `claude/p2-video`, sur
+    `claude/p1-video`).** Tranché sans Kr : (a) trois missions après « Bienvenue à la mairie » dans
+    `definitions/missions.json` : `monter-une-usine` (trois achats de niveaux), `remettre-en-etat` (quatre étapes de
+    remise en état), `premiere-zone` (l'achat d'une zone) ; trois événements de mission de plus (`achatNiveaux`,
+    `etapeRemiseEnEtat`, `achatZone`), comptés dans la transaction de l'action ; chacune rapporte
+    `lingotsHorsPrestige.missionSuivante` = 2 Lingots (bienvenue : 10). Une usine remise en état avant la mission 3 ne
+    compte pas : seule la mission en cours avance. (b) `Factory.nextPaybackHours` dans le contrat : le service divise le
+    prix du niveau suivant par ce qu'il ajoute au revenu de l'usine (même équipe, même multiplicateur, sans incident) ;
+    la fiche Usine l'affiche tel quel. (c) `niveaux.retourMaxSeuleUsineHeures` = 2 dans `economie.json`, garde-fou que
+    le jeu ne lit pas : `SingleFactoryPaybackTest` vérifie que chaque niveau de l'usine de départ seule se rembourse en
+    2 h au plus jusqu'à la découverte d'une deuxième usine (aujourd'hui, un seul niveau : la Scierie arrive au niveau
+    d'entreprise 2). (d) La carte dit « Ta ville ouvre avec la première zone. » au lieu de « Achète la première zone. »,
+    lu comme si l'île où se tient le joueur était fermée.
 
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en
@@ -532,6 +545,12 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- P2 (8 novembre, décision 52) : les titres, consignes et bulles des trois missions (« Plus haut, plus vite », « Achète
+  des niveaux à l'Usine », « Ton usine tourne plus vite. » ; « Une deuxième usine », « Remets une usine en état »,
+  « Deux usines tournent, bien joué ! » ; « Ta première zone », « Achète la première zone », « La première zone est à
+  toi. ») ; leur récompense de 2 Lingots ; la ligne « Le prochain niveau se rembourse en `<durée>` » de la fiche
+  Usine ; « Ta ville ouvre avec la première zone. » sur la carte ; le seuil de 2 h du garde-fou.
+
 - Correctifs P1 (8 novembre, décision 51) : les glyphes des monnaies, d'Oooscar et des icônes dessinées en jeu (taille,
   lisibilité du visage réduit à 32 pixels, l'étoile comme icône du prestige) ; les textes du Silo (« Ta production s'accumule ici… », « Bonus `<multiplicateur>` sur toute la
   production », « Lingots détenus, étoiles, ville et boosts ») ; la bulle de gain hors ligne dite à la connexion.
@@ -672,6 +691,14 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   pionnier) et la tuile Associés déplacée sous Personnel. Les points d'exclamation des bulles sont à relire.
 
 ## Journal
+
+- **8 novembre 2026 : P2, économie et progression** (branche `claude/p2-video`, décision 52). Trois missions après
+  la mairie, temps de retour du niveau suivant donné par le service et affiché dans la fiche Usine, garde-fou du joueur
+  à une seule usine, texte de la carte. Avant : la CI de `claude/p1-video` a trouvé une régression du P0 que le PC ne
+  voit pas (les tests SQL demandent Docker) : `CompanySqlTest` attendait une seule usine après un achat qui en révèle
+  une ; corrigé (fc68acc), CI verte, `jq` compris. Déploiement pas fait : le VPS fait tourner des images d'autres
+  sessions (`silooo-core:discord-2ade9f1`, commit absent de GitHub ; `silooo-bds:carriere-26a4b77-lan`, construite sur
+  place) que `deploy.sh` remplacerait, et l'avance de `main` a été refusée par le mode auto : à trancher par Kr.
 
 - **8 novembre 2026 : correctifs P1 de lisibilité** (branche `claude/p1-video`, partie de `claude/p0-video`,
   décision 51). Glyphes des monnaies et d'Oooscar à la place de `[D]`, `[L]`, `[G]` et `[joie]` ; plus de

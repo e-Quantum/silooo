@@ -43,6 +43,8 @@ data class Factory(
     val incidentId: Long? = null,
     val incidentKind: String? = null,
     val stoppedNoPower: Boolean = false,
+    /** Heures que le niveau suivant met à se rembourser ; nul quand l'usine ne produit pas. Calculé par le service. */
+    val nextPaybackHours: Double? = null,
 )
 
 /**

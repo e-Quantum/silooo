@@ -326,6 +326,8 @@ export type EconomieDefinitions = {
   readonly version: number;
   readonly niveaux: {
     readonly croissancePrix: number;
+    /** Garde-fou d'équilibrage, que le jeu ne lit pas : tant que l'usine de départ est seule, chacun de ses niveaux se rembourse en ce nombre d'heures au plus. Un test du service le vérifie. */
+    readonly retourMaxSeuleUsineHeures: number;
     readonly formulePrix: string;
     readonly paliersX2: {
       readonly fixes: readonly number[];
@@ -361,6 +363,7 @@ export type EconomieDefinitions = {
   };
   readonly lingotsHorsPrestige: {
     readonly missionBienvenue: number;
+    readonly missionSuivante: number;
     readonly moyenneParHeureDeJeu: number;
     readonly commandeDuJour: number;
     readonly trouvaille: number;
@@ -597,7 +600,10 @@ export type IncidentsSorte = {
 
 /** Identifiants de missions.json, tableau « missions ». */
 export type MissionId =
-  | "bienvenue-mairie";
+  | "bienvenue-mairie"
+  | "monter-une-usine"
+  | "remettre-en-etat"
+  | "premiere-zone";
 
 /** Forme de definitions/missions.json : le catalogue des missions d'un joueur. Les chiffres vivent dans le fichier de données et dans economie.json, pas ici : le schéma ne fixe que les types et les bornes. */
 export type MissionsDefinitions = {
@@ -609,8 +615,8 @@ export type MissionsDefinitions = {
 export type MissionsMission = {
   /** Identifiant en kebab-case, 48 caractères au plus (colonne player_missions.mission_id). Il ne change plus une fois la mission jouée : c'est la clé du suivi des joueurs. */
   readonly id: MissionId;
-  /** L'action du joueur que le service compte. collect : un encaissement qui rapporte du Donar. */
-  readonly evenement: "collect";
+  /** L'action du joueur que le service compte. collect : un encaissement qui rapporte du Donar ; achatNiveaux : un achat de niveaux d'usine, quel qu'en soit le nombre ; etapeRemiseEnEtat : une étape de remise en état d'usine ; achatZone : l'achat d'une zone de la ville. */
+  readonly evenement: "collect" | "achatNiveaux" | "etapeRemiseEnEtat" | "achatZone";
   /** Nombre d'actions à faire pour terminer la mission. */
   readonly cible: number;
   /** Chemin, dans economie.json, du nombre de Lingots versés à la fin de la mission : une référence, jamais une copie du chiffre. */

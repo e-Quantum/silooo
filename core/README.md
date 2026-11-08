@@ -267,14 +267,15 @@ et départ de course sortent d'`EconomyEngine`, qui les lit dans `economie.json`
 
 `GET /v1/players/{xuid}/missions` (`getMissions`) rend la mission en cours et la liste de celles que le joueur a
 terminées. Le catalogue est `definitions/missions.json` (schéma `definitions/schemas/missions.schema.json`) : pour
-chaque mission, son `id` (la clé de `player_missions`), l'`evenement` qu'elle compte (`collect`), la `cible` et la
+chaque mission, son `id` (la clé de `player_missions`), l'`evenement` qu'elle compte (`collect`, `achatNiveaux`, `etapeRemiseEnEtat` ou `achatZone`), la `cible` et la
 `recompense`, qui n'est pas un nombre mais le chemin du nombre dans `economie.json` (la première mission,
-`bienvenue-mairie`, pointe `lingotsHorsPrestige.missionBienvenue`). `Definitions.missionRewards` le résout au
+`bienvenue-mairie`, pointe `lingotsHorsPrestige.missionBienvenue` ; les trois suivantes, `lingotsHorsPrestige.missionSuivante`). `Definitions.missionRewards` le résout au
 chargement, et `tools/verifier_definitions.mjs` refuse un chemin qui ne mène pas à un entier. Les textes des missions
 sont ceux de l'add-on : le service ne rend que l'identifiant, l'avancement et les Lingots.
 
 - **Qui compte** : `MissionService.record` est appelé par `CompanyService.collect`, dans la même transaction, quand
-  l'encaissement rapporte du Donar (un `collect` à zéro, ou sans rien de dû, ne compte pas). Le service compte
+  l'encaissement rapporte du Donar (un `collect` à zéro, ou sans rien de dû, ne compte pas) ; par `buyLevels` et
+  `restoreStep` (un appel réussi, quel que soit le nombre de niveaux) et par `CityService.buyZone`. Le service compte
   lui-même : l'add-on ne dit jamais « mission faite ».
 - **La chaîne** : la mission en cours est la première du catalogue que le joueur n'a pas terminée, et c'est la seule
   qui avance. Une ligne de `player_missions` d'une mission qui n'est plus au catalogue est ignorée.

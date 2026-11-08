@@ -140,6 +140,7 @@ describe("parseJoinResponse", () => {
             incidentId: null,
             stoppedNoPower: false,
             restoreStep: 2,
+            nextPaybackHours: 1.5,
           },
         ],
       },
@@ -151,6 +152,7 @@ describe("parseJoinResponse", () => {
     assert.equal(parsed.value.role, "PDG");
     assert.deepEqual(parsed.value.state.zonesOwned, [1, 2]);
     assert.equal(parsed.value.offlineCollected, 12.5);
+    assert.equal(parsed.value.state.factories[0]?.nextPaybackHours, 1.5);
   });
 
   it("lit une réponse minimale, sans clé facultative", () => {

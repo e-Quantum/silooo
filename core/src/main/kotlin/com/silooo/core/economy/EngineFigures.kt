@@ -85,12 +85,25 @@ class EngineFigures(
                     nextMilestone = engine.nextMilestone(factory.level),
                     stoppedNoPower = factory.factoryId in stopped,
                     nominalRatePerHour = if (works) multiplier * engine.factoryRate(factory.factoryId, factory.level, crew) else 0.0,
+                    nextPaybackHours = if (works) paybackHours(factory, crew, multiplier) else null,
                 )
             },
             staff = staff.map { member -> staffView(member, running, multiplier, slowdowns, member.id in housed, cityState != null) },
             city = cityState,
             members = store.loadMembers(connection, company.id).map { Member(it.xuid.text, it.name, it.role, it.sharePercent) },
         )
+    }
+
+    /**
+     * Le temps, en heures, que le niveau suivant de [factory] met à se rembourser : son prix divisé par ce qu'il ajoute au
+     * revenu de l'usine (même équipe, même multiplicateur, sans incident). Nul si le prix n'est pas fini ou si le niveau
+     * n'ajoute rien.
+     */
+    private fun paybackHours(factory: FactoryRecord, crew: List<CrewMember>, multiplier: Double): Double? {
+        val cost = engine.nextLevelCost(factory.factoryId, factory.level)
+        val gain = multiplier * (engine.factoryRate(factory.factoryId, factory.level + 1, crew) - engine.factoryRate(factory.factoryId, factory.level, crew))
+        if (!cost.isFinite() || !gain.isFinite() || gain <= 0.0) return null
+        return cost / gain
     }
 
     /**

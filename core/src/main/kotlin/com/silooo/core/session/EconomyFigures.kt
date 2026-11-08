@@ -9,7 +9,9 @@ import java.time.Instant
 /**
  * Les chiffres d'une usine que le contrat demande (schéma `Factory`). [nominalRatePerHour] est le revenu de l'usine sans le
  * ralentissement d'un incident (le même que [ratePerHour] quand il n'y en a pas) : la récompense d'une réparation en dépend.
- * Une usine à l'arrêt faute de courant ([stoppedNoPower]) rapporte zéro, nominalement aussi.
+ * Une usine à l'arrêt faute de courant ([stoppedNoPower]) rapporte zéro, nominalement aussi. [nextPaybackHours] est le
+ * temps que le niveau suivant met à se rembourser : son prix divisé par le revenu qu'il ajoute, sans incident ; nul quand
+ * l'usine ne produit pas ou que le niveau suivant n'ajoute rien.
  */
 data class FactoryFigures(
     val ratePerHour: Double,
@@ -17,6 +19,7 @@ data class FactoryFigures(
     val nextMilestone: Int,
     val stoppedNoPower: Boolean = false,
     val nominalRatePerHour: Double = ratePerHour,
+    val nextPaybackHours: Double? = null,
 )
 
 /**

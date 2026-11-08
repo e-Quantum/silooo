@@ -205,4 +205,33 @@ class MissionServiceTest {
         assertEquals(listOf("seconde"), state.completed, "« retiree » n'est pas au catalogue")
         assertEquals("premiere", state.current!!.id, "la première du catalogue est encore à faire")
     }
+    @Test
+    @DisplayName("Une mission n'avance que sur son événement : un achat de niveaux ne compte pas pour un encaissement, ni l'inverse")
+    fun onlyTheAwaitedEventCounts() {
+        val missions = """
+            {"version": 1, "missions": [
+              {"id": "niveaux", "evenement": "achatNiveaux", "cible": 2, "recompense": "lingotsHorsPrestige.missionSuivante"},
+              {"id": "remise", "evenement": "etapeRemiseEnEtat", "cible": 1, "recompense": "lingotsHorsPrestige.missionSuivante"},
+              {"id": "zone", "evenement": "achatZone", "cible": 1, "recompense": "lingotsHorsPrestige.missionSuivante"}
+            ]}
+        """.trimIndent()
+        val bench = bench(missions)
+        val reward = bench.definitions.economy.lingotsOutsidePrestige.nextMission
+
+        bench.record(kr)
+        bench.service.record(bench.connection, kr, MissionEvent.RESTORE_STEP)
+        bench.service.record(bench.connection, kr, MissionEvent.BUY_ZONE)
+        assertEquals(0, bench.state(kr).current!!.progress, "ni un encaissement, ni une étape, ni une zone ne comptent pour des niveaux")
+
+        repeat(2) { bench.service.record(bench.connection, kr, MissionEvent.BUY_LEVELS) }
+        assertEquals("remise", bench.state(kr).current!!.id)
+        bench.service.record(bench.connection, kr, MissionEvent.BUY_LEVELS)
+        assertEquals(0, bench.state(kr).current!!.progress)
+        bench.service.record(bench.connection, kr, MissionEvent.RESTORE_STEP)
+        bench.service.record(bench.connection, kr, MissionEvent.BUY_ZONE)
+
+        assertNull(bench.state(kr).current)
+        assertEquals(listOf("niveaux", "remise", "zone"), bench.state(kr).completed)
+        assertEquals(reward * 3, bench.lingots(kr))
+    }
 }

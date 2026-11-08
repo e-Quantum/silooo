@@ -217,7 +217,7 @@ brancher de plus : les usines sont revenues en ruine dans l'état du service, et
 (`config.world.syncSeconds`) les redessine.
 
 **La carte.** La tuile Carte (ligne d'info « 1 île », « `<n>` îles ») ouvre une liste : l'île principale en tête,
-fermée tant que l'entreprise n'a pas sa première zone et sa mairie (« Achète la première zone. »), puis ouverte : elle mène à la
+fermée tant que l'entreprise n'a pas sa première zone et sa mairie (« Ta ville ouvre avec la première zone. »), puis ouverte : elle mène à la
 mairie (voir « La ville »). Ensuite vient une ligne par usine dans l'ordre de `definitions/usines.json`,
 qui est celui de `iles.json` (un test le vérifie). Une usine de l'entreprise montre son nom et son état d'après le
 service : « Entière · niv. `<niveau>` », « En ruine », « En travaux `<étape>`/`<total>` ». Une usine qu'elle n'a pas
@@ -385,7 +385,7 @@ type inconnu de l'add-on devient une boîte de planches qui porte son nom, avec 
 
 **Le voyage.** La ligne « Île principale » de la carte s'ouvre quand l'entreprise a sa première zone et sa mairie, et mène à
 la mairie (`createCityTravel`) : le joueur arrive à deux blocs devant la porte, le regard sur elle, une fois la plateforme et la
-mairie posées (au plus `config.world.travelWaitSeconds`). Sinon elle reste fermée et dit « Achète la première zone. ».
+mairie posées (au plus `config.world.travelWaitSeconds`). Sinon elle reste fermée et dit « Ta ville ouvre avec la première zone. ».
 
 **Les annonces.** L'`ANNONCE` d'un achat de zone, d'une pose ou d'une amélioration (`payload.action` vaut `buyZone`,
 `placeBuilding` ou `upgradeBuilding`, adressée à celui qui a agi) relit l'état de l'entreprise puis fait dire à Oooscar une
@@ -589,6 +589,7 @@ Les tests relisent les glyphes en repères (`bare` dans `test/ui-helpers.ts`).
 | Fiche, info | rien | Revenu `<revenu>` |
 | Fiche, info | rien | Palier ×2 au niveau `<niveau>` |
 | Fiche, info | rien | Coût `<montant>` Donar |
+| Fiche, info, quand le service donne `nextPaybackHours` (à valider par Kr) | rien | Le prochain niveau se rembourse en `<durée>` |
 | Fiche, info d'une usine en travaux | rien | Étape `<n>` sur `<total>` : `<nom de l'étape>` |
 | Fiche, bouton | rien | Monter de 1 |
 | Fiche, bouton | rien | Monter de 10 |
@@ -622,6 +623,12 @@ Les tests relisent les glyphes en repères (`bare` dans `test/ui-helpers.ts`).
 | Objectifs, bouton | rien | Retour |
 | Mission `bienvenue-mairie`, titre | rien | Bienvenue à la mairie |
 | Mission `bienvenue-mairie`, consigne (celle du HUD) | rien | Encaisse au Silo |
+| Mission `monter-une-usine`, titre (à valider par Kr) | rien | Plus haut, plus vite |
+| Mission `monter-une-usine`, consigne (celle du HUD) | rien | Achète des niveaux à l'Usine |
+| Mission `remettre-en-etat`, titre (à valider par Kr) | rien | Une deuxième usine |
+| Mission `remettre-en-etat`, consigne (celle du HUD) | rien | Remets une usine en état |
+| Mission `premiere-zone`, titre (à valider par Kr) | rien | Ta première zone |
+| Mission `premiere-zone`, consigne (celle du HUD) | rien | Achète la première zone |
 
 Le titre d'une mission que `ui/textes.ts` ne connaît pas encore est l'identifiant du service mis en lettres
 (`mission-du-futur` donne Mission du futur) : ce n'est pas un texte écrit, mais il s'affiche tant que le texte manque.
@@ -657,6 +664,9 @@ dodo), écrite sur une ligne : « Oooscar », le repère de l'expression, la phr
 | Refus `PREMIUM_REQUIS` du pass (à valider par Kr) | rien | Cette piste demande le pass premium. |
 | Refus `SAISON_INACTIVE` du pass (à valider par Kr) | rien | La saison n'est pas en cours. |
 | Bulle joie, fin de la mission `bienvenue-mairie` (dite dans le tchat, avant la ligne Récompense) | rien | Premier encaissement, bien joué ! |
+| Bulle fier, fin de la mission `monter-une-usine` (à valider par Kr) | rien | Ton usine tourne plus vite. |
+| Bulle joie, fin de la mission `remettre-en-etat` (à valider par Kr) | rien | Deux usines tournent, bien joué ! |
+| Bulle fier, fin de la mission `premiere-zone` (à valider par Kr) | rien | La première zone est à toi. |
 | Bulle joie, fin d'une mission dont l'add-on n'a pas les textes | rien | Bien joué, patron ! |
 
 Le prestige et la carte (`PRESTIGE_TEXTES`, `CARTE_TEXTES` et les bulles qui s'y ajoutent). Tous les nombres
@@ -692,7 +702,7 @@ viennent du service, mis en forme par `ui/nombres.ts`. Les noms d'époque sont c
 | Bulle fier, prestige accompli | rien | Prestige accompli, patron ! |
 | Carte, titre | rien | CARTE |
 | Carte, phrase | rien | Choisis une île pour t'y rendre. |
-| Carte, île principale, tuile verrouillée tant que l'entreprise n'a pas de zone | Île principale, avec le mot Bientôt | Île principale, avec Achète la première zone. |
+| Carte, île principale, tuile verrouillée tant que l'entreprise n'a pas de zone | Île principale, avec le mot Bientôt | Île principale, avec Ta ville ouvre avec la première zone. (à valider par Kr) |
 | Carte, usine que l'entreprise n'a pas | rien | ????? |
 | Carte, usine entière | rien | Entière · niv. `<niveau>` |
 | Carte, usine en ruine | rien | En ruine |

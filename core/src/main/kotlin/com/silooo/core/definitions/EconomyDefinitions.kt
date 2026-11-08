@@ -31,6 +31,11 @@ data class LevelsDefinition(
     /** Texte de la formule, pour les humains : le moteur ne le lit pas. */
     @SerialName("formulePrix") val priceFormula: String,
     @SerialName("paliersX2") val doublingMilestones: DoublingMilestonesDefinition,
+    /**
+     * Garde-fou d'équilibrage, que le jeu ne lit pas : tant que l'usine de départ est seule, chacun de ses niveaux doit se
+     * rembourser en ce nombre d'heures au plus (le test `SingleFactoryPaybackTest`).
+     */
+    @SerialName("retourMaxSeuleUsineHeures") val maxPaybackSingleFactoryHours: Double,
 )
 
 @Serializable
@@ -95,6 +100,8 @@ data class CourseStartDefinition(
 @Serializable
 data class LingotsOutsidePrestigeDefinition(
     @SerialName("missionBienvenue") val welcomeMission: Long,
+    /** Les Lingots de chacune des missions qui suivent celle de bienvenue (definitions/missions.json). */
+    @SerialName("missionSuivante") val nextMission: Long,
     @SerialName("moyenneParHeureDeJeu") val averagePerPlayHour: Double,
     /** Les Lingots que la commande du jour verse à chaque joueur qui a livré, une fois, quand elle est terminée. */
     @SerialName("commandeDuJour") val dailyOrder: Long,

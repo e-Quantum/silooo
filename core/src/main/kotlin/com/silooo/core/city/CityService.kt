@@ -6,6 +6,7 @@ import com.silooo.core.api.RefusalCodes
 import com.silooo.core.api.refuse
 import com.silooo.core.db.InsufficientBalance
 import com.silooo.core.db.Xuid
+import com.silooo.core.definitions.MissionEvent
 import com.silooo.core.economy.CompanyStore
 import com.silooo.core.economy.EconomyEngine
 import com.silooo.core.economy.RequestRejected
@@ -13,6 +14,7 @@ import com.silooo.core.economy.companyEvent
 import com.silooo.core.economy.loadForActor
 import com.silooo.core.economy.writeProduction
 import com.silooo.core.events.GameEventKind
+import com.silooo.core.mission.MissionService
 import com.silooo.core.session.CompanyRecord
 import com.silooo.core.session.EconomyFigures
 import com.silooo.core.session.FactoryRecord
@@ -54,6 +56,8 @@ class CityService(
     private val companies: CompanyStore,
     private val city: CityStore,
     private val figures: EconomyFigures,
+    /** Les missions du joueur : l'achat d'une zone en fait avancer une. `null` : pas de missions (les tests qui n'en ont pas besoin). */
+    private val missions: MissionService? = null,
 ) {
     private val knownFactories: Set<String> = engine.factoryIds().toSet()
 
@@ -93,6 +97,7 @@ class CityService(
                 put("lingots", price)
             },
         )
+        missions?.record(connection, actor, MissionEvent.BUY_ZONE)
         return updated(connection, actor, after, factories)
     }
 

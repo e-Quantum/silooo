@@ -89,7 +89,7 @@ import type { ActionFormSpec, FormAnswer, FormPresenter, ModalFormSpec, ModalAns
 import type { IlesDefinitions, VilleDefinitions } from "../generated/definitions";
 import type { Invitations } from "./invitations";
 import type { Missions } from "./missions";
-import { formatAmount, formatCount, formatMultiplier, formatRate } from "./nombres";
+import { formatAmount, formatCount, formatDuration, formatMultiplier, formatRate } from "./nombres";
 import { passNotice, palierScreen, paliersScreen, passScreen } from "./pass";
 import { affecterScreen, agenceScreen, candidatScreen, embaucheScreen, equipeScreen, membreScreen, personnelScreen, renvoiScreen, teamLine } from "./personnel";
 import { playRepair } from "./reparation";
@@ -228,6 +228,9 @@ export function ficheScreen(view: CompanyView, factoryId: string, page: number, 
       FICHE_TEXTES.revenu(formatRate(factory.ratePerHour)),
       FICHE_TEXTES.palier(formatCount(factory.nextMilestone)),
     );
+    if (factory.nextPaybackHours !== undefined && factory.nextPaybackHours !== null) {
+      infos.push(FICHE_TEXTES.remboursement(formatDuration(factory.nextPaybackHours)));
+    }
   } else if (step !== undefined) {
     infos.push(FICHE_TEXTES.etape(step, RESTORE_STEP_MAX, FICHE_TEXTES.etapes[step - 1]?.nom ?? ""));
   }
