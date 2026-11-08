@@ -1,7 +1,7 @@
 # Passation du site : l'état du chantier de silooo.com
 
-Dernière mise à jour : 5 novembre 2026, 20 h 42, `claude/site-comptes` fusionnée sur `main` (direction du site, deuxième
-passage, en local). Tenue par la direction du site (`docs/site-direction.md`). La direction du jeu
+Dernière mise à jour : 8 novembre 2026, `claude/site-ile` (l'île 3D de la page d'attente, demandée par Kr ; direction du
+site, sur le VPS). Tenue par la direction du site (`docs/site-direction.md`). La direction du jeu
 lit « Pour la direction du jeu », la direction du Discord lit « Pour la direction du Discord ».
 
 ## État
@@ -367,6 +367,22 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
    gamertag tapé, la case « J'ai lu les règles » et `PioneerRoutes.kt` disparaissent. (k) La bulle d'Oooscar passait sur
    le dernier bloc des pages de compte à 1 280 px : une marge de 72 px sous `main.comptes` lui laisse la place.
 
+20. **L'île de la page d'attente devient la Carrière en 3D** (8 novembre 2026, `claude/site-ile`, demandé par Kr : « remplacer
+   la maquette de l'île sur le site par celle-ci retravaillée », l'aperçu 3D de la Carrière
+   https://claude.ai/artifact/Ux4C1JkftMjikbmej3NLr8). (a) Le dessin d'île en CSS (trois blocs de terre, planches, silo)
+   laisse la place à la Carrière en marche, rendue par three.js 0.160.0 (MIT) et le petit lecteur Bedrock de l'aperçu :
+   mêmes blocs, mêmes modèles, animations et particules du pack, la caméra fait un tour en deux minutes. Les commandes, la
+   cinématique, les sons et la ruine de l'aperçu ne viennent pas. (b) Tout est servi par le site, dans `/public/ile/` :
+   la politique de sécurité n'admet ni CDN ni `new Function`, donc three.js est copié, et les 27 expressions Molang sont
+   compilées une fois par `tools/site_ile.mjs` dans `molang.js` (avec `carriere.json`, 107 Ko). (c) Le script s'appelle
+   `ile/carriere.js` : `ile.js` reste le nom de l'île qui se construit de la vitrine (R29). (d) Rien ne se charge sous
+   700 px, comme avant (la maquette téléphone n'a pas d'île). Sans WebGL ou en cas d'échec, l'image fixe `carriere.png`
+   (rendue depuis la même scène, 1 080 sur 920, 112 Ko) reste ; avec « réduire les animations », la scène est dessinée
+   une fois, immobile ; hors de l'écran ou onglet caché, elle s'arrête. (e) La boîte garde 540 sur 460 et se resserre
+   avec sa colonne par `aspect-ratio` (le `zoom` par paliers disparaît) ; les deux nuages CSS restent, derrière la scène.
+   (f) Refaire les données après un changement de la Carrière : enregistrer l'aperçu (Artifact, action read), puis
+   `node tools/site_ile.mjs <apercu.html>` ; l'image fixe se refait en capturant la scène.
+
 ## À valider par Kr
 
 Les textes du site s'ajoutent ici étape par étape, avec le fichier et la ligne. Tous ceux de S0 sont dans
@@ -520,6 +536,9 @@ plus. Ce qui les remplace, tout à valider :
   Discord », « Tape le code » : ce que l'add-on devra offrir), « En attente du jeu », « Actualiser », « Nouveau code »,
   « Relié ! », « Voir mon compte », « Délier ».
 
+- `pages/Attente.kt` et `public/ile/` (8 novembre 2026, `claude/site-ile`) : l'île de la page d'attente, la Carrière en
+  marche en 3D (cadrage, vitesse du tour, lumière), et son image fixe. Aucun texte nouveau.
+
 ## Journal
 
 - 5 novembre 2026, 12 h 45 à 12 h 55 (direction du site, cloud). Lecture de `CLAUDE.md`, `direction.md`,
@@ -672,3 +691,12 @@ plus. Ce qui les remplace, tout à valider :
   nom de variable dans le fichier d'environnement, `localhost` comme hôte de la base, un nom de compte d'exemple), corrigés
   par Kr sans que la session lise le fichier ; puis sauvegarde, migration (schéma déjà à V11), démarrage, test de fumée
   réussi. `https://silooo.com/` répond en mode attente. Suite : `claude/site-admin`.
+
+- **8 novembre 2026 (direction du site, sur le VPS, à la demande de Kr).** `claude/site-ile` : l'île de la page d'attente
+  devient la Carrière en marche en 3D, tirée de l'aperçu de l'atelier (décision 20). `tools/site_ile.mjs` extrait les
+  données et compile les 27 expressions Molang ; `public/ile/carriere.js` reprend le lecteur Bedrock de l'aperçu sans
+  ses commandes ; three.js 0.160.0 servi par le site ; image fixe `carriere.png` rendue depuis la scène. Le module se
+  charge dans le head par `PageFrame.module` (la règle « scripts du gabarit seulement, tous dans le head » admet ce
+  quatrième fichier). Tests du site verts (214), 66 pages à 360 et 1 280 px sans écart, capture de l'attente relue,
+  scène vérifiée sous quatre angles dans Chromium (WebGL logiciel). `tools/verifier.sh` vert sans l'étape Gradle
+  complète (sur le VPS, seuls les tests du site sont joués ici, le reste par la CI de la branche). Suite : `claude/site-admin`.

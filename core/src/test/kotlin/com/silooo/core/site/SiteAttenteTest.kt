@@ -226,16 +226,16 @@ class SiteAttenteTest {
     }
 
     @Test
-    @DisplayName("Attente : le dessin d'île est décoratif (aria-hidden), sans image, et Oooscar reste seul sur le sol avec sa bulle")
+    @DisplayName("Attente : l'île 3D est décorative (aria-hidden, image fixe à alt vide, script du site), et Oooscar reste seul sur le sol avec sa bulle")
     fun islandAndMascot() = withSite(articles = steps) { client ->
         val html = client.get("/").bodyAsText()
-        assertTrue(html.contains("""<div class="ile" aria-hidden="true">"""), "le dessin d'île est caché aux lecteurs d'écran")
+        assertTrue(html.contains("""<div class="ile" aria-hidden="true">"""), "l'île est cachée aux lecteurs d'écran")
         val island = main(html).substringAfter("""class="ile"""").substringBefore("</section>")
         assertEquals(2, Regex("""class="nuage ile__nuage-\d"""").findAll(island).count(), "deux nuages")
-        for (n in 1..3) assertTrue(island.contains("""class="ile__bloc ile__bloc-$n""""), "le bloc de terre $n")
-        assertTrue(Regex("""<div class="ile__silo">\s*<b></b>\s*<i></i>\s*</div>""").containsMatchIn(island), "le silo : un chapeau et un corps")
-        assertTrue(island.contains("""class="ile__planches""""), "les planches")
-        assertFalse(island.contains("<img"), "pas d'Oooscar dans l'île : une seule mascotte par page")
+        val image = imgs(island).single()
+        assertEquals("/public/ile/carriere.png", attribute(image, "src"), "l'image fixe de la Carrière, sans WebGL")
+        assertEquals("", attribute(image, "alt"), "l'image est décorative")
+        assertTrue(html.substringBefore("</head>").contains("""<script type="module" src="/public/ile/carriere.js"></script>"""), "ile/carriere.js dessine la scène 3D, chargé dans le head")
         assertEquals(1, Regex("""class="sa-oooscar"""").findAll(html).count(), "Oooscar n'est qu'une fois sur la page")
         val bubble = Regex("""<p class="sa-bulle"[^>]*>([^<]+)</p>""").find(html)?.groupValues?.get(1)
         assertEquals("On construit. Reviens vite !", bubble, "la bulle du gabarit")

@@ -23,17 +23,17 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
-private val SITE_SCRIPT = Regex("""<script src="/public/(menu|oooscar|direct)\.js"( defer="defer")?></script>""")
+private val SITE_SCRIPT = Regex("""<script src="/public/(menu|oooscar|direct)\.js"( defer="defer")?></script>|<script type="module" src="/public/ile/carriere\.js"></script>""")
 
 /**
- * Le gabarit ne charge que ses trois scripts de `/public/` (`menu.js`, `oooscar.js`, `direct.js`), et jamais du code écrit
- * dans la page : la politique de sécurité l'interdit. Chaque `<script` de la page doit donc être l'une des trois balises
- * exactes, sans `<script>` nu. Les tests de pages l'appellent à la place de l'ancienne règle « aucun script ».
+ * Le gabarit ne charge que ses trois scripts de `/public/` (`menu.js`, `oooscar.js`, `direct.js`), plus le module de la
+ * page d'attente (`ile/carriere.js`, l'île 3D), et jamais du code écrit dans la page : la politique de sécurité l'interdit.
+ * Chaque `<script` de la page doit donc être l'une de ces quatre balises exactes, sans `<script>` nu. Les tests de pages l'appellent à la place de l'ancienne règle « aucun script ».
  */
 internal fun assertOnlySiteScripts(html: String, where: String) {
     assertFalse(html.contains("<script>", ignoreCase = true), "$where : un <script> nu, sans src")
     val rest = html.replace(SITE_SCRIPT, "")
-    assertFalse(rest.contains("<script", ignoreCase = true), "$where : un script qui n'est ni menu.js, ni oooscar.js, ni direct.js")
+    assertFalse(rest.contains("<script", ignoreCase = true), "$where : un script qui n'est ni menu.js, ni oooscar.js, ni direct.js, ni l'île de l'attente")
 }
 
 /**
@@ -241,18 +241,21 @@ class SiteGabaritTest {
     }
 
     @Test
-    @DisplayName("Trois scripts au plus, tous dans le head : menu.js sans defer, oooscar.js différé, direct.js différé hors de l'attente")
+    @DisplayName("Trois scripts au plus, plus l'île sur la page d'attente, tous dans le head : menu.js sans defer, oooscar.js différé, direct.js différé hors de l'attente")
     fun scripts() {
         val menu = """<script src="/public/menu.js"></script>"""
         val oooscar = """<script src="/public/oooscar.js" defer="defer"></script>"""
         val direct = """<script src="/public/direct.js" defer="defer"></script>"""
+        // La page d'attente (« / » en attente et en bêta) ajoute son module, l'île 3D, après ceux du gabarit.
+        val island = """<script type="module" src="/public/ile/carriere.js"></script>"""
         for ((mode, expected) in listOf(SiteMode.ATTENTE to listOf(menu, oooscar), SiteMode.BETA to listOf(menu, oooscar, direct), SiteMode.OUVERT to listOf(menu, oooscar, direct))) {
             withSite(mode) { client ->
                 for (path in listOf("/", "/mentions-legales/", "/nulle-part/")) {
                     val html = client.get(path).bodyAsText()
+                    val wanted = if (path == "/" && mode != SiteMode.OUVERT) expected + island else expected
                     val inHead = Regex("""<script[^>]*></script>""").findAll(html.substringBefore("</head>")).map { it.value }.toList()
-                    assertEquals(expected, inHead, "$path (${mode.word}) : les scripts du head, dans l'ordre")
-                    assertEquals(expected.size, Regex("<script").findAll(html).count(), "$path (${mode.word}) : aucun script hors du head")
+                    assertEquals(wanted, inHead, "$path (${mode.word}) : les scripts du head, dans l'ordre")
+                    assertEquals(wanted.size, Regex("<script").findAll(html).count(), "$path (${mode.word}) : aucun script hors du head")
                     assertOnlySiteScripts(html, "$path (${mode.word})")
                 }
             }

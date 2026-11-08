@@ -646,13 +646,10 @@ main.attente .sa-panneau .sa-plaque { align-self: flex-start; }
   .dans-le-jeu .rang__titre { font-size: 36px; line-height: 32px; }
   .dans-le-jeu .rang__detail { font-size: 18px; line-height: 24px; }
 
-  /* Le dessin d'île : 540 px de large, 460 de haut, posé comme la maquette bureau (terre en pyramide renversée, planches, silo, deux nuages).
-     Les textures sont à l'échelle ×3 (tuiles de 48 px) ; dans une colonne plus étroite que 540 px, tout le dessin se réduit d'un coup
-     (zoom 2/3 puis 1/2, tuiles de 32 puis 24 px) plutôt que de déborder sur le texte. overflow-x: clip retient les nuages dans la boîte
-     sans couper le bas du troisième bloc, qui dépasse de 32 px comme sur la maquette. */
-  .ile { display: block; position: relative; width: 100%; max-width: 540px; height: 460px; justify-self: center; overflow-x: clip; zoom: 0.5; }
+  /* L'île : la Carrière en 3D (ile/carriere.js), dans une boîte de 540 sur 460 qui se resserre avec sa colonne en gardant ses proportions. */
+  .ile { display: block; position: relative; width: 100%; max-width: 540px; aspect-ratio: 540 / 460; justify-self: center; overflow-x: clip; }
 }
-@media (min-width: 832px) { .ile { zoom: 0.667; } }
+}
 /* Les deux panneaux côte à côte (une grille de deux colonnes, les panneaux s'étirent à la même hauteur). Sans étape au chantier, « Dans le jeu » prend toute la largeur. */
 @media (min-width: 960px) {
   main.attente { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -663,26 +660,17 @@ main.attente .sa-panneau .sa-plaque { align-self: flex-start; }
   a.attente__bouton { grid-column: 1; }
   .attente__colonne > .attente__petit { grid-column: 2; }
 }
-@media (min-width: 1192px) { .ile { zoom: 1; } }
 
-/* Les blocs de terre : box-sizing content-box, comme la maquette (la bordure basse de 3 px s'ajoute à la hauteur). Le premier a l'herbe en haut.
-   Leur largeur vient de leurs bords gauche et droit (480, 384 et 288 px dans la boîte de 540) : ils suivent la boîte si elle se resserre. */
-.ile__bloc { position: absolute; box-sizing: content-box; background: url("atelier/decor/terre.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; border-bottom: 3px solid var(--fonte-900); }
-.ile__bloc-1 { left: 60px; right: 0; top: 300px; height: 96px; background: url("atelier/decor/terre-herbe.png") 0 0 / 48px 48px repeat-x, url("atelier/decor/terre.png") 0 48px / 48px 48px repeat; }
-.ile__bloc-2 { left: 108px; right: 48px; top: 396px; height: 48px; }
-.ile__bloc-3 { left: 156px; right: 96px; top: 444px; height: 48px; }
-/* Les planches : 120 sur 102 bordure comprise. */
-.ile__planches { position: absolute; left: 108px; top: 198px; width: 120px; height: 102px; box-sizing: border-box; border: 3px solid var(--fonte-900); background: url("atelier/decor/planches.png") 0 0 / 48px 48px repeat; image-rendering: pixelated; }
-/* Le silo : un chapeau rouge de 72 px et un corps d'acier de 150 px, bordés de fonte (b et i sont vides, seul le CSS les dessine). */
-.ile__silo { position: absolute; left: 250px; top: 120px; width: 84px; }
-.ile__silo b { display: block; box-sizing: content-box; width: 72px; height: 24px; margin: 0 auto; background: var(--email-rouge); border: 3px solid var(--fonte-900); border-bottom: 0; }
-.ile__silo i { display: block; box-sizing: content-box; height: 150px; background: var(--acier-100); border: 3px solid var(--fonte-900); box-shadow: inset -9px 0 0 var(--fonte-300); }
+/* L'image fixe de l'île, rendue depuis la scène 3D : elle reste sans WebGL, et carriere.js la cache une fois la scène dessinée
+   (classe ile--vivante). La scène et l'image remplissent la boîte, par-dessus les nuages : le fond de la scène est transparent. */
+.ile__image, .ile__scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ile--vivante .ile__image { visibility: hidden; }
 /* Les deux nuages réutilisent .nuage (couleur, pas par pas), mais dérivent dans la boîte de l'île et non à travers l'écran (vent-ile
    anime left en pourcentage de la boîte). left et animation-delay posent chacun à l'endroit de la maquette au premier rendu ; avec
    « réduire les animations », l'animation s'arrête et le nuage reste là. */
 .ile .ile__nuage-1, .ile .ile__nuage-2 { animation-name: vent-ile; }
-.ile .ile__nuage-1 { top: 40px; left: 40px; width: 120px; height: 24px; animation-duration: 70s; animation-delay: -20s; }
-.ile .ile__nuage-2 { top: 120px; left: 380px; width: 150px; height: 24px; animation-duration: 90s; animation-delay: -70s; }
+.ile .ile__nuage-1 { top: 9%; left: 7%; width: 120px; height: 24px; animation-duration: 70s; animation-delay: -20s; }
+.ile .ile__nuage-2 { top: 26%; left: 70%; width: 150px; height: 24px; animation-duration: 90s; animation-delay: -70s; }
 @keyframes vent-ile { from { left: -30%; } to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) {
   .ile .ile__nuage-1, .ile .ile__nuage-2 { animation: none; }

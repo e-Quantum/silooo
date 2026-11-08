@@ -7,11 +7,9 @@ import kotlinx.html.FlowContent
 import kotlinx.html.HTML
 import kotlinx.html.MAIN
 import kotlinx.html.a
-import kotlinx.html.b
 import kotlinx.html.div
 import kotlinx.html.h1
 import kotlinx.html.h2
-import kotlinx.html.i
 import kotlinx.html.img
 import kotlinx.html.p
 import kotlinx.html.section
@@ -57,7 +55,7 @@ private val PILLARS = listOf(
  * tant que Kr n'a rien annoncé.
  */
 internal fun HTML.attente(shell: SiteShell, page: ContentPage, chantier: List<ChantierStep>) =
-    gabarit(shell, PageFrame(page.title, page.description, page.url, panneau = false, classe = "attente")) {
+    gabarit(shell, PageFrame(page.title, page.description, page.url, panneau = false, classe = "attente", module = ISLAND_SCRIPT)) {
         entry(page)
         if (chantier.isNotEmpty()) chantierPanel(chantier)
         gamePanel()
@@ -87,24 +85,26 @@ private fun MAIN.entry(page: ContentPage) {
     }
 }
 
+/** L'île en 3D : le module qui la dessine (chargé dans le head par le gabarit), et l'image fixe qu'il remplace (rendue depuis la même scène, 1 080 sur 920). */
+internal const val ISLAND_SCRIPT = "/public/ile/carriere.js"
+internal const val ISLAND_IMAGE = "/public/ile/carriere.png"
+
 /**
- * Le dessin d'île de la maquette bureau (R33) : deux nuages, la terre en pyramide renversée (de l'herbe sur le bloc du haut),
- * les planches et le silo. Rien n'y est positionné ici : le CSS pose chaque pièce, et cache le tout sous 700 px. Pas
- * d'Oooscar : il se tient sur le sol, en bas de page.
+ * L'île de la page (R33, refaite d'après l'aperçu 3D de la Carrière de l'atelier) : deux nuages, puis la Carrière en marche,
+ * que `ile/carriere.js` dessine en 3D et fait tourner lentement. Sans WebGL ou sans script, l'image fixe de la même scène reste. Le
+ * CSS cache le tout sous 700 px, et le script n'y charge rien. Décorative (`aria-hidden`, `alt` vide). Pas d'Oooscar en
+ * mascotte : celui de la page se tient sur le sol, en bas ; celui de l'île n'est qu'un modèle du jeu, tout petit.
  */
 private fun FlowContent.island() {
     div(classes = "ile") {
         attributes["aria-hidden"] = "true"
         span(classes = "nuage ile__nuage-1")
         span(classes = "nuage ile__nuage-2")
-        div(classes = "ile__bloc ile__bloc-1")
-        div(classes = "ile__bloc ile__bloc-2")
-        div(classes = "ile__bloc ile__bloc-3")
-        div(classes = "ile__silo") {
-            b()
-            i()
+        img(src = ISLAND_IMAGE, alt = "", classes = "ile__image") {
+            width = "540"
+            height = "460"
+            attributes["loading"] = "lazy"
         }
-        div(classes = "ile__planches")
     }
 }
 

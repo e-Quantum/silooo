@@ -1,0 +1,32 @@
+// Généré par tools/site_ile.mjs depuis l'aperçu 3D de la Carrière : ne pas éditer à la main.
+// Les expressions Molang des animations, particules et machines du pack, compilées une fois pour que le site n'ait
+// jamais à évaluer de code (la politique de sécurité interdit eval et new Function).
+export default {
+  "math.sin(query.anim_time * 90.0) * 1.5": (M, v) => (M.sin(v.t * 90.0) * 1.5),
+  "math.sin(query.anim_time * 180.0) * 0.25": (M, v) => (M.sin(v.t * 180.0) * 0.25),
+  "math.sin(query.anim_time * 90.0 - 50.0) * 2.0": (M, v) => (M.sin(v.t * 90.0 - 50.0) * 2.0),
+  "math.sin(query.anim_time * 90.0 - 40.0) * 1.5": (M, v) => (M.sin(v.t * 90.0 - 40.0) * 1.5),
+  "variable.gros > 0 ? 8 : 4": (M, v) => ((v.gros || 0) > 0 ? 8 : 4),
+  "0.45 + variable.particle_random_3 * 0.15": (M, v) => (0.45 + v.r3 * 0.15),
+  "math.floor((math.cos(variable.particle_random_1 * 360) * variable.particle_age * (1.2 + variable.particle_random_2)) * 16) / 16": (M, v) => (M.floor((M.cos(v.r1 * 360) * v.age * (1.2 + v.r2)) * 16) / 16),
+  "math.floor((variable.particle_age * (2.6 + variable.particle_random_2) - 6 * variable.particle_age * variable.particle_age) * 16) / 16": (M, v) => (M.floor((v.age * (2.6 + v.r2) - 6 * v.age * v.age) * 16) / 16),
+  "math.floor((math.sin(variable.particle_random_1 * 360) * variable.particle_age * (1.2 + variable.particle_random_2)) * 16) / 16": (M, v) => (M.floor((M.sin(v.r1 * 360) * v.age * (1.2 + v.r2)) * 16) / 16),
+  "0.25": (M, v) => (0.25),
+  "math.floor(variable.particle_random_4 * 4) * 8": (M, v) => (M.floor(v.r4 * 4) * 8),
+  "math.floor((variable.particle_age * 0.15 + (variable.particle_random_1 - 0.5) * 0.12) * 16) / 16": (M, v) => (M.floor((v.age * 0.15 + (v.r1 - 0.5) * 0.12) * 16) / 16),
+  "math.floor((variable.particle_age * 0.6) * 16) / 16": (M, v) => (M.floor((v.age * 0.6) * 16) / 16),
+  "math.floor((variable.particle_age * 0.05 + (variable.particle_random_2 - 0.5) * 0.12) * 16) / 16": (M, v) => (M.floor((v.age * 0.05 + (v.r2 - 0.5) * 0.12) * 16) / 16),
+  "math.floor((math.min(math.max(variable.particle_age - 0.2, 0), 0.4) * 5 - math.pow(math.min(math.max(variable.particle_age - 0.2, 0), 0.4), 2) * 6.25) * 16) / 16": (M, v) => (M.floor((M.min(M.max(v.age - 0.2, 0), 0.4) * 5 - M.pow(M.min(M.max(v.age - 0.2, 0), 0.4), 2) * 6.25) * 16) / 16),
+  "(variable.particle_age < 0.2 || (variable.particle_age > 0.8 && math.mod(math.floor(variable.particle_age * 16), 2) == 0)) ? 0 : 0.25": (M, v) => ((v.age < 0.2 || (v.age > 0.8 && M.mod(M.floor(v.age * 16), 2) == 0)) ? 0 : 0.25),
+  "math.floor((math.cos(variable.particle_random_1 * 360) * 0.45 * (1 - variable.particle_age / 0.3)) * 16) / 16": (M, v) => (M.floor((M.cos(v.r1 * 360) * 0.45 * (1 - v.age / 0.3)) * 16) / 16),
+  "math.floor((0.4 - variable.particle_age * 1.4) * 16) / 16": (M, v) => (M.floor((0.4 - v.age * 1.4) * 16) / 16),
+  "math.floor((math.sin(variable.particle_random_1 * 360) * 0.45 * (1 - variable.particle_age / 0.3)) * 16) / 16": (M, v) => (M.floor((M.sin(v.r1 * 360) * 0.45 * (1 - v.age / 0.3)) * 16) / 16),
+  "math.floor((math.cos(variable.particle_random_1 * 360) * math.min(variable.particle_age, 0.3) * 1.4) * 16) / 16": (M, v) => (M.floor((M.cos(v.r1 * 360) * M.min(v.age, 0.3) * 1.4) * 16) / 16),
+  "math.floor((variable.particle_age * 0.35) * 16) / 16": (M, v) => (M.floor((v.age * 0.35) * 16) / 16),
+  "math.floor((math.sin(variable.particle_random_1 * 360) * math.min(variable.particle_age, 0.3) * 1.4) * 16) / 16": (M, v) => (M.floor((M.sin(v.r1 * 360) * M.min(v.age, 0.3) * 1.4) * 16) / 16),
+  "math.floor(((variable.particle_random_1 - 0.5) * 0.4) * 16) / 16": (M, v) => (M.floor(((v.r1 - 0.5) * 0.4) * 16) / 16),
+  "math.floor((-variable.particle_age * 1.1) * 16) / 16": (M, v) => (M.floor((-v.age * 1.1) * 16) / 16),
+  "math.mod(math.floor(variable.particle_age * 6), 2) * 0.0625": (M, v) => (M.mod(M.floor(v.age * 6), 2) * 0.0625),
+  "!query.property('silooo:ruine')": (M, v) => (!v.ruine),
+  "query.property('silooo:ruine')": (M, v) => (v.ruine),
+};

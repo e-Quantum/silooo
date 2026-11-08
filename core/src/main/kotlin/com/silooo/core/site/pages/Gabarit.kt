@@ -86,6 +86,11 @@ internal class PageFrame(
     val panneau: Boolean = true,
     /** Une classe de plus sur `<main>`, quand la page a sa propre mise en page (`attente`, `actu`) ; `null` sinon. */
     val classe: String? = null,
+    /**
+     * Le module de la page, un fichier de `/public/` chargé dans le head après les scripts du gabarit (un module est
+     * différé de lui-même) : la scène 3D de l'île sur la page d'attente. `null` pour toutes les autres pages.
+     */
+    val module: String? = null,
 )
 
 /**
@@ -120,6 +125,7 @@ internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -
         script(src = MENU_SCRIPT) {}
         script(src = OOOSCAR_SCRIPT) { attributes["defer"] = "defer" }
         if (shell.direct != null) script(src = DIRECT_SCRIPT) { attributes["defer"] = "defer" }
+        frame.module?.let { script(type = "module", src = it) {} }
     }
     body {
         a(href = "#contenu", classes = "passer") { +"Aller au contenu" }
