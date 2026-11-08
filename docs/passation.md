@@ -1210,6 +1210,17 @@ sons) sur le VPS. Contrôles ajoutés à `tools/verifier.sh` (sons, structures) 
 d'essai : huit blocs vérifiés. Le branchement dans l'add-on reste à faire avec la 0.1.4 de Codex, restée sur le PC
 de Kr. Tout est **à valider par Kr**.
 
+### Déploiement de la Carrière 0.1.5, 8 novembre 2026
+
+Image `silooo-bds:carriere-55be7c9-lan` (branche `claude/carriere-epoque1-jeu`, même couche réseau local que la 0.1.4),
+déployée à 7 h 05 UTC sur le seul service `silooo-bds`, avec les quatre fichiers compose de sa création ; `silooo-core`
+et la salle d'attente (`lobby-954c614`) n'ont pas été touchés. Avant : `deploy/compose.gameplay.yml` et le monde dans
+`sauvegardes/carriere-0.1.5-55be7c9/`. Au démarrage : packs 0.1.5 chargés, add-on démarré, matériaux et structures
+validés par Bedrock, aucun échec de liaison avec le service. L'arrêt de l'ancien conteneur a fini en arrêt forcé (code
+137, 60 s) : `start.sh` ne transmet pas le signal d'arrêt à BDS, à corriger. Retour arrière : remettre
+`compose.gameplay.avant.yml` et recréer `silooo-bds`. La première visite de chaque joueur refait sa Carrière
+(`atelier.revision` 3). Rien n'a encore été vu dans un client.
+
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.
