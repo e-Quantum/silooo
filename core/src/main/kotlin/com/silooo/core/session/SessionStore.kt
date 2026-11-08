@@ -100,6 +100,13 @@ interface SessionStore {
 
     fun loadCompany(connection: Connection, companyId: Long): CompanyRecord
     fun loadFactories(connection: Connection, companyId: Long): List<FactoryRecord>
+
+    /**
+     * Donne à l'entreprise les usines [factoryIds] qu'elle n'a pas encore, `EN_RUINE` au niveau 0, étape 0 : des usines
+     * révélées sur la carte (clé `decouverte` de usines.json). Une usine qu'elle a déjà n'est pas touchée.
+     */
+    fun revealFactories(connection: Connection, companyId: Long, factoryIds: Collection<String>)
+
     fun loadZones(connection: Connection, companyId: Long): List<Int>
 
     /** Le personnel embauché de l'entreprise (`staff`), par identifiant croissant : le moteur d'économie en tire bonus et salaires. */

@@ -9,7 +9,7 @@
       },
       {
         "binding_type": "view",
-        "source_property_name": "(not ((('silooo:hud|' + (#text - 'silooo:hud|')) = #text) or (#text = 'silooo:cinema|')))",
+        "source_property_name": "(not ((('silooo:hud|' + (#text - 'silooo:hud|')) = #text) or (('silooo:cinema|' + (#text - 'silooo:cinema|')) = #text)))",
         "target_property_name": "#visible"
       }
     ]
@@ -23,7 +23,7 @@
       },
       {
         "binding_type": "view",
-        "source_property_name": "(not ((('silooo:hud|' + (#text - 'silooo:hud|')) = #text) or (#text = 'silooo:cinema|')))",
+        "source_property_name": "(not ((('silooo:hud|' + (#text - 'silooo:hud|')) = #text) or (('silooo:cinema|' + (#text - 'silooo:cinema|')) = #text)))",
         "target_property_name": "#visible"
       }
     ]

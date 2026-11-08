@@ -96,8 +96,8 @@ class EconomyEngine(private val definitions: Definitions) {
      *  - `apres-<usine>` : l'usine nommée est remise en état (`activeFactoryIds` : les usines `ACTIVE`).
      *
      * Une usine révélée le reste : le prestige garde la ligne de l'usine (`EN_RUINE`), il ne la cache pas. C'est donc à
-     * l'appelant de se souvenir de ce qu'il a déjà révélé, ce test ne regarde que l'état d'aujourd'hui. Le service ne
-     * lit pas encore `decouverte` ; le simulateur (src/test, paquet simulation) est le premier à le faire.
+     * l'appelant de se souvenir de ce qu'il a déjà révélé, ce test ne regarde que l'état d'aujourd'hui : le service garde
+     * une ligne `EN_RUINE` par usine révélée ([discoveredFactories]).
      * **À valider par Kr** (lecture de `apres-<usine>` : usine remise en état, pas seulement révélée).
      */
     fun isDiscovered(factoryId: String, companyLevel: Int, era: Int, activeFactoryIds: Set<String>): Boolean {
@@ -109,6 +109,16 @@ class EconomyEngine(private val definitions: Definitions) {
             is DiscoveryRule.Era -> era >= rule.era
             is DiscoveryRule.AfterFactory -> rule.factoryId in activeFactoryIds
         }
+    }
+
+    /**
+     * Les usines révélées aujourd'hui pour une entreprise, dans l'ordre de usines.json : [levels] le niveau de chacune de
+     * ses usines (le niveau d'entreprise en est la somme), [era] son époque, [activeFactoryIds] ses usines `ACTIVE`.
+     * Le service crée une ligne `EN_RUINE` pour chaque usine de cette liste qu'il n'a pas encore.
+     */
+    fun discoveredFactories(levels: Map<String, Int>, era: Int, activeFactoryIds: Set<String>): List<String> {
+        val companyLevel = companyLevel(levels)
+        return factoryIds().filter { isDiscovered(it, companyLevel, era, activeFactoryIds) }
     }
 
     /** Ce que la clé `decouverte` d'une usine demande, lue une fois (paresseusement : un moteur sans découverte n'échoue pas). */

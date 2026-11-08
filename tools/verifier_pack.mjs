@@ -106,6 +106,33 @@ if (!manifeste) {
     }
   }
 }
+// Un client Bedrock garde en cache le pack qu'il a déjà téléchargé, par version : un pack changé sous la même version
+// n'arrive pas aux joueurs, qui voient alors l'ancien HUD (les titres « silooo:cinema| » bruts, par exemple). Tout
+// changement de resource-pack/ depuis origin/main doit donc monter header.version. Sauté sans git ou sans origin/main.
+if (estLePackDuDepot && manifeste && Array.isArray(manifeste.header?.version)) {
+  const git = (...args) => spawnSync("git", ["-C", racine, ...args], { encoding: "utf8" });
+  const base = git("merge-base", "HEAD", "origin/main");
+  const baseSha = base.status === 0 ? base.stdout.trim() : "";
+  if (baseSha) {
+    const changes = git("diff", "--name-only", baseSha, "--", "resource-pack");
+    const avant = git("show", `${baseSha}:resource-pack/manifest.json`);
+    if (changes.status === 0 && changes.stdout.trim() !== "" && avant.status === 0) {
+      let versionAvant = null;
+      try {
+        versionAvant = JSON.parse(avant.stdout.replace(/^﻿/, "")).header?.version ?? null;
+      } catch {
+        versionAvant = null;
+      }
+      const plusGrande = (a, b) => {
+        for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+        return false;
+      };
+      if (Array.isArray(versionAvant) && !plusGrande(manifeste.header.version, versionAvant)) {
+        erreur("manifest.json", `resource-pack/ a changé depuis origin/main : header.version doit dépasser ${versionAvant.join(".")}, sinon les clients gardent l'ancien pack en cache`);
+      }
+    }
+  }
+}
 const langues = documents.get("texts/languages.json");
 if (!Array.isArray(langues) || !langues.includes("fr_FR")) erreur("texts/languages.json", "doit être une liste qui contient fr_FR");
 else for (const l of langues) if (!existsSync(join(pack, `texts/${l}.lang`))) erreur("texts/languages.json", `texts/${l}.lang est absent`);

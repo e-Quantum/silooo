@@ -251,6 +251,17 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     déjà pris par le monde de test. Le XUID reste l'empreinte du gamertag (décision 25) : un gamertag qui change donne
     encore une nouvelle ligne, jusqu'au vrai XUID.
 
+50. **Les correctifs P0 vus en jeu (8 novembre 2026, branche `claude/p0-video`).** Tirés d'une vidéo de partie. Tranché
+    sans Kr : (a) le service écrit une ligne `EN_RUINE` (niveau 0, étape 0) pour chaque usine que `decouverte` révèle,
+    à `join`, `buyLevels`, `restoreStep` et `prestige` ; `getCompany` reste en lecture seule. Aucune migration : la
+    table `company_factories` suffit. (b) La cinématique ne fige plus `InputPermissionCategory.Movement`, qui englobe
+    l'accroupissement et rendait le passage impossible ; elle fige `LateralMovement`, `Jump`, `Mount` et `Dismount`.
+    (c) Le HUD cache le titre de la cinématique avec le test « commence par », comme celui du HUD, et le pack monte en
+    0.1.5 ; `tools/verifier_pack.mjs` refuse désormais un changement de `resource-pack/` sans montée de version depuis
+    `origin/main`, pour que les clients ne gardent pas l'ancien pack en cache. (d) Monde paisible, sans apparition
+    de monstres, jour figé à midi, sans météo ni fantômes : `difficulty=peaceful` dans `server.properties` et
+    `applyWorldRules` posé par l'add-on à chaque démarrage.
+
 1. **Outillage sur le PC.** Python n'est pas installé sur le PC de Kr, mais `uv` l'est. `tools/verifier.sh`
    cherche un interpréteur dans l'ordre `python3`, `python`, puis `uv run`. `tools/anti_ia.py` reste en
    Python, comme le plan le prévoit. Les outils qui lisent `definitions/` (vérification des schémas, plus
@@ -510,6 +521,9 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- Correctifs P0 (8 novembre, décision 50) : le message de journal « règles du monde posées » (serveur seulement,
+  aucun texte nouveau vu par les joueurs) ; le choix de midi figé, sans pluie ni nuit, est un choix de jeu à confirmer.
+
 - Salle d'attente v2 (7 novembre) : l'accueil, les hologrammes, les rappels, le podium du lundi d'Oooscar
   (`core/.../discord/LobbyPodium.kt`, `LobbyPodiumTexts`), « Pionnier · pseudo », le nom « Silooo · ouverture bientôt »,
   le nom et la description du pack de ressources `resource-pack-attente/`, les paliers et le plafond de
@@ -643,6 +657,15 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   pionnier) et la tuile Associés déplacée sous Personnel. Les points d'exclamation des bulles sont à relire.
 
 ## Journal
+
+- **8 novembre 2026 : correctifs P0 tirés d'une vidéo de partie** (branche `claude/p0-video`, décision 50). La
+  découverte des usines est branchée (la Scierie apparaît en ruine au niveau d'entreprise 2 : plus de mur après la
+  Carrière), la cinématique se passe en restant accroupi, le titre `silooo:cinema|` est caché par le test « commence
+  par » (pack 0.1.5, montée de version contrôlée par `verifier_pack.mjs`), monde paisible et jour figé. Vérifié :
+  tests Gradle (dont `buyRevealsDiscoveredFactories`), tests de l'add-on, `tools/verifier.sh` vert sauf
+  `deploy-start.sh` en mode attente, qui demande `jq`, absent du PC (sans lien avec ces changements ; la CI l'a). Pas vérifié en jeu :
+  le masquage du titre, le cache du pack, l'immobilité sans `Movement` et les règles du monde (liste dans
+  `addon/README.md`, « Ce qui ne se vérifie que sur un vrai BDS »). Pas déployé.
 
 - **7 novembre 2026, soir : salle d'attente v2** (branche `claude/salle-attente`, en local : ce VPS ne pousse pas).
   Records dans silooo-core, accueil sur le modèle de Hubyy, hologrammes, boussole sans verrou, transfert des testeurs

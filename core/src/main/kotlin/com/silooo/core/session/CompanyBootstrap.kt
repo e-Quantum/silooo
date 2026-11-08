@@ -1,6 +1,7 @@
 package com.silooo.core.session
 
 import com.silooo.core.api.FactoryState
+import java.sql.Connection
 
 /** Une usine que l'entreprise possède dès sa création (la Carrière : `decouverte: "depart"` dans `definitions/usines.json`). */
 data class StartingFactory(
@@ -37,4 +38,22 @@ interface CompanyBootstrap {
      * `archipelago_slots` servent d'abord). L'écart entre deux îles est un chiffre du jeu : il vient des définitions.
      */
     fun slotOrigin(slotIndex: Int): SlotOrigin
+
+    /**
+     * Les usines révélées aujourd'hui pour une entreprise qui a les lignes [factories] et l'époque [era] (clé
+     * `decouverte` de usines.json), dans l'ordre du jeu. `join` donne à l'entreprise celles qui lui manquent.
+     */
+    fun discoveredFactories(factories: List<FactoryRecord>, era: Int): List<String>
+}
+
+/**
+ * Donne à l'entreprise [companyId] les usines de [discovered] qu'elle n'a pas parmi [factories], `EN_RUINE`, et rend ses
+ * lignes relues. Rien n'est écrit, et [factories] revient tel quel, quand aucune ne manque.
+ */
+fun SessionStore.revealDiscovered(connection: Connection, companyId: Long, factories: List<FactoryRecord>, discovered: List<String>): List<FactoryRecord> {
+    val owned = factories.mapTo(HashSet()) { it.factoryId }
+    val missing = discovered.filter { it !in owned }
+    if (missing.isEmpty()) return factories
+    revealFactories(connection, companyId, missing)
+    return loadFactories(connection, companyId)
 }

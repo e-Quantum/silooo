@@ -79,6 +79,13 @@ class InMemorySessionStore(var now: Instant = Instant.parse("2026-11-05T12:00:00
 
     override fun loadFactories(connection: Connection, companyId: Long): List<FactoryRecord> = factories[companyId].orEmpty().toList()
 
+    override fun revealFactories(connection: Connection, companyId: Long, factoryIds: Collection<String>) {
+        val list = factories.getValue(companyId)
+        for (factoryId in factoryIds) {
+            if (list.none { it.factoryId == factoryId }) list += FactoryRecord(factoryId, FactoryState.EN_RUINE, 0, 0, openIncidentId = null)
+        }
+    }
+
     override fun loadZones(connection: Connection, companyId: Long): List<Int> = zones[companyId].orEmpty()
 
     override fun loadStaff(connection: Connection, companyId: Long): List<StaffRecord> = staff[companyId].orEmpty().sortedBy { it.id }
@@ -129,6 +136,7 @@ object TestBootstrap : CompanyBootstrap {
     override fun startingFactories(): List<StartingFactory> = listOf(TEST_STARTING_FACTORY)
     override fun startingOfflineCapHours(): Double = 8.0
     override fun slotOrigin(slotIndex: Int): SlotOrigin = SlotOrigin(slotIndex, 0)
+    override fun discoveredFactories(factories: List<FactoryRecord>, era: Int): List<String> = emptyList()
 }
 
 /**

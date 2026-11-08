@@ -24,6 +24,7 @@ import com.silooo.core.session.Membership
 import com.silooo.core.session.Regime
 import com.silooo.core.session.SessionStore
 import com.silooo.core.session.buildCompanyState
+import com.silooo.core.session.revealDiscovered
 import io.ktor.http.HttpStatusCode
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -151,7 +152,7 @@ class CompanyService(
                 put("cost", quote.cost)
             },
         )
-        return updated(connection, actor, after, factories.replacing(bought))
+        return updated(connection, actor, after, revealed(connection, after, factories.replacing(bought)))
     }
 
     /**
@@ -193,7 +194,7 @@ class CompanyService(
             },
         )
         if (finished) announceNoPower(connection, company, factories, restored, actor)
-        return updated(connection, actor, after, factories.replacing(restored))
+        return updated(connection, actor, after, revealed(connection, after, factories.replacing(restored)))
     }
 
     /**
@@ -355,7 +356,7 @@ class CompanyService(
             lastCollectAt = now,
             version = version,
         )
-        return updated(connection, actor, after, sessions.loadFactories(connection, companyId))
+        return updated(connection, actor, after, revealed(connection, after, sessions.loadFactories(connection, companyId)))
     }
 
     /** La durée entre [from] et [to] en heures, à deux décimales (`prestige_history.duration_hours`), jamais négative. */
@@ -375,6 +376,13 @@ class CompanyService(
     /** L'entreprise et ses usines, pour un acteur qui en est membre. Sinon [RequestRejected]. */
     private fun loadForActor(connection: Connection, companyId: Long, actor: Xuid): Pair<CompanyRecord, List<FactoryRecord>> =
         sessions.loadForActor(connection, companyId, actor)
+
+    /**
+     * Les lignes de l'entreprise après une action qui change son niveau d'entreprise, ses usines actives ou son époque :
+     * les usines que cette action révèle (clé `decouverte`) y sont ajoutées, `EN_RUINE`.
+     */
+    private fun revealed(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): List<FactoryRecord> =
+        sessions.revealDiscovered(connection, company.id, factories, engine.discoveredFor(factories, company.era))
 
     private fun stateOf(connection: Connection, company: CompanyRecord, factories: List<FactoryRecord>): CompanyState =
         buildCompanyState(company, factories, figures.forCompany(connection, company, factories), sessions.loadZones(connection, company.id))

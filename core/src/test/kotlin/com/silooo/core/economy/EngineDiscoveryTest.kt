@@ -91,6 +91,19 @@ class EngineDiscoveryTest {
         assertThrows<IllegalArgumentException> { engine.isDiscovered(factories.first().id, 0, 0, emptySet()) }
     }
 
+    @Test
+    @DisplayName("Les usines révélées d'une entreprise : le niveau d'entreprise vient de ses lignes, l'ordre est celui de usines.json")
+    fun discoveredFactoriesFollowTheCompany() {
+        val start = factories.first { it.discovery == "depart" }
+        val (gated, needed) = factories.firstNotNullOf { factory -> number(factory.discovery, "niveau-entreprise-")?.let { factory to it } }
+        val below = engine.discoveredFactories(mapOf(start.id to needed - 1), 1, setOf(start.id))
+        assertTrue(start.id in below, "l'usine de départ est toujours révélée")
+        assertFalse(gated.id in below, "${gated.id} reste cachée sous le niveau d'entreprise $needed")
+        val reached = engine.discoveredFactories(mapOf(start.id to needed), 1, setOf(start.id))
+        assertTrue(gated.id in reached, "${gated.id} se révèle au niveau d'entreprise $needed")
+        assertEquals(engine.factoryIds().filter { it in reached }, reached, "l'ordre est celui de usines.json")
+    }
+
     private fun engineWithDiscovery(key: String): EconomyEngine {
         val first = definitions.factories.factories.first()
         val changed = definitions.factories.copy(factories = listOf(first.copy(discovery = key)) + definitions.factories.factories.drop(1))

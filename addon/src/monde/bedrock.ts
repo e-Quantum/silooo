@@ -6,10 +6,12 @@
 import {
   BlockPermutation,
   BlockVolume,
+  Difficulty,
   EasingType,
   HudElement,
   HudVisibility,
   InputPermissionCategory,
+  TimeOfDay,
   world,
   type Dimension,
   type Entity,
@@ -30,6 +32,20 @@ import type { OooscarHandle, OooscarWorld } from "./oooscar";
 /** La dimension où vit l'archipel : le monde de Silooo n'en a qu'une. */
 function overworld(): Dimension {
   return world.getDimension("overworld");
+}
+
+/**
+ * Les règles du monde de Silooo, posées à chaque démarrage : un tycoon dans le ciel, sans combat ni nuit. Paisible
+ * retire les monstres déjà là, l'apparition coupée garde les îles vides, et l'heure reste figée en plein jour (pas de
+ * nuit, donc pas de fantômes ni de lit à chercher). La météo ne tourne pas non plus : la pluie assombrit les îles.
+ */
+export function applyWorldRules(): void {
+  world.setDifficulty(Difficulty.Peaceful);
+  world.gameRules.doMobSpawning = false;
+  world.gameRules.doDayLightCycle = false;
+  world.gameRules.doWeatherCycle = false;
+  world.gameRules.doInsomnia = false;
+  world.setTimeOfDay(TimeOfDay.Noon);
 }
 
 /** Échec explicite au démarrage si un matériau ne porte pas son identifiant Bedrock. */
@@ -259,11 +275,16 @@ const HIDDEN_HUD: HudElement[] = [
   HudElement.ItemText,
 ];
 
-/** Les déplacements qu'on fige pendant la cinématique. S'accroupir reste libre : c'est le geste pour passer. */
+/**
+ * Les déplacements qu'on fige pendant la cinématique. S'accroupir reste libre : c'est le geste pour passer. Pas de
+ * `Movement` ici : la catégorie englobe aussi l'accroupissement, et la figer rendait la cinématique impossible à passer.
+ * On fige donc ses parties une à une, sauf `Sneak`.
+ */
 const LOCKED_INPUT: InputPermissionCategory[] = [
-  InputPermissionCategory.Movement,
   InputPermissionCategory.LateralMovement,
   InputPermissionCategory.Jump,
+  InputPermissionCategory.Mount,
+  InputPermissionCategory.Dismount,
 ];
 
 const FREE_CAMERA = "minecraft:free";

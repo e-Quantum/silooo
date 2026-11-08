@@ -195,6 +195,19 @@ class JdbcSessionStore : SessionStore {
             }
         }
 
+    override fun revealFactories(connection: Connection, companyId: Long, factoryIds: Collection<String>) {
+        for (factoryId in factoryIds) {
+            connection.prepareStatement(
+                "INSERT INTO company_factories (company_id, factory_id, state, restore_step, level) VALUES (?, ?, 'EN_RUINE', 0, 0) " +
+                    "ON DUPLICATE KEY UPDATE factory_id = factory_id",
+            ).use {
+                it.setLong(1, companyId)
+                it.setString(2, factoryId)
+                it.executeUpdate()
+            }
+        }
+    }
+
     override fun loadFactories(connection: Connection, companyId: Long): List<FactoryRecord> =
         connection.prepareStatement(
             "SELECT f.factory_id, f.state, f.restore_step, f.level, i.id AS incident_id, i.kind AS incident_kind, i.slowdown AS incident_slowdown " +

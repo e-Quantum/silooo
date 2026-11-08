@@ -490,7 +490,7 @@ class CompanyRoutesTest {
 
         val result = updated(buy(company.id, app.starterId, "1"))
 
-        val starter = result.state.factories.single()
+        val starter = result.state.factories.single { it.factoryId == app.starterId }
         assertEquals(app.starterLevel + 1, starter.level)
         assertClose(cost + earned - cost, result.state.donar, "donar après achat")
         assertClose(earned, result.state.donarEarned, "donarEarned compte la production, pas l'achat")
@@ -519,14 +519,14 @@ class CompanyRoutesTest {
         val company = app.company(donar = tenCost)
 
         val ten = updated(buy(company.id, app.starterId, "10", n = 1))
-        assertEquals(app.starterLevel + 10, ten.state.factories.single().level)
+        assertEquals(app.starterLevel + 10, ten.state.factories.single { it.factoryId == app.starterId }.level)
         assertClose(0.0, ten.state.donar, "tout le Donar est parti dans le lot")
 
         val toMilestone = app.engine.nextMilestone(app.starterLevel + 10) - (app.starterLevel + 10)
         val milestoneCost = app.engine.levelsCost(app.starterId, app.starterLevel + 10, toMilestone)
         app.fixture.update(app.fixture.store.loadCompany(app.fixture.connection, company.id).copy(donar = milestoneCost))
         val milestone = updated(buy(company.id, app.starterId, "palier", n = 2))
-        assertEquals(app.engine.nextMilestone(app.starterLevel + 10), milestone.state.factories.single().level)
+        assertEquals(app.engine.nextMilestone(app.starterLevel + 10), milestone.state.factories.single { it.factoryId == app.starterId }.level)
     }
 
     @Test
@@ -537,7 +537,7 @@ class CompanyRoutesTest {
 
         val result = updated(buy(company.id, app.starterId, "max"))
 
-        assertEquals(app.starterLevel + 3, result.state.factories.single().level)
+        assertEquals(app.starterLevel + 3, result.state.factories.single { it.factoryId == app.starterId }.level)
         assertClose(0.0, result.state.donar, "le solde paie exactement trois niveaux")
         assertEquals("3", app.companies.published.single().payload.getValue("levels").jsonPrimitive.content)
 
@@ -545,8 +545,29 @@ class CompanyRoutesTest {
         val almost = Math.nextDown(app.engine.levelsCost(app.starterId, app.starterLevel + 3, 3))
         app.fixture.update(app.fixture.store.loadCompany(app.fixture.connection, company.id).copy(donar = almost))
         val second = updated(buy(company.id, app.starterId, "max", n = 2))
-        assertEquals(app.starterLevel + 3 + 2, second.state.factories.single().level)
+        assertEquals(app.starterLevel + 3 + 2, second.state.factories.single { it.factoryId == app.starterId }.level)
         assertTrue(second.state.donar in 0.0..almost, "il reste le Donar que deux niveaux ne dépensent pas")
+    }
+
+    @Test
+    @DisplayName("buyLevels : le niveau d'entreprise qui révèle une usine la donne à l'entreprise, EN_RUINE, au niveau 0")
+    fun buyRevealsDiscoveredFactories() = withApp { app ->
+        val cost = app.engine.levelsCost(app.starterId, app.starterLevel, 1)
+        val company = app.company(donar = cost)
+        val active = setOf(app.starterId)
+        val before = app.engine.discoveredFactories(mapOf(app.starterId to app.starterLevel), company.era, active)
+        val after = app.engine.discoveredFactories(mapOf(app.starterId to app.starterLevel + 1), company.era, active)
+        val revealed = after - before.toSet()
+        assertTrue(revealed.isNotEmpty(), "dans definitions/, un niveau de plus sur l'usine de départ révèle une usine")
+
+        val result = updated(buy(company.id, app.starterId, "1"))
+
+        for (factoryId in revealed) {
+            val shown = result.state.factories.single { it.factoryId == factoryId }
+            assertEquals(FactoryState.EN_RUINE, shown.state, "$factoryId est rendue en ruine")
+            assertEquals(0, shown.level)
+            assertEquals(FactoryState.EN_RUINE, app.factory(company.id, factoryId).state, "$factoryId est écrite")
+        }
     }
 
     @Test

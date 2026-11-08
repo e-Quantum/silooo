@@ -12,6 +12,7 @@ import { createCoreClient } from "./http";
 import { leavingXuid, playerXuid } from "./identity";
 import { createArrivals } from "./monde/arrivee";
 import {
+  applyWorldRules,
   createArrivalWorld,
   createBlockWriter,
   createCinematicStage,
@@ -113,6 +114,11 @@ function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerSto
     scheduler.after(
       config.startupDelaySeconds,
       guard(log, "ménage de départ", () => {
+        // Gardées à part : une règle refusée par Bedrock n'empêche pas le reste du ménage.
+        guard(log, "règles du monde", () => {
+          applyWorldRules();
+          log.info("règles du monde posées : paisible, sans apparition de monstres, jour figé");
+        })();
         validateWorldAssets();
         log.info("matériaux des îles et orientations des enseignes validés par Bedrock");
         const areas = releaseStaleAreas();

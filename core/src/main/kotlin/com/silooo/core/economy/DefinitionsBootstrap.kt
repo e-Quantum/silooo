@@ -3,6 +3,7 @@ package com.silooo.core.economy
 import com.silooo.core.api.FactoryState
 import com.silooo.core.definitions.Definitions
 import com.silooo.core.session.CompanyBootstrap
+import com.silooo.core.session.FactoryRecord
 import com.silooo.core.session.SlotOrigin
 import com.silooo.core.session.StartingFactory
 
@@ -20,6 +21,8 @@ class DefinitionsBootstrap(private val engine: EconomyEngine, definitions: Defin
         engine.startingLevels().map { (factoryId, level) -> StartingFactory(factoryId, FactoryState.ACTIVE, level) }
 
     override fun startingOfflineCapHours(): Double = offlineCapHours
+
+    override fun discoveredFactories(factories: List<FactoryRecord>, era: Int): List<String> = engine.discoveredFor(factories, era)
 
     /**
      * La grille de `monde.json` : la case [slotIndex] est dans la colonne `slotIndex % casesParRangee` et la rangée

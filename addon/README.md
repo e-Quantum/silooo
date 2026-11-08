@@ -1339,6 +1339,12 @@ Au design system :
 - La caméra : le cadrage de chaque plan, le glissé (`easeOptions`), les fondus qui cachent les coupes, le masquage du
   HUD, le sous-titre par le canal de titre sans le préfixe du HUD.
 - Le blocage des déplacements pendant la cinématique et la lecture de l'accroupissement (le même geste doit faire passer).
+  `Movement` n'est plus figé (il englobe `Sneak`) : vérifier que `LateralMovement`, `Jump`, `Mount` et `Dismount` suffisent
+  à garder le joueur immobile, et que rester accroupi passe bien la cinématique.
+- Les règles du monde (`applyWorldRules`) : paisible, aucune apparition de monstre, jour figé à midi, pas de météo, et
+  qu'un monde créé avant elles les prend au redémarrage.
+- Le titre `silooo:cinema|` caché par le HUD avec le test « commence par » (pack 0.1.5), et un client qui avait le pack
+  0.1.4 en cache reçoit bien le nouveau.
 - La téléportation vers une zone encore non chargée, et la remise du joueur à la fin de la cinématique.
 - L'entité `silooo:oooscar` : validité du JSON au format `1.21.0`, absence de dégâts et de butin, disparition au départ.
 - Le voyage : la téléportation vers une île dont la zone n'est plus chargée (la ticking area est relâchée après la
