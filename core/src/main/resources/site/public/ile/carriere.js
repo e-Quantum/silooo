@@ -124,6 +124,9 @@ async function demarrer(boite) {
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.domElement.className = "ile__scene";
+  // La place de la scène est posée ici aussi, et pas seulement dans atelier.css : un navigateur qui garde l'ancienne
+  // feuille en cache (un jour, /public/) poserait sinon le canevas sous l'image fixe, hors de la boîte.
+  Object.assign(renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", display: "block" });
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 540 / 460, 0.3, 500);
   const target = new THREE.Vector3(DATA.taille.x / 2, DATA.sol + 1, DATA.taille.z / 2);
@@ -445,6 +448,8 @@ async function demarrer(boite) {
   taille();
   rendre(0);
   boite.classList.add("ile--vivante");
+  const fixe = boite.querySelector(".ile__image");
+  if (fixe) fixe.style.visibility = "hidden"; // même raison : sans attendre la nouvelle feuille
   new ResizeObserver(() => { taille(); if (reduit || !boucle) renderer.render(scene, camera); }).observe(boite);
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) relancer(); else arreter(); }).observe(boite);
   document.addEventListener("visibilitychange", () => { if (document.hidden) arreter(); else relancer(); });
