@@ -14,7 +14,7 @@ describe("atelier de la Carrière", () => {
     assert.ok(islandRadius(ILES, definition) > ILES.plateforme.rayon);
     const plan = planIsland(ILES, definition, { x: 0, z: 0 }, "ACTIVE");
     const machines = plan.state.filter((op) => op.kind === "set" && op.block.startsWith("silooo:"));
-    for (const type of ["silooo:broyeur", "silooo:convoyeur", "silooo:bac_pierre", "silooo:bureau_administration"]) {
+    for (const type of ["silooo:engrenage_bois", "silooo:tapis_toile", "silooo:coffre_vente", "silooo:bureau_administration"]) {
       assert.ok(machines.some((op) => op.kind === "set" && op.block === type), type);
     }
     for (const op of plan.state) {
@@ -24,7 +24,13 @@ describe("atelier de la Carrière", () => {
       }
     }
     const ruin = planIsland(ILES, definition, { x: 0, z: 0 }, "EN_RUINE");
-    assert.ok(!ruin.state.some((op) => op.kind === "set" && op.block === "silooo:convoyeur"));
+    assert.ok(!ruin.state.some((op) => op.kind === "set" && op.block === "silooo:tapis_toile"));
+    // Le préfabriqué : la Carrière en marche quand elle est active, sinon sa ruine, la face du dessus à la hauteur des îles.
+    assert.equal(plan.structure?.id, ILES.atelier.structure);
+    assert.equal(ruin.structure?.id, ILES.atelier.structureRuine);
+    assert.equal(planIsland(ILES, definition, { x: 0, z: 0 }, "REMISE_EN_ETAT").structure?.id, ILES.atelier.structureRuine);
+    assert.equal(plan.structure?.at.y, ILES.hauteur - ILES.atelier.solStructure);
+    assert.ok(plan.box.from.y <= plan.structure!.at.y, "la zone chargée descend jusqu'au bas du préfabriqué");
   });
 
   it("cadre le bureau à travers son entrée sans placer la caméra face à un mur", async () => {
@@ -55,14 +61,16 @@ describe("atelier de la Carrière", () => {
   });
 
   it("attend les blocs avant de poser le salarié, réutilise le même et le retire au départ", () => {
-    let ready = false, count = 0, cargoCount = 0;
+    let ready = false, count = 0, cargoCount = 0, fixtureCount = 0;
     const removed: string[] = [];
     const working: boolean[] = [];
+    const pieces: Array<{ type: string; yaw: number }> = [];
     const world: WorkshopWorld = {
       machine: () => ready,
       loaded: () => true,
       cargo(previous) { return previous ?? `cargo-${++cargoCount}`; },
       worker(previous, _company, _at, _facing, active) { working.push(active); return previous ?? `worker-${++count}`; },
+      fixture(previous, _company, type, _at, yaw) { pieces.push({ type, yaw }); return previous ?? `machine-${++fixtureCount}`; },
       remove: (id) => { removed.push(id); },
     };
     const workshop = createWorkshop(ILES, world, { now: () => 0 });
@@ -75,8 +83,11 @@ describe("atelier de la Carrière", () => {
     assert.equal(count, 1);
     workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", incidentId: 3, ratePerHour: 0 })] }, { x: 0, z: 0 });
     assert.deepEqual(working, [true, true, false]);
+    // Les ailes du moulin et les pilons apparaissent avec le salarié, une seule fois chacun, tournés comme iles.json le dit.
+    assert.equal(fixtureCount, ILES.atelier.machinerie.length);
+    assert.deepEqual(pieces.slice(0, ILES.atelier.machinerie.length), ILES.atelier.machinerie.map((m) => ({ type: m.entite, yaw: m.lacet })));
     workshop.reap(new Set());
-    assert.deepEqual(removed, ["worker-1", "cargo-1", "cargo-2", "cargo-3"]);
+    assert.deepEqual(removed, ["worker-1", "cargo-1", "cargo-2", "cargo-3", ...ILES.atelier.machinerie.map((_, i) => `machine-${i + 1}`)]);
   });
 
   it("reconstruit une ancienne Carrière une seule fois, en gardant les autres îles et la ville", () => {
@@ -92,6 +103,7 @@ describe("atelier de la Carrière", () => {
     const native: WorkshopWorld = {
       machine: () => true, loaded: () => loaded,
       worker: (old) => old ?? "worker",
+      fixture: (old, _company, type) => old ?? type,
       cargo(previous, _company, at, working) { const id = previous ?? `pierre-${++created}`; seen.push({ id, at, working }); return id; },
       remove: (id) => { removed.push(id); },
     };
@@ -116,7 +128,7 @@ describe("atelier de la Carrière", () => {
     workshop.sync(state, { x: 0, z: 0 });
     assert.equal(created, ILES.atelier.transport.pierres, "les mêmes pierres sont réutilisées");
     workshop.reap(new Set());
-    assert.equal(new Set(removed).size, ILES.atelier.transport.pierres + 1);
+    assert.equal(new Set(removed).size, ILES.atelier.transport.pierres + 1 + ILES.atelier.machinerie.length);
   });
 
 });

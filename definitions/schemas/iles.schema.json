@@ -326,7 +326,10 @@
         "enseigne",
         "structure",
         "hauteurNettoyage",
-        "transport"
+        "transport",
+        "structureRuine",
+        "solStructure",
+        "machinerie"
       ],
       "properties": {
         "revision": {
@@ -424,7 +427,8 @@
         },
         "structure": {
           "type": "string",
-          "pattern": "^silooo:[a-z0-9_]+$"
+          "pattern": "^silooo:[a-z0-9_]+$",
+          "description": "La structure du pack posée quand la Carrière est active (tools/carriere/structure.py)."
         },
         "hauteurNettoyage": {
           "type": "integer",
@@ -454,6 +458,44 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 6
+            }
+          }
+        },
+        "structureRuine": {
+          "description": "La structure posée quand la Carrière n'est pas active : en ruine ou en travaux.",
+          "type": "string",
+          "pattern": "^silooo:[a-z0-9_]+$"
+        },
+        "solStructure": {
+          "description": "Hauteur de la face du dessus de la plateforme dans la structure, en blocs depuis son bas : la structure est posée à hauteur - solStructure.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "machinerie": {
+          "description": "Les machines animées par le pack (ailes, pilons), posées comme le salarié quand la Carrière est active. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entite",
+              "position",
+              "lacet"
+            ],
+            "properties": {
+              "entite": {
+                "type": "string",
+                "pattern": "^silooo:[a-z0-9_]+$"
+              },
+              "position": {
+                "$ref": "#/$defs/vue"
+              },
+              "lacet": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              }
             }
           }
         }

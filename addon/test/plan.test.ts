@@ -266,10 +266,11 @@ describe("la porte", () => {
     const a = mesures("carriere");
     assert.equal(a.porteX, a.fp.x0);
     const frame = frameOfIsland(ORIGINE, usine("carriere"), ILES);
-    const door = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: -7, haut: 1 });
-    const wall = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: -9, haut: 1 });
-    assert.equal(carriere.blockAt(door.x, door.y, door.z), undefined);
-    assert.equal(carriere.blockAt(wall.x, wall.y, wall.z), "minecraft:stone_bricks");
+    // La Carrière n'a pas de porte : son entrée regarde l'île principale, un chemin dégagé jusqu'à l'étal.
+    const passage = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: 0, haut: 1 });
+    const chemin = workshopBlock(frame, ILES.hauteur, { avant: 10, droite: 0, haut: 0 });
+    assert.equal(carriere.blockAt(passage.x, passage.y, passage.z), undefined);
+    assert.equal(carriere.blockAt(chemin.x, chemin.y, chemin.z), "minecraft:grass_path");
 
     const fonderie = fakeWorld();
     await pose(fonderie, "fonderie", "ACTIVE");
