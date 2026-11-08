@@ -1221,6 +1221,15 @@ validés par Bedrock, aucun échec de liaison avec le service. L'arrêt de l'anc
 `compose.gameplay.avant.yml` et recréer `silooo-bds`. La première visite de chaque joueur refait sa Carrière
 (`atelier.revision` 3). Rien n'a encore été vu dans un client.
 
+### Carrière 0.1.6, 8 novembre 2026
+
+Après la première visite de Kr : entités invulnérables, sous-titre natif caché pendant la cinématique, ouvrier habillé
+en salarié de l'atelier, pierres et bureau redessinés, sons du moulin et du tapis et fumée du poêle
+([carriere.md](carriere.md), « Audit après la première visite en jeu »). Image `silooo-bds:carriere-f43c9b0-lan`
+déployée à 7 h 40 UTC sur le seul service `silooo-bds` ; sauvegarde dans `sauvegardes/carriere-0.1.6-f43c9b0/`.
+Démarrage propre : packs 0.1.6, add-on démarré, blocs et structures validés. Ouvert : protection des blocs de l'île,
+orientation des machines à confirmer en jeu, second salarié, vente par particules.
+
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.
