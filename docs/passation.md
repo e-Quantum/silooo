@@ -1338,3 +1338,30 @@ La correction récente des codes Microsoft longs est conservée. La sauvegarde a
 `/var/www/silooo/sauvegardes/discord-c2-reprise-20261108`. L'image courante `lobby-d5d4d6a`
 valide le schéma V22 et ne lit pas les nouveaux dossiers de modération : retour arrière possible
 sans interpréter les nouvelles valeurs d'action avec l'ancien enum de C1.
+
+
+### C2a déployé et contrôlé — 8 novembre 2026, 16:03 UTC
+
+Image `ghcr.io/e-quantum/silooo-core:discord-2ade9f1`, code `2ade9f1` incluant main `d5d4d6a`.
+La comparaison avec le JAR de production précédent donne **zéro classe modifiée hors Discord** :
+la correction des codes Microsoft du site est conservée. Le seul conteneur recréé est `silooo-core`.
+Les identifiants, images et démarrages des 16 autres conteneurs sont inchangés depuis la reprise
+à 15:54 UTC ; les quatre fichiers Compose existants gardent les mêmes sommes de contrôle.
+
+- V22 appliquée ; validation finale des migrations sans opération restante.
+- Heartbeat 204, site 200, JDA connecté et chargé, plan réconcilié avec 0 échec.
+- Catalogue relu par REST : **24 commandes**, dont `/expulser`, `/bannir`, `/debannir`.
+- Permissions natives par défaut de ces trois commandes vérifiées ; le bot possède les droits
+  d'expulsion, de bannissement et de gestion des fils. Les rôles humains ne reçoivent pas de nouveau droit.
+- Phase Discord `attente`, QG public ; mode du site laissé à sa valeur par défaut `attente`.
+- Sauvegarde actualisée : `/var/www/silooo/sauvegardes/discord-c2-reprise-20261108`.
+- Reçu : `/var/www/silooo/deploy/discord-release.json`. Surcharge `compose.discord.yml` à conserver
+  **en dernier**, après les quatre fichiers actuels ; elle épingle seulement core et migrate.
+- Retour arrière disponible sur `ghcr.io/e-quantum/silooo-core:lobby-d5d4d6a`, schéma V22 validé.
+  Cette version retrouve le catalogue antérieur et garde les tables de C1/C2 sans les lire. L'image C1
+  `discord-f3b83cc` n'est pas le retour arrière recommandé après création de dossiers kick/ban/unban :
+  son ancien enum ne sait pas les interpréter. Ne pas supprimer V22 ni restaurer un ancien dump à chaud.
+
+La recette avec un vrai compte de test reste ouverte ; aucune sanction réelle n'a servi de test.
+Les textes nouveaux restent **à valider par Kr**. Prochain lot : C2b (purge, mode lent, verrouillage
+et restauration exacte des permissions), puis formulaires/transferts restants de C1.

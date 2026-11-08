@@ -43,7 +43,7 @@ reflètent cet état ; elles ne constituent pas une approbation manuelle supplé
 | --- | --- | --- |
 | John : accueil, liaison, annonces et événements | Parcours console/téléphone/PC, annonces avec aperçu, rôles de notification choisis | Socle déjà présent ; audit du parcours à poursuivre |
 | John : tickets et transcription | Sujets privés, formulaire par catégorie, prise en charge, suivi, archive | Prise en charge et archives durables livrées ; formulaires et transfert restent prévus |
-| John : modération et historique | Avertir, timeout, rétablir, dossier ; expulsion et bannissement/débannissement ; puis nettoyage, mode lent, verrouillage | C2a développé ; C2b reste prévu |
+| John : modération et historique | Avertir, timeout, rétablir, dossier ; expulsion et bannissement/débannissement ; puis nettoyage, mode lent, verrouillage | C2a livré et déployé ; C2b reste prévu |
 | John : réponses et journaux | FAQ contrôlée, événements de serveur, journal des changements et des échecs | Prévu ; journal technique déjà présent |
 | John : concours et soutiens | Giveaways gratuits, opt-in, rôle Soutien et récompenses décidées par le service | Socle présent ; livraison des lots en jeu à achever |
 | Bot vocal : liaison et synchronisation | Liaison prouvée, rôles du jeu, surnom ; salons temporaires et bureaux d'entreprise | Socle présent ; recette réelle et outils du propriétaire à poursuivre |
@@ -131,6 +131,7 @@ les copies Discord après la durée configurée. Les médias ne sont pas téléc
 ## Tranche C2a du 8 novembre
 
 Le [parcours de modération](discord-moderation.md) ajoute `/expulser`, `/bannir` et `/debannir`.
+Les 24 commandes sont installées et contrôlées sur le serveur le 8 novembre à 16:03 UTC.
 Les sanctions utilisent les mêmes confirmations et dossiers durables que les timeouts. V22 étend
 le journal ; les droits natifs restent distincts et ne sont pas accordés automatiquement aux rôles.
 Le bannissement conserve les messages ; le dossier se consulte par identifiant après un départ.
