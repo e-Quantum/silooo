@@ -3,6 +3,7 @@ import { it } from "node:test";
 import { createCoreApi } from "../src/api";
 import type { CoreClient } from "../src/http";
 import { couloirLibre, depart, estTombe, prochainBloc, REGLES, surLeBloc, trouMax, type Pas } from "../src/attente/parcours";
+import { ajouter, dansZone, ecrireFile, FILE_MAX, lireFile, sansLesOccupes, zoneAutour, zonesDeBalayage } from "../src/attente/menage";
 import { ecranPionnier } from "../src/attente/pionnier";
 import type { ActionBase } from "../src/protocol";
 import type { ActionFormSpec, FormAnswer } from "../src/ui/formulaires";
@@ -131,7 +132,7 @@ it("issueLobbyLinkCode envoie le gamertag au contrat et refuse un gamertag vide 
 import { actionChoisie, construireAccueil, montrerAccueil, type EtatAccueil } from "../src/attente/accueil";
 import { ATTENTE, nouveauPalier, palierDe } from "../src/attente/regles";
 import { ACCUEIL_TEXTES } from "../src/attente/textes";
-import { creerRappels, lignesClassement, texteHologramme } from "../src/attente/vitrine";
+import { creerRappels, HOLOGRAMMES, lignesClassement, positionHologramme, texteHologramme } from "../src/attente/vitrine";
 import type { LobbyBoard } from "../src/protocol";
 
 const TABLEAU: LobbyBoard = {
@@ -258,4 +259,55 @@ it("les rappels : un par intervalle au plus, aucun pour un joueur relié", () =>
   assert.equal(r.auRecord(intervalle, false), true);
   assert.equal(r.auRecord(3 * intervalle, false), false, "le record n'est rappelé qu'une fois");
   assert.equal(r.auScore(3 * pas, 3 * intervalle, false), true);
+});
+
+// ---------------------------------------------------------------- le ménage des blocs laissés
+
+it("la file du ménage se relit telle qu'écrite, et ignore ce qui n'est pas un bloc", () => {
+  const blocs = [{ x: 256, y: 110, z: 0 }, { x: -3, y: 90, z: 17 }];
+  assert.deepEqual(lireFile(ecrireFile(blocs)), blocs);
+  assert.deepEqual(lireFile(undefined), []);
+  assert.deepEqual(lireFile("pas du json"), []);
+  assert.deepEqual(lireFile('{"x":1}'), []);
+  assert.deepEqual(lireFile('[[1,2,3],[1,2],[1.5,2,3],["1",2,3],[4,5,6]]'), [{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }]);
+});
+
+it("la file n'a pas de doublon, garde les plus récents, et tient dans une propriété dynamique", () => {
+  const a = { x: 1, y: 100, z: 1 };
+  const b = { x: 2, y: 100, z: 2 };
+  assert.deepEqual(ajouter([a], [a, b]), [a, b]);
+  const beaucoup = Array.from({ length: FILE_MAX + 50 }, (_, i) => ({ x: -100000 - i, y: 130, z: -100000 - i }));
+  const file = ajouter([], beaucoup);
+  assert.equal(file.length, FILE_MAX);
+  assert.deepEqual(file.at(-1), beaucoup.at(-1));
+  assert.ok(ecrireFile(file).length < 32767);
+});
+
+it("un bloc qu'une course utilise à nouveau sort de la file", () => {
+  const repris = depart(1).bloc;
+  const laisse = { x: 260, y: 111, z: 4 };
+  assert.deepEqual(sansLesOccupes([repris, laisse], [{ ...repris }]), [laisse]);
+});
+
+it("la zone chargée autour d'un départ couvre le bloc, son voisin de saut et les hologrammes", () => {
+  const debut = depart(1).bloc;
+  const zone = zoneAutour(debut);
+  assert.ok(dansZone(debut, zone));
+  for (const h of HOLOGRAMMES) {
+    const p = positionHologramme(debut, h);
+    assert.ok(dansZone({ x: Math.floor(p.x), y: debut.y, z: Math.floor(p.z) }, zone), `hologramme ${h.role}`);
+  }
+  for (const pas of [prochainBloc({ cap: "sud", bloc: debut }, () => 0.99), prochainBloc({ cap: "ouest", bloc: debut }, () => 0.99)]) {
+    assert.ok(dansZone(pas.bloc, zone), `bloc suivant ${pas.bloc.x},${pas.bloc.z}`);
+  }
+  assert.ok(!dansZone({ x: debut.x, y: debut.y, z: debut.z + 40 }, zone));
+});
+
+it("le balayage couvre chaque départ sans recouvrement entre couloirs", () => {
+  const zones = zonesDeBalayage(4);
+  for (let c = 1; c <= 4; c += 1) {
+    const debut = depart(c).bloc;
+    assert.equal(zones.filter((z) => dansZone(debut, z)).length, 1, `couloir ${c}`);
+  }
+  assert.ok(zones.every((z) => z.from.x % 16 === 0 && z.from.z % 16 === 0));
 });

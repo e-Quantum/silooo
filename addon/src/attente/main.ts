@@ -7,6 +7,7 @@
 // Rien ici ne touche au jeu Silooo : ni entreprise, ni monnaie. Le score du saut ne vaut rien ailleurs que dans ce classement.
 
 import {
+  BlockVolume,
   DisplaySlotId,
   GameMode,
   ItemStack,
@@ -26,6 +27,7 @@ import type { LobbyBoard, LobbyPlayer, Xuid } from "../protocol";
 import { consoleLogger, createRequestIdGenerator, describeError } from "../runtime";
 import { createFormPresenter } from "../ui/formulaires";
 import { construireAccueil, montrerAccueil } from "./accueil";
+import { ajouter, cleBloc, dansZone, ecrireFile, lireFile, sansLesOccupes, zoneAutour, zonesDeBalayage, type Zone } from "./menage";
 import { couloirLibre, depart, estTombe, prochainBloc, surLeBloc, type Bloc, type Pas } from "./parcours";
 import { ecranPionnier } from "./pionnier";
 import { ATTENTE, nouveauPalier } from "./regles";
@@ -88,8 +90,8 @@ function poser(dimension: Dimension, bloc: Bloc, type: string): boolean {
   }
 }
 
-function retirer(dimension: Dimension, bloc: Bloc): void {
-  poser(dimension, bloc, "minecraft:air");
+function retirer(dimension: Dimension, bloc: Bloc): boolean {
+  return poser(dimension, bloc, "minecraft:air");
 }
 
 function blocDe(score: number): string {
@@ -98,6 +100,136 @@ function blocDe(score: number): string {
 
 function auDessus(bloc: Bloc): { x: number; y: number; z: number } {
   return { x: bloc.x + 0.5, y: bloc.y + 1, z: bloc.z + 0.5 };
+}
+
+// ---------------------------------------------------------------- le ménage des blocs laissés
+
+/** Les blocs que le parcours n'a pas pu retirer (tronçon déchargé) : gardés par le monde, retirés dès que possible. */
+const A_RETIRER = "silooo:attente_a_retirer";
+/** Le balayage des premiers couloirs a eu lieu : les blocs laissés avant la file sont partis. */
+const BALAYE = "silooo:attente_balaye";
+const ZONE_MENAGE = "silooo_menage";
+const COULOIRS_BALAYES = 4;
+const MENAGE_SECONDES = 1;
+const CHARGEMENT_SECONDES = 10;
+const ESSAIS_MAX = 3;
+
+let file: Bloc[] = [];
+let balayage: Zone[] = [];
+let menagePret = false;
+let menageEnCours = false;
+const essais = new Map<string, number>();
+
+function garderFile(): void {
+  try {
+    world.setDynamicProperty(A_RETIRER, file.length === 0 ? undefined : ecrireFile(file));
+  } catch (error) {
+    log.warn(`file du ménage non gardée : ${describeError(error)}`);
+  }
+}
+
+/** Retire les blocs ; ceux dont le tronçon n'est pas chargé vont dans la file du ménage. */
+function retirerOuPlusTard(dimension: Dimension, blocs: readonly Bloc[]): void {
+  const restants = blocs.filter((b) => !retirer(dimension, b));
+  if (restants.length === 0) return;
+  file = ajouter(file, restants);
+  garderFile();
+}
+
+/** Les blocs à ne jamais retirer : l'apparition, et tout ce qu'une course en cours utilise. */
+function occupes(): Bloc[] {
+  const blocs: Bloc[] = [APPARITION];
+  for (const c of courses.values()) blocs.push(c.actuel.bloc, c.suivant.bloc, depart(c.couloir).bloc);
+  return blocs;
+}
+
+function preparerMenage(): void {
+  try {
+    world.tickingAreaManager.removeAllTickingAreas(); // une zone d'une session précédente
+  } catch {
+    // aucune zone à retirer
+  }
+  file = lireFile(world.getDynamicProperty(A_RETIRER));
+  balayage = world.getDynamicProperty(BALAYE) === true ? [] : zonesDeBalayage(COULOIRS_BALAYES);
+  menagePret = true;
+  if (file.length > 0 || balayage.length > 0) log.info(`ménage du parcours : ${file.length} bloc(s) en file, ${balayage.length} zone(s) à balayer`);
+}
+
+/** Charge la zone le temps de [action] : une zone de ticking du pack, retirée après. */
+async function dansZoneChargee(dimension: Dimension, zone: Zone, action: () => void): Promise<boolean> {
+  const zones = world.tickingAreaManager;
+  const options = { dimension, from: zone.from, to: zone.to };
+  if (zones.hasTickingArea(ZONE_MENAGE)) zones.removeTickingArea(ZONE_MENAGE);
+  if (!zones.hasCapacity(options)) {
+    log.warn(`ménage du parcours : pas de place pour charger ${cleBloc(zone.from)} → ${cleBloc(zone.to)}`);
+    return false;
+  }
+  try {
+    const charge = await Promise.race([
+      zones.createTickingArea(ZONE_MENAGE, options).then(() => true),
+      attendre(CHARGEMENT_SECONDES).then(() => false),
+    ]);
+    if (charge) action();
+    return charge;
+  } finally {
+    if (zones.hasTickingArea(ZONE_MENAGE)) zones.removeTickingArea(ZONE_MENAGE);
+  }
+}
+
+/** Les hologrammes chargés qu'aucun couloir occupé ne tient plus. */
+function retirerHologrammesOrphelins(dimension: Dimension): void {
+  const tenus = new Set<string>();
+  for (const parRole of hologrammes.values()) for (const e of parRole.values()) tenus.add(e.id);
+  for (const entite of dimension.getEntities({ type: HOLOGRAMME })) {
+    if (!tenus.has(entite.id)) entite.remove();
+  }
+}
+
+/** Un pas du ménage : vider la file, tronçon par tronçon, puis balayer une zone des premiers couloirs. */
+async function menage(): Promise<void> {
+  const dimension = world.getDimension("overworld");
+  file = sansLesOccupes(file, occupes());
+  const premier = file[0];
+  if (premier !== undefined) {
+    const zone = zoneAutour(premier);
+    await dansZoneChargee(dimension, zone, () => {
+      const restants = sansLesOccupes(file, occupes()).filter((b) => !(dansZone(b, zone) && retirer(dimension, b)));
+      log.info(`ménage du parcours : ${file.length - restants.length} bloc(s) retiré(s)`);
+      file = restants;
+      retirerHologrammesOrphelins(dimension);
+    });
+    const cle = cleBloc(premier);
+    if (file.some((b) => cleBloc(b) === cle)) {
+      // il ne part pas : il passe en fin de file, et il est oublié au bout de quelques essais
+      const n = (essais.get(cle) ?? 0) + 1;
+      essais.set(cle, n);
+      file = file.filter((b) => cleBloc(b) !== cle);
+      if (n < ESSAIS_MAX) file.push(premier);
+      else log.warn(`ménage du parcours : ${cle} abandonné`);
+    } else {
+      essais.delete(cle);
+    }
+    garderFile();
+    return;
+  }
+  const zone = balayage[0];
+  if (zone === undefined) return;
+  await dansZoneChargee(dimension, zone, () => {
+    const garde = new Set(occupes().map(cleBloc));
+    const trouves = dimension.getBlocks(new BlockVolume(zone.from, zone.to), { includeTypes: [BLOC_DEPART, ...BLOCS] });
+    let n = 0;
+    for (const p of trouves.getBlockLocationIterator()) {
+      const bloc = { x: p.x, y: p.y, z: p.z };
+      if (!garde.has(cleBloc(bloc)) && retirer(dimension, bloc)) n += 1;
+    }
+    if (n > 0) log.info(`balayage du parcours : ${n} bloc(s) laissé(s) retiré(s) vers ${cleBloc(zone.from)}`);
+    retirerHologrammesOrphelins(dimension);
+  });
+  balayage.shift(); // une zone qui ne charge pas n'est pas retentée : la file reste là pour les nouveaux départs
+  if (balayage.length === 0) {
+    world.setDynamicProperty(BALAYE, true);
+    log.info("balayage du parcours terminé");
+  }
 }
 
 // ---------------------------------------------------------------- le classement de la barre latérale
@@ -287,11 +419,6 @@ function demarrer(player: Player, couloir: number): void {
   player.teleport(auDessus(actuel.bloc), { dimension: world.getDimension("overworld"), rotation: { x: 0, y: 0 } });
 }
 
-function nettoyer(dimension: Dimension, course: Course): void {
-  retirer(dimension, course.actuel.bloc);
-  retirer(dimension, course.suivant.bloc);
-}
-
 function rejoindre(player: Player): void {
   try {
     player.setGameMode(GameMode.Adventure);
@@ -351,8 +478,8 @@ function tour(player: Player, course: Course, visiteur: Visiteur): void {
     const score = course.score;
     const secondes = Math.round((Date.now() - course.debut) / 1000);
     if (score > 0) player.onScreenDisplay.setTitle(" ", { subtitle: ATTENTE_TEXTES.chute(score), fadeInDuration: 0, stayDuration: 30, fadeOutDuration: 10 });
-    if (course.score > 0) retirer(dimension, course.actuel.bloc); // le bloc de départ reste
-    retirer(dimension, course.suivant.bloc);
+    // le bloc de départ reste
+    retirerOuPlusTard(dimension, course.score > 0 ? [course.actuel.bloc, course.suivant.bloc] : [course.suivant.bloc]);
     demarrer(player, course.couloir);
     void envoyerCourse(player, visiteur, score, secondes).catch((error: unknown) => log.warn(`course : ${describeError(error)}`));
     return;
@@ -391,6 +518,7 @@ function main(): void {
   world.afterEvents.worldLoad.subscribe(() => {
     poser(world.getDimension("overworld"), APPARITION, BLOC_DEPART);
     menageHologrammes();
+    preparerMenage();
     if (world.scoreboard.getObjective(OBJECTIF) !== undefined) world.scoreboard.removeObjective(OBJECTIF); // les scores d'avant le service
     void chargerTableau().catch((error: unknown) => log.warn(`tableau : ${describeError(error)}`));
     log.info("salle d'attente prête");
@@ -412,9 +540,9 @@ function main(): void {
     if (course === undefined) return;
     courses.delete(id);
     const dimension = event.player.dimension;
+    // Son tronçon part souvent avec lui : ce qui ne se retire pas tout de suite va dans la file du ménage.
     system.run(() => {
-      nettoyer(dimension, course);
-      retirer(dimension, depart(course.couloir).bloc);
+      retirerOuPlusTard(dimension, [course.actuel.bloc, course.suivant.bloc, depart(course.couloir).bloc]);
       retirerHologrammes(course.couloir);
     });
   });
@@ -444,6 +572,15 @@ function main(): void {
     }
   }, 2);
 
+  enBoucle(MENAGE_SECONDES, () => {
+    if (!menagePret || menageEnCours) return;
+    menageEnCours = true;
+    void menage()
+      .catch((error: unknown) => log.warn(`ménage du parcours : ${describeError(error)}`))
+      .finally(() => {
+        menageEnCours = false;
+      });
+  });
   enBoucle(ATTENTE.rythmes.boussoleSecondes, () => {
     for (const player of world.getAllPlayers()) verifierBoussole(player);
   });
