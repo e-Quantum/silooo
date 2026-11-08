@@ -1,7 +1,8 @@
 package com.silooo.core.site
 
 import com.silooo.core.Dependencies
-import com.silooo.core.registration.AdmissionMoment
+import com.silooo.core.registration.AdmissionPath
+import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.DiscordLinks
 import com.silooo.core.registration.DiscordUser
 import com.silooo.core.registration.LinkOutcome
@@ -71,7 +72,7 @@ private class Signed(val session: WebSession, val account: WebAccount)
  * Les comptes du site (kit « Les comptes ») : les deux portes (`/connexion/xbox/`, `/connexion/discord/`) et leurs
  * retours, la connexion, l'inscription d'avant l'ouverture (`/pionniers/`, « C'est noté ! »), « Mon compte »,
  * « Lier mon compte » et la déconnexion. Le site écrit `web_accounts`, `waitlist`, `discord_links`, `web_sessions`,
- * `beta_access` (par la règle automatique) et `site_registrations` (V7, que le jeu et le bot lisent) dès qu'un gamertag
+ * `beta_access` (par la règle d'admission, [SiteAdmission]) et `site_registrations` (V7, que le jeu et le bot lisent) dès qu'un gamertag
  * est connu. Aucun identifiant Discord ni XUID Xbox n'entre dans une page, un journal ou un message.
  */
 internal fun Route.accountRoutes(dependencies: Dependencies, shell: SiteShell, pages: List<ContentPage>) {
@@ -82,7 +83,7 @@ internal fun Route.accountRoutes(dependencies: Dependencies, shell: SiteShell, p
     val waitlist = dependencies.waitlistStore
     val sessions = dependencies.webSessionStore
     val registrations = dependencies.siteRegistrationStore
-    val betaAccess = dependencies.betaAccessStore
+    val admission = SiteAdmission(dependencies.betaAccessStore, registrations, clock)
     val links = DiscordLinks(accounts, dependencies.discordLinkStore, registrations, clock)
     val secure = dependencies.siteUrl.startsWith("https://")
     val xbox = dependencies.xboxIdentity
@@ -165,16 +166,6 @@ internal fun Route.accountRoutes(dependencies: Dependencies, shell: SiteShell, p
     suspend fun ApplicationCall.formOk(signed: Signed): Boolean {
         if ((request.contentLength() ?: 0L) > MAX_FORM_BYTES) return false
         return signer.sameText(receiveParameters()["jeton"], signed.session.csrf)
-    }
-
-    /**
-     * La règle automatique `SILOOO_SITE_ADMISSION`, tant que l'admin n'existe pas (R18) : elle dit si `admitted_at` (V7) se
-     * pose à ce moment, et pose alors aussi `beta_access`, que le jeu lira en mode bêta.
-     */
-    fun admitByRule(connection: Connection, moment: AdmissionMoment, playerXuid: String): Boolean {
-        val admit = dependencies.siteAdmission.admitsAt(moment)
-        if (admit) betaAccess.admit(connection, playerXuid, "regle:${dependencies.siteAdmission.word}", clock.instant())
-        return admit
     }
 
     /** Le départ vers une porte : un `state` neuf dans le cookie de connexion, puis l'adresse d'autorisation. */
@@ -298,16 +289,12 @@ internal fun Route.accountRoutes(dependencies: Dependencies, shell: SiteShell, p
             val playerXuid = Empreinte.duGamertag(profile.gamertag)
             val now = clock.instant()
             val outcome = dependencies.database.transaction { connection ->
-                val (account, changed) = xboxAccount(connection, profile, playerXuid) ?: return@transaction null
-                var registered = false
-                if (waitlistOpen) {
-                    registered = waitlist.insert(connection, account.id, now)
-                    if (registered || changed) {
-                        // Le jeu et le bot lisent V7 : l'inscription y est écrite sous le gamertag prouvé par Xbox.
-                        val admitted = admitByRule(connection, AdmissionMoment.REGISTRATION, playerXuid)
-                        registrations.insert(connection, SiteRegistrations.key(profile.gamertag), profile.gamertag, admitted, pioneer = true)
-                    }
-                }
+                val (account, _) = xboxAccount(connection, profile, playerXuid) ?: return@transaction null
+                val registered = waitlistOpen && waitlist.insert(connection, account.id, now)
+                // Le jeu et le bot lisent V7 : l'inscription y est écrite sous le gamertag prouvé par Xbox, Pionnier avant
+                // l'ouverture. La connexion Microsoft admet (c), avant comme après : l'admission est idempotente.
+                registrations.insert(connection, SiteRegistrations.key(profile.gamertag), profile.gamertag, admitted = false, pioneer = waitlistOpen)
+                admission.admit(connection, profile.gamertag, playerXuid, AdmissionPath.MICROSOFT)
                 accounts.touch(connection, account.id, now)
                 openSession(connection, account.id) to registered
             } ?: return@get call.refuse(HttpStatusCode.Conflict, AccountMessage.GAMERTAG_TAKEN)
@@ -340,11 +327,10 @@ internal fun Route.accountRoutes(dependencies: Dependencies, shell: SiteShell, p
                 val account = current.account
                 val outcome = dependencies.database.transaction { connection ->
                     val outcome = accounts.setDiscord(connection, account.id, user.id)
-                    val playerXuid = account.playerXuid
                     val gamertag = account.gamertag
-                    if (outcome == LinkOutcome.LINKED && gamertag != null && playerXuid != null) {
-                        val admit = admitByRule(connection, AdmissionMoment.DISCORD_LINK, playerXuid)
-                        registrations.link(connection, SiteRegistrations.key(gamertag), user.id, admit)
+                    // Un Discord posé sur le site n'admet personne : l'admission vient de Xbox (c) ou de la preuve du jeu (a).
+                    if (outcome == LinkOutcome.LINKED && gamertag != null) {
+                        registrations.link(connection, SiteRegistrations.key(gamertag), user.id, admit = false)
                     }
                     outcome
                 }

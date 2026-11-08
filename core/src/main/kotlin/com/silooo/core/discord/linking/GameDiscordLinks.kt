@@ -5,7 +5,9 @@ import com.silooo.core.api.RefusalCodes
 import com.silooo.core.db.Database
 import com.silooo.core.db.Xuid
 import com.silooo.core.db.setXuid
+import com.silooo.core.registration.AdmissionPath
 import com.silooo.core.registration.LinkCodes
+import com.silooo.core.registration.SiteAdmission
 import com.silooo.core.registration.SiteRegistrations
 import io.ktor.http.HttpStatusCode
 import java.math.BigInteger
@@ -31,8 +33,9 @@ data class GameLinkResult(val status: GameLinkStatus, val link: VerifiedDiscordL
 
 /**
  * Preuve D3 : code affiché en jeu, consommé par le Discord authentifié. Les identités de connexion du site sont
- * seulement lues pour refuser leurs conflits. La saisie du code n'accorde ni admission, ni récompense, ni qualité de pionnier :
- * seule la salle d'attente inscrit pionnier, avant l'émission ([enrollLobbyVisitor]).
+ * seulement lues pour refuser leurs conflits. La saisie du code n'accorde ni récompense ni qualité de pionnier : seule la
+ * salle d'attente inscrit pionnier, avant l'émission ([enrollLobbyVisitor]). Elle admet en bêta (décision 21 du site, chemin
+ * a : Discord relié en jeu), par [SiteAdmission], comme la salle d'attente (chemin b).
  * Toutes les mutations D3 prennent le même petit verrou SQL, partagé entre instances du service.
  */
 class GameDiscordLinks(
@@ -40,6 +43,8 @@ class GameDiscordLinks(
     private val clock: Clock = Clock.systemUTC(),
     private val generate: () -> String = { LinkCodes.generate() },
 ) {
+    private val admission = SiteAdmission(clock = clock)
+
     /** Transaction de l'appelant, notamment celle de l'idempotence HTTP. Une nouvelle intention remplace l'ancien code. */
     fun issue(connection: Connection, actor: Xuid): GameLinkCode {
         lock(connection)
@@ -69,10 +74,10 @@ class GameDiscordLinks(
     /**
      * La salle d'attente, avant l'ouverture : le visiteur n'est pas encore connu du service. Sa ligne `players` est créée sans
      * entreprise (`join` la créera à sa première vraie partie ; une ligne connue garde ses dates, seul le gamertag suit Xbox),
-     * son inscription `site_registrations` est posée ou passée pionnier ([admitted] : la règle d'admission au moment de
-     * l'inscription), puis le code est émis comme par [issue]. Même verrou en tête que [redeem], donc le même ordre de verrous.
+     * son inscription `site_registrations` est posée ou passée pionnier, puis admise en bêta (chemin b, [SiteAdmission]), puis
+     * le code est émis comme par [issue]. Même verrou en tête que [redeem], donc le même ordre de verrous.
      */
-    fun enrollLobbyVisitor(connection: Connection, actor: Xuid, gamertag: String, admitted: Boolean): GameLinkCode {
+    fun enrollLobbyVisitor(connection: Connection, actor: Xuid, gamertag: String): GameLinkCode {
         lock(connection)
         val known = player(connection, actor)
         if (known == null) {
@@ -93,22 +98,19 @@ class GameDiscordLinks(
         val existing = registration(connection, "gamertag_key = ?", key)
         if (existing == null) {
             connection.prepareStatement(
-                "insert into site_registrations (gamertag_key, gamertag, pioneer, admitted_at) values (?, ?, true, if(?, utc_timestamp(3), null))",
+                "insert into site_registrations (gamertag_key, gamertag, pioneer) values (?, ?, true)",
             ).use {
                 it.setString(1, key)
                 it.setString(2, gamertag)
-                it.setBoolean(3, admitted)
                 it.executeUpdate()
             }
         } else {
-            connection.prepareStatement(
-                "update site_registrations set pioneer = true, admitted_at = coalesce(admitted_at, if(?, utc_timestamp(3), null)) where gamertag_key = ?",
-            ).use {
-                it.setBoolean(1, admitted)
-                it.setString(2, key)
+            connection.prepareStatement("update site_registrations set pioneer = true where gamertag_key = ?").use {
+                it.setString(1, key)
                 it.executeUpdate()
             }
         }
+        admission.admit(connection, gamertag, actor.text, AdmissionPath.LOBBY_PIONEER)
         return issue(connection, actor)
     }
 
@@ -204,6 +206,8 @@ class GameDiscordLinks(
                 it.setString(1, hash)
                 check(it.executeUpdate() == 1)
             }
+            // Chemin a : le compte Discord est relié au joueur par la preuve du jeu, donc le joueur entre en bêta.
+            admission.admit(connection, gamertag, code.xuid.text, AdmissionPath.DISCORD_IN_GAME)
             // Une première preuve par membre, conservée après déliaison : les confirmations ne gonflent pas le rapport.
             connection.prepareStatement(
                 "insert ignore into discord_report_events (kind, event_id, user_id, occurred_at) values ('linked', ?, ?, ?)",
