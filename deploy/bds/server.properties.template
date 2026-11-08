@@ -22,6 +22,10 @@ server-udp-ports={{BDS_UDP_PORTS_VALEUR}}
 # La découverte locale passe par l'UDP 7551, que le compose ne publie pas : rien ne sort du conteneur.
 enable-lan-visibility=true
 
+# Un tycoon dans le ciel, sans combat : aucun monstre. L'add-on le repose au démarrage, avec le jour figé
+# (applyWorldRules dans addon/src/monde/bedrock.ts), pour un monde déjà créé dans une autre difficulté.
+difficulty=peaceful
+
 # Écrit explicitement : la valeur par défaut diffère selon les sources (docs/bedrock.md, fait 6).
 allow-list={{BDS_ALLOW_LIST}}
 online-mode=true
