@@ -121,11 +121,15 @@ Corrigé :
 - **Bureau d'administration** : redessiné en bureau de bois de l'époque 1 (registre, encrier).
 - **Ambiance** (`atelier.ambiance`) : le moulin et le tapis s'entendent, le poêle fume, seulement quand la Carrière
   tourne.
+- **Protection** (0.1.7, décision de Kr) : toute la Carrière est protégée, sauf le front de taille
+  (`atelier.libre`), où le tutoriel fait extraire les premières pierres. Rien ne se pose sur l'île. Le mode créatif
+  passe ; un clic sur une machine de l'atelier ouvre toujours son menu. Règle pure dans `addon/src/monde/protection.ts`,
+  branchée sur `beforeEvents.playerBreakBlock` et `beforeEvents.playerInteractWithBlock` (l'API stable 2.11 n'a pas
+  d'événement « avant pose »). Elle vaut pour les archipels que le relevé a vus depuis le démarrage, donc pour tout
+  joueur présent.
 
 Ouvert, à trancher ou à voir en jeu :
 
-- **Blocs cassables.** Aucune protection : un joueur peut casser toute la Carrière. Le tutoriel veut qu'il casse des
-  pierres du front de taille ; reste à décider ce qui est protégé.
 - **Orientation des ailes et des pilons** : lacet 90 supposé d'après le modèle ; à confirmer en jeu.
 - **Un seul salarié** au lieu des deux de la maquette ; la vente par particules et les sons de vente ne sont pas
   branchés ; en ruine, le moulin n'a pas d'ailes.

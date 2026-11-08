@@ -538,6 +538,11 @@ export type IlesDefinitions = {
       readonly position: IlesVue;
       readonly periode: number;
     }[];
+    /** Les volumes de la Carrière que le joueur peut casser (le front de taille). Tout le reste de l'île est protégé : ni casse ni pose, sauf en mode créatif. */
+    readonly libre: readonly {
+      readonly de: IlesVue;
+      readonly a: IlesVue;
+    }[];
   };
 };
 
