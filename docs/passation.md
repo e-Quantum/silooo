@@ -1182,3 +1182,11 @@ en salarié de l'atelier, pierres et bureau redessinés, sons du moulin et du ta
 déployée à 7 h 40 UTC sur le seul service `silooo-bds` ; sauvegarde dans `sauvegardes/carriere-0.1.6-f43c9b0/`.
 Démarrage propre : packs 0.1.6, add-on démarré, blocs et structures validés. Ouvert : protection des blocs de l'île,
 orientation des machines à confirmer en jeu, second salarié, vente par particules.
+
+### Carrière 0.1.7, 8 novembre 2026
+
+Protection de l'île de départ (décision de Kr) : tout est protégé sauf le front de taille ([carriere.md](carriere.md)).
+Image `silooo-bds:carriere-26a4b77-lan` déployée à 7 h 57 UTC sur le seul service `silooo-bds` ; sauvegarde dans
+`sauvegardes/carriere-0.1.7-26a4b77/`. Démarrage propre. Vérification : verte, sauf `verifier_site.mjs`, qui échoue
+parce qu'un Chromium de Playwright installé le 8 novembre à 7 h 38 dans `~/.cache/ms-playwright` ne trouve pas
+`libatk-1.0.so.0` ; sans lui, les 170 tests de l'outillage passent. À régler sur le VPS (bibliothèques ou retrait).
