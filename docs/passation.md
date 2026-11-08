@@ -1,8 +1,76 @@
 # Passation : l'état du chantier Silooo
 
-Dernière mise à jour : 5 novembre 2026, 19 h 34, bilan final de la session de direction : le curseur des événements persistant fusionné (9f5376a), les phases 0 à 5 cochées sur `main` hors les cases de Kr, aucune session lancée, rien de déployé.
+Dernière mise à jour : 8 novembre 2026, 21 h, point d'ensemble après les retours de Kr sur P0 à P3 (section « Le point
+au 8 novembre » ci-dessous). Le reste de la section « État » date du 5 novembre au soir.
 
 ## État
+
+### Le point au 8 novembre 2026, 21 h
+
+Lire ceci avant tout le reste : c'est ce qui est vrai ce soir, le détail est dans le journal.
+
+**Ce qui tourne sur le VPS** (projet Docker `silooo`, déployé à la main par les sessions de la Carrière et du Discord) :
+
+- `silooo-bds:carriere-26a4b77-lan` : la Carrière 0.1.9, image construite sur le VPS depuis `claude/carriere-ile`.
+  C'est **le jeu de référence** : Kr le garde.
+- `silooo-core:discord-2ade9f1` : le service avec le bot Oooscar. **Le commit `2ade9f1` n'est ni sur GitHub ni sur le
+  PC** : il n'existe que sur le VPS. À récupérer en premier (le pousser sur une branche `claude/`), sinon ce travail se
+  perd au prochain déploiement.
+- La base `silooo` du VPS est à V17 (`V17__salle_attente.sql`, appliquée le 7 novembre). Les migrations du commit
+  `2ade9f1`, s'il en a, ne sont pas connues.
+
+**Ce qui est sur `main` et pas déployé** (`1aae851`, intégration de 19 h 25) : la Carrière (packs en 0.1.10) plus P0 à
+P3. `tools/verifier.sh` y était vert. Le BDS de `main` demande le core de `main` (P2 et P3 changent le contrat), et le
+core de `main` n'a pas le bot de `2ade9f1` : déployer `main` aujourd'hui ferait reculer le bot.
+
+**Retours de Kr sur P0 à P3** (8 novembre, 20 h 55, dans le journal) :
+
+| Changement | Verdict de Kr |
+| --- | --- |
+| La Scierie qui apparaît en ruine au niveau d'entreprise 2 (P0) | Refusé : « pas le but » |
+| Le titre `silooo:cinema` caché (P0) | Raté : toujours visible |
+| Les cadenas (P1) | Refusé : mal faits |
+| Les glyphes des monnaies, d'Oooscar et des icônes (P1) | Refusé : à refaire |
+| La carte qui dit ce qui ouvre chaque usine (P3) | Hors sujet : Kr veut une carte interactive, après une nouvelle organisation des îles |
+| Les menus et la fiche Usine (P3) | Refusé : pas ce que veut Kr |
+| Les missions après la mairie, le temps de retour, le garde-fou à une usine (P2) | Pas encore regardé |
+| Le son et la ligne en or de la montée, la barre de mission du HUD (P3) | Pas encore regardé |
+| Monde paisible, cinématique accroupi (P0) | Gardé : déjà dans la Carrière 0.1.9 |
+
+**Branches poussées qui ont encore du travail absent de `main`** (relevé par `git cherry`, le 8 novembre à 21 h) :
+
+| Branche | Ce qu'elle a en plus | À faire |
+| --- | --- | --- |
+| `claude/discord-gestion-20261107` | 11 commits : modération Discord, signalements, rôles natifs, menus contextuels | À intégrer. **Ses migrations `V17__discord_moderation` et `V18__discord_message_reports` entrent en conflit avec `V17__salle_attente` de `main` et du VPS** : les renuméroter (V18, V19) avant de fusionner. Peut-être la source de `2ade9f1`. |
+| `claude/attente-discord` | Affiche Discord de la salle d'attente (bannière de Kr, QR code, ligne `silooo.com/discord`), plus le nettoyage du parcours | À intégrer après relecture : ses commits de salle d'attente v1 et v2 sont des doublons réécrits de ce qui est sur `main` |
+| `claude/attente-nettoyage` | Retirer les blocs du parcours d'un joueur déconnecté | Contenu aussi dans `claude/attente-discord` |
+| `claude/cadre-visuels` | Décisions visuelles de Kr du 5 novembre (carte, pannes, boutique, marché, lancement), base `silooo` créée, réseau `bw_internal` relevé, somme SHA-256 du zip de BDS | À relire et reprendre : sur `main`, `deploy/bds/bds.sha256` n'a toujours que des zéros |
+| `claude/banniere-silooo` | Exports Discord validés par Kr, avatar animé du bot | À intégrer (design et docs seulement) |
+| `claude/phase0-docs`, `claude/phase1-routes` | Anciennes versions des phases 0 et 1 | Probablement reprises sur `main` sous une autre forme ; à vérifier avant de supprimer les branches |
+
+`claude/carriere-ile`, `claude/p0-video` à `claude/p3-video`, `claude/salle-attente`, `claude/site-admission`,
+`claude/site-comptes`, `claude/site-revision`, `claude/phase1-dorees`, `claude/phase1-squelette` et
+`claude/phase2-releve` n'ont plus rien hors de `main`.
+
+**Ce qui n'est pas fini, dans l'ordre conseillé :**
+
+1. Récupérer `2ade9f1` depuis le VPS et le pousser sur une branche (le VPS n'a pas d'accès GitHub : passer par le PC).
+2. Décider avec Kr ce qu'on retire de `main` parmi P0 à P3 (le tableau ci-dessus), puis le retirer par des commits
+   de retour arrière, jamais en réécrivant l'historique.
+3. Intégrer le bot (`2ade9f1` et `claude/discord-gestion-20261107`, migrations renumérotées), puis `claude/attente-discord`.
+4. Seulement après : déployer `main` avec `deploy/scripts/deploy.sh`, qui remplace les deux images construites à la main.
+5. Plus tard, à la demande de Kr : la nouvelle organisation des îles, puis la carte interactive, de nouveaux menus et
+   une nouvelle fiche Usine, des glyphes et des cadenas refaits.
+6. Restent ouvertes les cases « À faire par Kr » plus bas : DNS `play.silooo.com`, port, `docker login ghcr.io`,
+   Votifier et Hubyy, jeton du bot.
+
+**Essayer en local sur le PC** : Docker Desktop marche (lancer `docker desktop start` si le moteur ne répond pas). Un
+compose local (base MariaDB jetable, images construites depuis la branche courante, zip de BDS posé à côté) a tourné
+le 8 novembre pour `claude/p3-video`. Un monde neuf créé par BDS n'a pas « Beta APIs » : les scripts de Silooo et ses
+blocs à composants ne se chargent pas tant qu'on ne pose pas l'expérience `gametest` dans son level.dat
+(`tools/monde_attente.py` sait le faire). Le compose n'est pas dans le dépôt : à y ajouter si on s'en resert.
+
+### Le 5 novembre au soir
 
 - Le dépôt contient les contrats (OpenAPI, migration V1, définitions et leurs schémas), le plan, le
   game design, le design system, la documentation (`docs/`, ADR 0001 à 0005), l'outillage (`tools/`,
@@ -718,6 +786,17 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   pionnier) et la tuile Associés déplacée sous Personnel. Les points d'exclamation des bulles sont à relire.
 
 ## Journal
+
+- **8 novembre 2026, 20 h 55 : retours de Kr sur P0 à P3, le jeu du VPS reste la base.** Kr garde le jeu qui tourne sur
+  le VPS (Carrière 0.1.9, `claude/carriere-ile`). P0 à P3 sont pourtant sur `main` depuis l'intégration de 19 h 25
+  (`1aae851`, pas déployée) : ce que Kr refuse ci-dessous est à retirer ou à refaire avant de déployer `main`.
+  Refusé : la Scierie qui apparaît au niveau 2 (« pas le but »), les cadenas (mal faits), le titre `silooo:cinema|`
+  (toujours visible), les glyphes (à refaire), la carte (Kr veut une carte interactive, après une nouvelle organisation
+  des îles), les menus et la fiche Usine (pas ce que veut Kr). Pas encore regardé par Kr : les missions après la mairie,
+  le temps de retour du niveau suivant, le garde-fou à une usine, le son et la ligne de montée, la barre de mission du
+  HUD. Le bot a de l'avance sur le VPS : `silooo-core:discord-2ade9f1`, commit absent de GitHub et du PC, à récupérer.
+  Silooo local : `docker compose` sur le PC (Docker Desktop), images de `claude/p3-video` ; un monde neuf créé par BDS
+  n'a pas « Beta APIs » et l'add-on ne s'y charge pas tant qu'on ne l'active pas dans son level.dat.
 
 - **8 novembre 2026 : P3, les menus** (branche `claude/p3-video`, décision 53). Carte qui dit ce qui ouvre chaque
   usine cachée, fiche Usine qui tient sans défiler, son et ligne en or à chaque montée, barre d'avancement de la mission

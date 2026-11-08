@@ -37,6 +37,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # tools/generer_sons.py --verifier refait les sons par synthèse : versions essayées (docs/carriere.md).
+      - name: Installer numpy et scipy
+        run: python -m pip install numpy==2.3.5 scipy==1.16.3
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

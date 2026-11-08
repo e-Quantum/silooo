@@ -123,9 +123,15 @@ etape_resource_pack() {
 }
 
 # Les sons sont refaits par synthèse : on compare l'empreinte des échantillons, pas les octets Ogg (docs/carriere.md).
+# numpy et scipy aux versions essayées (docs/carriere.md) : la CI les installe, le PC les prend par uv s'il les lui manque.
 etape_sons() {
   trouver_python || { echo "Python introuvable : essayé python3, python, uv run python."; return 1; }
-  "${PYTHON[@]}" -I tools/generer_sons.py --verifier --catalogue tools/generer_sons.catalogue.json
+  local python=("${PYTHON[@]}")
+  if ! "${python[@]}" -I -c "import numpy, scipy" >/dev/null 2>&1; then
+    command -v uv >/dev/null 2>&1 || { echo "numpy et scipy manquent : pip install numpy==2.3.5 scipy==1.16.3"; return 1; }
+    python=(uv run --quiet --no-project --with numpy==2.3.5 --with scipy==1.16.3 python)
+  fi
+  "${python[@]}" -I tools/generer_sons.py --verifier --catalogue tools/generer_sons.catalogue.json
 }
 
 # Les structures de la Carrière : refaites par tools/carriere/generer.py, identifiants et états de Bedrock 1.26.60.
