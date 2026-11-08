@@ -266,6 +266,23 @@ class AccountRoutesTest {
     }
 
     @Test
+    @DisplayName("Retour de Xbox avec un code Microsoft de plusieurs centaines de caractères (672 en production) : accepté et passé tel quel ; au-delà de 4 096, refusé sans appeler le fournisseur")
+    fun xboxLongMicrosoftCode() = withRig { rig ->
+        // La forme d'un code de comptes personnels : points, soulignés, astérisques, points d'exclamation, et « $$ » final.
+        val code = ("M.C537_BAY.2.U.MsaArtifacts." + "DsRJ0kSV8c*AAfLtEG99!YUAMXd55i7vIEBaLolmC48U2UcV".repeat(14)).take(670) + "$$"
+        assertEquals(672, code.length)
+        val (porte, state) = rig.start("/connexion/xbox/")
+        val response = rig.back("xbox", null, state, porte, "&code=" + java.net.URLEncoder.encode(code, Charsets.UTF_8))
+        assertEquals(HttpStatusCode.SeeOther, response.status)
+        assertEquals(code, rig.xbox.lastCode, "le code arrive au fournisseur sans être tronqué ni mal décodé")
+
+        val (porte2, state2) = rig.start("/connexion/xbox/")
+        rig.xbox.lastCode = null
+        assertEquals(HttpStatusCode.BadRequest, rig.back("xbox", null, state2, porte2, "&code=" + "a".repeat(4097)).status)
+        assertNull(rig.xbox.lastCode, "un code démesuré n'est pas envoyé au fournisseur")
+    }
+
+    @Test
     @DisplayName("Admission (c) : une seconde connexion Xbox n'écrit rien de plus ; la date et le chemin d'admission ne bougent pas")
     fun xboxAdmissionIsWrittenOnce() = withRig { rig ->
         rig.loginXbox()
