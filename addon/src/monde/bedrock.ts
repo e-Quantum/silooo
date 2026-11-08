@@ -38,7 +38,8 @@ export function validateWorldAssets(): void {
   for (const facing of [2, 3, 4, 5]) BlockPermutation.resolve(ILES.materiaux.enseigne, { facing_direction: facing });
   for (const volume of ILES.atelier.volumes) BlockPermutation.resolve(volume.bloc);
   for (const machine of ILES.atelier.machines) BlockPermutation.resolve(machine.bloc);
-  if (!world.structureManager.getPackStructureIds().includes(ILES.atelier.structure)) throw new Error(`structure ${ILES.atelier.structure} absente du pack`);
+  const structures = world.structureManager.getPackStructureIds();
+  for (const id of [ILES.atelier.structure, ILES.atelier.structureRuine]) if (!structures.includes(id)) throw new Error(`structure ${id} absente du pack`);
 }
 
 export function createWorkshopWorld(): WorkshopWorld {
@@ -64,6 +65,16 @@ export function createWorkshopWorld(): WorkshopWorld {
         entity.teleport(at, { facingLocation: facing });
       }
       entity.setProperty("silooo:travaille", working);
+      return entity.id;
+    },
+    fixture(previous, companyId, type, at, yaw) {
+      let entity = previous === undefined ? undefined : world.getEntity(previous);
+      if (entity?.isValid !== true) {
+        for (const stale of overworld().getEntities({ type, location: at, maxDistance: 2 })) stale.remove();
+        entity = overworld().spawnEntity(type, at);
+        entity.setDynamicProperty("silooo:company-id", companyId);
+      }
+      entity.teleport(at, { rotation: { x: 0, y: yaw } });
       return entity.id;
     },
     loaded: (at) => overworld().isChunkLoaded(at),

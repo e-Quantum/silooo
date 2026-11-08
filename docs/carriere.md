@@ -77,48 +77,49 @@ puis, après la ruine, de l'air à la place du coffre et le rouet grippé). Le s
 et transparents mêlés dans le tapis déchiré, est corrigé. Aucun client n'a vu l'île : couleurs, sens des rotations
 et faces orientées restent à regarder en jeu.
 
-## Brancher l'île dans l'add-on
+## Branchée dans l'add-on (0.1.5)
 
-Rien n'est branché dans `addon/src/` : la pose actuelle (`addon/src/monde/plan.ts`) dessine encore l'ancienne île de
-rayon 7. La version 0.1.4 de Codex, qui pose une Carrière par structure, n'est pas sur `main` ; ce qui suit est à
-fusionner avec elle.
+La Carrière de l'époque 1 remplace celle de la 0.1.4 (`carriere_depart`) dans le modèle de Codex : la section
+`atelier` de `definitions/iles.json` dit tout, l'add-on ne garde aucun chiffre.
 
-- **Pose.** `structure load silooo:carriere_<etat> <origine>` où l'origine est le centre de l'île moins (15, 16, 15) :
-  l'herbe est à y = 16 dans la structure, à `iles.json` `hauteur` dans le monde. Le sud de la structure est le côté
-  « avant » (vers l'île principale) : la rotation est à choisir pour que ce sud regarde l'île principale, et à
-  confirmer en jeu.
-- **Positions.** Une position `(x, y, z)` de `generer.py` devient, dans la structure, `(x, y + 2, z)`.
-- **Entités**, posées par l'add-on en marche seulement, animées par le pack :
-  `silooo:ailes_moulin` au moyeu (26.5, 21.5, 14.05), `silooo:pilons` à (21.5, 16, 10.5), propriété `silooo:ruine`
-  à vrai en ruine ; deux `silooo:salarie` à (10.5, 15, 7.5) en pioche et (18.5, 15, 10.5) en pelle, propriété
-  `silooo:geste` et `minecraft:variant` (0 commun, 1 rare, 2 légendaire). Les extraits sont dans
-  `docs/carriere/propositions/`. Les machines regardent le sud (yaw 0) ; si elles sont à l'envers en jeu, tourner de
-  180° et changer `SENS` dans `animations.py`. En jeu, les ailes ne repartent pas encore par paliers à la remise en
-  route : l'aperçu le montre, l'add-on devra piloter leur vitesse.
-- **Vente.** Particules seules, aucune entité : `silooo:miettes_coffre` quand l'objet tombe, `silooo:jeton_donar`
-  quand l'API confirme, `joie` sur Oooscar ; un jeton par vente, au plus un toutes les 0,5 s par coffre.
-- **Fumée.** `silooo:fumee_poele` relancé toutes les 8 s à (4.5, 23, 14.5), en marche seulement.
-- **Sons.** Voir [carriere/sons-inventaire.md](carriere/sons-inventaire.md) : aujourd'hui l'add-on n'en joue aucun.
-- **Budget.** 7 entités en marche (ailes, pilons, deux salariés, Oooscar, pierres du tapis, charrette) : la limite fixée
-  pour Switch et vieux mobiles ([game-design.md](game-design.md)).
+- **Pose.** `planIsland` pose `atelier.structure` (`carriere_marche`) quand la Carrière est active, sinon
+  `atelier.structureRuine` (`carriere_ruine`), à `hauteur - atelier.solStructure` (16) pour que la face du dessus tombe
+  à la hauteur des îles. `tools/carriere/structure.py` écrit les structures déjà tournées dans le repère fixe de la
+  Carrière (angle 0) : leur sud, l'entrée et l'étal, regarde l'île principale, à l'ouest du monde. `atelier.revision`
+  passe à 3 : les Carrières déjà posées sont refaites une fois.
+- **Machines** (`atelier.machines`, contrôlées par `validateWorldAssets` au démarrage) : deux rouets (rôle broyeur),
+  les cinq tapis du tronçon nord-sud (convoyeur, où avancent les trois pierres de `atelier.transport`), le coffre de
+  vente (stock) et le bureau d'administration de la 0.1.4, posé sur le bureau du contremaître. Ces blocs portent le
+  composant `silooo:atelier` : un clic ouvre le bureau ou la production.
+- **Salarié et enseigne** : le salarié de la 0.1.4 (`silooo:ouvrier`) au pied du front de taille ; l'add-on écrit le nom
+  de la Carrière sur l'enseigne du bureau, présente dans les deux états.
+- **Machines animées** (`atelier.machinerie`) : `silooo:ailes_moulin` et `silooo:pilons` apparaissent avec le salarié,
+  tournés de 90° (vers l'ouest), et sont retirés avec lui. En ruine, ils ne sont pas posés : la tour du moulin reste
+  sans ailes, au lieu des ailes cassées de la maquette.
+- **Arrivée et cinématique** : `usines[carriere].rayon` 15, `apparition` 9, Oooscar à 7 en avant et 2 à droite ; les
+  quatre plans ci-dessous.
+- **Mode de secours** (monde sans structures, tests) : `atelier.volumes` décrit la Carrière en grandes masses.
+- **Pas encore fait** : les salariés `silooo:salarie` (modèle et skins de l'atelier) ne remplacent pas encore
+  l'ouvrier de la 0.1.4 ; aucun son n'est joué par l'add-on ([carriere/sons-inventaire.md](carriere/sons-inventaire.md)) ;
+  la vente par particules (`silooo:miettes_coffre`, `silooo:jeton_donar`) et la fumée du poêle ne sont pas branchées.
 
-## Valeurs proposées pour `definitions/iles.json`
+## Les valeurs de `definitions/iles.json`
 
 Repère de la cinématique : `avant`, `droite`, `haut` depuis le centre de l'île ([cinematique.ts](../addon/src/monde/cinematique.ts)).
 
 | Plan | Cadre | Départ | Arrivée | Regard |
 | --- | --- | --- | --- | --- |
 | 1 | L'île entière, vue du pont | 30, -22, 22 | 19, -14, 13 | -2, 0, 3 |
-| 2 | Le front de taille et l'éboulis | 4, 2, 10 | 1, 1, 8 | -10, 1, 3 |
+| 2 | Le front de taille | 4, 2, 10 | 1, 1, 8 | -10, 1, 3 |
 | 3 | Le bocard et le moulin | 10, -9, 5 | 6, -6, 5 | -4, -7, 4 |
 | 4 | L'étal de vente et la plaque | 10, -3, 3 | 6.5, -1, 3 | 2.5, 0, 4.5 |
 
-- `apparition.distance` : 9 (2 blocs à l'intérieur de l'entrée, les piliers restent derrière le joueur).
-- `apparition.oooscar` : `avant` 7, `droite` 2.5.
+- Arrivée : `usines[carriere].apparition` 9 (2 blocs à l'intérieur de l'entrée, les piliers restent derrière le joueur).
+- `apparition.oooscar` : `avant` 7, `droite` 2.
 - L'anneau : l'île s'étend sur environ 14 blocs du centre vers le pont, contre 7 aujourd'hui. À 280 blocs du centre
   de l'archipel, il reste environ 10 blocs avant l'île principale.
 
-Les textes de la cinématique sont ceux de `main` (`CINEMATIQUE_TEXTES`) ; ceux de la 0.1.4 sont restés sur le PC de Kr.
+Les textes de la cinématique et le récit au-dessus de l'inventaire sont ceux de la 0.1.4.
 
 ## À valider par Kr
 

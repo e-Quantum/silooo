@@ -58,9 +58,16 @@ for(const name of names)for(const active of [false,...(["broyeur","convoyeur"].i
   output(`design/blocs/${key}.png`,data);output(`resource-pack/textures/blocks/silooo/${key}.png`,data);
   terrain.texture_data[`silooo_${key}`]={textures:`textures/blocks/silooo/${key}`};
 }
-output("resource-pack/textures/terrain_texture.json",terrain);
-output("resource-pack/textures/flipbook_textures.json",["broyeur","convoyeur"].map((name)=>({flipbook_texture:`textures/blocks/silooo/${name}_actif`,atlas_tile:`silooo_${name}_actif`,ticks_per_frame:3,frames:[0,1,2,3],blend_frames:false})));
-output("resource-pack/blocks.json",{format_version:"1.19.30",...Object.fromEntries(names.map((name)=>[`silooo:${name}`,{sound:name==="bureau_administration"?"wood":"metal"}]))});
+// Ces trois fichiers sont partagés avec les blocs de la Carrière de l'époque 1 (docs/carriere.md) : le générateur
+// ne réécrit que ses propres entrées, placées en tête, et garde les autres telles qu'elles sont, dans leur ordre.
+function existant(path, vide) { const file=resolve(root,path); return existsSync(file)?JSON.parse(readFileSync(file,"utf8")):vide; }
+const atelierCle=(cle)=>names.some((name)=>cle===`silooo:${name}`||cle===`silooo_${name}`||cle===`silooo_${name}_actif`);
+const autresTextures=Object.fromEntries(Object.entries(existant("resource-pack/textures/terrain_texture.json",{texture_data:{}}).texture_data??{}).filter(([cle])=>!atelierCle(cle)));
+output("resource-pack/textures/terrain_texture.json",{...terrain,texture_data:{...terrain.texture_data,...autresTextures}});
+const autresFlipbooks=existant("resource-pack/textures/flipbook_textures.json",[]).filter((entree)=>!atelierCle(entree.atlas_tile));
+output("resource-pack/textures/flipbook_textures.json",[...["broyeur","convoyeur"].map((name)=>({flipbook_texture:`textures/blocks/silooo/${name}_actif`,atlas_tile:`silooo_${name}_actif`,ticks_per_frame:3,frames:[0,1,2,3],blend_frames:false})),...autresFlipbooks]);
+const autresSons=Object.fromEntries(Object.entries(existant("resource-pack/blocks.json",{})).filter(([cle])=>cle!=="format_version"&&!atelierCle(cle)));
+output("resource-pack/blocks.json",{format_version:"1.19.30",...Object.fromEntries(names.map((name)=>[`silooo:${name}`,{sound:name==="bureau_administration"?"wood":"metal"}])),...autresSons});
 const faces=["north","south","east","west","up","down"];
 function cube(origin,size,material="*",uv=[0,0]) {return{origin,size,uv:Object.fromEntries(faces.map((face)=>[face,{uv,uv_size:[16,16],material_instance:material}]))};}
 const models={

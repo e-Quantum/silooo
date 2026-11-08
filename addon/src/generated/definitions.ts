@@ -511,6 +511,7 @@ export type IlesDefinitions = {
       readonly position: IlesVue;
       readonly support: IlesVue;
     };
+    /** La structure du pack posée quand la Carrière est active (tools/carriere/structure.py). */
     readonly structure: string;
     readonly hauteurNettoyage: number;
     readonly transport: {
@@ -518,6 +519,16 @@ export type IlesDefinitions = {
       readonly vitesse: number;
       readonly pierres: number;
     };
+    /** La structure posée quand la Carrière n'est pas active : en ruine ou en travaux. */
+    readonly structureRuine: string;
+    /** Hauteur de la face du dessus de la plateforme dans la structure, en blocs depuis son bas : la structure est posée à hauteur - solStructure. */
+    readonly solStructure: number;
+    /** Les machines animées par le pack (ailes, pilons), posées comme le salarié quand la Carrière est active. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest. */
+    readonly machinerie: readonly {
+      readonly entite: string;
+      readonly position: IlesVue;
+      readonly lacet: number;
+    }[];
   };
 };
 

@@ -8,6 +8,8 @@ import { workshopBlock } from "./carriere";
 export interface WorkshopWorld {
   machine(at: Pos, type: string, working: boolean): boolean;
   worker(previous: string | undefined, companyId: number, at: Pos, facing: Pos, working: boolean): string;
+  /** Une machine animée par le pack (ailes du moulin, pilons) : apparaît une fois, tournée de `yaw` degrés. */
+  fixture(previous: string | undefined, companyId: number, type: string, at: Pos, yaw: number): string;
   loaded(at: Pos): boolean;
   cargo(previous: string | undefined, companyId: number, at: Pos, working: boolean, reset?: boolean): string;
   remove(id: string): void;
@@ -27,6 +29,11 @@ export function workshopRunning(state: CompanyState, factoryId: string): boolean
 
 export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, clock: Clock) {
   const workers = new Map<number, string>();
+  const fixtures = new Map<number, string[]>();
+  function removeFixtures(company: number): void {
+    for (const id of fixtures.get(company) ?? []) world.remove(id);
+    fixtures.delete(company);
+  }
   const cargo = new Map<number, { ids: string[]; frame: Frame; working: boolean; elapsed: number; last: number }>();
   function removeCargo(company: number): void {
     for (const id of cargo.get(company)?.ids ?? []) world.remove(id);
@@ -59,6 +66,7 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
         if (previous !== undefined) world.remove(previous);
         workers.delete(state.companyId);
         removeCargo(state.companyId);
+        removeFixtures(state.companyId);
         return;
       }
       const frame = frameOfIsland(origin, definition, defs);
@@ -71,6 +79,9 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
       const actor = world.worker(workers.get(state.companyId), state.companyId,
         viewPoint(frame, defs.atelier.salarie.position, defs), viewPoint(frame, defs.atelier.salarie.regard, defs), working);
       workers.set(state.companyId, actor);
+      const before = fixtures.get(state.companyId) ?? [];
+      fixtures.set(state.companyId, defs.atelier.machinerie.map((piece, index) =>
+        world.fixture(before[index], state.companyId, piece.entite, viewPoint(frame, piece.position, defs), piece.lacet)));
       const previous = cargo.get(state.companyId);
       if (previous === undefined) cargo.set(state.companyId, { ids: [], frame, working, elapsed: 0, last: clock.now() });
       else { updateCargo(state.companyId); previous.working = working; previous.frame = frame; }
@@ -82,6 +93,7 @@ export function createWorkshop(defs: IlesDefinitions, world: WorkshopWorld, cloc
         world.remove(actor);
         workers.delete(company);
         removeCargo(company);
+        removeFixtures(company);
       }
     },
   };

@@ -1089,15 +1089,23 @@ Le récit est centré au-dessus de la barre d'inventaire, sur un panneau en font
 et une phrase sur deux lignes. La consigne est séparée, entre le panneau et l'inventaire. La barre d'action
 native n'affiche plus cette consigne pendant le film. Les textes et ce nouvel emplacement sont à valider par Kr.
 
-### Structure Carrière 0.1.4, à valider par Kr
+### Structure Carrière de l'époque 1, à valider par Kr
 
-Le fichier `pack/structures/silooo/carriere_depart.mcstructure` contient le nouveau hangar, la fosse, le bureau,
-le quai et leurs blocs personnalisés. `node tools/generer_structure.mjs` le produit d'après `definitions/iles.json` ;
-`--verifier` compare ses octets pendant la validation du pack. Le constructeur Bedrock le place avec
-`StructureManager.place`, sans entités. L'enseigne est écrite ensuite ; une erreur de chargement n'acquitte pas
-le chantier. Les mondes de tests qui n'ont pas cette capacité rejouent le même plan bloc par bloc.
+Deux préfabriqués, `pack/structures/silooo/carriere_marche.mcstructure` (la Carrière active) et
+`carriere_ruine.mcstructure` (en ruine ou en travaux), remplacent `carriere_depart` de la 0.1.4. Ils sont écrits
+par `tools/carriere/structure.py` (voir [docs/carriere.md](../docs/carriere.md)) et contrôlés par
+`structure.py --verifier` dans `tools/verifier.sh`. Le constructeur Bedrock pose celui de l'état avec
+`StructureManager.place`, sans entités, à `hauteur - atelier.solStructure` pour que la face du dessus tombe à la
+hauteur des îles ; l'enseigne est écrite ensuite. Une erreur de chargement n'acquitte pas le chantier. Les mondes de
+tests qui n'ont pas cette capacité rejouent un plan de secours en grandes masses (`atelier.volumes`).
 
-Trois pierres de décor avancent sur les onze tronçons du convoyeur. Leur mouvement suit l'état de production
+Les machines de `atelier.machines` sont les blocs de la nouvelle Carrière : deux rouets (rôle broyeur), cinq tapis
+(rôle convoyeur), le coffre de vente (stock) et le bureau d'administration. Chacun porte le composant
+`silooo:atelier` : un clic ouvre le bureau ou la production. `atelier.machinerie` fait apparaître, avec le
+salarié, les ailes du moulin (`silooo:ailes_moulin`) et les pilons du bocard (`silooo:pilons`), tournés de `lacet`
+degrés ; ils sont retirés avec lui.
+
+Trois pierres de décor avancent sur les cinq tapis du tronçon nord-sud. Leur mouvement suit l'état de production
 renvoyé par le service. Elles ne sont ni ramassables ni comptées comme un stock et ne donnent aucun gain.
 Les pierres s'arrêtent avec l'usine ; leurs acteurs sont retirés quand l'entreprise n'a plus de joueur présent.
 Les déplacements attendent le chargement des chunks. Les révisions du décor et de l'introduction passent à 2,

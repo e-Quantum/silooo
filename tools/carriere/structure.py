@@ -27,6 +27,27 @@ NOMS = {"minecraft:dirt_path": "minecraft:grass_path", "minecraft:cobweb": "mine
 PLEINS = {"cube"}  # formes pleines : une barrière ou une vitre s'y relie
 MONTE = {"est": 0, "ouest": 1, "sud": 2, "nord": 3}  # weirdo_direction : le côté haut de l'escalier
 
+# La structure est écrite dans le repère fixe de la Carrière de la 0.1.4 (definitions/iles.json, angle 0) : l'avant de
+# l'île, le sud de generer.py, regarde l'île principale, à l'ouest du monde. Un quart de tour dans le sens des aiguilles
+# d'une montre vu d'en haut : sud -> ouest, est -> sud, nord -> est, ouest -> nord. Case (x, z) de generer.py -> (W-1-z, x).
+TOURNE = {"sud": "ouest", "est": "sud", "nord": "est", "ouest": "nord"}
+CARDINAL = {"south": "west", "east": "south", "north": "east", "west": "north"}
+
+
+def tourner(g):
+    out = G.Grid()
+    for (x, y, z), bid in g.b.items():
+        if "monte=" in bid:
+            avant, sens = bid.split("monte=")
+            bid = f"{avant}monte={TOURNE[sens.rstrip(']')]}]"
+        out.b[(G.W - 1 - z, y, x)] = bid
+    return out
+
+
+def d_origine(x, z):
+    """La case de generer.py d'où vient la case tournée (x, z)."""
+    return z, G.W - 1 - x
+
 
 def etat(g, x, y, z, bid):
     """Le nom Bedrock et les états d'un bloc de la grille, d'après ses voisins quand il le faut."""
@@ -60,7 +81,7 @@ def etat(g, x, y, z, bid):
         return nom, {"persistent_bit": ("byte", 1), "update_bit": ("byte", 0)}
     if base == "minecraft:spruce_door":
         haut = voisin(0, -1, 0) == base
-        return nom, {"door_hinge_bit": ("byte", 0), "minecraft:cardinal_direction": ("string", "east"), "open_bit": ("byte", 0), "upper_block_bit": ("byte", int(haut))}
+        return nom, {"door_hinge_bit": ("byte", 0), "minecraft:cardinal_direction": ("string", CARDINAL["east"]), "open_bit": ("byte", 0), "upper_block_bit": ("byte", int(haut))}
     if base == "minecraft:lantern":
         dessous = voisin(0, -1, 0)
         posee = dessous is not None and G.PALETTE[G.P[dessous]][2] in PLEINS | {"post"}
@@ -68,13 +89,12 @@ def etat(g, x, y, z, bid):
     if base == "minecraft:barrel":
         return nom, {"facing_direction": ("int", 1), "open_bit": ("byte", 0)}
     if base == "minecraft:rail":
-        if voisin(1, 1, 0) == base:
-            sens = 2  # monte vers l'est
-        elif voisin(-1, 1, 0) == base:
-            sens = 3
-        else:
-            sens = 1  # est-ouest
-        return nom, {"rail_direction": ("int", sens)}
+        # 0 nord-sud, 1 est-ouest, 2 à 5 : monte vers l'est, l'ouest, le nord, le sud
+        for (dx, dz), sens in (((1, 0), 2), ((-1, 0), 3), ((0, -1), 4), ((0, 1), 5)):
+            if voisin(dx, 1, dz) == base:
+                return nom, {"rail_direction": ("int", sens)}
+        le_long_de_z = voisin(0, 0, 1) == base or voisin(0, 0, -1) == base or voisin(0, -1, 1) == base or voisin(0, -1, -1) == base
+        return nom, {"rail_direction": ("int", 0 if le_long_de_z else 1)}
     if base == "minecraft:pointed_dripstone":
         return nom, {"dripstone_thickness": ("string", "tip"), "hanging": ("byte", 1)}
     if base == "minecraft:oak_wall_sign":
@@ -88,19 +108,21 @@ def etat(g, x, y, z, bid):
     if base == "silooo:tapis_toile":
         return nom, {"silooo:dechire": ("byte", int(variante == "dechire")), "minecraft:cardinal_direction": ("string", sens_tapis(x, y, z))}
     if base == "silooo:plaque_emaillee":
-        return nom, {"silooo:partie": ("string", variante), "minecraft:cardinal_direction": ("string", "south")}
+        return nom, {"silooo:partie": ("string", variante), "minecraft:cardinal_direction": ("string", CARDINAL["south"])}
     if base == "silooo:coffre_vente":
-        return nom, {"minecraft:cardinal_direction": ("string", "south")}
+        return nom, {"minecraft:cardinal_direction": ("string", CARDINAL["south"])}
     return nom, {}
 
 
 def sens_tapis(x, y, z):
     """Le sens où avance la toile : vers le bloc suivant du trajet (textures-skins : north = vers le nord)."""
     chemin = G.tapis_path()
-    i = chemin.index((x, y, z))
+    ox, oz = d_origine(x, z)
+    i = chemin.index((ox, y, oz))
+    x, z = ox, oz
     nx, ny, nz = chemin[i + 1] if i + 1 < len(chemin) else (G.COFFRE[0], 0, G.COFFRE[2])
     dx, dz = nx - x, nz - z
-    return "east" if dx > 0 else "west" if dx < 0 else "south" if dz > 0 else "north"
+    return CARDINAL["east" if dx > 0 else "west" if dx < 0 else "south" if dz > 0 else "north"]
 
 
 # --- NBT petit-boutiste ---------------------------------------------------------------------------------------
@@ -271,13 +293,13 @@ def main():
     for nom, ruine in (("carriere_ruine", True), ("carriere_marche", False)):
         f = out / f"{nom}.mcstructure"
         if not a.verifier:
-            taille, n, y0 = ecrire(G.build(ruine), f)
+            taille, n, y0 = ecrire(tourner(G.build(ruine)), f)
             print(f"{f.name} : {taille[0]} × {taille[1]} × {taille[2]}, {n} états de blocs, décalage y {y0}, {f.stat().st_size} octets")
         else:
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
                 attendu = Path(tmp) / f.name
-                ecrire(G.build(ruine), attendu)
+                ecrire(tourner(G.build(ruine)), attendu)
                 if not f.exists() or attendu.read_bytes() != f.read_bytes():
                     print(f"{f.name} : diffère de ce qu'écrit generer.py ; relance « python3 -I structure.py {a.dossier} »")
                     code = 1

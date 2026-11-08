@@ -229,7 +229,8 @@ for (const [id, { nom, g }] of geometries) {
 
 // ------------------------------------------------------------------ 7. Les assets générés restent identiques aux sources
 if (estLePackDuDepot) {
-  for (const outil of ["generer_oooscar.mjs", "generer_atelier.mjs", "generer_structure.mjs"]) {
+  // Les structures de la Carrière sont contrôlées à part (tools/carriere/structure.py --verifier, tools/verifier.sh).
+  for (const outil of ["generer_oooscar.mjs", "generer_atelier.mjs"]) {
     const resultat = spawnSync(process.execPath, [join(racine, "tools", outil), "--verifier"], { encoding: "utf8" });
     if (resultat.status !== 0) for (const ligne of `${resultat.stdout}${resultat.stderr}`.split(/\r?\n/).filter(Boolean)) erreur(`tools/${outil}`, ligne);
   }

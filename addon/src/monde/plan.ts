@@ -153,12 +153,16 @@ export function planIsland(defs: IlesDefinitions, usine: UsineIle, origin: Xz, s
   const frame = frameOfIsland(origin, usine, defs);
   const radius = islandRadius(defs, usine);
   const reach = Math.max(radius, Math.floor(usine.largeur / 2) + 2, Math.floor(usine.profondeur / 2) + 2);
-  const deepest = defs.hauteur - (defs.plateforme.couches.length - 1);
+  const carriere = usine.id === defs.apparition.usine;
+  // La Carrière est un préfabriqué dans tous ses états (docs/carriere.md) : en marche, ou en ruine et en travaux.
+  // Il est posé de sorte que sa face du dessus (solStructure depuis son bas) tombe à la hauteur des îles.
+  const bas = carriere ? defs.hauteur - defs.atelier.solStructure : defs.hauteur;
+  const deepest = Math.min(bas, defs.hauteur - (defs.plateforme.couches.length - 1));
   return {
     center,
     box: { from: at(center.x - reach, deepest, center.z - reach), to: at(center.x + reach, defs.hauteur + usine.hauteur + 3, center.z + reach) },
     base: baseOps(defs, center, radius),
-    ...(usine.id === defs.apparition.usine && state === "ACTIVE" ? { structure: { id: defs.atelier.structure, at: at(center.x - reach, deepest, center.z - reach) } } : {}),
+    ...(carriere ? { structure: { id: state === "ACTIVE" ? defs.atelier.structure : defs.atelier.structureRuine, at: at(center.x - reach, bas, center.z - reach) } } : {}),
     state: usine.id === defs.apparition.usine ? carriereOps(defs, frame, state, radius) : stateOps(defs, usine, center, state, doorSide(frame)),
   };
 }

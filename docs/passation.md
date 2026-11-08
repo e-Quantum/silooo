@@ -515,7 +515,8 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   (`design/skins/`), les gestes, les réactions d'Oooscar (`joie`, `oups`, `panique`, `fier`, `dodo`), les machines,
   les particules, les 27 sons (`resource-pack/sounds/`), les six noms affichés de `resource-pack/texts/fr_FR.lang`
   (section « Carrière ») et les valeurs proposées pour `definitions/iles.json` (plans de la cinématique, apparition,
-  anneau). Rien n'est branché dans `addon/src/`, rien n'a été vu dans un client Bedrock.
+  anneau). Branchée dans l'add-on 0.1.5 (branche `claude/carriere-epoque1-jeu`, sur la 0.1.4 de Codex) ; rien n'a
+  été vu dans un client Bedrock avant le déploiement.
 
 - Salle d'attente v2 (7 novembre) : l'accueil, les hologrammes, les rappels, le podium du lundi d'Oooscar
   (`core/.../discord/LobbyPodium.kt`, `LobbyPodiumTexts`), « Pionnier · pseudo », le nom « Silooo · ouverture bientôt »,

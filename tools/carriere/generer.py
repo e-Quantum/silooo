@@ -60,7 +60,8 @@ PALETTE = [
     ("minecraft:poppy", "Coquelicot", "cross", {"all": "coquelicot"}, False),
     ("minecraft:hanging_roots", "Racines", "cross", {"all": "racines"}, False),
     ("minecraft:pointed_dripstone", "Spéléothème", "cross", {"all": "stalactite"}, False),
-    ("minecraft:oak_wall_sign", "Enseigne au nom de l'entreprise", "sign", {"all": "enseigne"}, False),
+    ("minecraft:oak_wall_sign", "Enseigne de la Carrière", "sign", {"all": "enseigne"}, False),
+    ("silooo:bureau_administration", "Bureau d'administration (0.1.4)", "cube", {"all": "planches"}, False),
     ("silooo:tremie_bois", "Trémie en bois", "cube", {"side": "tremie_bois", "top": "tremie_bois_dessus", "bottom": "tremie_bois"}, True),
     ("silooo:engrenage_bois", "Rouet du bocard", "cube", {"side": "engrenage_bois", "top": "chene-noir-dessus", "bottom": "chene-noir-dessus"}, True),
     ("silooo:engrenage_bois[grippe]", "Rouet grippé", "cube", {"side": "engrenage_bois_grippe", "top": "chene-noir-dessus", "bottom": "chene-noir-dessus"}, True),
@@ -379,10 +380,11 @@ def build_office(g, ruine):
     for (x, z) in windows:
         # en ruine, les fenêtres sont condamnées par des planches : visible de loin
         g.set(x, Y0 + 2, z, "minecraft:oak_planks" if ruine else "minecraft:glass_pane")
+    # l'enseigne de l'usine, dans les deux états : l'add-on y écrit le nom de la Carrière
+    g.set(BX1 + 1, Y0 + 3, PORTE_Z, "minecraft:oak_wall_sign")
     if not ruine:
         g.set(BX1, Y0 + 1, PORTE_Z, "minecraft:spruce_door")
         g.set(BX1, Y0 + 2, PORTE_Z, "minecraft:spruce_door")
-        g.set(BX1 + 1, Y0 + 3, PORTE_Z, "minecraft:oak_wall_sign")
     else:
         g.set(BX1, Y0 + 1, PORTE_Z, None)
         g.set(BX1, Y0 + 2, PORTE_Z, None)
@@ -404,7 +406,8 @@ def build_office(g, ruine):
     haut = Y0 + (6 if ruine else 8)
     g.fill(cx, Y0 + 1, cz, cx, haut, cz, "minecraft:cobblestone")
     g.set(BX0 + 1, Y0 + 1, BZ0 + 2, "minecraft:bookshelf")
-    g.set(BX0 + 2, Y0 + 1, BZ0 + 1, "minecraft:crafting_table")
+    # le bureau d'administration de la 0.1.4 : un clic ouvre le menu du bureau (addon/src/main.ts)
+    g.set(BX0 + 2, Y0 + 1, BZ0 + 1, "silooo:bureau_administration")
     g.set(BX0 + 1, Y0 + 1, BZ1 - 1, "minecraft:barrel")
     if ruine:
         for (x, z) in [(BX0 + 3, BZ1 - 1), (BX0 + 4, BZ1 - 2), (BX0 + 2, BZ1 - 2)]:
