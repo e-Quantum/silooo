@@ -54,4 +54,22 @@ class ModerationAuthorizationTest {
         assertFalse(card.text.contains("/annonce"))
         assertFalse(card.text.contains("<#secret>"))
     }
+    @Test fun closedServerHoldsAllNewSanctionsOutsideCurrentStaff() = runBlocking {
+        val fake = FakeDiscordServer()
+        var calls = 0
+        val delegate = object : DiscordServer by fake {
+            override suspend fun membershipAction(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoleIds: Set<String>) { calls++ }
+        }
+        val closed = ClosedServer(delegate, setOf("staff"))
+        for (action in listOf(ModerationAction.KICK, ModerationAction.BAN, ModerationAction.UNBAN)) {
+            try { closed.membershipAction("actor", "target", action, "Test", setOf("staff")); fail<Unit>("QG fermé") }
+            catch (_: DiscordRefusal) { }
+        }
+        assertEquals(0, calls)
+        assertEquals(3, closed.held)
+        fake.memberRoles["target"] = mutableSetOf("staff")
+        closed.membershipAction("actor", "target", ModerationAction.KICK, "Test", setOf("staff"))
+        assertEquals(1, calls)
+    }
+
 }

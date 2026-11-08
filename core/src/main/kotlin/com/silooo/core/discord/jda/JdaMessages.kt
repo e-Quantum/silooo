@@ -123,6 +123,8 @@ internal object JdaMessages {
         val permission = when (spec.defaultPermission) {
             CommandPermission.MANAGE_SERVER -> Permission.MANAGE_SERVER
             CommandPermission.MODERATE_MEMBERS -> Permission.MODERATE_MEMBERS
+            CommandPermission.KICK_MEMBERS -> Permission.KICK_MEMBERS
+            CommandPermission.BAN_MEMBERS -> Permission.BAN_MEMBERS
             null -> null
         }
         if (permission != null) data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(permission))

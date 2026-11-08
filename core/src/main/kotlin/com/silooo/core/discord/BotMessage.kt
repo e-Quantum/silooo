@@ -162,4 +162,4 @@ data class CommandOption(
 
 enum class OptionKind { TEXTE, FICHIER, MEMBRE }
 enum class CommandKind { SLASH, MESSAGE }
-enum class CommandPermission { MANAGE_SERVER, MODERATE_MEMBERS }
+enum class CommandPermission { MANAGE_SERVER, MODERATE_MEMBERS, KICK_MEMBERS, BAN_MEMBERS }

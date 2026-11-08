@@ -5,7 +5,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-enum class ModerationAction { WARN, TIMEOUT, RESTORE }
+enum class ModerationAction { WARN, TIMEOUT, RESTORE, KICK, BAN, UNBAN }
 enum class ModerationStatus { RESERVED, SUCCEEDED, FAILED }
 
 data class ModerationCase(

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 class ModerationTest {
-    private class MemoryStore : ModerationStore {
+    internal class MemoryStore : ModerationStore {
         val rows = linkedMapOf<String, ModerationCase>()
         val attempted = mutableSetOf<String>()
         var failFinish = false
@@ -74,7 +74,7 @@ class ModerationTest {
     fun commandsAndPrivateCaseListing() {
         val (feature, _, _, server, _) = setup()
         assertTrue(feature.commands.all { it.staffOnly })
-        assertEquals(listOf("avertir", "timeout", "retablir", "dossier"), feature.commands.map { it.name })
+        assertEquals(listOf("avertir", "timeout", "retablir", "expulser", "bannir", "debannir", "dossier"), feature.commands.map { it.name })
         assertEquals(10, ModerationRules(600, 30, 10, 500).historyPageSize)
         server.memberRoles.remove("76543210987654321")
         val denied = command(feature, "dossier", mapOf("membre" to "12345678901234567"), roles = emptySet())

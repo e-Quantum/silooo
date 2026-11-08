@@ -28,6 +28,15 @@ data class SignalementSettings(
 internal class ServerModerationGateway(private val context: BotContext) : ModerationGateway {
     private fun roles() = setOfNotNull(context.ids.role("staff"), context.ids.role("moderation"))
     override suspend fun check(actorId: String, targetId: String) = context.server.moderationTarget(actorId, targetId, roles())
+    override suspend fun checkAction(actorId: String, targetId: String, action: ModerationAction) = when (action) {
+        ModerationAction.WARN, ModerationAction.TIMEOUT, ModerationAction.RESTORE -> check(actorId, targetId)
+        ModerationAction.KICK, ModerationAction.BAN, ModerationAction.UNBAN ->
+            context.server.moderationActionTarget(actorId, targetId, action, roles())
+    }
+    override suspend fun historyTarget(actorId: String, targetId: String) =
+        context.server.moderationHistoryTarget(actorId, targetId, roles())
+    override suspend fun membership(actorId: String, targetId: String, action: ModerationAction, reason: String) =
+        context.server.membershipAction(actorId, targetId, action, reason, roles())
     override suspend fun timeout(actorId: String, targetId: String, until: java.time.Instant?, reason: String) =
         context.server.timeoutMember(actorId, targetId, until, reason, roles())
     override suspend fun warn(actorId: String, targetId: String, reason: String): Boolean {
@@ -55,7 +64,7 @@ class ManagementFeature(private val context: BotContext) : Feature {
         }
         val text = buildString {
             append("Gestion du Discord\nPhase : ").append(context.phase.name.lowercase()).append("\n\n")
-            append("Modération : /avertir, /timeout, /retablir, /dossier.\n")
+            append("Modération : /avertir, /timeout, /retablir, /expulser, /bannir, /debannir, /dossier.\n")
             append("Signaler : menu Applications du message, puis Signaler.\n")
             if (staff) append("Publication : /annonce, /spoil, /giveaway, /sondage, /suggestion.\n")
             append("\nSalons du staff\n")

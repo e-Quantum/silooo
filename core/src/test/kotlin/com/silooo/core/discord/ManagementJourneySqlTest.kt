@@ -66,4 +66,53 @@ class ManagementJourneySqlTest {
         assertEquals(actor, Db.string("select closed_by from discord_message_reports"))
         assertEquals(1L, JdbcSignalementStore(Db.database).count(timer.now().minusSeconds(1), timer.now().plusSeconds(1)))
     }
+    @Test fun membershipCommandsUseProductionGatewayDurableAuditAndDepartedHistory() = runBlocking {
+        val actor = "76543210987654321"
+        val target = "12345678901234567"
+        val fake = FakeDiscordServer()
+        val plan = PlanApplier(ServerPlan.fromClasspath(), fake, ServerPhase.ATTENTE, false).run()
+        val mod = plan.ids.role("moderation")!!
+        fake.memberRoles[actor] = mutableSetOf(mod)
+        val calls = mutableListOf<ModerationAction>()
+        val checks = mutableListOf<ModerationAction>()
+        val server = object : DiscordServer by fake {
+            override suspend fun moderationActionTarget(actorId: String, targetId: String, action: ModerationAction, allowedRoleIds: Set<String>): ModerationTarget? {
+                checks += action
+                return ModerationTarget(targetId, "Membre", false, false, fake.rolesOf(actorId).any { it in allowedRoleIds }, true)
+            }
+            override suspend fun membershipAction(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoleIds: Set<String>) {
+                if (fake.freshRolesOf(actorId).none { it in allowedRoleIds }) throw DiscordRefusal("Droit retiré")
+                calls += action
+            }
+            override suspend fun moderationHistoryTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>) =
+                ModerationTarget(targetId, targetId, false, false, fake.rolesOf(actorId).any { it in allowedRoleIds }, true)
+        }
+        val timer = FakeTimer(Instant.parse("2026-11-07T10:00:00Z"))
+        val feature = BotFeatures.build(TestDefinitions.directory, Db.database, onlineCount = { 0 })(
+            BotContext(server, plan.ids, timer, ServerPhase.ATTENTE)).single { it.name == "moderation" }
+        feature.start()
+        val user = DiscordUser(actor, "Modo")
+        for (command in listOf("expulser", "bannir", "debannir")) {
+            val preview = FakeReply()
+            feature.handle(DiscordEvent.CommandUsed(command, mapOf("membre" to target, "motif" to "Motif durable"), user, null, preview))
+            val countBefore = calls.size
+            val button = preview.sent.single().also { assertTrue(it.second) }.first.buttons.first().id
+            val reply = FakeReply()
+            val event = DiscordEvent.ButtonPressed(button, user, null, "preview", reply)
+            feature.handle(event); feature.handle(event)
+            assertEquals(countBefore + 1, calls.size)
+            assertEquals(ModerationTexts.DONE, reply.sent.first().first.text)
+        }
+        val expected = listOf(ModerationAction.KICK, ModerationAction.BAN, ModerationAction.UNBAN)
+        assertEquals(expected, calls)
+        assertEquals(expected.toSet(), checks.toSet())
+        val rows = JdbcModerationStore(Db.database, 30).history(target, timer.now().minusSeconds(1), 10)
+        assertEquals(expected.toSet(), rows.map { it.action }.toSet())
+        assertTrue(rows.all { it.status == ModerationStatus.SUCCEEDED })
+        val dossier = FakeReply()
+        feature.handle(DiscordEvent.CommandUsed("dossier", mapOf("membre" to target), user, null, dossier))
+        assertTrue(dossier.sent.single().second)
+        assertTrue(dossier.sent.single().first.text.contains("Débannissement"))
+    }
+
 }

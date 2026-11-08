@@ -1293,3 +1293,27 @@ Aucune classe compilée du jeu ou du site ne diffère de l'image précédente `l
 Le déploiement est autorisé par cette demande explicite ; les formulations nouvelles restent à valider
 éditorialement par Kr. La recette avec un vrai membre (ticket ouvert puis fermé) n'est pas simulée en production.
 La suite est C2 : expulsion, bannissement et débannissement avec aperçu et contrôles natifs.
+
+
+### C2 — modération des membres, en développement — 8 novembre 2026
+
+V22 réservée à l'extension du journal pour expulsion, bannissement et débannissement.
+Décision autonome : bannir seulement une cible présente, sans effacer ses messages ; débannir par
+identifiant seulement un compte effectivement banni. Les permissions natives d'expulsion/bannissement
+ne sont pas accordées automatiquement aux rôles. Les dossiers restent consultables après un départ.
+Les nouveaux textes d'aperçu et de résultat restent **à valider par Kr**.
+
+
+### Validation C2a — 8 novembre 2026
+
+`bash tools/verifier.sh` termine sans erreur : 2 487 tests du service, sans échec, erreur ni
+test ignoré (MariaDB isolée comprise), 1 742 tests add-on et leur build, 170 contrôles d'outillage.
+Les tests comprennent le parcours existant timeout/signalement, le parcours SQL des trois nouvelles
+commandes, 10 scénarios de confirmation et 7 tests du véritable adaptateur JDA avec réseau intercepté.
+Le contrôle Chromium reste ignoré faute de navigateur ; un sous-cas de permissions de fichiers est
+automatiquement ignoré par l'outillage en root. Aucun test SQL n'est ignoré.
+
+L'aperçu, le motif, le contrôle des droits natifs distincts et les vérifications fraîches de hiérarchie
+précèdent toute sanction. Aucun vrai membre n'a été expulsé, banni ou débanni pour les tests.
+La sauvegarde préalable à V22 est `/var/www/silooo/sauvegardes/discord-c2-20261108`.
+Le déploiement de C2a suit cette validation ; les textes restent **à valider par Kr**.

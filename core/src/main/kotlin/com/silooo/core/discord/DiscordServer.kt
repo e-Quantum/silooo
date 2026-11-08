@@ -20,6 +20,21 @@ interface DiscordServer {
     /** Lecture fraîche de la cible et de la hiérarchie, pour les seules actions de modération. */
     suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>): ModerationTarget? = null
 
+    /** Lectures propres à chaque permission native ; les implémentations non équipées refusent par défaut. */
+    suspend fun moderationActionTarget(actorId: String, targetId: String, action: ModerationAction, allowedRoleIds: Set<String>): ModerationTarget? = when (action) {
+        ModerationAction.WARN, ModerationAction.TIMEOUT, ModerationAction.RESTORE -> moderationTarget(actorId, targetId, allowedRoleIds)
+        else -> null
+    }
+
+    /** Le dossier reste consultable par identifiant après le départ de sa cible. */
+    suspend fun moderationHistoryTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>): ModerationTarget? =
+        moderationTarget(actorId, targetId, allowedRoleIds)
+
+    /** Expulsion/bannissement/débannissement, avec contrôle natif final et sans effacement des messages. */
+    suspend fun membershipAction(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoleIds: Set<String>) {
+        throw DiscordRefusal("La modération des membres n'est pas disponible.")
+    }
+
     /** Dernière vérification des droits avant l'action native. null retire l'exclusion temporaire. */
     suspend fun timeoutMember(actorId: String, targetId: String, until: Instant?, reason: String, allowedRoleIds: Set<String>) {
         throw DiscordRefusal("La modération des membres n'est pas disponible.")

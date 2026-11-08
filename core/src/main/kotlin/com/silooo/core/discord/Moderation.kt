@@ -20,6 +20,14 @@ data class ModerationTarget(
 
 interface ModerationGateway {
     suspend fun check(actorId: String, targetId: String): ModerationTarget?
+    suspend fun checkAction(actorId: String, targetId: String, action: ModerationAction): ModerationTarget? = when (action) {
+        ModerationAction.WARN, ModerationAction.TIMEOUT, ModerationAction.RESTORE -> check(actorId, targetId)
+        else -> null
+    }
+    suspend fun historyTarget(actorId: String, targetId: String): ModerationTarget? = check(actorId, targetId)
+    suspend fun membership(actorId: String, targetId: String, action: ModerationAction, reason: String) {
+        throw DiscordRefusal("Cette action de modération n'est pas disponible.")
+    }
     suspend fun timeout(actorId: String, targetId: String, until: Instant?, reason: String)
     suspend fun warn(actorId: String, targetId: String, reason: String): Boolean
 }
@@ -47,6 +55,9 @@ object ModerationTexts {
     const val COMMAND_WARN = "avertir"
     const val COMMAND_TIMEOUT = "timeout"
     const val COMMAND_RESTORE = "retablir"
+    const val COMMAND_KICK = "expulser"
+    const val COMMAND_BAN = "bannir"
+    const val COMMAND_UNBAN = "debannir"
     const val COMMAND_CASE = "dossier"
     const val CONFIRM_PREFIX = "moderation-confirm:"
     const val CANCEL_PREFIX = "moderation-cancel:"
@@ -54,7 +65,7 @@ object ModerationTexts {
     const val CONFIRM_LABEL = "Confirmer"
     const val CANCEL_LABEL = "Annuler"
     const val NOT_STAFF = "Cette commande est réservée au Staff et à Modération."
-    const val BAD_TARGET = "Membre invalide ou absent du serveur."
+    const val BAD_TARGET = "Cible introuvable pour cette action : vérifie son identifiant et sa présence ou son bannissement."
     const val BAD_REASON = "Indique un motif de longueur valide."
     const val CANNOT_ACT = "Cette action n'est pas autorisée pour cette cible."
     const val EXPIRED = "Cette confirmation a expiré ou a déjà été utilisée."
@@ -87,8 +98,20 @@ class ModerationFeature(
             CommandOption("membre", "Membre concerné", required = true, kind = OptionKind.MEMBRE),
             CommandOption("motif", "Motif", required = true),
         ), staffOnly = true, defaultPermission = CommandPermission.MODERATE_MEMBERS),
+        CommandSpec(ModerationTexts.COMMAND_KICK, "Expulser un membre après confirmation", listOf(
+            CommandOption("membre", "Membre à expulser", required = true, kind = OptionKind.MEMBRE),
+            CommandOption("motif", "Motif", required = true),
+        ), staffOnly = true, defaultPermission = CommandPermission.KICK_MEMBERS),
+        CommandSpec(ModerationTexts.COMMAND_BAN, "Bannir un membre après confirmation", listOf(
+            CommandOption("membre", "Membre à bannir", required = true, kind = OptionKind.MEMBRE),
+            CommandOption("motif", "Motif", required = true),
+        ), staffOnly = true, defaultPermission = CommandPermission.BAN_MEMBERS),
+        CommandSpec(ModerationTexts.COMMAND_UNBAN, "Lever un bannissement après confirmation", listOf(
+            CommandOption("membre", "Identifiant Discord du compte banni", required = true),
+            CommandOption("motif", "Motif", required = true),
+        ), staffOnly = true, defaultPermission = CommandPermission.BAN_MEMBERS),
         CommandSpec(ModerationTexts.COMMAND_CASE, "Consulter le dossier d'un membre", listOf(
-            CommandOption("membre", "Membre concerné", required = true, kind = OptionKind.MEMBRE),
+            CommandOption("membre", "Mention ou identifiant Discord, même après départ", required = true),
         ), staffOnly = true, defaultPermission = CommandPermission.MODERATE_MEMBERS),
     )
 
@@ -103,6 +126,9 @@ class ModerationFeature(
                 ModerationTexts.COMMAND_WARN -> create(event, ModerationAction.WARN)
                 ModerationTexts.COMMAND_TIMEOUT -> create(event, ModerationAction.TIMEOUT)
                 ModerationTexts.COMMAND_RESTORE -> create(event, ModerationAction.RESTORE)
+                ModerationTexts.COMMAND_KICK -> create(event, ModerationAction.KICK)
+                ModerationTexts.COMMAND_BAN -> create(event, ModerationAction.BAN)
+                ModerationTexts.COMMAND_UNBAN -> create(event, ModerationAction.UNBAN)
                 ModerationTexts.COMMAND_CASE -> dossier(event)
             }
             is DiscordEvent.ButtonPressed -> when {
@@ -119,15 +145,21 @@ class ModerationFeature(
         val targetId = normalize(event.options["membre"]) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
         val reason = event.options["motif"]?.trim().orEmpty()
         if (reason.isBlank() || reason.length > rules.maxReasonLength) return privateReply(event.reply, ModerationTexts.BAD_REASON)
-        val target = gateway.check(event.user.id, targetId) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
+        val target = gateway.checkAction(event.user.id, targetId, action) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
         if (!canAct(event.user.id, target)) return privateReply(event.reply, ModerationTexts.CANNOT_ACT)
         val durationHours = event.options["duree"]?.removeSuffix("h")?.toIntOrNull()
         val duration = durationHours?.takeIf { action == ModerationAction.TIMEOUT && it in rules.timeoutHours }?.let { Duration.ofHours(it.toLong()) }
         if (action == ModerationAction.TIMEOUT && duration == null) return privateReply(event.reply, "Durée invalide : choisis ${rules.timeoutHours.joinToString(" ou ") { "${it}h" }}.")
         val case = freshCase(event.user.id, target.id, action, reason, duration?.seconds)
         if (!store.reserve(case)) return privateReply(event.reply, ModerationTexts.UNKNOWN)
+        val consequence = when (action) {
+            ModerationAction.KICK -> " Le membre devra être invité pour revenir."
+            ModerationAction.BAN -> " Le compte ne pourra plus rejoindre le serveur. Ses messages seront conservés."
+            ModerationAction.UNBAN -> " Le compte pourra rejoindre avec une invitation ; il ne sera pas réintégré automatiquement."
+            else -> ""
+        }
         event.reply.send(BotMessage(
-            "Confirmer ${actionLabel(action)}${durationHours?.let { " ($it h)" } ?: ""} de ${target.name} (<@${target.id}>) ? Motif : $reason. La confirmation expire dans ${rules.confirmationSeconds} secondes.",
+            "Confirmer ${actionLabel(action)}${durationHours?.let { " ($it h)" } ?: ""} de ${target.name} (<@${target.id}>) ? Motif : $reason. La confirmation expire dans ${rules.confirmationSeconds} secondes.$consequence",
             buttons = listOf(
                 ButtonSpec(ModerationTexts.CONFIRM_PREFIX + case.id, ModerationTexts.CONFIRM_LABEL, ButtonStyle.DANGER),
                 ButtonSpec(ModerationTexts.CANCEL_PREFIX + case.id, ModerationTexts.CANCEL_LABEL),
@@ -141,7 +173,7 @@ class ModerationFeature(
         val id = event.id.removePrefix(ModerationTexts.CONFIRM_PREFIX).takeIf(::isUuid) ?: return privateReply(event.reply, ModerationTexts.UNKNOWN)
         val pending = store.get(id) ?: return privateReply(event.reply, ModerationTexts.UNKNOWN)
         if (pending.actorId != event.user.id || pending.status != ModerationStatus.RESERVED) return privateReply(event.reply, ModerationTexts.UNKNOWN)
-        val target = gateway.check(event.user.id, pending.targetId) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
+        val target = gateway.checkAction(event.user.id, pending.targetId, pending.action) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
         if (!canAct(event.user.id, target)) return privateReply(event.reply, ModerationTexts.CANNOT_ACT)
         val claimed = store.claim(id, event.user.id, context.timer.now()) ?: return privateReply(event.reply, ModerationTexts.EXPIRED)
         val until = if (claimed.action == ModerationAction.TIMEOUT) {
@@ -164,7 +196,7 @@ class ModerationFeature(
     private suspend fun dossier(event: DiscordEvent.CommandUsed) {
         if (!authorized(event.user.id, event.user.isBot)) return privateReply(event.reply, ModerationTexts.NOT_STAFF)
         val targetId = normalize(event.options["membre"]) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
-        val target = gateway.check(event.user.id, targetId) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
+        val target = gateway.historyTarget(event.user.id, targetId) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
         if (!canAct(event.user.id, target)) return privateReply(event.reply, ModerationTexts.CANNOT_ACT)
         renderHistory(event.reply, event.user.id, target.id, target.name, 0)
     }
@@ -177,7 +209,7 @@ class ModerationFeature(
         if (parts.size != 3 || parts[1].toLongOrNull() == null || parts[2] != event.user.id) return privateReply(event.reply, ModerationTexts.UNKNOWN)
         val targetId = parts[0].takeIf { normalize(it) == it } ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
         val page = parts[1].toIntOrNull()?.takeIf { it in 0..1000 } ?: return privateReply(event.reply, ModerationTexts.UNKNOWN)
-        val target = gateway.check(event.user.id, targetId) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
+        val target = gateway.historyTarget(event.user.id, targetId) ?: return privateReply(event.reply, ModerationTexts.BAD_TARGET)
         if (!canAct(event.user.id, target)) return privateReply(event.reply, ModerationTexts.CANNOT_ACT)
         renderHistory(event.reply, event.user.id, target.id, target.name, page)
     }
@@ -198,6 +230,10 @@ class ModerationFeature(
     private suspend fun execute(reply: Reply, case: ModerationCase, until: Instant?) {
         val delivered = try {
             when (case.action) {
+                ModerationAction.KICK, ModerationAction.BAN, ModerationAction.UNBAN -> {
+                    gateway.membership(case.actorId, case.targetId, case.action, case.reason)
+                    true
+                }
                 ModerationAction.WARN -> gateway.warn(case.actorId, case.targetId, case.reason)
                 ModerationAction.TIMEOUT, ModerationAction.RESTORE -> {
                     gateway.timeout(case.actorId, case.targetId, until, case.reason)
@@ -308,7 +344,14 @@ class ModerationFeature(
     }
 
     private fun isUuid(value: String) = runCatching { UUID.fromString(value).toString() == value }.getOrDefault(false)
-    private fun actionLabel(action: ModerationAction) = when (action) { ModerationAction.TIMEOUT -> "Timeout"; ModerationAction.RESTORE -> "Rétablissement"; ModerationAction.WARN -> "Avertissement" }
+    private fun actionLabel(action: ModerationAction) = when (action) {
+        ModerationAction.TIMEOUT -> "Timeout"
+        ModerationAction.RESTORE -> "Rétablissement"
+        ModerationAction.WARN -> "Avertissement"
+        ModerationAction.KICK -> "Expulsion"
+        ModerationAction.BAN -> "Bannissement"
+        ModerationAction.UNBAN -> "Débannissement"
+    }
     private suspend fun privateReply(reply: Reply, text: String) = reply.send(BotMessage(text), onlyToUser = true)
 
     private companion object {

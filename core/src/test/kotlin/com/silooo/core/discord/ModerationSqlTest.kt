@@ -39,4 +39,21 @@ class ModerationSqlTest {
         assertNull(store.get(item.id))
     }
 
+    @Test
+    @DisplayName("V22 conserve les anciens dossiers et permet chaque sanction avec une seule tentative SQL")
+    fun membershipActionsSurviveReloadAndCannotReplay() = runBlocking {
+        for (action in ModerationAction.entries) {
+            val item = ModerationCase(java.util.UUID.randomUUID().toString(), "76543210987654321", "12345678901234567",
+                action, "Motif durable", now, now.plusSeconds(600), ModerationStatus.RESERVED)
+            assertTrue(store.reserve(item))
+            assertEquals(action, store.get(item.id)?.action)
+            assertNotNull(store.claim(item.id, item.actorId, now.plusSeconds(1)))
+            store.finish(item.id, true, null, now.plusSeconds(2))
+            val reloaded = JdbcModerationStore(MariaDbSupport.database, 30)
+            assertEquals(ModerationStatus.SUCCEEDED, reloaded.get(item.id)?.status)
+            assertNull(reloaded.claim(item.id, item.actorId, now.plusSeconds(3)))
+        }
+        assertEquals(ModerationAction.entries.toSet(), store.history("12345678901234567", now.minusSeconds(1), 20).map { it.action }.toSet())
+    }
+
 }

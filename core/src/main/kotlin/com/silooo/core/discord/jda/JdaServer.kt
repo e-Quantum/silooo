@@ -157,6 +157,15 @@ class JdaServer(private val guild: Guild, private val rest: DiscordRest) : Disco
     override suspend fun moderationTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>) =
         JdaStaffActions(guild).target(actorId, targetId, allowedRoleIds)
 
+    override suspend fun moderationActionTarget(actorId: String, targetId: String, action: com.silooo.core.discord.ModerationAction, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).targetForAction(actorId, targetId, action, allowedRoleIds)
+
+    override suspend fun moderationHistoryTarget(actorId: String, targetId: String, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).historyTarget(actorId, targetId, allowedRoleIds)
+
+    override suspend fun membershipAction(actorId: String, targetId: String, action: com.silooo.core.discord.ModerationAction, reason: String, allowedRoleIds: Set<String>) =
+        JdaStaffActions(guild).membership(actorId, targetId, action, reason, allowedRoleIds)
+
     override suspend fun timeoutMember(actorId: String, targetId: String, until: java.time.Instant?, reason: String, allowedRoleIds: Set<String>) =
         JdaStaffActions(guild).timeout(actorId, targetId, until, reason, allowedRoleIds)
 

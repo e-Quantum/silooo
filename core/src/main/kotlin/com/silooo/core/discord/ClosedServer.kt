@@ -43,6 +43,14 @@ class ClosedServer(
         inner.timeoutMember(actorId, targetId, until, reason, allowedRoleIds)
     }
 
+    override suspend fun membershipAction(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoleIds: Set<String>) {
+        if (inner.freshRolesOf(targetId).none { it in staffRoleIds }) {
+            heldCount.incrementAndGet()
+            throw DiscordRefusal("Le serveur est encore fermé à ces actions.")
+        }
+        inner.membershipAction(actorId, targetId, action, reason, allowedRoleIds)
+    }
+
     override suspend fun post(channelId: String, message: BotMessage): String = inner.post(channelId, onlyStaffRoles(message))
 
     override suspend fun edit(channelId: String, messageId: String, message: BotMessage) {

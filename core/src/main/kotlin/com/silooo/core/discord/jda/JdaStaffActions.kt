@@ -2,6 +2,8 @@ package com.silooo.core.discord.jda
 
 import com.silooo.core.discord.DiscordRefusal
 import com.silooo.core.discord.ModerationTarget
+import com.silooo.core.discord.ModerationAction
+import java.util.concurrent.TimeUnit
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.future.await
@@ -24,14 +26,56 @@ internal class JdaStaffActions(private val guild: Guild) {
 
     suspend fun roles(userId: String): Set<String> = member(userId)?.roles?.map { it.id }?.toSet().orEmpty()
 
-    suspend fun target(actorId: String, targetId: String, allowedRoles: Set<String>): ModerationTarget? {
+    suspend fun target(actorId: String, targetId: String, allowedRoles: Set<String>): ModerationTarget? =
+        targetForAction(actorId, targetId, ModerationAction.TIMEOUT, allowedRoles)
+
+    suspend fun targetForAction(actorId: String, targetId: String, action: ModerationAction, allowedRoles: Set<String>): ModerationTarget? {
         val actor = member(actorId) ?: return null
-        val target = member(targetId) ?: return null
-        val actorAllowed = authorizedModerator(actor.roles.map { it.id }.toSet(), allowedRoles,
-            actor.hasPermission(Permission.MODERATE_MEMBERS), actor.canInteract(target), actorId == targetId)
+        val bot = member(guild.selfMember.id) ?: return null
+        val permission = nativeModerationPermission(action)
+        if (!authorizedModerator(actor.roles.map { it.id }.toSet(), allowedRoles,
+                actor.hasPermission(permission), true, actorId == targetId) || !bot.hasPermission(permission)) return null
+        val target = member(targetId)
+        if (action == ModerationAction.UNBAN) {
+            if (target != null) return null
+            val ban = try { guild.retrieveBan(UserSnowflake.fromId(targetId)).submit().await() }
+                catch (e: ErrorResponseException) { if (e.errorResponse == ErrorResponse.UNKNOWN_BAN) return null else throw e }
+            return ModerationTarget(ban.user.id, ban.user.name, ban.user.isBot, ban.user.idLong == guild.ownerIdLong, true, true)
+        }
+        target ?: return null
+        val canTimeout = action !in setOf(ModerationAction.WARN, ModerationAction.TIMEOUT, ModerationAction.RESTORE) ||
+            !target.hasPermission(Permission.ADMINISTRATOR)
         return ModerationTarget(target.id, target.effectiveName, target.user.isBot, target.idLong == guild.ownerIdLong,
-            actorAllowed, guild.selfMember.canInteract(target) && guild.selfMember.hasPermission(Permission.MODERATE_MEMBERS) &&
-                !target.hasPermission(Permission.ADMINISTRATOR))
+            actor.canInteract(target), bot.canInteract(target) && canTimeout)
+    }
+
+    suspend fun historyTarget(actorId: String, targetId: String, allowedRoles: Set<String>): ModerationTarget? {
+        val actor = member(actorId) ?: return null
+        if (!authorizedModerator(actor.roles.map { it.id }.toSet(), allowedRoles,
+                actor.hasPermission(Permission.MODERATE_MEMBERS), true, actorId == targetId)) return null
+        val target = member(targetId)
+        return if (target == null) ModerationTarget(targetId, targetId, false, targetId == guild.ownerId, true, true)
+        else ModerationTarget(target.id, target.effectiveName, target.user.isBot, target.idLong == guild.ownerIdLong,
+            actor.canInteract(target), true)
+    }
+
+    suspend fun membership(actorId: String, targetId: String, action: ModerationAction, reason: String, allowedRoles: Set<String>) {
+        require(action in setOf(ModerationAction.KICK, ModerationAction.BAN, ModerationAction.UNBAN))
+        val proof = targetForAction(actorId, targetId, action, allowedRoles)
+        if (proof == null || actorId == targetId || proof.isOwner || proof.isBot || !proof.actorCanInteract || !proof.botCanInteract) {
+            throw DiscordRefusal("Les permissions ou la hiérarchie ne permettent pas cette action.")
+        }
+        try {
+            val user = UserSnowflake.fromId(targetId)
+            val request = when (action) {
+                ModerationAction.KICK -> guild.kick(user)
+                ModerationAction.BAN -> guild.ban(user, 0, TimeUnit.SECONDS)
+                ModerationAction.UNBAN -> guild.unban(user)
+                else -> error("Action non prise en charge")
+            }
+            request.reason(("Oooscar, membre du staff " + actorId + " : " + reason).take(512)).submit().await()
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { throw DiscordRefusal("Discord a refusé l'action de modération.") }
     }
 
     suspend fun timeout(actorId: String, targetId: String, until: Instant?, reason: String, allowedRoles: Set<String>) {
@@ -64,3 +108,9 @@ internal class JdaStaffActions(private val guild: Guild) {
 
 internal fun authorizedModerator(roles: Set<String>, allowedRoles: Set<String>, canModerate: Boolean, canInteract: Boolean, self: Boolean): Boolean =
     allowedRoles.isNotEmpty() && roles.any { it in allowedRoles } && canModerate && canInteract && !self
+
+internal fun nativeModerationPermission(action: ModerationAction): Permission = when (action) {
+    ModerationAction.KICK -> Permission.KICK_MEMBERS
+    ModerationAction.BAN, ModerationAction.UNBAN -> Permission.BAN_MEMBERS
+    ModerationAction.WARN, ModerationAction.TIMEOUT, ModerationAction.RESTORE -> Permission.MODERATE_MEMBERS
+}
