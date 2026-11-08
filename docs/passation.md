@@ -1369,6 +1369,17 @@ côtés, ne sont posées qu'une fois. `tools/verifier.sh` vert, Gradle compris. 
 du service, donc le BDS de cette branche demande le core de cette branche, et le core en production
 (`discord-2ade9f1`) vient d'un commit Discord absent de GitHub.
 
+### Intégration du bot Discord de Codex, 8 novembre 2026
+
+Le core en production (`discord-2ade9f1`, migrations V18 à V22) venait de la session Codex « pour le bot Discord de
+Silooo », sur le VPS sous le compte `krenter` : branche locale `claude/discord-complet-20261108`, jamais poussée, et une
+passe « c2b » non commitée (verrou et restauration des salons, V23). Reprise en lecture seule, copie dans
+`atelier-carriere/recuperation-core-2ade9f1/`, branche poussée telle quelle (c82ae78). Branche
+`claude/integration-discord` : `main` (1aae851) + cette branche, sans conflit ; V18 à V22 identiques octet pour octet
+à celles de la production. `tools/verifier.sh` vert ; tests du core relancés avec Docker (`sg docker`, `--no-daemon`) :
+2 518 tests, 0 ignoré, dont les 383 tests SQL. Attention : lancé sans accès à Docker, `verifier.sh` ignore tous les
+tests SQL et se dit vert quand même.
+
 ### D3 — répartition du 6 novembre 2026
 
 V14 réservée aux profils Discord synchronisés ; V15 aux préférences et envois de rappels ; V16 aux bureaux, sondages et tableaux. Trois agents économiques travaillent dans des worktrees isolés ; compilation et intégration centralisées. D1 reste reporté. Le BDS est déployé/testé en whitelist par Kr, seul le core est déployé par cette session. Les nouveaux textes et cartes D3 restent à valider par Kr.
