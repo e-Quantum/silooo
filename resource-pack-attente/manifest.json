@@ -4,14 +4,14 @@
     "name": "Silooo, salle d'attente",
     "description": "Les hologrammes et l'affiche Discord de la salle d'attente de Silooo.",
     "uuid": "6d0f4a52-3b8e-4c1f-9a77-2f5e1c9b8d30",
-    "version": [0, 2, 0],
+    "version": [0, 2, 1],
     "min_engine_version": [1, 26, 60]
   },
   "modules": [
     {
       "type": "resources",
       "uuid": "b7e2c913-58a4-4d6e-8f01-6c3a9d4e2b75",
-      "version": [0, 2, 0]
+      "version": [0, 2, 1]
     }
   ]
 }

@@ -254,12 +254,13 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
     `UIForms.createPubPoster`, lus seulement) : un `server_form.json` de pack qui dessine l'écran quand le titre porte un
     marqueur, trois boutons (bannière, QR code, suite) dont le texte porte la zone ; recopiée dans
     `resource-pack-attente/ui/server_form.json`, marqueur `§s§d§i§s`, sans le bouton « Rejoindre » ; textures de
-    `design/textures/` (panneau de fonte, bouton rouge, plaque bleue, ticket) ; bannière faite de `design/` par
-    `tools/generer_banniere_discord.py` (celle de Hubyy est une image distante, absente du dépôt) ; QR code de
+    `design/textures/` (panneau de fonte, bouton rouge, plaque bleue, ticket) ; bannière fournie par Kr le 8 novembre
+    2026 (la Carrière de nuit, salariés devant l'usine, 1 600 × 400 réduite à 800 × 200 ; elle remplace celle que
+    `tools/generer_banniere_discord.py` tirait de `design/`, script retiré) ; QR code de
     `https://silooo.com/discord/` par `tools/generer_qr_discord.mjs` (un module = 8 pixels, aucun lissage). Elle s'ouvre
     à l'arrivée, juste avant l'accueil, puis à chaque chute, jamais par-dessus un autre écran. La barre d'action ajoute
     « silooo.com/discord », aqua, avec un reflet blanc qui la traverse toutes les 3 secondes environ (`lienAnime`) : ni
-    titre ni gras, le parcours reste lisible. Le pack de ressources passe en 0.2.0. Jamais essayé en jeu : l'affiche
+    titre ni gras, le parcours reste lisible. Le pack de ressources passe en 0.2.0, puis en 0.2.1 pour la bannière de Kr (un client garde un pack en cache par sa version). Jamais essayé en jeu : l'affiche
     remplace le `server_form.json` standard sur ce serveur seulement. Textes **à valider par Kr** : `AFFICHE_TEXTES`,
     `addon/README.md` « Textes à valider, salle d'attente ».
 
