@@ -773,3 +773,9 @@ plus. Ce qui les remplace, tout à valider :
 - **8 novembre 2026 (direction du site, sur le VPS).** `claude/site-cache` : `/public/` en `no-cache` avec un ETag du
   contenu et 304 (décision 23), après que l'île 3D s'est posée sous son image fixe chez Kr (ancienne feuille gardée un
   jour ; corrigé d'abord dans `carriere.js`, 61ce234, déployé). Tests du site verts (216, dont le 304 sur trois fichiers).
+
+- **8 novembre 2026 (direction du site, sur le VPS).** `claude/site-xbox-code` : la première connexion Xbox de Kr en
+  production échouait (« La connexion Xbox n'a pas abouti ») parce que le code de Microsoft faisait 672 caractères et
+  que le retour en refusait plus de 512 (Discord en rend une trentaine). Limite portée à 4 096, chaque refus du retour
+  écrit au journal avec sa raison (sans le code ni l'état), test avec un code de la forme réelle. Identifiants Discord et
+  Azure posés par Kr le même jour : les deux portes sont ouvertes sur silooo.com.

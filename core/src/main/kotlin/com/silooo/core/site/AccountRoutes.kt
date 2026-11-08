@@ -59,7 +59,12 @@ internal const val SESSION_COOKIE = "silooo_session"
 /** Le cookie d'une connexion en cours (l'`state` OAuth2), sur `/connexion/` seulement, dix minutes. */
 internal const val START_COOKIE = "silooo_porte"
 private const val START_COOKIE_PATH = "/connexion/"
-private const val MAX_CODE_LENGTH = 512
+/**
+ * La longueur au-delà de laquelle un code d'autorisation est refusé sans appeler le fournisseur. Discord rend une
+ * trentaine de caractères ; Microsoft (comptes personnels, `M.C5…_BAY.2.U.MsaArtifacts…`) en rend plusieurs centaines :
+ * 672 au premier essai de Kr en production, le 8 novembre 2026, refusé par l'ancienne limite de 512.
+ */
+private const val MAX_CODE_LENGTH = 4096
 private const val MAX_TOKEN_LENGTH = 128
 private const val MAX_FORM_BYTES = 2048L
 private const val FORWARDED_FOR = "X-Forwarded-For"
@@ -184,12 +189,19 @@ internal fun Route.accountRoutes(dependencies: Dependencies, shell: SiteShell, p
         val start = signer.readStart(request.cookies[START_COOKIE])
         clearCookie(START_COOKIE, START_COOKIE_PATH)
         val parameters = request.queryParameters
+        // Chaque refus est écrit au journal avec sa raison, jamais avec le code ni l'état.
+        val porte = if (door == 'x') "Xbox" else "Discord"
         if (start == null || start.door != door || !signer.sameText(parameters["state"], start.state)) {
+            val why = if (start == null) "cookie de départ absent ou illisible" else if (start.door != door) "autre porte" else "état différent"
+            application.log.warn("Connexion $porte : retour refusé ($why)")
             refuse(HttpStatusCode.BadRequest, failed)
             return null
         }
         val code = parameters["code"]
         if (parameters["error"] != null || code.isNullOrBlank() || code.length > MAX_CODE_LENGTH) {
+            val why = parameters["error"]?.let { "le fournisseur a répondu « ${it.take(64)} »" }
+                ?: if (code.isNullOrBlank()) "sans code" else "code de ${code.length} caractères, plus de $MAX_CODE_LENGTH"
+            application.log.warn("Connexion $porte : retour refusé ($why)")
             refuse(HttpStatusCode.BadRequest, failed)
             return null
         }
