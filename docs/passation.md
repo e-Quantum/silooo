@@ -556,6 +556,15 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
 
 ## À valider par Kr
 
+- La Carrière de l'époque 1 (7 novembre, branche `claude/carriere-epoque1`, [carriere.md](carriere.md)) : la structure
+  en ruine et en marche, les 5 blocs Silooo et leurs textures (`design/blocs/`), les trois skins de salarié
+  (`design/skins/`), les gestes, les réactions d'Oooscar (`joie`, `oups`, `panique`, `fier`, `dodo`), les machines,
+  les particules, les 27 sons (`resource-pack/sounds/`), les six noms affichés de `resource-pack/texts/fr_FR.lang`
+  (section « Carrière ») et les valeurs proposées pour `definitions/iles.json` (plans de la cinématique, apparition,
+  anneau). Branchée dans l'add-on 0.1.5 (branche `claude/carriere-epoque1-jeu`, sur la 0.1.4 de Codex) ; rien n'a
+  été vu dans un client Bedrock avant le déploiement. En 0.1.8 (branche `claude/carriere-ile`) : le second salarié
+  qui pellette, les machines cassées de la ruine, le bruit et les miettes du coffre à chaque pierre.
+
 - P3 (8 novembre, décision 53) : sous les cadenas de la carte, « Niveau d'entreprise `<n>` », « Époque `<n>` »,
   « Après `<usine>` », « Après une autre usine » ; la fiche Usine sans « Encaisser », « Niveau `<n>` · Revenu
   `<revenu>` », « Coût `<montant>` Donar · retour `<durée>` » sous « Monter de 1 » (remplace « Le prochain niveau
@@ -1288,6 +1297,67 @@ routes. Depuis le 5 novembre à 15 h 31, le bot Discord (Oooscar) est à la dire
   dépôt après le bilan : jamais à ajouter au dépôt (ligne de Kr). Fin de la session de direction : aucune session
   lancée, aucun worktree, `main` = `origin/main`. Vérifier : `gh run list --branch main --limit 2`.
 
+### Atelier Carrière, 7 novembre 2026
+
+Nouvelle Carrière de l'époque 1 en `.mcstructure` (`tools/carriere/`, [carriere.md](carriere.md)), avec blocs Silooo,
+salariés, machines, particules et sons, faite par une session chef et trois sessions (textures et skins, animations,
+sons) sur le VPS. Contrôles ajoutés à `tools/verifier.sh` (sons, structures) et à `verifier_pack.mjs` (copies de
+`design/blocs/`, contrôleurs d'animation, deux textures vanilla nommées). Structures chargées sur un BDS 1.26.62.1
+d'essai : huit blocs vérifiés. Le branchement dans l'add-on reste à faire avec la 0.1.4 de Codex, restée sur le PC
+de Kr. Tout est **à valider par Kr**.
+
+### Déploiement de la Carrière 0.1.5, 8 novembre 2026
+
+Image `silooo-bds:carriere-55be7c9-lan` (branche `claude/carriere-epoque1-jeu`, même couche réseau local que la 0.1.4),
+déployée à 7 h 05 UTC sur le seul service `silooo-bds`, avec les quatre fichiers compose de sa création ; `silooo-core`
+et la salle d'attente (`lobby-954c614`) n'ont pas été touchés. Avant : `deploy/compose.gameplay.yml` et le monde dans
+`sauvegardes/carriere-0.1.5-55be7c9/`. Au démarrage : packs 0.1.5 chargés, add-on démarré, matériaux et structures
+validés par Bedrock, aucun échec de liaison avec le service. L'arrêt de l'ancien conteneur a fini en arrêt forcé (code
+137, 60 s) : `start.sh` ne transmet pas le signal d'arrêt à BDS, à corriger. Retour arrière : remettre
+`compose.gameplay.avant.yml` et recréer `silooo-bds`. La première visite de chaque joueur refait sa Carrière
+(`atelier.revision` 3). Rien n'a encore été vu dans un client.
+
+### Carrière 0.1.6, 8 novembre 2026
+
+Après la première visite de Kr : entités invulnérables, sous-titre natif caché pendant la cinématique, ouvrier habillé
+en salarié de l'atelier, pierres et bureau redessinés, sons du moulin et du tapis et fumée du poêle
+([carriere.md](carriere.md), « Audit après la première visite en jeu »). Image `silooo-bds:carriere-f43c9b0-lan`
+déployée à 7 h 40 UTC sur le seul service `silooo-bds` ; sauvegarde dans `sauvegardes/carriere-0.1.6-f43c9b0/`.
+Démarrage propre : packs 0.1.6, add-on démarré, blocs et structures validés. Ouvert : protection des blocs de l'île,
+orientation des machines à confirmer en jeu, second salarié, vente par particules.
+
+### Carrière 0.1.7, 8 novembre 2026
+
+Protection de l'île de départ (décision de Kr) : tout est protégé sauf le front de taille ([carriere.md](carriere.md)).
+Image `silooo-bds:carriere-26a4b77-lan` déployée à 7 h 57 UTC sur le seul service `silooo-bds` ; sauvegarde dans
+`sauvegardes/carriere-0.1.7-26a4b77/`. Démarrage propre. Vérification : verte, sauf `verifier_site.mjs`, qui échoue
+parce qu'un Chromium de Playwright installé le 8 novembre à 7 h 38 dans `~/.cache/ms-playwright` ne trouve pas
+`libatk-1.0.so.0` ; sans lui, les 170 tests de l'outillage passent. À régler sur le VPS (bibliothèques ou retrait).
+
+### Carrière 0.1.8, 8 novembre 2026
+
+Branche `claude/carriere-ile`, la même Carrière rebasée sur `main` (d5d4d6a) : elle remplace `claude/carriere-epoque1-jeu`,
+jamais poussée. Plus proche de la maquette ([carriere.md](carriere.md), « Plus proche de la maquette ») : second salarié
+qui pellette au bocard, pierres des pilons jusqu'au coffre avec miettes et bruit à l'arrivée, machines cassées sur la
+ruine, ailes et pilons immobiles à l'arrêt. La protection est branchée par `protectCarriere` de `monde/bedrock.ts` :
+`main.ts` n'a plus qu'un appel. Fusion avec `claude/p0-video` et `claude/p1-video` (session vidéo du PC), essayée à
+blanc : restent la version des packs (prendre la plus haute, et la monter d'un cran), la liste d'outils de
+`tools/verifier_pack.mjs` (`generer_structure.mjs` n'existe plus, garder `generer_glyphes.mjs`) et cette passation ;
+le masquage du titre de la cinématique et celui des sous-titres sont compatibles.
+Image `silooo-bds:carriere-6224b73` (sans couche `-lan` : le gabarit de `main` met déjà
+`enable-lan-visibility=true`) déployée le 8 novembre à 17 h 40 UTC sur le seul service `silooo-bds`, après accord de Kr ;
+arrêt propre par la console (`stop`, politique de redémarrage coupée avant), sauvegarde dans
+`sauvegardes/carriere-0.1.8-6224b73/`. Vérification : `tools/verifier.sh` vert, Gradle avec le JDK 17.
+
+### Carrière 0.1.9, 8 novembre 2026
+
+Après la visite de Kr sur la 0.1.8 ([carriere.md](carriere.md), « Après la visite de Kr ») : ménage des entités
+restées des versions précédentes, emprise de la 0.1.4 vidée (ses bords et sa cheminée flottaient), trémie au départ du
+tapis, gravier devant le pelleteur, wagonnets chargés, joueur tombé reposé sur sa Carrière (`secours` dans `iles.json`).
+Le monde paisible et la cinématique accroupie sont repris tels quels de `claude/p0-video` (bcdc775, décision 50) : la
+fusion reconnaîtra les mêmes lignes.
+Image `silooo-bds:carriere-e53a1cd` déployée le 8 novembre à 19 h 10 UTC sur le seul service `silooo-bds`, après accord
+de Kr ; arrêt propre par la console, sauvegarde dans `sauvegardes/carriere-0.1.9-e53a1cd/`. `tools/verifier.sh` vert.
 
 ### D3 — répartition du 6 novembre 2026
 

@@ -7,3 +7,11 @@ tile.silooo:bac_pierre.name=Bac de pierre
 tile.silooo:bureau_administration.name=Bureau d'administration
 action.interact.silooo.personnel=Parler
 silooo.cinema.passer=Reste accroupi pour passer.
+
+## Carrière, époque 1 : à valider par Kr (docs/carriere.md)
+tile.silooo:coffre_vente.name=Coffre de vente
+tile.silooo:tremie_bois.name=Trémie en bois
+tile.silooo:engrenage_bois.name=Rouet du bocard
+tile.silooo:tapis_toile.name=Tapis en toile
+tile.silooo:plaque_emaillee.name=Plaque émaillée
+entity.silooo:salarie.name=Salarié

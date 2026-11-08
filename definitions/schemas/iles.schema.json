@@ -17,7 +17,8 @@
     "materiaux",
     "usines",
     "cinematique",
-    "atelier"
+    "atelier",
+    "secours"
   ],
   "properties": {
     "version": {
@@ -326,7 +327,13 @@
         "enseigne",
         "structure",
         "hauteurNettoyage",
-        "transport"
+        "transport",
+        "structureRuine",
+        "solStructure",
+        "machinerie",
+        "ambiance",
+        "libre",
+        "ancienneEmprise"
       ],
       "properties": {
         "revision": {
@@ -386,6 +393,10 @@
               },
               "bloc": {
                 "$ref": "#/$defs/blocAtelier"
+              },
+              "enRuine": {
+                "description": "Le bloc est aussi dans la structure en ruine, à la même place : il prouve qu'elle est posée.",
+                "type": "boolean"
               }
             }
           }
@@ -424,7 +435,8 @@
         },
         "structure": {
           "type": "string",
-          "pattern": "^silooo:[a-z0-9_]+$"
+          "pattern": "^silooo:[a-z0-9_]+$",
+          "description": "La structure du pack posée quand la Carrière est active (tools/carriere/structure.py)."
         },
         "hauteurNettoyage": {
           "type": "integer",
@@ -432,20 +444,27 @@
           "maximum": 30
         },
         "transport": {
+          "description": "Les pierres qui partent du bocard et vont au coffre de vente quand la Carrière tourne.",
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "longueur",
+            "trajet",
             "vitesse",
-            "pierres"
+            "pierres",
+            "arrivee"
           ],
           "properties": {
-            "longueur": {
-              "type": "number",
-              "minimum": 1,
-              "maximum": 30
+            "trajet": {
+              "description": "Les coins du trajet d'une pierre, du dessous des pilons au coffre, en points de la cinématique (le bas de la pierre). Elle va en ligne droite d'un coin au suivant.",
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/vue"
+              }
             },
             "vitesse": {
+              "description": "En blocs par seconde, le long du trajet.",
               "type": "number",
               "minimum": 0.2,
               "maximum": 4
@@ -453,9 +472,223 @@
             "pierres": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 6
+              "maximum": 8
+            },
+            "arrivee": {
+              "description": "Joués au dernier coin chaque fois qu'une pierre arrive au coffre.",
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "effet",
+                  "id"
+                ],
+                "properties": {
+                  "effet": {
+                    "type": "string",
+                    "enum": [
+                      "son",
+                      "particule"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^silooo[.:][a-z0-9_.]+$"
+                  }
+                }
+              }
             }
           }
+        },
+        "structureRuine": {
+          "description": "La structure posée quand la Carrière n'est pas active : en ruine ou en travaux.",
+          "type": "string",
+          "pattern": "^silooo:[a-z0-9_]+$"
+        },
+        "solStructure": {
+          "description": "Hauteur de la face du dessus de la plateforme dans la structure, en blocs depuis son bas : la structure est posée à hauteur - solStructure.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "machinerie": {
+          "description": "Les entités animées par le pack (ailes du moulin, pilons, salariés de décor). Une pièce n'apparaît que dans les états où « proprietes » la cite : marche (la Carrière tourne), arret (active mais arrêtée), ruine (pas encore remise en état) ; ses propriétés d'entité y prennent ces valeurs. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entite",
+              "position",
+              "lacet",
+              "proprietes"
+            ],
+            "properties": {
+              "entite": {
+                "type": "string",
+                "pattern": "^silooo:[a-z0-9_]+$"
+              },
+              "position": {
+                "$ref": "#/$defs/vue"
+              },
+              "lacet": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              "proprietes": {
+                "type": "object",
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "marche": {
+                    "description": "Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état.",
+                    "type": "object",
+                    "maxProperties": 4,
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "arret": {
+                    "description": "Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état.",
+                    "type": "object",
+                    "maxProperties": 4,
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "ruine": {
+                    "description": "Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état.",
+                    "type": "object",
+                    "maxProperties": 4,
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ambiance": {
+          "description": "Sons et particules joués en boucle quand la Carrière tourne (docs/carriere.md) : toutes les « periode » secondes, au point donné.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "effet",
+              "id",
+              "position",
+              "periode"
+            ],
+            "properties": {
+              "effet": {
+                "type": "string",
+                "enum": [
+                  "son",
+                  "particule"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^silooo[.:][a-z0-9_.]+$"
+              },
+              "position": {
+                "$ref": "#/$defs/vue"
+              },
+              "periode": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 60
+              }
+            }
+          }
+        },
+        "libre": {
+          "description": "Les volumes de la Carrière que le joueur peut casser (le front de taille). Tout le reste de l'île est protégé : ni casse ni pose, sauf en mode créatif.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "de",
+              "a"
+            ],
+            "properties": {
+              "de": {
+                "$ref": "#/$defs/vue"
+              },
+              "a": {
+                "$ref": "#/$defs/vue"
+              }
+            }
+          }
+        },
+        "ancienneEmprise": {
+          "description": "L'emprise de la Carrière de la 0.1.4 (carriere_depart, 39 × 20 × 39, posée de hauteur - 3 à hauteur + 16), vidée avant chaque pose : ses bords et sa cheminée dépassaient de la nouvelle structure et flottaient autour de l'île.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "demiCote",
+            "bas",
+            "haut"
+          ],
+          "properties": {
+            "demiCote": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            },
+            "bas": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            },
+            "haut": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            }
+          }
+        }
+      }
+    },
+    "secours": {
+      "description": "Un joueur qui tombe sous les îles de plus de « sousLesIles » blocs est reposé à l'arrivée de sa Carrière.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sousLesIles"
+      ],
+      "properties": {
+        "sousLesIles": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 200
         }
       }
     }

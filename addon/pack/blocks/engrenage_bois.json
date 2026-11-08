@@ -1,0 +1,59 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:block": {
+    "description": {
+      "identifier": "silooo:engrenage_bois",
+      "menu_category": {
+        "category": "construction"
+      },
+      "states": {
+        "silooo:grippe": [
+          false,
+          true
+        ]
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 1.5
+      },
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "silooo_engrenage_bois",
+          "render_method": "opaque"
+        },
+        "up": {
+          "texture": "silooo_chene_noir_dessus",
+          "render_method": "opaque"
+        },
+        "down": {
+          "texture": "silooo_chene_noir_dessus",
+          "render_method": "opaque"
+        }
+      },
+      "silooo:atelier": {},
+      "minecraft:geometry": "minecraft:geometry.full_block"
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state('silooo:grippe')",
+        "components": {
+          "minecraft:material_instances": {
+            "*": {
+              "texture": "silooo_engrenage_bois_grippe",
+              "render_method": "opaque"
+            },
+            "up": {
+              "texture": "silooo_chene_noir_dessus",
+              "render_method": "opaque"
+            },
+            "down": {
+              "texture": "silooo_chene_noir_dessus",
+              "render_method": "opaque"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -14,6 +14,14 @@ import { config } from "../src/config";
 const racine = resolve(".");
 const script = join(racine, "scripts", "construire.mjs");
 const source = join(racine, "pack", "entities", "oooscar.json");
+
+/** Les fichiers du dossier statique pack/, en chemins relatifs avec des « / » : ce que le .mcpack doit contenir. */
+function fichiersStatiques(dossier: string, prefixe = ""): string[] {
+  return readdirSync(dossier).flatMap((nom) => {
+    const complet = join(dossier, nom);
+    return statSync(complet).isDirectory() ? fichiersStatiques(complet, `${prefixe}${nom}/`) : [`${prefixe}${nom}`];
+  });
+}
 
 interface Sortie {
   readonly status: number | null;
@@ -79,8 +87,20 @@ describe("pack/entities/oooscar.json", () => {
   });
 
   it("ne reçoit aucun dégât, d'où qu'ils viennent", () => {
-    const capteur = entite()["minecraft:entity"].components["minecraft:damage_sensor"] as { triggers: Array<{ cause: string; deals_damage: string }> };
-    assert.ok(capteur.triggers.some((t) => t.cause === "all" && t.deals_damage === "no"));
+    const capteur = entite()["minecraft:entity"].components["minecraft:damage_sensor"] as { triggers: Array<{ cause: string; deals_damage: unknown }> };
+    assert.ok(capteur.triggers.some((t) => t.cause === "all" && t.deals_damage === false));
+  });
+
+  // Essai sur BDS 1.26.62.1 (8 novembre 2026) : en format 1.21.0, « deals_damage » doit être le booléen false ;
+  // la chaîne "no" y est ignorée et un seul coup de joueur tuait Oooscar, l'ouvrier, les pierres et les machines.
+  it("aucune entité du pack ne peut être tuée par un joueur", () => {
+    for (const nom of readdirSync(join(racine, "pack", "entities"))) {
+      const document = JSON.parse(readFileSync(join(racine, "pack", "entities", nom), "utf8")) as { format_version: string; "minecraft:entity": { components: Record<string, unknown> } };
+      const capteur = document["minecraft:entity"].components["minecraft:damage_sensor"] as { triggers: Array<{ cause: string; deals_damage: unknown }> } | undefined;
+      assert.ok(capteur?.triggers.some((t) => t.cause === "all"), `${nom} : pas de capteur de dégâts pour toutes les causes`);
+      const attendu = document.format_version < "1.21.50" ? false : "no";
+      assert.ok(capteur!.triggers.every((t) => t.deals_damage === attendu), `${nom} : deals_damage doit valoir ${JSON.stringify(attendu)} en format ${document.format_version}`);
+    }
   });
 
   it("ne laisse rien en mourant et n'est jamais persistante : elle se retire d'elle-même loin du joueur", () => {
@@ -117,7 +137,10 @@ describe("scripts/construire.mjs et le dossier statique", () => {
 
   it("met aussi pack/ dans le .mcpack, avec le manifeste et le script", () => {
     const entrees = unzipSync(new Uint8Array(readFileSync(join(sortie, "silooo-addon.mcpack"))));
-    assert.deepEqual(Object.keys(entrees).sort(), ["blocks/bac_pierre.json", "blocks/broyeur.json", "blocks/bureau_administration.json", "blocks/convoyeur.json", "entities/oooscar.json", "entities/ouvrier.json", "entities/production.json", "items/carte.json", "items/objectif.json", "items/usine.json", "items/ville.json", "manifest.json", "scripts/main.js", "structures/silooo/carriere_depart.mcstructure"]);
+    // Tout le dossier statique (Oooscar, blocs Silooo, structures de la Carrière), plus le manifeste et le script.
+    const attendus = [...fichiersStatiques(join(racine, "pack")), "manifest.json", "scripts/main.js"].sort();
+    assert.ok(attendus.includes("entities/oooscar.json"));
+    assert.deepEqual(Object.keys(entrees).sort(), attendus);
     for (const name of ["carte", "objectif", "usine", "ville"]) {
       assert.equal(new TextDecoder().decode(entrees[`items/${name}.json`]), readFileSync(join(racine, "pack/items", `${name}.json`), "utf8"));
     }

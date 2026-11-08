@@ -1,0 +1,554 @@
+{
+ "source": "https://github.com/Mojang/bedrock-samples, tag v1.26.60.5, metadata/vanilladata_modules/mojang-blocks.json, réduit aux blocs de la Carrière",
+ "data_items": [
+  {
+   "name": "minecraft:air",
+   "properties": []
+  },
+  {
+   "name": "minecraft:andesite",
+   "properties": []
+  },
+  {
+   "name": "minecraft:barrel",
+   "properties": [
+    {
+     "name": "facing_direction"
+    },
+    {
+     "name": "open_bit"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:bookshelf",
+   "properties": []
+  },
+  {
+   "name": "minecraft:coal_ore",
+   "properties": []
+  },
+  {
+   "name": "minecraft:coarse_dirt",
+   "properties": []
+  },
+  {
+   "name": "minecraft:cobblestone",
+   "properties": []
+  },
+  {
+   "name": "minecraft:crafting_table",
+   "properties": []
+  },
+  {
+   "name": "minecraft:dandelion",
+   "properties": []
+  },
+  {
+   "name": "minecraft:dark_oak_log",
+   "properties": [
+    {
+     "name": "pillar_axis"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:dirt",
+   "properties": []
+  },
+  {
+   "name": "minecraft:glass_pane",
+   "properties": [
+    {
+     "name": "minecraft:connection_east"
+    },
+    {
+     "name": "minecraft:connection_north"
+    },
+    {
+     "name": "minecraft:connection_south"
+    },
+    {
+     "name": "minecraft:connection_west"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:grass_block",
+   "properties": []
+  },
+  {
+   "name": "minecraft:grass_path",
+   "properties": []
+  },
+  {
+   "name": "minecraft:gravel",
+   "properties": []
+  },
+  {
+   "name": "minecraft:hanging_roots",
+   "properties": []
+  },
+  {
+   "name": "minecraft:lantern",
+   "properties": [
+    {
+     "name": "hanging"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:mossy_cobblestone",
+   "properties": []
+  },
+  {
+   "name": "minecraft:oak_planks",
+   "properties": []
+  },
+  {
+   "name": "minecraft:pointed_dripstone",
+   "properties": [
+    {
+     "name": "dripstone_thickness"
+    },
+    {
+     "name": "hanging"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:poppy",
+   "properties": []
+  },
+  {
+   "name": "minecraft:rail",
+   "properties": [
+    {
+     "name": "rail_direction"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:red_wool",
+   "properties": []
+  },
+  {
+   "name": "minecraft:short_grass",
+   "properties": []
+  },
+  {
+   "name": "minecraft:smooth_stone_slab",
+   "properties": [
+    {
+     "name": "minecraft:vertical_half"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:spruce_door",
+   "properties": [
+    {
+     "name": "door_hinge_bit"
+    },
+    {
+     "name": "minecraft:cardinal_direction"
+    },
+    {
+     "name": "open_bit"
+    },
+    {
+     "name": "upper_block_bit"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:spruce_fence",
+   "properties": [
+    {
+     "name": "minecraft:connection_east"
+    },
+    {
+     "name": "minecraft:connection_north"
+    },
+    {
+     "name": "minecraft:connection_south"
+    },
+    {
+     "name": "minecraft:connection_west"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:spruce_leaves",
+   "properties": [
+    {
+     "name": "persistent_bit"
+    },
+    {
+     "name": "update_bit"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:spruce_log",
+   "properties": [
+    {
+     "name": "pillar_axis"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:spruce_planks",
+   "properties": []
+  },
+  {
+   "name": "minecraft:spruce_slab",
+   "properties": [
+    {
+     "name": "minecraft:vertical_half"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:spruce_stairs",
+   "properties": [
+    {
+     "name": "minecraft:corner"
+    },
+    {
+     "name": "upside_down_bit"
+    },
+    {
+     "name": "weirdo_direction"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:stone",
+   "properties": []
+  },
+  {
+   "name": "minecraft:stone_bricks",
+   "properties": []
+  },
+  {
+   "name": "minecraft:tuff",
+   "properties": []
+  },
+  {
+   "name": "minecraft:wall_sign",
+   "properties": [
+    {
+     "name": "facing_direction"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:web",
+   "properties": []
+  },
+  {
+   "name": "minecraft:white_wool",
+   "properties": []
+  }
+ ],
+ "block_properties": [
+  {
+   "name": "door_hinge_bit",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "dripstone_thickness",
+   "type": "string",
+   "values": [
+    {
+     "value": "tip"
+    },
+    {
+     "value": "frustum"
+    },
+    {
+     "value": "middle"
+    },
+    {
+     "value": "base"
+    },
+    {
+     "value": "merge"
+    }
+   ]
+  },
+  {
+   "name": "facing_direction",
+   "type": "int",
+   "values": [
+    {
+     "value": 0
+    },
+    {
+     "value": 1
+    },
+    {
+     "value": 2
+    },
+    {
+     "value": 3
+    },
+    {
+     "value": 4
+    },
+    {
+     "value": 5
+    }
+   ]
+  },
+  {
+   "name": "hanging",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "minecraft:cardinal_direction",
+   "type": "string",
+   "values": [
+    {
+     "value": "south"
+    },
+    {
+     "value": "west"
+    },
+    {
+     "value": "north"
+    },
+    {
+     "value": "east"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:connection_east",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "minecraft:connection_north",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "minecraft:connection_south",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "minecraft:connection_west",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "minecraft:corner",
+   "type": "string",
+   "values": [
+    {
+     "value": "none"
+    },
+    {
+     "value": "inner_left"
+    },
+    {
+     "value": "inner_right"
+    },
+    {
+     "value": "outer_left"
+    },
+    {
+     "value": "outer_right"
+    }
+   ]
+  },
+  {
+   "name": "minecraft:vertical_half",
+   "type": "string",
+   "values": [
+    {
+     "value": "bottom"
+    },
+    {
+     "value": "top"
+    }
+   ]
+  },
+  {
+   "name": "open_bit",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "persistent_bit",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "pillar_axis",
+   "type": "string",
+   "values": [
+    {
+     "value": "y"
+    },
+    {
+     "value": "x"
+    },
+    {
+     "value": "z"
+    }
+   ]
+  },
+  {
+   "name": "rail_direction",
+   "type": "int",
+   "values": [
+    {
+     "value": 0
+    },
+    {
+     "value": 1
+    },
+    {
+     "value": 2
+    },
+    {
+     "value": 3
+    },
+    {
+     "value": 4
+    },
+    {
+     "value": 5
+    },
+    {
+     "value": 6
+    },
+    {
+     "value": 7
+    },
+    {
+     "value": 8
+    },
+    {
+     "value": 9
+    }
+   ]
+  },
+  {
+   "name": "update_bit",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "upper_block_bit",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "upside_down_bit",
+   "type": "bool",
+   "values": [
+    {
+     "value": false
+    },
+    {
+     "value": true
+    }
+   ]
+  },
+  {
+   "name": "weirdo_direction",
+   "type": "int",
+   "values": [
+    {
+     "value": 0
+    },
+    {
+     "value": 1
+    },
+    {
+     "value": 2
+    },
+    {
+     "value": 3
+    }
+   ]
+  }
+ ]
+}

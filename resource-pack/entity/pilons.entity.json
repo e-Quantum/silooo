@@ -1,0 +1,41 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "silooo:pilons",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/machines_carriere"
+      },
+      "geometry": {
+        "default": "geometry.silooo.pilons"
+      },
+      "animations": {
+        "frappe": "animation.silooo_pilons.frappe",
+        "effets": "animation.silooo_pilons.effets"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "frappe": "!query.property('silooo:ruine') && query.property('silooo:actif')"
+          },
+          {
+            "effets": "!query.property('silooo:ruine') && query.property('silooo:actif')"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.silooo_pilons"
+      ],
+      "particle_effects": {
+        "poussiere": "silooo:poussiere_bocard",
+        "sciure": "silooo:sciure_rouet"
+      },
+      "sound_effects": {
+        "pilon": "silooo.carriere.pilon"
+      }
+    }
+  }
+}

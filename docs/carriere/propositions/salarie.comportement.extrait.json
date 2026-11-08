@@ -1,0 +1,23 @@
+{
+  "_note": "Extrait pour addon/pack/entities/salarie.json : la propriété que lit le contrôleur. client_sync la rend lisible par le pack.",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "silooo:salarie",
+      "properties": {
+        "silooo:geste": {
+          "type": "enum",
+          "values": [
+            "inactif",
+            "marche",
+            "piocher",
+            "pelleter",
+            "porter",
+            "saluer"
+          ],
+          "default": "inactif",
+          "client_sync": true
+        }
+      }
+    }
+  }
+}

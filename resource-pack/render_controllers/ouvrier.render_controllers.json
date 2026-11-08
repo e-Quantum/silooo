@@ -10,6 +10,11 @@
       ],
       "textures": [
         "Texture.default"
+      ],
+      "part_visibility": [
+        {
+          "charge": false
+        }
       ]
     }
   }

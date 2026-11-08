@@ -51,7 +51,8 @@ describe("poser une île", () => {
     assert.equal(b.constructeur.pending(), 0);
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@0,0");
     const centre = islandCenter(ORIGINE, usineIle(ILES, "carriere") ?? { angle: 0 }, ILES);
-    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), "minecraft:gravel");
+    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), ILES.materiaux.herbe);
+    assert.equal(b.monde.count("silooo:coffre_vente"), 1, "le coffre de vente est posé");
     assert.equal(b.monde.count(ILES.materiaux.enseigne), 1);
     assert.ok(b.log.infos.some((ligne) => ligne.includes("île 7/carriere posée")));
   });
@@ -151,8 +152,8 @@ describe("changer d'état", () => {
     const plan = planIsland(ILES, usineIle(ILES, "carriere") ?? ILES.usines[0]!, ORIGINE, "ACTIVE");
     assert.equal(b.monde.ops - avant, plan.state.length);
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@0,0");
-    assert.equal(b.monde.count("silooo:broyeur"), 1, "la chaîne de production est posée");
-    assert.equal(b.monde.count("silooo:convoyeur"), ILES.atelier.machines.filter((machine) => machine.role === "convoyeur").length);
+    assert.equal(b.monde.count("silooo:engrenage_bois"), ILES.atelier.machines.filter((machine) => machine.role === "broyeur").length, "la chaîne de production est posée");
+    assert.equal(b.monde.count("silooo:tapis_toile"), ILES.atelier.machines.filter((machine) => machine.role === "convoyeur").length);
     assert.ok(b.log.infos.filter((ligne) => ligne.includes("plateforme comprise")).length === 1, "la plateforme n'a été posée qu'une fois");
   });
 
@@ -163,7 +164,7 @@ describe("changer d'état", () => {
     b.constructeur.sync(7, ORIGINE, [usine("carriere", "ACTIVE")]);
     await b.temps.advance(60);
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@0,0");
-    assert.equal(b.monde.count("silooo:broyeur"), 1);
+    assert.equal(b.monde.count("silooo:engrenage_bois"), ILES.atelier.machines.filter((machine) => machine.role === "broyeur").length);
     assert.equal(b.monde.count("silooo:bureau_administration"), 1);
     assert.equal(b.constructeur.pending(), 0);
   });
@@ -190,7 +191,7 @@ describe("changer d'état", () => {
     assert.equal(b.marques.stored.get(7)?.["carriere"], "ACTIVE@600,0");
     assert.equal(b.log.infos.filter((ligne) => ligne.includes("plateforme comprise")).length, 2);
     const centre = islandCenter(AUTRE_ORIGINE, usineIle(ILES, "carriere") ?? ILES.usines[0]!, ILES);
-    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), "minecraft:gravel");
+    assert.equal(b.monde.blockAt(centre.x, ILES.hauteur, centre.z), ILES.materiaux.herbe);
   });
 });
 
@@ -302,9 +303,10 @@ describe("préfabriqué natif de la Carrière", () => {
     b.constructeur.sync(7, ORIGINE, [usine("carriere")]);
     await b.temps.advance(5);
     const plan = planIsland(ILES, usineIle(ILES, "carriere")!, ORIGINE, "ACTIVE");
-    assert.deepEqual(calls, [{ id: ILES.atelier.structure, at: plan.box.from }]);
+    assert.deepEqual(calls, [{ id: ILES.atelier.structure, at: plan.structure!.at }]);
+    assert.equal(plan.structure!.at.y, ILES.hauteur - ILES.atelier.solStructure, "la face du dessus du préfabriqué tombe à la hauteur des îles");
     assert.equal(b.monde.areas.length, 1);
-    assert.equal(b.monde.count("silooo:broyeur"), 1);
+    assert.equal(b.monde.count("silooo:engrenage_bois"), ILES.atelier.machines.filter((machine) => machine.role === "broyeur").length);
     assert.equal(b.monde.texts.size, 1);
     assert.equal(b.marques.stored.get(7)?.carriere, "ACTIVE@0,0");
   });

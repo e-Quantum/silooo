@@ -30,6 +30,8 @@ export interface IslandPlan {
   readonly center: Xz;
   /** Préfabriqué complet quand le monde sait charger les structures du pack. */
   readonly structure?: { readonly id: string; readonly at: Pos };
+  /** Vidé juste avant le préfabriqué : l'ancienne emprise de la Carrière, une couche par fill. */
+  readonly clear?: readonly Op[];
 }
 
 function fill(from: Pos, to: Pos, block: string): Op {
@@ -153,12 +155,28 @@ export function planIsland(defs: IlesDefinitions, usine: UsineIle, origin: Xz, s
   const frame = frameOfIsland(origin, usine, defs);
   const radius = islandRadius(defs, usine);
   const reach = Math.max(radius, Math.floor(usine.largeur / 2) + 2, Math.floor(usine.profondeur / 2) + 2);
-  const deepest = defs.hauteur - (defs.plateforme.couches.length - 1);
+  const carriere = usine.id === defs.apparition.usine;
+  // La Carrière est un préfabriqué dans tous ses états (docs/carriere.md) : en marche, ou en ruine et en travaux.
+  // Il est posé de sorte que sa face du dessus (solStructure depuis son bas) tombe à la hauteur des îles.
+  const bas = carriere ? defs.hauteur - defs.atelier.solStructure : defs.hauteur;
+  const deepest = Math.min(bas, defs.hauteur - (defs.plateforme.couches.length - 1));
+  // Avant lui, l'emprise de la Carrière de la 0.1.4 est vidée : plus large et plus haute, elle laissait flotter ses
+  // bords et sa cheminée autour de la nouvelle île.
+  const old = defs.atelier.ancienneEmprise;
+  const span = carriere ? Math.max(reach, old.demiCote) : reach;
+  const top = Math.max(defs.hauteur + usine.hauteur + 3, carriere ? defs.hauteur + old.haut : -Infinity);
+  const floor = Math.min(deepest, carriere ? defs.hauteur - old.bas : Infinity);
+  const clear: Op[] = [];
+  if (carriere) {
+    for (let y = defs.hauteur - old.bas; y <= defs.hauteur + old.haut; y += 1) {
+      clear.push(fill(at(center.x - old.demiCote, y, center.z - old.demiCote), at(center.x + old.demiCote, y, center.z + old.demiCote), defs.materiaux.vide));
+    }
+  }
   return {
     center,
-    box: { from: at(center.x - reach, deepest, center.z - reach), to: at(center.x + reach, defs.hauteur + usine.hauteur + 3, center.z + reach) },
+    box: { from: at(center.x - span, floor, center.z - span), to: at(center.x + span, top, center.z + span) },
     base: baseOps(defs, center, radius),
-    ...(usine.id === defs.apparition.usine && state === "ACTIVE" ? { structure: { id: defs.atelier.structure, at: at(center.x - reach, deepest, center.z - reach) } } : {}),
+    ...(carriere ? { structure: { id: state === "ACTIVE" ? defs.atelier.structure : defs.atelier.structureRuine, at: at(center.x - reach, bas, center.z - reach) }, clear } : {}),
     state: usine.id === defs.apparition.usine ? carriereOps(defs, frame, state, radius) : stateOps(defs, usine, center, state, doorSide(frame)),
   };
 }

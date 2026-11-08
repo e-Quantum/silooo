@@ -1,0 +1,86 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.silooo_ailes_moulin": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default"
+      ],
+      "part_visibility": [
+        {
+          "*": true
+        },
+        {
+          "aile_0": "!query.property('silooo:ruine')"
+        },
+        {
+          "aile_2": "!query.property('silooo:ruine')"
+        },
+        {
+          "aile_3": "!query.property('silooo:ruine')"
+        },
+        {
+          "toile_0": "!query.property('silooo:ruine')"
+        },
+        {
+          "toile_1": "!query.property('silooo:ruine')"
+        },
+        {
+          "toile_2": "!query.property('silooo:ruine')"
+        },
+        {
+          "toile_3": "!query.property('silooo:ruine')"
+        },
+        {
+          "aile_tombee": "query.property('silooo:ruine')"
+        }
+      ]
+    },
+    "controller.render.silooo_pilons": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default"
+      ],
+      "part_visibility": [
+        {
+          "*": true
+        },
+        {
+          "pilon_3": "!query.property('silooo:ruine')"
+        },
+        {
+          "pilon_tombe": "query.property('silooo:ruine')"
+        }
+      ]
+    },
+    "controller.render.silooo_wagonnet": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default"
+      ],
+      "part_visibility": [
+        {
+          "*": true
+        },
+        {
+          "charge": "!query.property('silooo:ruine')"
+        }
+      ]
+    }
+  }
+}

@@ -20,6 +20,7 @@ import {
   createMarkStore,
   createOooscarWorld,
   createWorkshopWorld,
+  protectCarriere,
   withCinematicArea,
   releaseStaleAreas,
   validateWorldAssets,
@@ -31,6 +32,7 @@ import type { Pos, Xz } from "./monde/geometrie";
 import { createOooscarManager } from "./monde/oooscar";
 import { createWorldSync } from "./monde/synchro";
 import { createWorkshop } from "./monde/atelier";
+import { createFallRescue } from "./monde/secours";
 import { createCityTravel, createTravel, type CityTravel, type Travel } from "./monde/voyage";
 import {
   consoleLogger,
@@ -159,6 +161,9 @@ function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerSto
     });
     scheduler.every(config.world.syncSeconds, guard(log, "îles", sync.tick));
 
+    // La Carrière est protégée : seul le front de taille se casse, rien ne se pose sur l'île (monde/protection.ts).
+    protectCarriere(sync.knownOrigins);
+
     const arrivalWorld = createArrivalWorld();
     const arrivals = createArrivals<Player>({
       defs: ILES,
@@ -180,6 +185,18 @@ function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerSto
         },
       },
     });
+    // Une chute depuis une île : le joueur est reposé à l'arrivée de sa Carrière (monde/secours.ts).
+    const rescue = createFallRescue<Player>({
+      defs: ILES,
+      players: () => world.getAllPlayers(),
+      world: arrivalWorld,
+      busy: arrivals.busy,
+      originOf: (player) => {
+        const company = views.get(playerXuid(player))?.state.companyId;
+        return company === undefined ? undefined : sync.originOf(company);
+      },
+    });
+    scheduler.every(config.world.rescueSeconds, guard(log, "chutes", () => { rescue.tick(); }));
     return {
       hooks: {
         arriving: arrivals.arriving,
