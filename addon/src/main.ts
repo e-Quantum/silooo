@@ -2,7 +2,7 @@
 // branche les pièces et ne laisse jamais une exception tuer le script : sans réglages, l'add-on reste
 // inerte et le dit dans le journal du serveur.
 
-import { BlockTypes, Direction, GameMode, ItemLockMode, ItemStack, system, world, type Player } from "@minecraft/server";
+import { ItemLockMode, ItemStack, system, world, type Player } from "@minecraft/server";
 import { createCoreApi, type CoreApi } from "./api";
 import { createBetaTransport, readSettings } from "./beta";
 import { config } from "./config";
@@ -19,6 +19,7 @@ import {
   createMarkStore,
   createOooscarWorld,
   createWorkshopWorld,
+  protectCarriere,
   withCinematicArea,
   releaseStaleAreas,
   validateWorldAssets,
@@ -29,7 +30,6 @@ import { ILES, VILLE } from "./monde/definitions";
 import type { Pos, Xz } from "./monde/geometrie";
 import { createOooscarManager } from "./monde/oooscar";
 import { createWorldSync } from "./monde/synchro";
-import { carriereProtection } from "./monde/protection";
 import { createWorkshop } from "./monde/atelier";
 import { createCityTravel, createTravel, type CityTravel, type Travel } from "./monde/voyage";
 import {
@@ -152,24 +152,8 @@ function startWorld(deps: { readonly views: ViewStore; readonly store: PlayerSto
     });
     scheduler.every(config.world.syncSeconds, guard(log, "îles", sync.tick));
 
-    // La Carrière est protégée (monde/protection.ts) : seul le front de taille se casse, rien ne se pose sur l'île.
-    // Le mode créatif passe, pour les constructeurs. Un clic sur une machine de l'atelier ouvre toujours son menu.
-    const enCreatif = (player: Player) => player.getGameMode() === GameMode.Creative;
-    world.beforeEvents.playerBreakBlock.subscribe((event) => {
-      if (!enCreatif(event.player) && carriereProtection(ILES, event.block.location, sync.knownOrigins()) === "protege") event.cancel = true;
-    });
-    const DECALAGE: Record<string, { x: number; y: number; z: number }> = {
-      [Direction.Up]: { x: 0, y: 1, z: 0 }, [Direction.Down]: { x: 0, y: -1, z: 0 }, [Direction.North]: { x: 0, y: 0, z: -1 },
-      [Direction.South]: { x: 0, y: 0, z: 1 }, [Direction.East]: { x: 1, y: 0, z: 0 }, [Direction.West]: { x: -1, y: 0, z: 0 },
-    };
-    world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
-      const item = event.itemStack;
-      if (item === undefined || BlockTypes.get(item.typeId) === undefined || enCreatif(event.player)) return;
-      if (ILES.atelier.machines.some((machine) => machine.bloc === event.block.typeId)) return;
-      const d = DECALAGE[event.blockFace] ?? { x: 0, y: 0, z: 0 };
-      const cible = { x: event.block.location.x + d.x, y: event.block.location.y + d.y, z: event.block.location.z + d.z };
-      if (carriereProtection(ILES, cible, sync.knownOrigins()) !== "hors") event.cancel = true;
-    });
+    // La Carrière est protégée : seul le front de taille se casse, rien ne se pose sur l'île (monde/protection.ts).
+    protectCarriere(sync.knownOrigins);
 
     const arrivalWorld = createArrivalWorld();
     const arrivals = createArrivals<Player>({

@@ -19,10 +19,10 @@
       "scripts": {
         "animate": [
           {
-            "tourne": "!query.property('silooo:ruine')"
+            "tourne": "!query.property('silooo:ruine') && query.property('silooo:actif')"
           },
           {
-            "ruine": "query.property('silooo:ruine')"
+            "ruine": "query.property('silooo:ruine') || !query.property('silooo:actif')"
           }
         ]
       },

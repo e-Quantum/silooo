@@ -373,7 +373,8 @@
           "droite": -4,
           "haut": 6
         },
-        "bloc": "silooo:engrenage_bois"
+        "bloc": "silooo:engrenage_bois",
+        "enRuine": true
       },
       {
         "role": "broyeur",
@@ -382,7 +383,8 @@
           "droite": -8,
           "haut": 6
         },
-        "bloc": "silooo:engrenage_bois"
+        "bloc": "silooo:engrenage_bois",
+        "enRuine": true
       },
       {
         "role": "convoyeur",
@@ -475,10 +477,50 @@
     "structure": "silooo:carriere_marche",
     "hauteurNettoyage": 16,
     "transport": {
-      "longueur": 4,
+      "trajet": [
+        {
+          "avant": -5,
+          "droite": -6,
+          "haut": 1
+        },
+        {
+          "avant": -4,
+          "droite": -6,
+          "haut": 1.375
+        },
+        {
+          "avant": -3,
+          "droite": -6,
+          "haut": 2.375
+        },
+        {
+          "avant": 1,
+          "droite": -6,
+          "haut": 2.375
+        },
+        {
+          "avant": 1,
+          "droite": -0.5,
+          "haut": 2.375
+        },
+        {
+          "avant": 1,
+          "droite": 0,
+          "haut": 2
+        }
+      ],
       "vitesse": 1,
-      "pierres": 3,
-      "hauteur": 0.375
+      "pierres": 4,
+      "arrivee": [
+        {
+          "effet": "particule",
+          "id": "silooo:miettes_coffre"
+        },
+        {
+          "effet": "son",
+          "id": "silooo.vente.coffre"
+        }
+      ]
     },
     "structureRuine": "silooo:carriere_ruine",
     "solStructure": 16,
@@ -490,7 +532,21 @@
           "droite": -11,
           "haut": 6.5
         },
-        "lacet": 90
+        "lacet": 90,
+        "proprietes": {
+          "marche": {
+            "silooo:ruine": false,
+            "silooo:actif": true
+          },
+          "arret": {
+            "silooo:ruine": false,
+            "silooo:actif": false
+          },
+          "ruine": {
+            "silooo:ruine": true,
+            "silooo:actif": false
+          }
+        }
       },
       {
         "entite": "silooo:pilons",
@@ -499,7 +555,38 @@
           "droite": -6,
           "haut": 1
         },
-        "lacet": 90
+        "lacet": 90,
+        "proprietes": {
+          "marche": {
+            "silooo:ruine": false,
+            "silooo:actif": true
+          },
+          "arret": {
+            "silooo:ruine": false,
+            "silooo:actif": false
+          },
+          "ruine": {
+            "silooo:ruine": true,
+            "silooo:actif": false
+          }
+        }
+      },
+      {
+        "entite": "silooo:salarie",
+        "position": {
+          "avant": -5,
+          "droite": -3,
+          "haut": 0
+        },
+        "lacet": 0,
+        "proprietes": {
+          "marche": {
+            "silooo:geste": "pelleter"
+          },
+          "arret": {
+            "silooo:geste": "inactif"
+          }
+        }
       }
     ],
     "ambiance": [

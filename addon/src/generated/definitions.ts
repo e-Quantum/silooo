@@ -502,6 +502,8 @@ export type IlesDefinitions = {
       readonly role: "broyeur" | "convoyeur" | "stock" | "bureau";
       readonly position: IlesVue;
       readonly bloc: IlesBlocAtelier;
+      /** Le bloc est aussi dans la structure en ruine, à la même place : il prouve qu'elle est posée. */
+      readonly enRuine?: boolean;
     }[];
     readonly salarie: {
       readonly position: IlesVue;
@@ -514,22 +516,36 @@ export type IlesDefinitions = {
     /** La structure du pack posée quand la Carrière est active (tools/carriere/structure.py). */
     readonly structure: string;
     readonly hauteurNettoyage: number;
+    /** Les pierres qui partent du bocard et vont au coffre de vente quand la Carrière tourne. */
     readonly transport: {
-      readonly longueur: number;
+      /** Les coins du trajet d'une pierre, du dessous des pilons au coffre, en points de la cinématique (le bas de la pierre). Elle va en ligne droite d'un coin au suivant. */
+      readonly trajet: readonly IlesVue[];
+      /** En blocs par seconde, le long du trajet. */
       readonly vitesse: number;
       readonly pierres: number;
-      /** Hauteur du dessous des pierres au-dessus du bas du bloc du convoyeur, en blocs : le dessus de la toile. */
-      readonly hauteur: number;
+      /** Joués au dernier coin chaque fois qu'une pierre arrive au coffre. */
+      readonly arrivee: readonly {
+        readonly effet: "son" | "particule";
+        readonly id: string;
+      }[];
     };
     /** La structure posée quand la Carrière n'est pas active : en ruine ou en travaux. */
     readonly structureRuine: string;
     /** Hauteur de la face du dessus de la plateforme dans la structure, en blocs depuis son bas : la structure est posée à hauteur - solStructure. */
     readonly solStructure: number;
-    /** Les machines animées par le pack (ailes, pilons), posées comme le salarié quand la Carrière est active. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest. */
+    /** Les entités animées par le pack (ailes du moulin, pilons, salariés de décor). Une pièce n'apparaît que dans les états où « proprietes » la cite : marche (la Carrière tourne), arret (active mais arrêtée), ruine (pas encore remise en état) ; ses propriétés d'entité y prennent ces valeurs. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest. */
     readonly machinerie: readonly {
       readonly entite: string;
       readonly position: IlesVue;
       readonly lacet: number;
+      readonly proprietes: {
+        /** Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état. */
+        readonly marche?: { readonly [cle: string]: boolean | string };
+        /** Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état. */
+        readonly arret?: { readonly [cle: string]: boolean | string };
+        /** Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état. */
+        readonly ruine?: { readonly [cle: string]: boolean | string };
+      };
     }[];
     /** Sons et particules joués en boucle quand la Carrière tourne (docs/carriere.md) : toutes les « periode » secondes, au point donné. */
     readonly ambiance: readonly {

@@ -391,6 +391,10 @@
               },
               "bloc": {
                 "$ref": "#/$defs/blocAtelier"
+              },
+              "enRuine": {
+                "description": "Le bloc est aussi dans la structure en ruine, à la même place : il prouve qu'elle est posée.",
+                "type": "boolean"
               }
             }
           }
@@ -438,21 +442,27 @@
           "maximum": 30
         },
         "transport": {
+          "description": "Les pierres qui partent du bocard et vont au coffre de vente quand la Carrière tourne.",
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "longueur",
+            "trajet",
             "vitesse",
             "pierres",
-            "hauteur"
+            "arrivee"
           ],
           "properties": {
-            "longueur": {
-              "type": "number",
-              "minimum": 1,
-              "maximum": 30
+            "trajet": {
+              "description": "Les coins du trajet d'une pierre, du dessous des pilons au coffre, en points de la cinématique (le bas de la pierre). Elle va en ligne droite d'un coin au suivant.",
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/vue"
+              }
             },
             "vitesse": {
+              "description": "En blocs par seconde, le long du trajet.",
               "type": "number",
               "minimum": 0.2,
               "maximum": 4
@@ -460,13 +470,33 @@
             "pierres": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 6
+              "maximum": 8
             },
-            "hauteur": {
-              "description": "Hauteur du dessous des pierres au-dessus du bas du bloc du convoyeur, en blocs : le dessus de la toile.",
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
+            "arrivee": {
+              "description": "Joués au dernier coin chaque fois qu'une pierre arrive au coffre.",
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "effet",
+                  "id"
+                ],
+                "properties": {
+                  "effet": {
+                    "type": "string",
+                    "enum": [
+                      "son",
+                      "particule"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^silooo[.:][a-z0-9_.]+$"
+                  }
+                }
+              }
             }
           }
         },
@@ -482,7 +512,7 @@
           "maximum": 40
         },
         "machinerie": {
-          "description": "Les machines animées par le pack (ailes, pilons), posées comme le salarié quand la Carrière est active. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest.",
+          "description": "Les entités animées par le pack (ailes du moulin, pilons, salariés de décor). Une pièce n'apparaît que dans les états où « proprietes » la cite : marche (la Carrière tourne), arret (active mais arrêtée), ruine (pas encore remise en état) ; ses propriétés d'entité y prennent ces valeurs. lacet : orientation en degrés, 0 vers le sud, 90 vers l'ouest.",
           "type": "array",
           "items": {
             "type": "object",
@@ -490,7 +520,8 @@
             "required": [
               "entite",
               "position",
-              "lacet"
+              "lacet",
+              "proprietes"
             ],
             "properties": {
               "entite": {
@@ -504,6 +535,58 @@
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180
+              },
+              "proprietes": {
+                "type": "object",
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "marche": {
+                    "description": "Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état.",
+                    "type": "object",
+                    "maxProperties": 4,
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "arret": {
+                    "description": "Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état.",
+                    "type": "object",
+                    "maxProperties": 4,
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "ruine": {
+                    "description": "Propriétés de l'entité (« silooo:… ») et leur valeur dans cet état.",
+                    "type": "object",
+                    "maxProperties": 4,
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  }
+                }
               }
             }
           }

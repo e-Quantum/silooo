@@ -99,9 +99,7 @@ La Carrière de l'époque 1 remplace celle de la 0.1.4 (`carriere_depart`) dans 
 - **Arrivée et cinématique** : `usines[carriere].rayon` 15, `apparition` 9, Oooscar à 7 en avant et 2 à droite ; les
   quatre plans ci-dessous.
 - **Mode de secours** (monde sans structures, tests) : `atelier.volumes` décrit la Carrière en grandes masses.
-- **Pas encore fait** : les salariés `silooo:salarie` (modèle et skins de l'atelier) ne remplacent pas encore
-  l'ouvrier de la 0.1.4 ; aucun son n'est joué par l'add-on ([carriere/sons-inventaire.md](carriere/sons-inventaire.md)) ;
-  la vente par particules (`silooo:miettes_coffre`, `silooo:jeton_donar`) et la fumée du poêle ne sont pas branchées.
+- **Pas encore fait en 0.1.5** : rattrapé en 0.1.6 et 0.1.8, voir plus bas.
 
 ## Audit après la première visite en jeu (0.1.6)
 
@@ -128,11 +126,31 @@ Corrigé :
   d'événement « avant pose »). Elle vaut pour les archipels que le relevé a vus depuis le démarrage, donc pour tout
   joueur présent.
 
+## Plus proche de la maquette (0.1.8)
+
+- **Le second salarié.** Un salarié de décor (`silooo:salarie`, skin commun, geste `pelleter`, la pelle en main)
+  pellette au pied du bocard, face aux pilons, comme dans la maquette. Il n'a ni nom ni menu : le salarié du personnel
+  reste l'ouvrier du front de taille. À l'arrêt, il se repose ; il n'est pas sur la ruine.
+- **Les pierres vont jusqu'au coffre.** `atelier.transport.trajet` donne les coins du trajet : sous les pilons, la
+  rampe, le tronçon nord-sud, le tronçon vers l'étal, puis le dessus du coffre de vente. Quatre pierres à 1 bloc par
+  seconde : une arrive au coffre toutes les 3 secondes environ, avec les miettes (`silooo:miettes_coffre`) et le bruit
+  du coffre (`silooo.vente.coffre`) de `transport.arrivee`.
+- **La ruine a ses machines.** Dès la cinématique, le moulin en ruine garde une aile immobile, l'autre est au sol, et
+  un pilon est tombé : le pack savait le dessiner (`silooo:ruine`), l'add-on ne le posait pas. La ruine attend ses deux
+  rouets (`enRuine`) avant de poser ces pièces, pour ne pas les faire flotter avant la structure.
+- **L'arrêt se voit.** Une Carrière active mais arrêtée (plus d'énergie, débit nul) immobilise ses ailes et ses pilons
+  (`silooo:actif`), au lieu de les laisser tourner et frapper.
+- Chaque pièce de `atelier.machinerie` dit, dans `proprietes`, les états où elle existe (`marche`, `arret`, `ruine`) et
+  les propriétés d'entité qu'elle y prend : aucun de ces choix n'est dans le code.
+
 Ouvert, à trancher ou à voir en jeu :
 
-- **Orientation des ailes et des pilons** : lacet 90 supposé d'après le modèle ; à confirmer en jeu.
-- **Un seul salarié** au lieu des deux de la maquette ; la vente par particules et les sons de vente ne sont pas
-  branchés ; en ruine, le moulin n'a pas d'ailes.
+- **Orientation** des ailes, des pilons (lacet 90) et du salarié pelleteur (lacet 0, face aux pilons) : déduite du
+  modèle et de la rotation de la structure ; à confirmer en jeu.
+- **Wagonnets et charrette** de la maquette : il leur faut un modèle d'entité, que le pack n'a pas encore. Les rails
+  restent vides.
+- **Les jetons** (`silooo:jeton_donar`, `silooo.vente.jeton`) à l'encaissement : c'est l'écran du Silo, hors de
+  l'île ; pas branché.
 - **Pose** : `StructureManager.place` fige le script 349 ms à la première pose (avertissement Watchdog).
 
 ## Les valeurs de `definitions/iles.json`
@@ -159,5 +177,6 @@ Les textes de la cinématique et le récit au-dessus de l'inventaire sont ceux d
 - Les trois skins de salarié et le nom « Salarié ».
 - Les gestes, les cinq réactions d'Oooscar (`dodo` en plus des quatre demandées), les machines, les particules.
 - Les 27 sons, et la musique vanilla sur les îles (non traitée).
+- Le second salarié qui pellette, les machines cassées sur la ruine, le bruit du coffre à chaque pierre (0.1.8).
 - Rails et wagonnets, choisis au cadrage, alors que l'époque 1 prévoit des charrettes : les deux sont là.
 - Les valeurs de `iles.json` ci-dessus.

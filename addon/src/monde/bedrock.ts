@@ -5,8 +5,11 @@
 
 import {
   BlockPermutation,
+  BlockTypes,
   BlockVolume,
+  Direction,
   EasingType,
+  GameMode,
   HudElement,
   HudVisibility,
   InputPermissionCategory,
@@ -18,7 +21,9 @@ import {
 } from "@minecraft/server";
 import { config } from "../config";
 import { ILES } from "./definitions";
-import { currentWorkshopMarks, type WorkshopWorld } from "./atelier";
+import { currentWorkshopMarks, transportReach, type WorkshopWorld } from "./atelier";
+import { carriereProtection } from "./protection";
+import type { Xz } from "./geometrie";
 import { ATELIER_TEXTES } from "../ui/textes";
 import type { CursorStore } from "../events";
 import { secondsToTicks } from "../runtime";
@@ -40,6 +45,30 @@ export function validateWorldAssets(): void {
   for (const machine of ILES.atelier.machines) BlockPermutation.resolve(machine.bloc);
   const structures = world.structureManager.getPackStructureIds();
   for (const id of [ILES.atelier.structure, ILES.atelier.structureRuine]) if (!structures.includes(id)) throw new Error(`structure ${id} absente du pack`);
+}
+
+/**
+ * La Carrière est protégée (protection.ts) : seul le front de taille se casse, rien ne se pose sur l'île. Le mode créatif
+ * passe, pour les constructeurs. Un clic sur une machine de l'atelier ouvre toujours son menu. L'API stable n'a pas
+ * d'événement « avant pose » : la pose est refusée au clic, quand le joueur tient un bloc et vise une case de l'île.
+ */
+export function protectCarriere(origins: () => readonly Xz[]): void {
+  const enCreatif = (player: Player) => player.getGameMode() === GameMode.Creative;
+  world.beforeEvents.playerBreakBlock.subscribe((event) => {
+    if (!enCreatif(event.player) && carriereProtection(ILES, event.block.location, origins()) === "protege") event.cancel = true;
+  });
+  const decalage: Record<string, Vector3> = {
+    [Direction.Up]: { x: 0, y: 1, z: 0 }, [Direction.Down]: { x: 0, y: -1, z: 0 }, [Direction.North]: { x: 0, y: 0, z: -1 },
+    [Direction.South]: { x: 0, y: 0, z: 1 }, [Direction.East]: { x: 1, y: 0, z: 0 }, [Direction.West]: { x: -1, y: 0, z: 0 },
+  };
+  world.beforeEvents.playerInteractWithBlock.subscribe((event) => {
+    const item = event.itemStack;
+    if (item === undefined || BlockTypes.get(item.typeId) === undefined || enCreatif(event.player)) return;
+    if (ILES.atelier.machines.some((machine) => machine.bloc === event.block.typeId)) return;
+    const d = decalage[event.blockFace] ?? { x: 0, y: 0, z: 0 };
+    const cible = { x: event.block.location.x + d.x, y: event.block.location.y + d.y, z: event.block.location.z + d.z };
+    if (carriereProtection(ILES, cible, origins()) !== "hors") event.cancel = true;
+  });
 }
 
 export function createWorkshopWorld(): WorkshopWorld {
@@ -67,7 +96,7 @@ export function createWorkshopWorld(): WorkshopWorld {
       entity.setProperty("silooo:travaille", working);
       return entity.id;
     },
-    fixture(previous, companyId, type, at, yaw) {
+    fixture(previous, companyId, type, at, yaw, properties) {
       let entity = previous === undefined ? undefined : world.getEntity(previous);
       if (entity?.isValid !== true) {
         for (const stale of overworld().getEntities({ type, location: at, maxDistance: 2 })) stale.remove();
@@ -75,6 +104,7 @@ export function createWorkshopWorld(): WorkshopWorld {
         entity.setDynamicProperty("silooo:company-id", companyId);
       }
       entity.teleport(at, { rotation: { x: 0, y: yaw } });
+      for (const [name, value] of Object.entries(properties)) if (entity.getProperty(name) !== value) entity.setProperty(name, value);
       return entity.id;
     },
     effect(kind, id, at) {
@@ -84,7 +114,7 @@ export function createWorkshopWorld(): WorkshopWorld {
     loaded: (at) => overworld().isChunkLoaded(at),
     cargo(previous, companyId, at, working, reset) {
       if (reset === true) {
-        for (const stale of overworld().getEntities({ type: "silooo:production", location: at, maxDistance: ILES.atelier.transport.longueur + 1 })) {
+        for (const stale of overworld().getEntities({ type: "silooo:production", location: at, maxDistance: transportReach(ILES) })) {
           if (stale.getDynamicProperty("silooo:company-id") === companyId) stale.remove();
         }
       }

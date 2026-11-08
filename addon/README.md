@@ -1101,12 +1101,17 @@ tests qui n'ont pas cette capacité rejouent un plan de secours en grandes masse
 
 Les machines de `atelier.machines` sont les blocs de la nouvelle Carrière : deux rouets (rôle broyeur), cinq tapis
 (rôle convoyeur), le coffre de vente (stock) et le bureau d'administration. Chacun porte le composant
-`silooo:atelier` : un clic ouvre le bureau ou la production. `atelier.machinerie` fait apparaître, avec le
-salarié, les ailes du moulin (`silooo:ailes_moulin`) et les pilons du bocard (`silooo:pilons`), tournés de `lacet`
-degrés ; ils sont retirés avec lui.
+`silooo:atelier` : un clic ouvre le bureau ou la production. `atelier.machinerie` fait apparaître les ailes du
+moulin (`silooo:ailes_moulin`), les pilons du bocard (`silooo:pilons`) et un second salarié, de décor, qui pellette
+au pied du bocard (`silooo:salarie`), tournés de `lacet` degrés. Chaque pièce n'existe que dans les états que cite
+son `proprietes` : `marche`, `arret` (active mais arrêtée : ailes et pilons immobiles, le salarié au repos) et `ruine`
+(une seule aile, un pilon tombé, pas de salarié). La ruine attend les deux rouets, seuls blocs d'`atelier.machines`
+marqués `enRuine`, avant de poser ses pièces.
 
-Trois pierres de décor avancent sur les cinq tapis du tronçon nord-sud. Leur mouvement suit l'état de production
-renvoyé par le service. Elles ne sont ni ramassables ni comptées comme un stock et ne donnent aucun gain.
+Quatre pierres de décor suivent `atelier.transport.trajet` : du dessous des pilons, par la rampe et les deux tronçons
+du tapis, jusque sur le coffre de vente, où chaque arrivée joue `transport.arrivee` (miettes et bruit du coffre). Leur
+mouvement suit l'état de production renvoyé par le service. Elles ne sont ni ramassables ni comptées comme un stock
+et ne donnent aucun gain.
 Les pierres s'arrêtent avec l'usine ; leurs acteurs sont retirés quand l'entreprise n'a plus de joueur présent.
 Les déplacements attendent le chargement des chunks. Les révisions du décor et de l'introduction passent à 2,
 pour reconstruire une fois la Carrière et montrer une fois son nouveau récit, sans remise à zéro.
@@ -1334,6 +1339,9 @@ Au design system :
 
 - Le canal de titre : papillotement entre deux envois, durée d'affichage, effet du masquage par le pack.
 - Les espaces insécables : U+00A0 peut s'afficher comme un carré selon la police.
+- La Carrière (docs/carriere.md) : le sens des ailes et des pilons (`lacet`), le salarié qui pellette face aux pilons, les
+  pierres qui suivent les coins du tapis jusque sur le coffre, les miettes et le bruit à chaque arrivée, les machines
+  cassées sur la ruine dès la cinématique, et la protection (casse refusée hors du front de taille, pose refusée au clic).
 - Les codes de couleur de matériaux `§p`, `§u` et `§n`, propres à Bedrock et récents.
 - Le refus `UserBusy` d'un formulaire et les nouveaux essais.
 - L'événement `itemUse` sur la boussole, et son `lockMode` (`inventory`, pas de lâcher, pas de déplacement).

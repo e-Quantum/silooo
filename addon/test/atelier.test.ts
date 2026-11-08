@@ -88,7 +88,8 @@ describe("atelier de la Carrière", () => {
     assert.equal(fixtureCount, ILES.atelier.machinerie.length);
     assert.deepEqual(pieces.slice(0, ILES.atelier.machinerie.length), ILES.atelier.machinerie.map((m) => ({ type: m.entite, yaw: m.lacet })));
     workshop.reap(new Set());
-    assert.deepEqual(removed, ["worker-1", "cargo-1", "cargo-2", "cargo-3", ...ILES.atelier.machinerie.map((_, i) => `machine-${i + 1}`)]);
+    const stones = Array.from({ length: ILES.atelier.transport.pierres }, (_, i) => `cargo-${i + 1}`);
+    assert.deepEqual(removed, ["worker-1", ...stones, ...ILES.atelier.machinerie.map((_, i) => `machine-${i + 1}`)]);
   });
 
   it("reconstruit une ancienne Carrière une seule fois, en gardant les autres îles et la ville", () => {
@@ -116,7 +117,7 @@ describe("atelier de la Carrière", () => {
     const first = seen[0]!;
     now = 1000; workshop.tick();
     const moved = seen.findLast((entry) => entry.id === first.id)!;
-    assert.ok(Math.abs(Math.hypot(moved.at.x - first.at.x, moved.at.z - first.at.z) - ILES.atelier.transport.vitesse) < 0.001);
+    assert.ok(Math.abs(Math.hypot(moved.at.x - first.at.x, moved.at.y - first.at.y, moved.at.z - first.at.z) - ILES.atelier.transport.vitesse) < 0.001);
     workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", ratePerHour: 0, stoppedNoPower: true })] }, { x: 0, z: 0 });
     now = 2000; workshop.tick();
     const stopped = seen.findLast((entry) => entry.id === first.id)!;
@@ -139,7 +140,8 @@ describe("atelier de la Carrière", () => {
     const world: WorkshopWorld = {
       machine: () => true, loaded: () => true, worker: (old) => old ?? "worker", fixture: (old, _c, type) => old ?? type,
       cargo: (old) => old ?? "pierre", remove: () => {},
-      effect: (kind, id) => { joues.push(`${kind}:${id}`); },
+      // Seule l'ambiance compte ici : les arrivées au coffre ont leur propre test.
+      effect: (kind, id) => { if (ILES.atelier.ambiance.some((effet) => effet.id === id)) joues.push(`${kind}:${id}`); },
     };
     const workshop = createWorkshop(ILES, world, { now: () => now });
     const state = companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] });
@@ -153,5 +155,84 @@ describe("atelier de la Carrière", () => {
     workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", ratePerHour: 0, stoppedNoPower: true })] }, { x: 0, z: 0 });
     now = 600_000; workshop.tick();
     assert.equal(joues.length, 2 * ILES.atelier.ambiance.length, "à l'arrêt, plus de bruit ni de fumée");
+  });
+
+  it("en ruine, pose les machines cassées sans salarié ni pierres, puis les remet en marche au même endroit", () => {
+    const pieces: Array<{ id: string; type: string; properties: Readonly<Record<string, boolean | string>> }> = [];
+    const checked: string[] = [];
+    const removed: string[] = [];
+    let created = 0, workers = 0, stones = 0;
+    const world: WorkshopWorld = {
+      machine(_at, type) { checked.push(type); return true; },
+      loaded: () => true,
+      worker: (old) => { workers += 1; return old ?? "worker"; },
+      cargo: (old) => { stones += 1; return old ?? `pierre-${stones}`; },
+      fixture(previous, _company, type, _at, _yaw, properties) { const id = previous ?? `piece-${++created}`; pieces.push({ id, type, properties }); return id; },
+      effect: () => {},
+      remove: (id) => { removed.push(id); },
+    };
+    const workshop = createWorkshop(ILES, world, { now: () => 0 });
+    workshop.sync(companyState({ factories: [factory({ factoryId: "carriere", state: "EN_RUINE", ratePerHour: 0 })] }), { x: 0, z: 0 });
+    const enRuine = ILES.atelier.machinerie.filter((piece) => piece.proprietes.ruine !== undefined);
+    assert.ok(enRuine.length >= 2, "les ailes et les pilons sont aussi dans la ruine");
+    assert.deepEqual(pieces.map((p) => [p.type, p.properties]), enRuine.map((piece) => [piece.entite, piece.proprietes.ruine]));
+    assert.deepEqual(checked, ILES.atelier.machines.filter((m) => m.enRuine === true).map((m) => m.bloc), "seuls les blocs restés dans la ruine sont attendus");
+    assert.equal(workers + stones, 0, "ni salarié ni pierres sur la ruine");
+    pieces.length = 0;
+    workshop.sync(companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] }), { x: 0, z: 0 });
+    assert.deepEqual(pieces.map((p) => [p.type, p.properties]), ILES.atelier.machinerie.map((piece) => [piece.entite, piece.proprietes.marche]));
+    assert.deepEqual(pieces.slice(0, enRuine.length).map((p) => p.id), ["piece-1", "piece-2"], "les ailes et les pilons sont réutilisés");
+    assert.ok(pieces.some((p) => p.type === "silooo:salarie" && p.properties["silooo:geste"] === "pelleter"), "le second salarié pellette au bocard");
+    assert.deepEqual(removed, []);
+  });
+
+  it("mène les pierres des pilons au coffre de vente, et chaque arrivée fait son bruit dans le coffre", () => {
+    let now = 0;
+    const effects: Array<{ id: string; at: { x: number; y: number; z: number } }> = [];
+    const positions = new Map<string, Array<{ x: number; y: number; z: number }>>();
+    const world: WorkshopWorld = {
+      machine: () => true, loaded: () => true, worker: (old) => old ?? "worker", fixture: (old, _c, type) => old ?? type, remove: () => {},
+      cargo(previous, _company, at) { const id = previous ?? `pierre-${positions.size + 1}`; positions.set(id, [...(positions.get(id) ?? []), at]); return id; },
+      effect: (_kind, id, at) => { effects.push({ id, at }); },
+    };
+    const definition = usineIle(ILES, "carriere")!;
+    const frame = arrivalOf({ x: 0, z: 0 }, ILES)!.frame;
+    const route = ILES.atelier.transport.trajet.map((point) => viewPoint(frame, point, ILES));
+    const coffre = ILES.atelier.machines.find((m) => m.role === "stock")!;
+    const pilons = ILES.atelier.machinerie.find((m) => m.entite === "silooo:pilons")!;
+    const coffreBloc = planIsland(ILES, definition, { x: 0, z: 0 }, "ACTIVE").state.find((op) => op.kind === "set" && op.block === coffre.bloc);
+    assert.ok(coffreBloc?.kind === "set");
+    assert.deepEqual([route.at(-1)!.x, route.at(-1)!.z], [coffreBloc.at.x + 0.5, coffreBloc.at.z + 0.5], "le trajet finit au-dessus du coffre");
+    assert.equal(route.at(-1)!.y, coffreBloc.at.y + 1, "posée sur le coffre");
+    assert.deepEqual(route[0], viewPoint(frame, pilons.position, ILES), "il part sous les pilons");
+    const workshop = createWorkshop(ILES, world, { now: () => now });
+    const state = companyState({ factories: [factory({ factoryId: "carriere", ratePerHour: 2400 })] });
+    workshop.sync(state, { x: 0, z: 0 });
+    const ambiance = effects.length;
+    let total = 0;
+    for (let i = 1; i < route.length; i += 1) total += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y, route[i]!.z - route[i - 1]!.z);
+    const arrivee = ILES.atelier.transport.arrivee.map((effet) => effet.id);
+    const arrivals = () => effects.slice(ambiance).filter((effet) => arrivee.includes(effet.id));
+    // Une pierre arrive tous les total / pierres blocs : on avance d'un dixième de bloc à la fois.
+    const step = 100 / ILES.atelier.transport.vitesse;
+    const tours = Math.floor(total / (step / 1000) / ILES.atelier.transport.vitesse);
+    for (let i = 0; i < tours; i += 1) { now += step; workshop.tick(); }
+    assert.equal(arrivals().length, arrivee.length * (ILES.atelier.transport.pierres - 1), "une arrivée par pierre au premier tour, sauf celle qui part du coffre");
+    for (const effet of arrivals()) assert.deepEqual(effet.at, route.at(-1));
+    // Chaque position d'une pierre est sur le trajet : jamais à travers la toile ni le toit de l'étal.
+    for (const points of positions.values()) for (const at of points) {
+      const close = route.slice(1).some((b, i) => {
+        const a = route[i]!;
+        const ab = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+        const len2 = ab.x ** 2 + ab.y ** 2 + ab.z ** 2;
+        const k = Math.max(0, Math.min(1, ((at.x - a.x) * ab.x + (at.y - a.y) * ab.y + (at.z - a.z) * ab.z) / len2));
+        return Math.hypot(a.x + ab.x * k - at.x, a.y + ab.y * k - at.y, a.z + ab.z * k - at.z) < 1e-6;
+      });
+      assert.ok(close, `pierre hors du trajet en ${at.x},${at.y},${at.z}`);
+    }
+    workshop.sync({ ...state, factories: [factory({ factoryId: "carriere", ratePerHour: 0, stoppedNoPower: true })] }, { x: 0, z: 0 });
+    const before = arrivals().length;
+    for (let i = 0; i < tours; i += 1) { now += step; workshop.tick(); }
+    assert.equal(arrivals().length, before, "à l'arrêt, rien n'arrive au coffre");
   });
 });
