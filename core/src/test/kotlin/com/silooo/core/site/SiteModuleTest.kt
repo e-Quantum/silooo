@@ -5,6 +5,7 @@ import com.silooo.core.TestDefinitions
 import com.silooo.core.db.FakeDatabase
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
@@ -217,12 +218,28 @@ class SiteModuleTest {
     }
 
     @Test
-    @DisplayName("Le CSS et les logos sont servis avec le bon type et un cache d'un jour")
+    @DisplayName("Un fichier de /public/ porte l'ETag de son contenu : 304 sans corps quand il n'a pas changé, 200 sinon")
+    fun publicFilesRevalidate() = withSite(SiteMode.ATTENTE) { client ->
+        for (path in listOf("/public/site.css", "/public/ile/carriere.js", "/public/ile/three.module.min.js")) {
+            val first = client.get(path)
+            assertEquals(HttpStatusCode.OK, first.status, path)
+            val etag = first.headers[HttpHeaders.ETag]
+            assertTrue(etag != null && etag.length > 40, "$path : un ETag tiré du contenu, et non vide ($etag)")
+            val again = client.get(path) { header(HttpHeaders.IfNoneMatch, etag) }
+            assertEquals(HttpStatusCode.NotModified, again.status, "$path : inchangé, 304")
+            assertTrue(again.bodyAsText().isEmpty(), "$path : un 304 n'a pas de corps")
+            val stale = client.get(path) { header(HttpHeaders.IfNoneMatch, "\"ancienne-version\"") }
+            assertEquals(HttpStatusCode.OK, stale.status, "$path : une autre version, le fichier entier")
+        }
+    }
+
+    @Test
+    @DisplayName("Le CSS et les logos sont servis avec le bon type, gardés mais revalidés à chaque visite (no-cache)")
     fun staticFiles() = withSite(SiteMode.ATTENTE) { client ->
         val css = client.get("/public/site.css")
         assertEquals(HttpStatusCode.OK, css.status)
         assertEquals(ContentType.Text.CSS, css.contentType()?.withoutParameters())
-        assertEquals("public, max-age=86400", css.headers[HttpHeaders.CacheControl])
+        assertEquals("no-cache", css.headers[HttpHeaders.CacheControl])
         for (name in listOf("silooo-logo-128.png", "silooo-logo-64.png")) {
             val logo = client.get("/public/logo/$name")
             assertEquals(HttpStatusCode.OK, logo.status, name)
@@ -244,7 +261,7 @@ class SiteModuleTest {
                 path,
             )
             val cache = response.headers[HttpHeaders.CacheControl]
-            assertEquals(if (path.startsWith("/public/")) "public, max-age=86400" else "no-store", cache, path)
+            assertEquals(if (path.startsWith("/public/")) "no-cache" else "no-store", cache, path)
         }
     }
 }

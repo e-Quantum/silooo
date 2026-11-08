@@ -18,6 +18,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.html.respondHtml
+import io.ktor.server.http.content.ETagProvider
 import io.ktor.server.http.content.staticResources
 import io.ktor.server.response.respondRedirect
 import io.ktor.server.response.respondText
@@ -54,7 +55,8 @@ internal fun Route.siteRoutes(
         get(article.url) { call.respondHtml(HttpStatusCode.OK) { actusArticle(shell, article) } }
         get(article.url.trimEnd('/')) { call.respondRedirect(article.url, permanent = true) }
     }
-    staticResources(PUBLIC_PREFIX.trimEnd('/'), "site/public")
+    // L'ETag est l'empreinte SHA-256 du contenu : elle change avec le fichier, quelle que soit la date des entrées du jar.
+    staticResources(PUBLIC_PREFIX.trimEnd('/'), "site/public") { etag(ETagProvider.StrongSha256) }
     // Référencement : robots.txt et sitemap.xml listent les pages du mode, rien d'autre (une fiche d'entreprise vit avec
     // le jeu, elle n'est pas listée). Une heure de cache : ni le mode ni les contenus ne changent sans redémarrage.
     get("/robots.txt") {

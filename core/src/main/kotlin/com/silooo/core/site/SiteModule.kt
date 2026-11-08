@@ -13,6 +13,7 @@ import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.application.install
 import io.ktor.server.application.log
 import io.ktor.server.html.respondHtml
+import io.ktor.server.plugins.conditionalheaders.ConditionalHeaders
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.uri
@@ -31,7 +32,11 @@ internal const val CONTENT_SECURITY_POLICY =
 
 /**
  * Les en-têtes de toutes les réponses du site. Les pages ne se gardent pas (le mode peut changer au
- * redémarrage, une page d'attente ne doit pas survivre à l'ouverture) ; les fichiers de `/public/` se gardent un jour.
+ * redémarrage, une page d'attente ne doit pas survivre à l'ouverture). Les fichiers de `/public/` se gardent mais se
+ * revalident à chaque visite (`no-cache`) : leur ETag est l'empreinte de leur contenu ([siteRoutes]), le navigateur
+ * reçoit 304 sans corps tant qu'un fichier n'a pas changé, et le nouveau dès le déploiement suivant. Avec `max-age`, un
+ * visiteur gardait un jour l'ancienne feuille de style ou l'ancien script (l'île 3D, 8 novembre 2026), et une adresse
+ * versionnée ne suit pas les imports relatifs des modules ni les `@import` des feuilles.
  */
 private val SiteHeaders = createApplicationPlugin("SiteHeaders") {
     onCallRespond { call, _ ->
@@ -40,7 +45,7 @@ private val SiteHeaders = createApplicationPlugin("SiteHeaders") {
         headers.append("Referrer-Policy", "same-origin")
         headers.append("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         if (headers[HttpHeaders.CacheControl] == null) {
-            val cache = if (call.request.uri.startsWith(PUBLIC_PREFIX)) "public, max-age=86400" else "no-store"
+            val cache = if (call.request.uri.startsWith(PUBLIC_PREFIX)) "no-cache" else "no-store"
             headers.append(HttpHeaders.CacheControl, cache)
         }
     }
@@ -60,6 +65,8 @@ fun Application.siteModule(
     wiki: List<ContentPage> = WikiContent.fromClasspath(),
 ) {
     install(SiteHeaders)
+    // Répond 304 à un If-None-Match qui porte l'ETag courant d'un fichier de /public/.
+    install(ConditionalHeaders)
 
     // Valide les contenus du mode au démarrage (une adresse prise deux fois, un contenu sans page). La navigation
     // ne liste que les pages que ce mode rend : les pages d'erreur la portent aussi, d'où son calcul avant elles.

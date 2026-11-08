@@ -197,6 +197,10 @@ garde une copie non suivie de `docs/references/site/`, identique octet pour octe
    staff. Le Pionnier (objet en jeu) reste lu dans `site_registrations.pioneer`. (d) **Pour le Discord** : voir le point 5
    de « Pour la direction du Discord ».
 
+12. **Ce que `claude/site-cache` touche** (8 novembre 2026, décision 23). Deux fichiers partagés, une ligne chacun :
+   `core/gradle/libs.versions.toml` (`ktor-server-conditional-headers`, même version que Ktor) et `core/build.gradle.kts`
+   (`implementation`). Le plugin n'est installé que dans `siteModule` : l'API du jeu ne change pas.
+
 ## Pour la direction du Discord
 
 Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « Pour la direction du site »). Réponses
@@ -433,6 +437,13 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
    l'application Azure de Kr, donc il n'y en a pas en production ; une connexion Xbox admet de toute façon à chaque passage.
    Le chemin `registration/DiscordLinks.redeem` (code tapé en jeu, route `POST /v1/links/discord` pas encore au contrat)
    garde son paramètre `admit` : la route, quand elle viendra, appelle `SiteAdmission` avec `regle:discord-jeu`.
+
+23. **Les fichiers de `/public/` se revalident à chaque visite** (8 novembre 2026, `claude/site-cache`, accepté par Kr après
+   le défaut de cache de l'île 3D). `Cache-Control: no-cache` au lieu de `max-age=86400`, un ETag tiré du contenu
+   (`ETagProvider.StrongSha256`) et `ConditionalHeaders` dans `siteModule` : 304 sans corps tant qu'un fichier n'a pas
+   changé, le nouveau dès le déploiement. Écarté : un numéro de version dans les adresses, qui ne suit ni les imports
+   relatifs des modules (l'île) ni les `@import` des feuilles de style. Le prix : une requête de revalidation par fichier
+   et par visite, sans corps.
 
 ## À valider par Kr
 
@@ -758,3 +769,7 @@ plus. Ce qui les remplace, tout à valider :
   admis : inscrit par Discord seul après l'ouverture, aucune ligne `beta_access` ni V7. R18 est corrigée dans `site-revision.md`.
 - Demandé à la direction du jeu : la porte de `session/join` en mode `beta` (point 11 de sa section) ; à la direction du Discord :
   `#admissions` n'admet plus (point 5). Suite proposée : `claude/site-admin` (R20, R42, reste de R49), sans admission.
+
+- **8 novembre 2026 (direction du site, sur le VPS).** `claude/site-cache` : `/public/` en `no-cache` avec un ETag du
+  contenu et 304 (décision 23), après que l'île 3D s'est posée sous son image fixe chez Kr (ancienne feuille gardée un
+  jour ; corrigé d'abord dans `carriere.js`, 61ce234, déployé). Tests du site verts (216, dont le 304 sur trois fichiers).

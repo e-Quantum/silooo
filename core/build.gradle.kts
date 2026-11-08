@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.status.pages)
+    implementation(libs.ktor.server.conditional.headers)
     implementation(libs.ktor.server.html.builder)
     implementation(libs.commonmark)
     implementation(libs.ktor.client.core)

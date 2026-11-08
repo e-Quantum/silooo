@@ -154,7 +154,7 @@ class SiteStyleTest {
             val font = client.get(path)
             assertEquals(HttpStatusCode.OK, font.status, path)
             assertEquals("font/woff2", font.contentType()?.withoutParameters()?.toString(), path)
-            assertEquals("public, max-age=86400", font.headers[HttpHeaders.CacheControl], path)
+            assertEquals("no-cache", font.headers[HttpHeaders.CacheControl], path)
         }
     }
 }
