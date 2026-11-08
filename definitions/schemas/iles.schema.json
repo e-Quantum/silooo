@@ -330,7 +330,8 @@
         "structureRuine",
         "solStructure",
         "machinerie",
-        "ambiance"
+        "ambiance",
+        "libre"
       ],
       "properties": {
         "revision": {
@@ -538,6 +539,26 @@
                 "type": "number",
                 "minimum": 0.5,
                 "maximum": 60
+              }
+            }
+          }
+        },
+        "libre": {
+          "description": "Les volumes de la Carrière que le joueur peut casser (le front de taille). Tout le reste de l'île est protégé : ni casse ni pose, sauf en mode créatif.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "de",
+              "a"
+            ],
+            "properties": {
+              "de": {
+                "$ref": "#/$defs/vue"
+              },
+              "a": {
+                "$ref": "#/$defs/vue"
               }
             }
           }

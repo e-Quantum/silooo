@@ -533,6 +533,20 @@
         },
         "periode": 8
       }
+    ],
+    "libre": [
+      {
+        "de": {
+          "avant": -15,
+          "droite": -8,
+          "haut": 1
+        },
+        "a": {
+          "avant": -9,
+          "droite": 8,
+          "haut": 9
+        }
+      }
     ]
   }
 }
