@@ -8,7 +8,10 @@ Silooo garde le minimum. Cette page dit quoi, chez qui et pendant combien de tem
 
 ## Ce que le site garde
 
-Ce site n'utilise aucun outil de mesure. Il ne charge rien depuis un autre hôte.
+Le site compte ses visites avec Umami, un compteur que Kr héberge sur son propre serveur (stats.skindocs.org) :
+des pages vues, sans cookie, sans identifiant posé chez toi, et l'adresse IP n'est pas gardée. Ces chiffres disent
+quelles pages servent, pas qui tu es. C'est la seule chose que le site charge depuis un autre hôte, et sa politique
+de sécurité n'admet que celle-là.
 
 Le site pose un seul cookie, de session : signé, valable une heure, et seulement après une inscription de pionnier.
 Il sert à retrouver ton inscription, rien d'autre.

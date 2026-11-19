@@ -23,12 +23,16 @@ import io.ktor.server.routing.routing
 internal const val PUBLIC_PREFIX = "/public/"
 
 /**
- * Ce que le navigateur peut charger : les fichiers du site, et rien d'un autre hôte. Le site ne charge rien depuis
- * l'extérieur (c'est écrit dans les mentions), la politique l'impose. Les scripts sont ceux de `/public/` (les
- * animations du kit : Oooscar, l'île, les compteurs, la Vote party) ; un script écrit dans la page reste interdit.
+ * Ce que le navigateur peut charger : les fichiers du site et, quand le compteur de visites est posé, son script —
+ * la seule ressource d'un autre hôte, nommée ici et décrite dans la page Confidentialité. Les scripts du site sont
+ * ceux de `/public/` (les animations du kit : Oooscar, l'île, les compteurs, la Vote party) ; un script écrit dans
+ * la page reste interdit.
  */
-internal const val CONTENT_SECURITY_POLICY =
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; frame-ancestors 'none'"
+internal fun contentSecurityPolicy(measure: SiteMeasure?): String {
+    val script = if (measure == null) "'self'" else "'self' ${measure.origin}"
+    val connect = if (measure == null) "" else "; connect-src 'self' ${measure.origin}"
+    return "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src $script$connect; frame-ancestors 'none'"
+}
 
 /**
  * Les en-têtes de toutes les réponses du site. Les pages ne se gardent pas (le mode peut changer au
@@ -38,12 +42,18 @@ internal const val CONTENT_SECURITY_POLICY =
  * visiteur gardait un jour l'ancienne feuille de style ou l'ancien script (l'île 3D, 8 novembre 2026), et une adresse
  * versionnée ne suit pas les imports relatifs des modules ni les `@import` des feuilles.
  */
-private val SiteHeaders = createApplicationPlugin("SiteHeaders") {
+internal class SiteHeadersConfig {
+    /** La politique du site, calculée au démarrage : avec ou sans l'origine du compteur de visites. */
+    var contentSecurityPolicy: String = contentSecurityPolicy(null)
+}
+
+private val SiteHeaders = createApplicationPlugin("SiteHeaders", ::SiteHeadersConfig) {
+    val contentSecurityPolicy = pluginConfig.contentSecurityPolicy
     onCallRespond { call, _ ->
         val headers = call.response.headers
         headers.append("X-Content-Type-Options", "nosniff")
         headers.append("Referrer-Policy", "same-origin")
-        headers.append("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        headers.append("Content-Security-Policy", contentSecurityPolicy)
         if (headers[HttpHeaders.CacheControl] == null) {
             val cache = if (call.request.uri.startsWith(PUBLIC_PREFIX)) "no-cache" else "no-store"
             headers.append(HttpHeaders.CacheControl, cache)
@@ -64,7 +74,7 @@ fun Application.siteModule(
     articles: List<NewsArticle> = NewsArticles.fromClasspath(),
     wiki: List<ContentPage> = WikiContent.fromClasspath(),
 ) {
-    install(SiteHeaders)
+    install(SiteHeaders) { contentSecurityPolicy = contentSecurityPolicy(dependencies.siteSettings.measure) }
     // Répond 304 à un If-None-Match qui porte l'ETag courant d'un fichier de /public/.
     install(ConditionalHeaders)
 

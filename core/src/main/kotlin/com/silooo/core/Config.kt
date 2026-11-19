@@ -7,6 +7,7 @@ import com.silooo.core.discord.BotToken
 import com.silooo.core.discord.ServerPhase
 import com.silooo.core.registration.DiscordConfig
 import com.silooo.core.registration.XboxConfig
+import com.silooo.core.site.SiteMeasure
 import com.silooo.core.site.SiteMode
 import com.silooo.core.site.SiteSettings
 import com.silooo.core.site.VoteSite
@@ -92,6 +93,8 @@ object Config {
     const val SITE_VOTE_SITES = "SILOOO_SITE_SITES_DE_VOTE"
     const val SITE_URL_SILENEMC = "SILOOO_SITE_URL_SILENEMC"
     const val SITE_URL_HUBYY = "SILOOO_SITE_URL_HUBYY"
+    const val SITE_MEASURE_SCRIPT = "SILOOO_SITE_MESURE_SCRIPT"
+    const val SITE_MEASURE_SITE = "SILOOO_SITE_MESURE_SITE"
     const val DISCORD_CLIENT_ID = "SILOOO_DISCORD_CLIENT_ID"
     const val DISCORD_CLIENT_SECRET = "SILOOO_DISCORD_CLIENT_SECRET"
     const val XBOX_CLIENT_ID = "SILOOO_XBOX_CLIENT_ID"
@@ -382,8 +385,27 @@ object Config {
             // Les sites frères du pied de page : des adresses facultatives, lues comme la boutique.
             val sileneMcUrl = siteUrl(SITE_URL_SILENEMC, null)
             val hubyyUrl = siteUrl(SITE_URL_HUBYY, null)
+            val measure = measure()
             if (problems.size > before) return null
-            return SiteSettings(address, checkNotNull(port), shopUrl, voteSites, sileneMcUrl, hubyyUrl)
+            return SiteSettings(address, checkNotNull(port), shopUrl, voteSites, sileneMcUrl, hubyyUrl, measure)
+        }
+
+        /** Le compteur de visites : les deux variables vont ensemble, et l'origine sort de l'adresse du script. */
+        fun measure(): SiteMeasure? {
+            val script = siteUrl(SITE_MEASURE_SCRIPT, null)
+            val websiteId = env[SITE_MEASURE_SITE]?.trim()?.takeIf { it.isNotEmpty() }
+            if (script == null && websiteId == null) return null
+            if (script == null || websiteId == null) {
+                problems += "$SITE_MEASURE_SCRIPT et $SITE_MEASURE_SITE vont ensemble : poser les deux, ou aucun"
+                return null
+            }
+            val uri = runCatching { java.net.URI(script) }.getOrNull()
+            val origin = uri?.takeIf { it.scheme != null && it.authority != null }?.let { "${it.scheme}://${it.authority}" }
+            if (origin == null) {
+                problems += "$SITE_MEASURE_SCRIPT doit être une adresse complète (https://hote/script.js)"
+                return null
+            }
+            return SiteMeasure(script, websiteId, origin)
         }
 
         /** `nom|url;nom|url` : une entrée sans nom, sans url ou sans « | » refuse tout le démarrage. */

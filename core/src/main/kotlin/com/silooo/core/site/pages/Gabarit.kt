@@ -126,6 +126,13 @@ internal fun HTML.gabarit(shell: SiteShell, frame: PageFrame, content: MAIN.() -
         script(src = OOOSCAR_SCRIPT) { attributes["defer"] = "defer" }
         if (shell.direct != null) script(src = DIRECT_SCRIPT) { attributes["defer"] = "defer" }
         frame.module?.let { script(type = "module", src = it) {} }
+        // Le compteur de visites, seulement quand la mesure est posée (SiteSettings) : la page Confidentialité le décrit.
+        shell.settings.measure?.let {
+            script(src = it.scriptUrl) {
+                attributes["defer"] = "defer"
+                attributes["data-website-id"] = it.websiteId
+            }
+        }
     }
     body {
         a(href = "#contenu", classes = "passer") { +"Aller au contenu" }

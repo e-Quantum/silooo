@@ -170,7 +170,7 @@ class SiteDirectTest {
         assertEquals(listOf("public, max-age=30"), response.headers.getAll(HttpHeaders.CacheControl))
         assertEquals("nosniff", response.headers["X-Content-Type-Options"])
         assertEquals("same-origin", response.headers["Referrer-Policy"])
-        assertEquals(CONTENT_SECURITY_POLICY, response.headers["Content-Security-Policy"])
+        assertEquals(contentSecurityPolicy(null), response.headers["Content-Security-Policy"])
     }
 
     @Test

@@ -311,6 +311,29 @@ class SiteGabaritTest {
     }
 
     @Test
+    @DisplayName("Le compteur de visites : script en defer dans l'en-tête et politique élargie quand la mesure est posée, rien sinon")
+    fun measureScript() {
+        val measured = SiteSettings(measure = SiteMeasure("https://stats.exemple.test/script.js", "site-de-test", "https://stats.exemple.test"))
+        withSite(SiteMode.ATTENTE, settings = measured) { client ->
+            val response = client.get("/")
+            val html = response.bodyAsText()
+            val tag = Regex("""<script src="https://stats\.exemple\.test/script\.js"[^>]*>""").find(html)?.value
+                ?: error("pas de script du compteur dans l'en-tête")
+            assertEquals("defer", attribute(tag, "defer"))
+            assertEquals("site-de-test", attribute(tag, "data-website-id"))
+            assertEquals(
+                "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; " +
+                    "script-src 'self' https://stats.exemple.test; connect-src 'self' https://stats.exemple.test; " +
+                    "frame-ancestors 'none'",
+                response.headers["Content-Security-Policy"],
+            )
+        }
+        withSite(SiteMode.ATTENTE) { client ->
+            assertFalse(client.get("/").bodyAsText().contains("stats.exemple.test"))
+        }
+    }
+
+    @Test
     @DisplayName("Le bandeau direct n'existe qu'en bêta et en ouvert : div.direct en zone de statut, qui relit /site/direct.json, sous l'en-tête et avant le contenu")
     fun directBandOnlyWhenOpen() {
         for (mode in listOf(SiteMode.BETA, SiteMode.OUVERT)) withSite(mode) { client ->

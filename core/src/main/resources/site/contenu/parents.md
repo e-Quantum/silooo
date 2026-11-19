@@ -41,8 +41,8 @@ le tchat.
 ## Les données
 
 Le site garde le minimum : un gamertag et, si le compte Discord est relié, l'identifiant de ce compte. Il ne garde
-ni courriel, ni mot de passe, et n'utilise aucun outil de mesure. Le détail est dans la page
-[Confidentialité](/confidentialite/).
+ni courriel, ni mot de passe. Il compte ses visites sans cookie et sans savoir qui les fait. Le détail est dans la
+page [Confidentialité](/confidentialite/).
 
 ## Nous joindre
 

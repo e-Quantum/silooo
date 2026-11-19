@@ -115,4 +115,28 @@ class SiteSettingsConfigTest {
             assertEquals(Config.DEFAULT_GAME_PORT_SHOWN, published.groupValues[1].toInt())
         }
     }
+
+    @Test
+    @DisplayName("Le compteur de visites : les deux variables vont ensemble, l'origine sort de l'adresse du script")
+    fun measure() {
+        val measured = settings(
+            Config.SITE_MEASURE_SCRIPT to " https://stats.exemple.test/script.js ",
+            Config.SITE_MEASURE_SITE to " site-de-test ",
+        )
+        assertEquals(SiteMeasure("https://stats.exemple.test/script.js", "site-de-test", "https://stats.exemple.test"), measured.measure)
+        assertNull(settings().measure)
+        assertNull(settings(Config.SITE_MEASURE_SCRIPT to "", Config.SITE_MEASURE_SITE to "   ").measure)
+        for ((variable, value) in listOf(
+            Config.SITE_MEASURE_SCRIPT to "https://stats.exemple.test/script.js",
+            Config.SITE_MEASURE_SITE to "site-de-test",
+        )) {
+            val error = assertThrows<ConfigException>(variable) { settings(variable to value) }
+            assertTrue(error.message!!.contains(Config.SITE_MEASURE_SCRIPT), "${error.message}")
+            assertTrue(error.message!!.contains(Config.SITE_MEASURE_SITE), "${error.message}")
+        }
+        val bad = assertThrows<ConfigException> {
+            settings(Config.SITE_MEASURE_SCRIPT to "stats.exemple.test", Config.SITE_MEASURE_SITE to "site-de-test")
+        }
+        assertTrue(bad.message!!.contains(Config.SITE_MEASURE_SCRIPT), "${bad.message}")
+    }
 }

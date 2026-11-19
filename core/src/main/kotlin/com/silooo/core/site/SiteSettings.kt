@@ -23,4 +23,13 @@ data class SiteSettings(
     val sileneMcUrl: String? = null,
     /** `SILOOO_SITE_URL_HUBYY` : le site de Hubyy, à côté ; `null` : pas de lien. */
     val hubyyUrl: String? = null,
+    /** `SILOOO_SITE_MESURE_SCRIPT` et `SILOOO_SITE_MESURE_SITE` : le compteur de visites ; `null` : aucune mesure. */
+    val measure: SiteMeasure? = null,
 )
+
+/**
+ * Le compteur de visites (Umami, hébergé par Kr) : le script à charger, l'identifiant du site chez lui, et l'origine
+ * du script — la seule d'un autre hôte que la politique de sécurité admette (voir `contentSecurityPolicy`). Sans
+ * cookie et sans identifiant posé chez le visiteur : la page Confidentialité le décrit.
+ */
+data class SiteMeasure(val scriptUrl: String, val websiteId: String, val origin: String)

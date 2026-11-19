@@ -233,6 +233,9 @@ Lu par la direction du Discord à chaque bilan (`docs/discord-passation.md`, « 
 
 ## À faire par Kr
 
+- [ ] Relire les textes réécrits par `claude/site-mesure` (19 novembre 2026) : la Confidentialité et la page Parents
+  décrivent maintenant le compteur de visites Umami au lieu de « aucun outil de mesure » ; poser
+  `SILOOO_SITE_MESURE_SCRIPT` et `SILOOO_SITE_MESURE_SITE` dans l'environnement du VPS, puis relancer silooo-core
 - [ ] Répondre aux trois questions de [site-revision.md](site-revision.md) (T1 socle technique, T2 classement
   hebdomadaire, T3 portée Discord) ; sans réponse, la recommandation s'applique (T1 et T3 le sont déjà, décisions 15
   et 19 : à retourner si elles ne conviennent pas)
@@ -779,3 +782,10 @@ plus. Ce qui les remplace, tout à valider :
   que le retour en refusait plus de 512 (Discord en rend une trentaine). Limite portée à 4 096, chaque refus du retour
   écrit au journal avec sa raison (sans le code ni l'état), test avec un code de la forme réelle. Identifiants Discord et
   Azure posés par Kr le même jour : les deux portes sont ouvertes sur silooo.com.
+
+- **19 novembre 2026 (session SkinDocs de Kr, sur le VPS).** `claude/site-mesure` : le compteur de visites Umami
+  (stats.skindocs.org, hébergé par Kr) se pose par la configuration — `SILOOO_SITE_MESURE_SCRIPT` et
+  `SILOOO_SITE_MESURE_SITE`, les deux ensemble (`SiteMeasure` dans `SiteSettings`, lu par `Config`). Script en defer
+  dans le gabarit, politique de sécurité élargie à cette seule origine, tests de configuration et de gabarit posés.
+  Les textes réécrits de `confidentialite.md` et `parents.md` sont à valider par Kr. Demandé par Kr en séance
+  (« Oui, adapte-la », session SkinDocs).
